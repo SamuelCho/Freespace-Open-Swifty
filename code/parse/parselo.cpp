@@ -829,7 +829,7 @@ void stuff_string_until(char *pstr, char *endstr, int len)
 
 //WMC
 //Used for allocating large blocks, eg of Python code
-//Returns a null-terminated string allocated with malloc(),
+//Returns a null-terminated string allocated with vm_malloc(),
 //or NULL on failure
 //Does depth checks for the start and end strings
 //extra_chars indicates extra malloc space that should be allocated.
@@ -3116,6 +3116,85 @@ bool can_construe_as_integer(const char *text)
 }
 
 // Goober5000
+// yoinked gratefully from dbugfile.cpp
+void sprintf(SCP_string &dest, const char *format, ...)
+{
+	char buf[32];
+
+	va_list ap;
+	char *p;
+	long ival;
+	double dval;
+
+	// clear string
+	dest = "";
+
+	// Add each extra parameter to string
+	va_start(ap, format);
+
+	for (p = const_cast<char *>(format); *p; p++)
+	{
+		if (*p != '%')
+		{
+			dest += *p;
+			continue;
+		}
+
+		p++;
+		if (!*p)
+			break;	// stupid edge case
+
+		switch (*p)
+		{
+			case 'd':
+			{
+				ival = va_arg(ap, int);
+				sprintf(buf, "%d", ival);
+				dest += buf;
+				break;
+			}
+			case 'c':
+			{
+				dest += (char) va_arg(ap, char);
+				break;
+			}
+			case 'x':
+			{
+				ival = va_arg(ap, int);
+				sprintf(buf, "%x", ival);
+				dest += buf;
+				break;
+			}
+			case 'f':
+			{
+				dval = va_arg(ap, double);
+				sprintf(buf, "%f", dval);
+				dest += buf;
+				break;
+			}
+			case 's':
+			{
+				dest += va_arg(ap, char *);
+				break;
+			}
+			case '%':
+			{
+				dest += '%';	// escaped %
+				break;
+			}
+			default:
+			{
+				sprintf(buf, "N/A: %%%c", *p);
+				dest += buf;
+				break;
+			}
+		}
+	}
+
+	va_end(ap);
+}
+
+// Goober5000
 bool end_string_at_first_hash_symbol(char *src)
 {
 	char *p;
@@ -3221,6 +3300,29 @@ int replace_all(char *str, char *oldstr, char *newstr, uint max_len, int range)
 	}
 
 	return (val < 0) ? val : tally;
+}
+
+SCP_string& replace_one(SCP_string& context, const SCP_string& from, const SCP_string& to)
+{
+	size_t foundHere;
+	if ((foundHere = context.find(from, 0)) != SCP_string::npos)
+	{
+		context.replace(foundHere, from.size(), to);
+	}
+	return context;
+}
+
+// http://www.cppreference.com/wiki/string/replace
+SCP_string& replace_all(SCP_string& context, const SCP_string& from, const SCP_string& to)
+{
+	size_t lookHere = 0;
+	size_t foundHere;
+	while ((foundHere = context.find(from, lookHere)) != SCP_string::npos)
+	{
+		context.replace(foundHere, from.size(), to);
+		lookHere = foundHere + to.size();
+	}
+	return context;
 }
 
 // WMC
