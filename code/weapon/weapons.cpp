@@ -455,15 +455,13 @@ missile_obj *missile_obj_return_address(int index)
 }
 
 //	Return the index of Weapon_info[].name that is *name.
-int weapon_info_lookup(char *name)
+int weapon_info_lookup(const char *name)
 {
-	int	i;
-
 	// bogus
-	if (!name)
+	if (name == NULL)
 		return -1;
 
-	for (i=0; i<Num_weapon_types; i++)
+	for (int i=0; i<Num_weapon_types; i++)
 		if (!stricmp(name, Weapon_info[i].name))
 			return i;
 
@@ -1043,7 +1041,7 @@ int parse_weapon(int subtype, bool replace)
 		backspace(fname);
 	}
 
-	int w_id = weapon_name_lookup(fname);
+	int w_id = weapon_info_lookup(fname);
 
 	if(w_id != -1)
 	{
@@ -4923,6 +4921,7 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 	if ((parent_objp != NULL) && (The_mission.ai_profile->flags & AIPF_USE_ADDITIVE_WEAPON_VELOCITY)) {
 		vm_vec_add2( &objp->phys_info.vel, &parent_objp->phys_info.vel );
 		wp->weapon_max_vel += vm_vec_mag( &parent_objp->phys_info.vel );
+		objp->phys_info.speed = vm_vec_mag(&objp->phys_info.vel);
 	}
 
 	// create the corkscrew
@@ -5749,19 +5748,6 @@ void weapon_detonate(object *objp)
 	}
 }
 
-//	Return the Weapon_info[] index of the weapon with name *name.
-int weapon_name_lookup(char *name)
-{
-	int	i;
-
-	for ( i=0; i < Num_weapon_types; i++) {
-		if (!stricmp(name, Weapon_info[i].name)) {
-			return i;
-		}
-	}
-
-	return -1;
-}
 
 // Group_id:  If you should quad lasers, they should all have the same group id.  
 // This will be used to optimize lighting, since each group only needs to cast one light.

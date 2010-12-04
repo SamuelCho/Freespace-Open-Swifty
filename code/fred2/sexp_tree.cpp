@@ -2582,6 +2582,10 @@ int sexp_tree::get_default_value(sexp_list_item *item, int op, int i)
 			str = "Music";
 			break;
 
+		case OPF_POST_EFFECT:
+			str = "<Effect Name>";
+			break;
+
 		default:
 			str = "<new default required!>";
 			break;
@@ -2668,6 +2672,7 @@ int sexp_tree::query_default_argument_available(int op, int i)
 		case OPF_EXPLOSION_OPTION:
 		case OPF_AUDIO_VOLUME_OPTION:
 		case OPF_WEAPON_BANK_NUMBER:
+		case OPF_MESSAGE_OR_STRING:
 			return 1;
 
 		case OPF_SHIP:
@@ -4389,6 +4394,10 @@ sexp_list_item *sexp_tree::get_listing_opf(int opf, int parent_node, int arg_ind
 			list = get_listing_opf_weapon_banks();
 			break;
 
+		case OPF_MESSAGE_OR_STRING:
+			list = get_listing_opf_message();
+			break;
+
 		default:
 			Int3();  // unknown OPF code
 			list = NULL;
@@ -4983,6 +4992,8 @@ sexp_list_item *sexp_tree::get_listing_opf_ship_with_bay()
 	object *objp;
 	sexp_list_item head;
 
+	head.add_data("<no anchor>");
+
 	for ( objp = GET_FIRST(&obj_used_list); objp != END_OF_LIST(&obj_used_list); objp = GET_NEXT(objp) )
 	{
 		if ( (objp->type == OBJ_SHIP) || (objp->type == OBJ_START) )
@@ -4994,8 +5005,6 @@ sexp_list_item *sexp_tree::get_listing_opf_ship_with_bay()
 			}
 		}
 	}
-
-	head.add_data("<no anchor>");
 
 	return head.next;
 }
@@ -5050,7 +5059,7 @@ sexp_list_item *sexp_tree::get_listing_opf_arrival_anchor_all()
 			char tmp[NAME_LENGTH + 15];
 			stuff_special_arrival_anchor_name(tmp, i, restrict_to_players, 0);
 
-			head.add_data(tmp);
+			head.add_data_dup(tmp);
 		}
 	}
 
@@ -5207,6 +5216,7 @@ sexp_list_item *sexp_tree::get_listing_opf_who_from()
 	//head.add_data("<any allied>");
 	head.add_data("#Command");
 	head.add_data("<any wingman>");
+	head.add_data("<none>");
 
 	ptr = GET_FIRST(&obj_used_list);
 	while (ptr != END_OF_LIST(&obj_used_list)) {
@@ -5238,7 +5248,7 @@ sexp_list_item *sexp_tree::get_listing_opf_sound_environment()
 	for (int i = 0; i  < (int)EFX_presets.size(); i++) {
 		// ugh
 		char *text = const_cast<char*>(EFX_presets[i].name.c_str());
-		head.add_data(text);
+		head.add_data_dup(text);
 	}
 
 	return head.next;
@@ -5732,10 +5742,11 @@ sexp_list_item *sexp_tree::get_listing_opf_post_effect()
 {
 	unsigned int i;
 	sexp_list_item head;
+
 	SCP_vector<SCP_string> ppe_names;
 	get_post_process_effect_names(ppe_names);
 	for (i=0; i < ppe_names.size(); i++) {
-		head.add_data(const_cast<char*>(ppe_names[i].c_str()));
+		head.add_data_dup(const_cast<char*>(ppe_names[i].c_str()));
 	}
 
 	return head.next;
