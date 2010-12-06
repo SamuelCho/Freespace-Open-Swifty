@@ -144,7 +144,10 @@ ogl_extension GL_Extensions[NUM_OGL_EXTENSIONS] =
 	{ false, false, 1, { "GL_ARB_fragment_shader" }, 0, { NULL } },
 
 	// shader version 3.0 detection extensions (if any of these extensions exist then we should have a SM3.0 compatible card, hopefully)
-	{ false, false, 3, { "GL_ARB_shader_texture_lod", "GL_NV_vertex_program3", "GL_ATI_shader_texture_lod" }, 0, { NULL } }
+	{ false, false, 3, { "GL_ARB_shader_texture_lod", "GL_NV_vertex_program3", "GL_ATI_shader_texture_lod" }, 0, { NULL } },
+
+		{ false, false, 1, { "GL_ARB_occlusion_query" }, 8, { "glGenQueriesARB", "glDeleteQueriesARB", "glIsQueryARB", "glBeginQueryARB",
+		"glEndQueryARB", "glGetQueryivARB", "glGetQueryObjectivARB", "glGetQueryObjectuivARB"} }
 };
 
 // ogl_funcion is:
@@ -213,7 +216,15 @@ ogl_function GL_Functions[NUM_OGL_FUNCTIONS] =
 	{ "glUniform3fvARB", 0 },
 	{ "glUniform4fvARB", 0 },
 	{ "glUniform1iARB", 0 },
-	{ "glUniformMatrix4fvARB", 0 }
+	{ "glUniformMatrix4fvARB", 0 },
+	{ "glGenQueriesARB", 0 },
+	{ "glDeleteQueriesARB", 0 },
+	{ "glIsQueryARB", 0 },
+	{ "glBeginQueryARB", 0 },
+	{ "glEndQueryARB", 0 },
+	{ "glGetQueryivARB", 0 },
+	{ "glGetQueryObjectivARB", 0 },
+	{ "glGetQueryObjectuivARB", 0 }
 };
 
 // special extensions (only special functions are supported at the moment)

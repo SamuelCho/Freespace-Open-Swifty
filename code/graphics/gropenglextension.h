@@ -73,8 +73,9 @@ extern ogl_function GL_EXT_Special[];
 #define OGL_ARB_VERTEX_SHADER				22
 #define OGL_ARB_FRAGMENT_SHADER				23
 #define OGL_SM30							24
+#define OGL_ARB_OCCLUSION_QUERY				25
 
-#define NUM_OGL_EXTENSIONS					25
+#define NUM_OGL_EXTENSIONS					26
 
 
 // Functions
@@ -138,8 +139,16 @@ extern ogl_function GL_EXT_Special[];
 #define OGL_UNIFORM4FV						53
 #define OGL_UNIFORM1I						54
 #define OGL_UNIFORM_MATRIX4FV				55
+#define OGL_GEN_QUERIES						56
+#define OGL_DELETE_QUERIES					57
+#define OGL_IS_QUERY						58
+#define OGL_BEGIN_QUERY						59
+#define OGL_END_QUERY						60
+#define OGL_GET_QUERYIV						61
+#define OGL_GET_QUERY_OBJECTIV				62
+#define OGL_GET_QUERY_OBJECTUIV				63
 
-#define NUM_OGL_FUNCTIONS					56
+#define NUM_OGL_FUNCTIONS					64
 
 
 // special extensions/functions (OS specific, non-GL stuff)
@@ -230,6 +239,14 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define PFNGLUNIFORM4FVARBPROC					glUnifrom4fvARBProcPtr
 #define PFNGLUNIFORM1IARBPROC					glUniform1iARBProcPtr
 #define PFNGLUNIFORMMATRIX4FVARBPROC			glUniformMatrix4fvARBProcPtr
+#define PFNGLGENQUERIESARBPROC					glGenQueriesARBProcPtr
+#define PFNGLDELETEQUERIESARBPROC				glDeleteQueriesARBProcPtr
+#define PFNGLISQUERYARBPROC						glIsQueryARBProcPtr
+#define PFNGLBEGINQUERYARBPROC					glBeginQueryARBProcPtr
+#define PFNGLENDQUERYARBPROC					glEndQueryARBProcPtr
+#define PFNGLGETQUERYIVARBPROC					glGetQueryivARBProcPtr
+#define PFNGLGETQUERYOBJECTIVARBPROC			glGetQueryObjectivARBProcPtr
+#define PFNGLGETQUERYOBJECTUIVARBPROC			glGetQueryObjectuivARBProcPtr
 #endif	// __APPLE__
 
 #define vglFogCoordfEXT					GLEXT_CALL( OGL_FOG_COORDF, PFNGLFOGCOORDFEXTPROC )
@@ -292,7 +309,14 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define vglUniform4fvARB				GLEXT_CALL( OGL_UNIFORM3FV, PFNGLUNIFORM4FVARBPROC )
 #define vglUniform1iARB					GLEXT_CALL( OGL_UNIFORM1I, PFNGLUNIFORM1IARBPROC )
 #define vglUniformMatrix4fvARB			GLEXT_CALL( OGL_UNIFORM_MATRIX4FV, PFNGLUNIFORMMATRIX4FVARBPROC )
-
+#define vglGenQueriesARB				GLEXT_CALL( OGL_GEN_QUERIES, PFNGLGENQUERIESARBPROC )
+#define vglDeleteQueriesARB				GLEXT_CALL( OGL_DELETE_QUERIES, PFNGLDELETEQUERIESARBPROC )
+#define vglIsQueryARB					GLEXT_CALL( OGL_IS_QUERY, PFNGLISQUERYARBPROC )
+#define	vglBeginQueryARB				GLEXT_CALL( OGL_BEGIN_QUERY, PFNGLBEGINQUERYARBPROC )
+#define	vglEndQueryARB					GLEXT_CALL( OGL_END_QUERY, PFNGLENDQUERYARBPROC )
+#define	vglGetQueryivARB				GLEXT_CALL( OGL_GET_QUERYIV, PFNGLGETQUERYIVARBPROC )
+#define	vglGetQueryObjectivARB			GLEXT_CALL( OGL_GET_QUERY_OBJECTIV, PFNGLGETQUERYOBJECTIVARBPROC )
+#define	vglGetQueryObjectuivARB			GLEXT_CALL( OGL_GET_QUERY_OBJECTUIV, PFNGLGETQUERYOBJECTUIVARBPROC )
 
 // special extensions
 #define vwglSwapIntervalEXT			GLEXT_SPC_CALL( OGL_SPC_WGL_SWAP_INTERVAL, PFNWGLSWAPINTERVALEXTPROC )
