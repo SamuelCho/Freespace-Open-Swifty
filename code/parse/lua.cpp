@@ -12,6 +12,7 @@
 #include "globalincs/linklist.h"
 #include "globalincs/pstypes.h"
 #include "hud/hudbrackets.h"
+#include "hud/hudescort.h"
 #include "hud/hudconfig.h"
 #include "hud/hudgauges.h"
 #include "iff_defs/iff_defs.h"
@@ -51,7 +52,7 @@ SCP_vector<ade_table_entry> Ade_table_entries;
 //*************************Lua classes************************
 
 //Library class
-//This is what you define a variable of to make new libraryes
+//This is what you define a variable of to make new libraries
 class ade_lib : public ade_lib_handle {
 public:
 	ade_lib(char *in_name, ade_lib_handle *parent=NULL, char *in_shortname=NULL, char *in_desc=NULL) {
@@ -1702,6 +1703,41 @@ ADE_VIRTVAR(Name, l_GameState,"string", "Game state name", "string", "Game state
 	}
 
 	return ade_set_args(L, "s", GS_state_text[sdx]);
+}
+
+//**********HANDLE: HUD Gauge
+ade_obj<HudGauge> l_HudGauge("HudGauge", "HUD Gauge handle");
+
+ADE_VIRTVAR(Name, l_HudGauge, "string", "Custom HUD Gauge name", "string", "Custom HUD Gauge name, or nil if handle is invalid")
+{
+	HudGauge* gauge;
+
+	if (!ade_get_args(L, "o", l_HudGauge.GetPtr(&gauge)))
+		return ADE_RETURN_NIL;
+
+	if (gauge->getConfigType() != HUD_OBJECT_CUSTOM)
+		return ADE_RETURN_NIL;
+
+	return ade_set_args(L, "s", gauge->getCustomGaugeName());
+}
+
+ADE_VIRTVAR(Text, l_HudGauge, "string", "Custom HUD Gauge text", "string", "Custom HUD Gauge text, or nil if handle is invalid")
+{
+	HudGauge* gauge;
+	char* text = NULL;
+
+	if (!ade_get_args(L, "o|s", l_HudGauge.GetPtr(&gauge), text))
+		return ADE_RETURN_NIL;
+
+	if (gauge->getConfigType() != HUD_OBJECT_CUSTOM)
+		return ADE_RETURN_NIL;
+
+	if (ADE_SETTING_VAR && text != NULL)
+	{
+		gauge->updateCustomGaugeText(text);
+	}
+
+	return ade_set_args(L, "s", gauge->getCustomGaugeText());
 }
 
 //**********HANDLE: model
@@ -3883,6 +3919,9 @@ ADE_INDEXER(l_ModelTextures, "texture", "number Index/string TextureName", "text
 				tinfo = &tmap->textures[tnum];
 		}
 	}
+	
+	if(tinfo == NULL)
+		return ade_set_error(L, "o", l_Texture.Set(-1));
 
 	//LuaError(L, "%d: %d", lua_type(L,lua_upvalueindex(2)), lua_toboolean(L,lua_upvalueindex(2)));
 	if (ADE_SETTING_VAR) {
@@ -6370,7 +6409,7 @@ ADE_FUNC(kill, l_Ship, "[object Killer]", "Kills the ship. Set \"Killer\" to the
 		return ADE_RETURN_NIL;
 
 	if(!killer->IsValid())
-		killer = NULL;
+		return ADE_RETURN_NIL;
 
 	//Ripped straight from shiphit.cpp
 	float percent_killed = -get_hull_pct(victim->objp);
@@ -8791,7 +8830,11 @@ int l_cf_get_path_id(char* n_path)
 	uint i;
 
 	size_t path_len = strlen(n_path);
-	char *buf = (char*) malloc((strlen(n_path)+1) * sizeof(char));
+	char *buf = (char*) vm_malloc((strlen(n_path)+1) * sizeof(char));
+	
+	if (!buf) 
+		return CF_TYPE_INVALID;
+		
 	strcpy(buf, n_path);
 
 	//Remove trailing slashes
@@ -8812,10 +8855,15 @@ int l_cf_get_path_id(char* n_path)
 	}
 	for(i = 0; i < CF_MAX_PATH_TYPES; i++)
 	{
-		if(Pathtypes[i].path != NULL && !stricmp(buf, Pathtypes[i].path))
+		if(Pathtypes[i].path != NULL && !stricmp(buf, Pathtypes[i].path)) {
+			vm_free(buf);
+			buf = NULL;
 			return Pathtypes[i].index;
+		}
 	}
 
+	vm_free(buf);
+	buf = NULL;
 	return CF_TYPE_INVALID;
 }
 
@@ -9123,7 +9171,7 @@ ADE_FUNC(getTrackIRZ, l_Mouse, NULL, "Gets z position from last update", "number
 	return ade_set_args(L, "f", gTirDll_TrackIR.GetZ());
 }
 
-//**********LIBRARY: Controls library
+//**********LIBRARY: HUD library
 ade_lib l_HUD("HUD", NULL, "hu", "HUD library");
 
 ADE_VIRTVAR(HUDDrawn, l_HUD, "boolean", "Current HUD draw status", "boolean", "If the HUD is drawn or not")
@@ -9179,6 +9227,21 @@ ADE_FUNC(getHUDGaugeColor, l_HUD, "number (index number of the gauge)", "Color u
 	color c = HUD_config.clr[idx];
 	
 	return ade_set_args(L, "iiii", (int) c.red, (int) c.green, (int) c.blue, (int) c.alpha);	
+}
+
+ADE_FUNC(getHUDGaugeHandle, l_HUD, "string Name", "Returns a handle to a specified HUD gauge", "HudGauge", "HUD Gauge handle, or nil if invalid")
+{
+	char* name;
+	if (!ade_get_args(L, "s", &name))
+		return ADE_RETURN_NIL;
+	HudGauge* gauge = NULL;
+
+	gauge = hud_get_gauge(name);
+
+	if (gauge == NULL)
+		return ADE_RETURN_NIL;
+	else
+		return ade_set_args(L, "o", l_HudGauge.Set(*gauge));
 }
 
 //**********LIBRARY: Graphics
@@ -10002,7 +10065,7 @@ ADE_FUNC(drawString, l_Graphics, "string Message, [number X1, number Y1, number 
 		int *linelengths = new int[MAX_TEXT_LINES];
 		char **linestarts = new char*[MAX_TEXT_LINES];
 
-		int num_lines = split_str(s, x2-x, linelengths, linestarts, MAX_TEXT_LINES);
+		num_lines = split_str(s, x2-x, linelengths, linestarts, MAX_TEXT_LINES);
 
 		//Make sure we don't go over size
 		int line_ht = gr_get_font_height();

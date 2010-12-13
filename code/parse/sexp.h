@@ -38,10 +38,11 @@ struct ship;
 #endif
 */
 
-#define MAX_SEXP_VARIABLES 100
+#define MAX_SEXP_VARIABLES 250
 
 #define	MAX_SEXP_TEXT	2000
 #define	MAX_OPERATORS	1024  // Yes, this is used, but not by the Sexp code.
+#define MAX_EVENT_SIZE	16384
 
 // Operator argument formats (data types of an argument)
 #define	OPF_NONE				1		// argument cannot exist at this position if it's this
@@ -119,7 +120,9 @@ struct ship;
 #define OPF_SOUND_ENVIRONMENT_OPTION 73	// Goober5000 - one of Taylor's options
 #define OPF_EXPLOSION_OPTION	74		// Goober5000
 #define OPF_AUDIO_VOLUME_OPTION 75		// The E
-#define OPF_WEAPON_BANK_NUMBER	76		// Karajomra - The number of a primary/secondary/tertiary weapon bank or all of them
+#define OPF_WEAPON_BANK_NUMBER	76		// Karajorma - The number of a primary/secondary/tertiary weapon bank or all of them
+#define OPF_MESSAGE_OR_STRING	77		// Goober5000 - provides a list of messages like OPF_MESSAGE, but also allows entering arbitrary strings
+#define OPF_HUD_GAUGE			78		// The E
 
 // Operand return types
 #define	OPR_NUMBER				1	// returns number
@@ -598,6 +601,14 @@ struct ship;
 #define OP_IS_FACING						(0x00db | OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // The E
 #define OP_FORCE_GLIDE						(0x00dc	| OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // The E
 #define OP_TURRET_SET_RATE_OF_FIRE			(0x00dd | OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // FUBAR
+#define OP_HUD_SET_MESSAGE					(0x00de	| OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // The E
+#define OP_SHIP_SUBSYS_NO_REPLACE			(0x00df	| OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // FUBAR
+#define OP_SHIP_SUBSYS_NO_LIVE_DEBRIS		(0x00e0	| OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // FUBAR
+#define OP_SHIP_SUBSYS_VANISHED				(0x00e1	| OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // FUBAR
+#define OP_SHIP_SUBSYS_IGNORE_IF_DEAD		(0x00e2	| OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // FUBAR
+#define OP_HUD_SET_DIRECTIVE				(0x00e3 | OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // The E
+#define OP_HUD_GAUGE_SET_ACTIVE				(0x00e4 | OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // The E
+#define OP_HUD_ACTIVATE_GAUGE_TYPE			(0x00e5 | OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // The E
 
 /* made obsolete by Goober5000
 // debugging sexpressions
@@ -1015,9 +1026,12 @@ void flush_sexp_tree(int node);
 // sexp_variable
 void sexp_modify_variable(char *text, int index, bool sexp_callback = true);
 int get_index_sexp_variable_from_node (int node);
-int get_index_sexp_variable_name(const char *temp_name);
+int get_index_sexp_variable_name(const char *text);
+int get_index_sexp_variable_name(SCP_string &text);	// Goober5000
 int get_index_sexp_variable_name_special(const char *text);	// Goober5000
+int get_index_sexp_variable_name_special(SCP_string &text, size_t startpos);	// Goober5000
 bool sexp_replace_variable_names_with_values(char *text, int max_len);	// Goober5000
+bool sexp_replace_variable_names_with_values(SCP_string &text);	// Goober5000
 int get_nth_variable_index(int nth, int variable_type);	// Karajorma
 int sexp_variable_count();
 int sexp_campaign_persistent_variable_count();	// Goober5000

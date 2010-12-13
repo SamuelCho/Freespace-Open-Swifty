@@ -500,25 +500,24 @@ float do_subobj_hit_stuff(object *ship_obj, object *other_obj, vec3d *hitpos, fl
 	int	count = 0;
 	for ( subsys=GET_FIRST(&ship_p->subsys_list); subsys != END_OF_LIST(&ship_p->subsys_list); subsys = GET_NEXT(subsys) )
 	{
-		#ifndef NDEBUG
-			//	Debug option.  If damage is negative of subsystem type, then just destroy that subsystem.
-			if (damage < 0.0f) {
-				// single player or multiplayer
-				Assert(Player_ai->targeted_subsys != NULL);
-				if ( (subsys == Player_ai->targeted_subsys) && (subsys->current_hits > 0) ) {
-					Assert(subsys->system_info->type == (int) -damage);
-					ship_p->subsys_info[subsys->system_info->type].current_hits -= subsys->current_hits;
-					if (ship_p->subsys_info[subsys->system_info->type].current_hits < 0) {
-						ship_p->subsys_info[subsys->system_info->type].current_hits = 0.0f;
-					}
-					subsys->current_hits = 0.0f;
-					do_subobj_destroyed_stuff( ship_p, subsys, hitpos );
-					continue;
-				} else {
-					continue;
+		//Deal with cheat correctly. If damage is the negative of the subsystem type, then we'll just kill the subsystem
+		//See process_debug_keys() in keycontrol.cpp for details. 
+		if (damage < 0.0f) {
+			// single player or multiplayer
+			Assert(Player_ai->targeted_subsys != NULL);
+			if ( (subsys == Player_ai->targeted_subsys) && (subsys->current_hits > 0) ) {
+				Assert(subsys->system_info->type == (int) -damage);
+				ship_p->subsys_info[subsys->system_info->type].current_hits -= subsys->current_hits;
+				if (ship_p->subsys_info[subsys->system_info->type].current_hits < 0) {
+					ship_p->subsys_info[subsys->system_info->type].current_hits = 0.0f;
 				}
+				subsys->current_hits = 0.0f;
+				do_subobj_destroyed_stuff( ship_p, subsys, hitpos );
+				continue;
+			} else {
+				continue;
 			}
-		#endif
+		}
 		
 		if (subsys->current_hits > 0.0f) {
 			float	dist;
@@ -2294,7 +2293,7 @@ void ship_apply_local_damage(object *ship_obj, object *other_obj, vec3d *hitpos,
 
 	//	If got hit by a weapon, tell the AI so it can react.  Only do this line in single player,
 	// or if I am the master in a multiplayer game
-	if ( other_obj->type == OBJ_WEAPON && ( !(Game_mode & GM_MULTIPLAYER) || MULTIPLAYER_MASTER )) {
+	if ((other_obj->type == OBJ_WEAPON) && ( !(Game_mode & GM_MULTIPLAYER) || MULTIPLAYER_MASTER )) {
 		//	If weapon hits ship on same team and that ship not targeted and parent of weapon not player,
 		//	don't do damage.
 		//	Ie, player can always do damage.  AI can only damage team if that ship is targeted.
@@ -2314,7 +2313,8 @@ void ship_apply_local_damage(object *ship_obj, object *other_obj, vec3d *hitpos,
 	}
 
 	// only want to check the following in single player or if I am the multiplayer game server
-	if ( !MULTIPLAYER_CLIENT && !(Game_mode & GM_DEMO_PLAYBACK) && ((other_obj->type == OBJ_SHIP) || (other_obj->type == OBJ_WEAPON)) ){
+	// Added OBJ_BEAM for traitor detection - FUBAR
+	if ( !MULTIPLAYER_CLIENT && !(Game_mode & GM_DEMO_PLAYBACK) && ((other_obj->type == OBJ_SHIP) || (other_obj->type == OBJ_WEAPON) || (other_obj->type == OBJ_BEAM)) ){
 		ai_ship_hit(ship_obj, other_obj, hitpos, quadrant, hit_normal);
 	}
 
