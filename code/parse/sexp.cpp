@@ -494,11 +494,15 @@ sexp_oper Operators[] = {
 	{ "hud-disable-except-messages",	OP_HUD_DISABLE_EXCEPT_MESSAGES,	1, 1 },	// Goober5000
 	{ "hud-set-text",			OP_HUD_SET_TEXT,				2, 2 },	//WMCoolmon
 	{ "hud-set-text-num",			OP_HUD_SET_TEXT_NUM,			2, 2 },	//WMCoolmon
+	{ "hud-set-message",			OP_HUD_SET_MESSAGE,				2, 2 }, //The E
+	{ "hud-set-directive",			OP_HUD_SET_DIRECTIVE,			2, 2 }, //The E
 	{ "hud-set-coords",				OP_HUD_SET_COORDS,				3, 3 },	//WMCoolmon
 	{ "hud-set-frame",				OP_HUD_SET_FRAME,				2, 2 },	//WMCoolmon
 	{ "hud-set-color",				OP_HUD_SET_COLOR,				4, 4 }, //WMCoolmon
 	{ "hud-set-max-targeting-range",	OP_HUD_SET_MAX_TARGETING_RANGE,		1, 1 }, // Goober5000
 	{ "hud-display-gauge",			OP_HUD_DISPLAY_GAUGE,		2, 2 },
+	{ "hud-gauge-set-active",			OP_HUD_GAUGE_SET_ACTIVE,		2, 2 },
+	{ "hud-activate-gauge-type",		OP_HUD_ACTIVATE_GAUGE_TYPE,		2, 2},
 
 /*	made obsolete by Goober5000
 	{ "error",	OP_INT3,	0, 0 },
@@ -714,6 +718,8 @@ int Num_sound_environment_options = 3;
 char *Adjust_audio_options[] = { "Music", "Voice", "Effects" };
 int Num_adjust_audio_options = 3;
 int audio_volume_option_lookup(char *text);
+
+int hud_gauge_type_lookup(char* name);
 
 // for explosions - Goober5000
 #define EO_DAMAGE			0
@@ -1380,6 +1386,22 @@ int query_sexp_args_count(int node, bool only_valid_args = false)
 	return count;
 }
 
+
+//returns 0 if the number of arguments for the supplied operation is wrong, 1 otherwise.
+//Needed to fix bug with sexps like send-message list which have arguments that need to be supplied as a block
+int check_operator_argument_count(int count, int op)
+{
+	if (count < Operators[op].min || count > Operators[op].max)
+		return 0;
+
+	//send-message-list has arguments as blocks of 4
+	if (op == OP_SEND_MESSAGE_LIST)
+		if (count % 4 != 0)
+			return 0;
+
+	return 1;
+}
+
 // returns 0 if ok, negative if there's an error in expression..
 // See the returns types in sexp.h
 
@@ -1434,7 +1456,8 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 	}
 
 	count = query_sexp_args_count(op_node);
-	if (count < Operators[op].min || count > Operators[op].max)
+
+	if (!check_operator_argument_count(count, op))
 		return SEXP_CHECK_BAD_ARG_COUNT;  // incorrect number of arguments
 
 	// Goober5000 - if this is a list of stuff that has the special argument as
@@ -2458,7 +2481,20 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 				break;
 
 			case OPF_AUDIO_VOLUME_OPTION:
+				if (type2 != SEXP_ATOM_STRING) {
+					return SEXP_CHECK_TYPE_MISMATCH;
+				}
+
 				if (audio_volume_option_lookup(CTEXT(node)) == -1)
+					return SEXP_CHECK_TYPE_MISMATCH;
+				break;
+
+			case OPF_HUD_GAUGE:
+				if (type2 != SEXP_ATOM_STRING) {
+					return SEXP_CHECK_TYPE_MISMATCH;
+				}
+
+				if (hud_gauge_type_lookup(CTEXT(node)) == -1)
 					return SEXP_CHECK_TYPE_MISMATCH;
 				break;
 
@@ -2854,7 +2890,7 @@ int get_sexp(char *token)
 			int len = strcspn(Mp + 1, "\"");
 			
 			Assert(Mp[len + 1] == '\"');    // hit EOF first (unterminated string)
-			Assert(len < TOKEN_LENGTH);  // token is too long.
+			Assertion(len < TOKEN_LENGTH, "Token %s is too long. Needs to be shorter than 31 characters.", Mp);  // token is too long.
 
 			// check if string variable
 			if ( *(Mp + 1) == SEXP_VARIABLE_CHAR ) {
@@ -8092,10 +8128,14 @@ void sexp_change_iff_color(int n)
 	{
 		n = CDR(n);
 		if(n == -1){
-			Warning(LOCATION, "Detected incomplete color parameter list in sexp-change_iff_color");
+			Warning(LOCATION, "Detected incomplete color parameter list in sexp-change_iff_color\n");
 			return;
 		}
 		rgb[i] = eval_num(n);
+		if (rgb[i] > 255) {
+			Warning(LOCATION, "Invalid argument for iff color in sexp-change-iff-color. Valid range is 0 to 255.\n");
+			rgb[i] = 255;
+		}
 	}
 	alternate_iff_color = iff_init_color(rgb[0],rgb[1],rgb[2]);
 
@@ -8500,11 +8540,12 @@ void multi_sexp_hud_disable_except_messages()
 void sexp_hud_set_text_num(int n)
 {
 	char* gaugename = CTEXT(n);
+	char tmp[256] = "";
 
-	gauge_info* cg = hud_get_gauge(gaugename);
-	if(cg)
-	{
-		sprintf( HUD_CHAR(current_hud, cg->text_dest), "%d", eval_num(CDR(n)) );
+	HudGauge* cg = hud_get_gauge(gaugename);
+	if(cg) {
+		sprintf( tmp, "%d", eval_num(CDR(n)) );
+		cg->updateCustomGaugeText(tmp);
 	}
 }
 
@@ -8513,10 +8554,59 @@ void sexp_hud_set_text(int n)
 	char* gaugename = CTEXT(n);
 	char* text = CTEXT(CDR(n));
 
-	gauge_info* cg = hud_get_gauge(gaugename);
-	if(cg)
-	{
-		strcpy(HUD_CHAR(current_hud, cg->text_dest), text);
+	HudGauge* cg = hud_get_gauge(gaugename);
+	if(cg) {
+		cg->updateCustomGaugeText(text);
+	}
+}
+
+void sexp_hud_set_message(int n)
+{
+	char* gaugename = CTEXT(n);
+	char* text = CTEXT(CDR(n));
+	char message[MESSAGE_LENGTH];
+
+	for (int i = 0; i < Num_messages; i++) {
+		if ( !stricmp(text, Messages[i].name) ) {
+			strcpy_s(message, Messages[i].message);
+
+			sexp_replace_variable_names_with_values(message, NAME_LENGTH);
+
+			if (strlen(message) > NAME_LENGTH) {
+				WarningEx(LOCATION, "Message %s is too long for use in a HUD gauge. Please shorten it to 32 Characters or less.", Messages[i].name);
+			}
+
+			HudGauge* cg = hud_get_gauge(gaugename);
+			if(cg) {
+				cg->updateCustomGaugeText(message);
+			} else {
+				WarningEx(LOCATION, "Could not find a hud gauge named %s\n", gaugename);
+			}
+			return;
+		}
+	}
+
+	WarningEx(LOCATION, "sexp_hud_set_message couldn't find a message by the name of %s in the mission\n", text);
+}
+
+void sexp_hud_set_directive(int n)
+{
+	char* gaugename = CTEXT(n);
+	char* text = CTEXT(CDR(n));
+	char message[MESSAGE_LENGTH];
+
+	message_translate_tokens(message, text);
+
+	if (strlen(message) > NAME_LENGTH) {
+		WarningEx(LOCATION, "Message %s is too long for use in a HUD gauge. Please shorten it to 32 Characters or less.", message);
+		return;
+	}
+
+	HudGauge* cg = hud_get_gauge(gaugename);
+	if(cg) {
+		cg->updateCustomGaugeText(message);
+	} else {
+		WarningEx(LOCATION, "Could not find a hud gauge named %s\n", gaugename);
 	}
 }
 
@@ -8526,11 +8616,9 @@ void sexp_hud_set_coords(int n)
 	int coord_x = eval_num(CDR(n));
 	int coord_y = eval_num(CDR(CDR(n)));
 
-	gauge_info * cg = hud_get_gauge(gaugename);
-	if(cg)
-	{
-		HUD_INT(current_hud, cg->coord_dest)[0] = coord_x;
-		HUD_INT(current_hud, cg->coord_dest)[1] = coord_y;
+	HudGauge* cg = hud_get_gauge(gaugename);
+	if(cg) {
+		cg->updateCustomGaugeCoords(coord_x, coord_y);
 	}
 }
 
@@ -8539,12 +8627,10 @@ void sexp_hud_set_frame(int n)
 	char* gaugename = CTEXT(n);
 	int frame_num = eval_num(CDR(n));
 
-	gauge_info * cg = hud_get_gauge(gaugename);
-	if(cg)
-	{
-		*HUD_INT(current_hud, cg->frame_dest) = frame_num;
+	HudGauge* cg = hud_get_gauge(gaugename);
+	if(cg) {
+		cg->updateCustomGaugeFrame(frame_num);
 	}
-	return;
 }
 
 void sexp_hud_set_color(int n)
@@ -8554,12 +8640,9 @@ void sexp_hud_set_color(int n)
 	ubyte green = (ubyte) eval_num(CDR(CDR(n)));
 	ubyte blue = (ubyte) eval_num(CDR(CDR(CDR(n))));
 
-	gauge_info * cg = hud_get_gauge(gaugename);
-	if(cg)
-	{
-		HUD_COLOR(current_hud, cg->color_dest)->red = red;
-		HUD_COLOR(current_hud, cg->color_dest)->green = green;
-		HUD_COLOR(current_hud, cg->color_dest)->blue = blue;
+	HudGauge* cg = hud_get_gauge(gaugename);
+	if(cg) {
+		cg->updateColor(red, green, blue, (HUD_color_alpha+1)*16);
 	}
 }
 
@@ -8583,6 +8666,49 @@ void sexp_hud_display_gauge(int n) {
 
 	if ( stricmp(SEXP_HUD_GAUGE_WARPOUT, gauge) == 0 ) {
 		Sexp_hud_display_warpout = (show_for > 1)? timestamp(show_for) : (show_for);
+	} 
+}
+
+void sexp_hud_gauge_set_active(int n) {
+	HudGauge* hg;
+	char* name = CTEXT(n);
+	bool active = (is_sexp_true(CDR(n)) != 0);
+
+	hg = hud_get_gauge(name);
+
+	if (hg != NULL) {
+		hg->updateActive(active);
+	}
+}
+
+int hud_gauge_type_lookup(char* name) {
+	for(int i = 0; i < Num_hud_gauge_types; i++) {
+		if(!stricmp(name, Hud_gauge_types[i].name))
+			return Hud_gauge_types[i].def;
+	}
+	return -1;
+}
+
+void sexp_hud_activate_gauge_type(int n) {
+	int config_type = hud_gauge_type_lookup(CTEXT(n));
+	bool active = (is_sexp_true(CDR(n)) != 0);
+	
+	if (config_type != -1) { 
+		if(Ship_info[Player_ship->ship_info_index].hud_gauges.size() > 0) {
+			int num_gauges = Ship_info[Player_ship->ship_info_index].hud_gauges.size();
+
+			for(int i = 0; i < num_gauges; i++) {
+				if (Ship_info[Player_ship->ship_info_index].hud_gauges[i]->getObjectType() == config_type)
+					Ship_info[Player_ship->ship_info_index].hud_gauges[i]->updateSexpOverride(!active);
+			}
+		} else {
+			int num_gauges = default_hud_gauges.size();
+
+			for(int i = 0; i < num_gauges; i++) {
+				if (default_hud_gauges[i]->getObjectType() == config_type)
+					default_hud_gauges[i]->updateSexpOverride(!active);
+			}
+		}
 	}
 }
 
@@ -14548,6 +14674,7 @@ void sexp_set_armor_type(int node)
 		return;
 	}
 	shipp = &Ships[sindex];
+	sip = &Ship_info[shipp->ship_info_index];
 
 	// set or reset
 	node = CDR(node);
@@ -14574,7 +14701,7 @@ void sexp_set_armor_type(int node)
 		{
 			// we are setting the ship itself
 			if (!rset)
-				shipp->armor_type_idx = sip[shipp->objnum].armor_type_idx;
+				shipp->armor_type_idx = sip->armor_type_idx;
 			else
 				shipp->armor_type_idx = armor;
 		}
@@ -14582,7 +14709,7 @@ void sexp_set_armor_type(int node)
 		{
 			// we are setting the ships shields
 			if (!rset)
-				shipp->shield_armor_type_idx = sip[shipp->objnum].shield_armor_type_idx;
+				shipp->shield_armor_type_idx = sip->shield_armor_type_idx;
 			else
 				shipp->shield_armor_type_idx = armor;
 		}
@@ -14898,7 +15025,7 @@ void sexp_set_subsys_rotation_lock_free(int node, int locked)
 		// set rotate or not, depending on flag
 		if (locked)
 		{
-			rotate->system_info->flags &= ~MSS_FLAG_ROTATES;
+			rotate->flags &= ~SSF_ROTATES;
 			if (rotate->subsys_snd_flags & SSSF_ROTATE)
 			{
 				obj_snd_delete_type(Ships[ship_num].objnum, rotate->system_info->rotation_snd, rotate);
@@ -14907,7 +15034,7 @@ void sexp_set_subsys_rotation_lock_free(int node, int locked)
 		}
 		else
 		{
-			rotate->system_info->flags |= MSS_FLAG_ROTATES;
+			rotate->flags |= SSF_ROTATES;
 			if (rotate->system_info->rotation_snd >= 0)
 			{
 				obj_snd_assign(Ships[ship_num].objnum, rotate->system_info->rotation_snd, &rotate->system_info->pnt, 0, OS_SUBSYS_ROTATION, rotate);
@@ -14942,7 +15069,7 @@ void sexp_reverse_rotating_subsystem(int node)
 			continue;
 
 		// switch direction of rotation
-		rotate->system_info->turn_rate *= -1.0f;
+		rotate->turn_rate *= -1.0f;
 		rotate->submodel_info_1.cur_turn_rate *= -1.0f;
 		rotate->submodel_info_1.desired_turn_rate *= -1.0f;
 	}
@@ -18524,6 +18651,11 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = SEXP_TRUE;
 				break;
 
+			case OP_HUD_SET_MESSAGE:
+				sexp_hud_set_message(node);
+				sexp_val = SEXP_TRUE;
+				break;
+
 			// Goober5000
 			case OP_PLAYER_USE_AI:
 			case OP_PLAYER_NOT_USE_AI:
@@ -19545,6 +19677,21 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_force_glide(node);
 				break;
 
+			case OP_HUD_SET_DIRECTIVE:
+				sexp_val = SEXP_TRUE;
+				sexp_hud_set_directive(node);
+				break;
+
+			case OP_HUD_GAUGE_SET_ACTIVE:
+				sexp_val = SEXP_TRUE;
+				sexp_hud_gauge_set_active(node);
+				break;
+
+			case OP_HUD_ACTIVATE_GAUGE_TYPE:
+				sexp_val = SEXP_TRUE;
+				sexp_hud_activate_gauge_type(node);
+				break;
+
 			default:
 				Error(LOCATION, "Looking for SEXP operator, found '%s'.\n", CTEXT(cur_node));
 				break;
@@ -19597,8 +19744,8 @@ int eval_sexp(int cur_node, int referenced_node)
 			// make sure everything works okay
 			if (arg_num == -1)
 			{
-				char sexp_text[4096];
-				convert_sexp_to_string(cur_node, sexp_text, SEXP_ERROR_CHECK_MODE, 4096);
+				char sexp_text[MAX_EVENT_SIZE];
+				convert_sexp_to_string(cur_node, sexp_text, SEXP_ERROR_CHECK_MODE, MAX_EVENT_SIZE);
 				Error(LOCATION, "Error finding sexp argument.  Received value %d for sexp:\n%s", sexp_val, sexp_text);
 			}
 
@@ -20274,6 +20421,7 @@ int query_operator_return_type(int op)
 		case OP_NAV_USEAP:
 		case OP_HUD_SET_TEXT:
 		case OP_HUD_SET_TEXT_NUM:
+		case OP_HUD_SET_MESSAGE:
 		case OP_HUD_SET_COORDS:
 		case OP_HUD_SET_FRAME:
 		case OP_HUD_SET_COLOR:
@@ -20348,6 +20496,9 @@ int query_operator_return_type(int op)
 		case OP_MISSION_SET_SUBSPACE:
 		case OP_HUD_DISPLAY_GAUGE:
 		case OP_FORCE_GLIDE:
+		case OP_HUD_SET_DIRECTIVE:
+		case OP_HUD_GAUGE_SET_ACTIVE:
+		case OP_HUD_ACTIVATE_GAUGE_TYPE:
 			return OPR_NULL;
 
 		case OP_AI_CHASE:
@@ -21047,6 +21198,12 @@ int query_operator_argument_type(int op, int argnum)
 
 		case OP_HUD_SET_TEXT:
 			return OPF_STRING;
+
+		case OP_HUD_SET_MESSAGE:
+			if(argnum == 0)
+				return OPF_STRING;
+			else
+				return OPF_MESSAGE;
 
 		case OP_HUD_SET_TEXT_NUM:
 		case OP_HUD_SET_COORDS:
@@ -21983,6 +22140,21 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_FORCE_GLIDE:
 			if (argnum == 0)
 				return OPF_SHIP;
+			else
+				return OPF_BOOL;
+
+		case OP_HUD_SET_DIRECTIVE:
+			return OPF_STRING;
+
+		case OP_HUD_GAUGE_SET_ACTIVE:
+			if (argnum == 0)
+				return OPF_STRING;
+			else
+				return OPF_BOOL;
+
+		case OP_HUD_ACTIVATE_GAUGE_TYPE:
+			if (argnum == 0)
+				return OPF_HUD_GAUGE;
 			else
 				return OPF_BOOL;
 
@@ -23350,6 +23522,10 @@ int get_subcategory(int sexp_id)
 		case OP_HUD_SET_COLOR:
 		case OP_HUD_SET_MAX_TARGETING_RANGE:
 		case OP_HUD_DISPLAY_GAUGE:
+		case OP_HUD_SET_MESSAGE:
+		case OP_HUD_SET_DIRECTIVE:
+		case OP_HUD_GAUGE_SET_ACTIVE:
+		case OP_HUD_ACTIVATE_GAUGE_TYPE:
 			return CHANGE_SUBCATEGORY_HUD;
 
 		case OP_CUTSCENES_SET_CUTSCENE_BARS:
@@ -26000,6 +26176,12 @@ sexp_help_struct Sexp_help[] = {
 		"\t2:\tNumber to be set"
 	},
 
+	{ OP_HUD_SET_MESSAGE, "hud-set-message\r\n"
+		"\tSets the text value of a given HUD gauge to a message from the mission's message list. Works for custom and certain retail gauges. Takes 2 arguments...\r\n"
+		"\t1:\tHUD gauge to be modified\r\n"
+		"\t2:\tMessage"
+	},
+
 	//WMC
 	{ OP_HUD_SET_COORDS, "hud-set-coord\r\n"
 		"\tSets the coordinates of a given HUD gauge. Works for custom and retail gauges. Takes 3 arguments...\r\n"
@@ -26393,6 +26575,27 @@ sexp_help_struct Sexp_help[] = {
 		"Takes 2 Arguments...\r\n"
 		"\t1:\tShip to force\r\n"
 		"\t2:\tTrue to activate glide, False to deactivate\r\n"
+	},
+
+	{OP_HUD_SET_DIRECTIVE, "hud-set-directive\r\n"
+		"\tSets the text of a given custom hud gauge to the provided text."
+		"Takes 2 Arguments...\r\n"
+		"\t1:\tHUD Gauge name\r\n"
+		"\t2:\tText that will be displayed. This text will be treated as directive text, meaning that references to mapped keys will be replaced with the user's preferences.\r\n"
+	},
+
+	{OP_HUD_GAUGE_SET_ACTIVE, "hud-gauge-set-active\r\n"
+		"\tActivates or deactivates a given custom gauge."
+		"Takes 2 Arguments...\r\n"
+		"\t1:\tHUD Gauge name\r\n"
+		"\t2:\tBoolean, whether or not to display this gauge\r\n"
+	},
+
+	{OP_HUD_ACTIVATE_GAUGE_TYPE, "hud-activate-gauge-type\r\n"
+		"\tActivates or deactivates all hud gauges of a given type."
+		"Takes 2 Arguments...\r\n"
+		"\t1:\tGauge Type\r\n"
+		"\t2:\tBoolean, whether or not to display this gauge\r\n"
 	}
 };
 
