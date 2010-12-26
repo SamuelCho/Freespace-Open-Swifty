@@ -6320,7 +6320,7 @@ void set_predicted_enemy_pos(vec3d *predicted_enemy_pos, object *pobjp, vec3d *e
 	if ( !(MULTI_TEAM) )
 	{
 		if (iff_x_attacks_y(shipp->team, Player_ship->team))
-			range_time += The_mission.ai_profile->in_range_time[Game_skill_level];
+			range_time += aip->ai_in_range_time;
 	}
 	//nprintf(("AI", "time enemy in range = %7.3f\n", aip->time_enemy_in_range));
 
@@ -6687,6 +6687,7 @@ int will_collide_pp(vec3d *p0, vec3d *p1, float radius, object *big_objp, vec3d 
 	mc_info	mc;
 	polymodel *pm = model_get(Ship_info[Ships[big_objp->instance].ship_info_index].model_num);
 
+	mc.model_instance_num = -1;
 	mc.model_num = pm->id;				// Fill in the model to check
 	mc.orient = &big_objp->orient;			// The object's orient
 	mc.pos = &big_objp->pos;					// The object's position

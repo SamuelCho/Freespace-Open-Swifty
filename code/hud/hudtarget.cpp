@@ -2390,6 +2390,7 @@ void hud_target_in_reticle_new()
 	//	Get 3d vector through center of reticle
 	vm_vec_scale_add(&terminus, &Eye_position, &Player_obj->orient.vec.fvec, TARGET_IN_RETICLE_DISTANCE);
 
+	mc.model_instance_num = -1;
 	mc.model_num = 0;
 	for ( A = GET_FIRST(&obj_used_list); A !=END_OF_LIST(&obj_used_list); A = GET_NEXT(A) ) {
 		if ( !object_targetable_in_reticle(A) ) {
@@ -6367,9 +6368,9 @@ void hud_target_add_display_list(object *objp, vertex *target_point, vec3d *targ
 	}
 
 	if(name) {
-		strcpy(element.name, name);
+		strcpy_s(element.name, name);
 	} else {
-		strcpy(element.name, "");
+		strcpy_s(element.name, "");
 	}
 
 	target_display_list.push_back(element);
