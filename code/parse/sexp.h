@@ -222,6 +222,16 @@ struct ship;
 #define OP_MAX								(0x0008	| OP_CATEGORY_ARITHMETIC)	// Goober5000
 #define OP_AVG								(0x0009	| OP_CATEGORY_ARITHMETIC)	// Goober5000
 #define OP_RAND_MULTIPLE					(0x000a | OP_CATEGORY_ARITHMETIC)	// Goober5000
+#define OP_POW								(0x000b | OP_CATEGORY_ARITHMETIC)	// Goober5000
+#define OP_BITWISE_AND						(0x000c | OP_CATEGORY_ARITHMETIC)	// Goober5000
+#define OP_BITWISE_OR						(0x000d | OP_CATEGORY_ARITHMETIC)	// Goober5000
+#define OP_BITWISE_NOT						(0x000e | OP_CATEGORY_ARITHMETIC)	// Goober5000
+#define OP_BITWISE_XOR						(0x000f | OP_CATEGORY_ARITHMETIC)	// Goober5000
+
+#define OP_SET_BIT							(0x0010 | OP_CATEGORY_ARITHMETIC)	// Goober5000
+#define OP_UNSET_BIT						(0x0011 | OP_CATEGORY_ARITHMETIC)	// Goober5000
+#define OP_IS_BIT_SET						(0x0012 | OP_CATEGORY_ARITHMETIC)	// Goober5000
+
 
 #define	OP_TRUE								(0x0000 | OP_CATEGORY_LOGICAL)
 #define	OP_FALSE							(0x0001 | OP_CATEGORY_LOGICAL)
@@ -239,6 +249,9 @@ struct ship;
 #define OP_NOT_EQUAL						(0x000d | OP_CATEGORY_LOGICAL)	// Goober5000
 #define OP_GREATER_OR_EQUAL					(0x000e | OP_CATEGORY_LOGICAL)	// Goober5000
 #define OP_LESS_OR_EQUAL					(0x000f | OP_CATEGORY_LOGICAL)	// Goober5000
+
+#define OP_XOR								(0x0010 | OP_CATEGORY_LOGICAL)	// Goober5000
+
 
 #define	OP_GOAL_INCOMPLETE					(0x0000 | OP_CATEGORY_GOAL_EVENT | OP_NONCAMPAIGN_FLAG)
 #define	OP_GOAL_TRUE_DELAY					(0x0001 | OP_CATEGORY_GOAL_EVENT | OP_NONCAMPAIGN_FLAG)
@@ -344,8 +357,12 @@ struct ship;
 #define OP_GET_THROTTLE_SPEED				(0x003a | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
 #define OP_HITS_LEFT_SUBSYSTEM_GENERIC		(0x003b | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Goober5000
 #define OP_HITS_LEFT_SUBSYSTEM_SPECIFIC		(0x003c | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Goober5000
-#define OP_HAS_PRIMARY_WEAPON				(0x003d | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
-#define OP_HAS_SECONDARY_WEAPON				(0x003e | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
+#define OP_GET_OBJECT_PITCH					(0x003d	| OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Goober5000
+#define OP_GET_OBJECT_BANK					(0x003e	| OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Goober5000
+#define OP_GET_OBJECT_HEADING				(0x003f	| OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Goober5000
+
+#define OP_HAS_PRIMARY_WEAPON				(0x0040 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
+#define OP_HAS_SECONDARY_WEAPON				(0x0041 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
 
 
 // conditional sexpressions
@@ -364,6 +381,7 @@ struct ship;
 #define OP_DO_FOR_VALID_ARGUMENTS			(0x000c | OP_CATEGORY_CONDITIONAL)	// Karajorma
 #define OP_INVALIDATE_ALL_ARGUMENTS			(0x000d | OP_CATEGORY_CONDITIONAL)	// Karajorma
 #define OP_VALIDATE_ALL_ARGUMENTS			(0x000e | OP_CATEGORY_CONDITIONAL)	// Karajorma
+#define OP_FOR_COUNTER						(0x000f | OP_CATEGORY_CONDITIONAL)	// Goober5000
 
 
 // sexpressions with side-effects
@@ -609,6 +627,8 @@ struct ship;
 #define OP_HUD_SET_DIRECTIVE				(0x00e3 | OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // The E
 #define OP_HUD_GAUGE_SET_ACTIVE				(0x00e4 | OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // The E
 #define OP_HUD_ACTIVATE_GAUGE_TYPE			(0x00e5 | OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG) // The E
+#define OP_SET_OBJECT_ORIENTATION			(0x00e6 | OP_CATEGORY_CHANGE | OP_NONCAMPAIGN_FLAG)	// Goober5000
+
 
 /* made obsolete by Goober5000
 // debugging sexpressions
@@ -920,18 +940,24 @@ typedef struct sexp_variable {
 	char	variable_name[TOKEN_LENGTH];
 } sexp_variable;
 
+
+#define ARG_ITEM_F_DUP	(1<<0)
+
 // Goober5000 - adapted from sexp_list_item in Sexp_tree.h
 class arg_item
 {
 	public:
 		char *text;
 		arg_item *next;
+		int flags;
 		int nesting_level;
 
-		arg_item() : text(NULL), next(NULL) {}
+		arg_item() : flags(0), nesting_level(0), text(NULL), next(NULL) {}
 		void add_data(char *str);
+		void add_data_dup(char *str);
+		void add_data_set_dup(char *str);
 		void expunge();
-		int empty();
+		int is_empty();
 		arg_item *get_next();
 		void clear_nesting_level(); 
 };

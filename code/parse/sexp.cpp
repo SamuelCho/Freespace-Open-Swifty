@@ -114,6 +114,14 @@ sexp_oper Operators[] = {
 	{ "min",				OP_MIN,				1,	INT_MAX },	// Goober5000
 	{ "max",				OP_MAX,				1,	INT_MAX },	// Goober5000
 	{ "avg",				OP_AVG,				1,	INT_MAX },	// Goober5000
+	{ "pow",				OP_POW,				2,	2 },	// Goober5000
+	{ "set-bit",			OP_SET_BIT,			2,	2 },	// Goober5000
+	{ "unset-bit",			OP_UNSET_BIT,		2,	2 },	// Goober5000
+	{ "is-bit-set",			OP_IS_BIT_SET,		2,	2 },	// Goober5000
+	{ "bitwise-and",		OP_BITWISE_AND,		2,	INT_MAX },	// Goober5000
+	{ "bitwise-or",			OP_BITWISE_OR,		2,	INT_MAX },	// Goober5000
+	{ "bitwise-not",		OP_BITWISE_NOT,		1,	1 },	// Goober5000
+	{ "bitwise-xor",		OP_BITWISE_XOR,		2,	2 },	// Goober5000
 
 	{ "true",							OP_TRUE,							0,	0,			},
 	{ "false",							OP_FALSE,						0,	0,			},
@@ -121,6 +129,7 @@ sexp_oper Operators[] = {
 	{ "and-in-sequence",				OP_AND_IN_SEQUENCE,			2, INT_MAX, },
 	{ "or",								OP_OR,							2,	INT_MAX,	},
 	{ "not",								OP_NOT,							1, 1,			},
+	{ "xor",								OP_XOR,							2, 2,			},	// Goober5000
 	{ "=",								OP_EQUALS,						2,	INT_MAX,	},
 	{ "!=",								OP_NOT_EQUAL,						2,	INT_MAX,	},	// Goober5000
 	{ ">",								OP_GREATER_THAN,				2,	INT_MAX,	},
@@ -212,15 +221,19 @@ sexp_oper Operators[] = {
 	{ "special-warp-dist",			OP_SPECIAL_WARP_DISTANCE,	1, 1,	},
 	{ "get-damage-caused",			OP_GET_DAMAGE_CAUSED,		2, INT_MAX	},
 
-	{ "set-object-speed-x",				OP_SET_OBJECT_SPEED_X,				2,	3	},	// WMC
-	{ "set-object-speed-y",				OP_SET_OBJECT_SPEED_Y,				2,	3	},	// WMC
-	{ "set-object-speed-z",				OP_SET_OBJECT_SPEED_Z,				2,	3	},	// WMC
 	{ "get-object-x",				OP_GET_OBJECT_X,				1,	5	},	// Goober5000
 	{ "get-object-y",				OP_GET_OBJECT_Y,				1,	5	},	// Goober5000
 	{ "get-object-z",				OP_GET_OBJECT_Z,				1,	5	},	// Goober5000
 	{ "set-object-position",		OP_SET_OBJECT_POSITION,			4,	4	},	// WMC
-	{ "set-object-facing",			OP_SET_OBJECT_FACING,				4,	6	},	// Goober5000
-	{ "set-object-facing-object",	OP_SET_OBJECT_FACING_OBJECT,		2,	4	},	// Goober5000
+	{ "get-object-pitch",				OP_GET_OBJECT_PITCH,			1,	1	},	// Goober5000
+	{ "get-object-bank",				OP_GET_OBJECT_BANK,				1,	1	},	// Goober5000
+	{ "get-object-heading",				OP_GET_OBJECT_HEADING,			1,	1	},	// Goober5000
+	{ "set-object-orientation",		OP_SET_OBJECT_ORIENTATION,			4,	4	},	// Goober5000
+	{ "set-object-facing",			OP_SET_OBJECT_FACING,					4,	6	},	// Goober5000
+	{ "set-object-facing-object",	OP_SET_OBJECT_FACING_OBJECT,			2,	4	},	// Goober5000
+	{ "set-object-speed-x",				OP_SET_OBJECT_SPEED_X,			2,	3	},	// WMC
+	{ "set-object-speed-y",				OP_SET_OBJECT_SPEED_Y,			2,	3	},	// WMC
+	{ "set-object-speed-z",				OP_SET_OBJECT_SPEED_Z,			2,	3	},	// WMC
 
 	{ "time-elapsed-last-order",	OP_LAST_ORDER_TIME,			2, 2, /*INT_MAX*/ },
 	{ "skill-level-at-least",		OP_SKILL_LEVEL_AT_LEAST,	1, 1, },
@@ -267,6 +280,7 @@ sexp_oper Operators[] = {
 	{ "random-multiple-of",			OP_RANDOM_MULTIPLE_OF,		1, INT_MAX, },	// Karajorma
 	{ "number-of",					OP_NUMBER_OF,				2, INT_MAX, },	// Goober5000
 	{ "in-sequence",				OP_IN_SEQUENCE,				1, INT_MAX, },	// Karajorma
+	{ "for-counter",				OP_FOR_COUNTER,				2, 3,		},	// Goober5000
 	{ "invalidate-argument",		OP_INVALIDATE_ARGUMENT,		1, INT_MAX, },	// Goober5000
 	{ "invalidate-all-arguments",	OP_INVALIDATE_ALL_ARGUMENTS,	0, 0, },	// Karajorma
 	{ "validate-argument",			OP_VALIDATE_ARGUMENT,		1, INT_MAX, },	// Karajorma
@@ -787,6 +801,38 @@ void arg_item::add_data(char *str)
 	item->next = ptr;
 }
 
+void arg_item::add_data_dup(char *str)
+{
+	arg_item *item, *ptr;
+
+	// create item
+	item = new arg_item;
+	item->text = strdup(str);
+	item->flags |= ARG_ITEM_F_DUP;
+	item->nesting_level = Sexp_current_argument_nesting_level;
+
+	// prepend item to existing list
+	ptr = this->next;
+	this->next = item;
+	item->next = ptr;
+}
+
+void arg_item::add_data_set_dup(char *str)
+{
+	arg_item *item, *ptr;
+
+	// create item
+	item = new arg_item;
+	item->text = str;
+	item->flags |= ARG_ITEM_F_DUP;
+	item->nesting_level = Sexp_current_argument_nesting_level;
+
+	// prepend item to existing list
+	ptr = this->next;
+	this->next = item;
+	item->next = ptr;
+}
+
 arg_item* arg_item::get_next()
 {
 	if (this->next != NULL) {
@@ -806,7 +852,11 @@ void arg_item::expunge()
 	while (this->next != NULL)
 	{
 		ptr = this->next->next;
+
+		if (this->next->flags & ARG_ITEM_F_DUP)
+			free(this->next->text);
 		delete this->next;
+
 		this->next = ptr;
 	}
 }
@@ -819,12 +869,16 @@ void arg_item::clear_nesting_level()
 	while (this->next != NULL && this->next->nesting_level >= Sexp_current_argument_nesting_level )
 	{
 		ptr = this->next->next;
+
+		if (this->next->flags & ARG_ITEM_F_DUP)
+			free(this->next->text);
 		delete this->next;
+
 		this->next = ptr;
 	}
 }
 
-int arg_item::empty()
+int arg_item::is_empty()
 {
 	return (this->next == NULL);
 }
@@ -3720,6 +3774,108 @@ int avg_sexp(int n)
 	return (int) floor(((double) avg_val / num) + 0.5);
 }
 
+// Goober5000
+int pow_sexp(int node)
+{
+	int num_1 = eval_num(node);
+	int num_2 = eval_num(CDR(node));
+
+	// this is disallowed in FRED, but can still happen through careless arithmetic
+	if (num_2 < 0)
+	{
+		Warning(LOCATION, "Power function pow(%d, %d) attempted to raise to a negative power!", num_1, num_2);
+		return 0;
+	}
+
+	double pow_result = pow(static_cast<double>(num_1), num_2);
+
+	if (pow_result > static_cast<double>(INT_MAX))
+	{
+		nprintf(("SEXP", "Power function pow(%d, %d) is greater than INT_MAX!  Returning INT_MAX.", num_1, num_2));
+		return INT_MAX;
+	}
+	else if (pow_result < static_cast<double>(INT_MIN))
+	{
+		nprintf(("SEXP", "Power function pow(%d, %d) is less than INT_MIN!  Returning INT_MIN.", num_1, num_2));
+		return INT_MIN;
+	}
+
+	return static_cast<int>(pow_result);
+}
+
+// Goober5000
+int sexp_set_bit(int node, bool set_it)
+{
+	int val = eval_num(node);
+	int bit_index = eval_num(CDR(node));
+
+	if (bit_index < 0 || bit_index > 31)
+	{
+		Warning(LOCATION, "Bit index %d out of range!  Must be between 0 and 31.", bit_index);
+		return SEXP_NAN;
+	}
+
+	if (set_it)
+		return val | (1<<bit_index);
+	else
+		return val & ~(1<<bit_index);
+}
+
+// Goober5000
+int sexp_is_bit_set(int node)
+{
+	int val = eval_num(node);
+	int bit_index = eval_num(CDR(node));
+
+	if (bit_index < 0 || bit_index > 31)
+	{
+		Warning(LOCATION, "Bit index %d out of range!  Must be between 0 and 31.", bit_index);
+		return SEXP_NAN;
+	}
+
+	if (val & (1<<bit_index))
+		return SEXP_TRUE;
+	else
+		return SEXP_FALSE;
+}
+
+// Goober5000
+int sexp_bitwise_and(int node)
+{
+	int val = eval_num(node);
+
+	for (int n = CDR(node); n != -1; n = CDR(n))
+		val &= eval_num(n);
+
+	return val;
+}
+
+// Goober5000
+int sexp_bitwise_or(int node)
+{
+	int val = eval_num(node);
+
+	for (int n = CDR(node); n != -1; n = CDR(n))
+		val |= eval_num(n);
+
+	return val;
+}
+
+// Goober5000
+int sexp_bitwise_not(int node)
+{
+	int result = ~(eval_num(node));
+
+	// clear the sign bit
+	return result & INT_MAX;
+}
+
+// Goober5000
+int sexp_bitwise_xor(int node)
+{
+	return eval_num(node) ^ eval_num(CDR(node));
+}
+
 // seeding added by Karajorma and Goober5000
 int rand_sexp(int n, bool multiple)
 {
@@ -3958,6 +4114,19 @@ int sexp_not(int n)
 	}
 
 	return !result;
+}
+
+int sexp_xor(int node)
+{
+	int num_true = 0;
+
+	for (int n = node; n != -1; n = CDR(n))
+	{
+		if (is_sexp_true(n))
+			num_true++;
+	}
+
+	return (num_true == 1);
 }
 
 // Goober5000
@@ -5998,6 +6167,32 @@ int sexp_calculate_coordinate(vec3d *origin, matrix *orient, vec3d *relative_loc
 }
 
 // Goober5000
+int sexp_calculate_angle(matrix *orient, int axis)
+{
+	Assert(orient != NULL);
+	Assert(axis >= 0 && axis <= 2);
+
+	angles a;
+	vm_extract_angles_matrix(&a, orient);
+
+	// blugh
+	float rad;
+	switch (axis)
+	{
+		case 0:	rad = a.p; break;
+		case 1:	rad = a.b; break;
+		case 2:	rad = a.h; break;
+		default: rad = 0.0f; break;
+	}
+
+	int deg = static_cast<int>(fl_degrees(rad));
+	if (deg < 0)
+		deg += 360;
+
+	return deg;
+}
+
+// Goober5000
 int sexp_get_object_coordinate(int n, int axis) 
 {
 	Assert(n >= 0);
@@ -6060,6 +6255,30 @@ int sexp_get_object_coordinate(int n, int axis)
 	}
 
 	return sexp_calculate_coordinate(pos, &oswpt.objp->orient, relative_location, axis);
+}
+
+// Goober5000
+int sexp_get_object_angle(int n, int axis) 
+{
+	Assert(n >= 0);
+
+	object_ship_wing_point_team oswpt;
+	sexp_get_object_ship_wing_point_team(&oswpt, CTEXT(n));
+
+	switch (oswpt.type)
+	{
+		case OSWPT_TYPE_EXITED:
+			return SEXP_NAN_FOREVER;
+
+		case OSWPT_TYPE_SHIP:
+		case OSWPT_TYPE_WING:
+		case OSWPT_TYPE_WAYPOINT:
+		case OSWPT_TYPE_TEAM:
+			return sexp_calculate_angle(&oswpt.objp->orient, axis);
+
+		default:
+			return SEXP_NAN;
+	}
 }
 
 void set_object_for_clients(object *objp)
@@ -6151,7 +6370,72 @@ void sexp_set_object_position(int n)
 }
 
 // Goober5000
-void sexp_set_object_orient(object *objp, vec3d *location, int turn_time, int bank)
+void sexp_set_object_orientation(int n) 
+{
+	angles a;
+	matrix target_orient;
+	object_ship_wing_point_team oswpt;
+
+	sexp_get_object_ship_wing_point_team(&oswpt, CTEXT(n));
+	n = CDR(n);
+
+	a.p = fl_radians(eval_num(n));
+	n = CDR(n);
+	a.b = fl_radians(eval_num(n));
+	n = CDR(n);
+	a.h = fl_radians(eval_num(n));
+	n = CDR(n);
+
+	vm_angles_2_matrix(&target_orient, &a);
+
+	// retime all collision checks so they're performed
+	obj_all_collisions_retime();
+
+	switch (oswpt.type)
+	{
+		case OSWPT_TYPE_TEAM:
+		{
+			// move everything on the team
+			for (ship_obj *so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so))
+			{
+				object *objp = &Objects[so->objnum];
+
+				if (Ships[objp->instance].team == oswpt.team)
+				{
+					objp->orient = target_orient;
+					set_object_for_clients(objp);
+				}
+			}
+
+			return;
+		}
+
+		case OSWPT_TYPE_SHIP:
+		case OSWPT_TYPE_WAYPOINT:
+		{
+			oswpt.objp->orient = target_orient;
+			set_object_for_clients(oswpt.objp);
+			return;
+		}
+
+		case OSWPT_TYPE_WING:
+		{
+			// move everything in the wing
+			for (int i = 0; i < oswpt.wingp->current_count; i++)
+			{
+				object *objp = &Objects[Ships[oswpt.wingp->ship_index[i]].objnum];
+				objp->orient = target_orient;
+				set_object_for_clients(objp);
+			}
+
+			return;
+		}
+	}
+}
+
+// Goober5000
+// this is different from sexp_set_object_orientation
+void sexp_set_object_orient_sub(object *objp, vec3d *location, int turn_time, int bank)
 {
 	Assert(objp && location);
 
@@ -6211,7 +6495,7 @@ void sexp_set_oswpt_facing(object_ship_wing_point_team *oswpt, vec3d *location, 
 				object *objp = &Objects[so->objnum];
 
 				if (obj_team(objp) == oswpt->team)
-					sexp_set_object_orient(objp, location, turn_time, bank);
+					sexp_set_object_orient_sub(objp, location, turn_time, bank);
 			}
 
 			break;
@@ -6219,7 +6503,7 @@ void sexp_set_oswpt_facing(object_ship_wing_point_team *oswpt, vec3d *location, 
 
 		case OSWPT_TYPE_SHIP:
 		case OSWPT_TYPE_WAYPOINT:
-			sexp_set_object_orient(oswpt->objp, location, turn_time, bank);
+			sexp_set_object_orient_sub(oswpt->objp, location, turn_time, bank);
 			break;
 
 		case OSWPT_TYPE_WING:
@@ -6228,7 +6512,7 @@ void sexp_set_oswpt_facing(object_ship_wing_point_team *oswpt, vec3d *location, 
 			{
 				object *objp = &Objects[Ships[oswpt->wingp->ship_index[i]].objnum];
 
-				sexp_set_object_orient(objp, location, turn_time, bank);
+				sexp_set_object_orient_sub(objp, location, turn_time, bank);
 			}
 
 			break;
@@ -7522,7 +7806,8 @@ int eval_cond(int n)
 }
 
 // Goober5000
-int test_argument_list_for_condition(int n, int condition_node, int *num_true, int *num_false, int *num_known_true, int *num_known_false)
+// NOTE: if you change this function, check to see if the following function should also be changed!
+int test_argument_nodes_for_condition(int n, int condition_node, int *num_true, int *num_false, int *num_known_true, int *num_known_false)
 {
 	int val, num_valid_arguments;
 	Assert(n != -1 && condition_node != -1);
@@ -7586,8 +7871,91 @@ int test_argument_list_for_condition(int n, int condition_node, int *num_true, i
 
 	// now we write from the temporary store into the real one, reversing the order. We do this because 
 	// Sexp_applicable_argument_list is a stack and we want the first argument in the list to be the first one out
-	while(!Applicable_arguments_temp.empty()) {
+	while (!Applicable_arguments_temp.empty())
+	{
 		Sexp_applicable_argument_list.add_data(Applicable_arguments_temp.back());
+		Applicable_arguments_temp.pop_back(); 
+	}
+
+	return num_valid_arguments;
+}
+
+// Goober5000
+// NOTE: if you change this function, check to see if the previous function should also be changed!
+int test_argument_vector_for_condition(SCP_vector<char*> argument_vector, bool already_dupped, int condition_node, int *num_true, int *num_false, int *num_known_true, int *num_known_false)
+{
+	int val, num_valid_arguments;
+	Assert(condition_node != -1);
+	Assert((num_true != NULL) && (num_false != NULL) && (num_known_true != NULL) && (num_known_false != NULL));
+
+	// ensure special argument list is empty
+	Sexp_applicable_argument_list.clear_nesting_level();
+	Applicable_arguments_temp.clear();
+
+	// ditto for counters
+	num_valid_arguments = 0;
+	*num_true = 0;
+	*num_false = 0;
+	*num_known_true = 0;
+	*num_known_false = 0;
+
+	// loop through all arguments
+	for (unsigned int i = 0; i < argument_vector.size(); i++)
+	{
+		// since we can't see or modify the validity, assume all are valid
+		{
+			// flush conditional to avoid short-circuiting
+			flush_sexp_tree(condition_node);
+
+			// evaluate conditional for current argument
+			Sexp_replacement_arguments.push_back(argument_vector[i]);
+			val = eval_sexp(condition_node);
+
+			switch (val)
+			{
+				case SEXP_TRUE:
+					(*num_true)++;
+					Applicable_arguments_temp.push_back(argument_vector[i]);
+					break;
+
+				case SEXP_FALSE:
+					(*num_false)++;
+					break;
+
+				case SEXP_KNOWN_TRUE:
+					(*num_known_true)++;
+					Applicable_arguments_temp.push_back(argument_vector[i]);
+					break;
+
+				case SEXP_KNOWN_FALSE:
+					(*num_known_false)++;
+					break;
+			}
+
+			// if the argument was already dup'd, but not added as an applicable argument,
+			// we need to free it here before we cause a memory leak
+			if ((val == SEXP_FALSE || val == SEXP_KNOWN_FALSE) && already_dupped)
+				free(argument_vector[i]);
+
+			// clear argument, but not list, as we'll need it later
+			Sexp_replacement_arguments.pop_back();
+
+			// increment
+			num_valid_arguments++;
+		}
+	}
+
+	// now we write from the temporary store into the real one, reversing the order. We do this because 
+	// Sexp_applicable_argument_list is a stack and we want the first argument in the list to be the first one out
+	while (!Applicable_arguments_temp.empty())
+	{
+		// we need to dup the strings regardless, since we're not using Sexp_nodes[n].text as a string buffer,
+		// but we need to know whether the calling function dup'd them, or whether we should dup them here
+		if (already_dupped)
+			Sexp_applicable_argument_list.add_data_set_dup(Applicable_arguments_temp.back());
+		else
+			Sexp_applicable_argument_list.add_data_dup(Applicable_arguments_temp.back());
+
 		Applicable_arguments_temp.pop_back(); 
 	}
 
@@ -7604,7 +7972,7 @@ int eval_any_of(int arg_handler_node, int condition_node)
 	n = CDR(arg_handler_node);
 
 	// test the whole argument list
-	num_valid_arguments = test_argument_list_for_condition(n, condition_node, &num_true, &num_false, &num_known_true, &num_known_false);
+	num_valid_arguments = test_argument_nodes_for_condition(n, condition_node, &num_true, &num_false, &num_known_true, &num_known_false);
 
 	// use the sexp_or algorithm
 	if (num_known_true)
@@ -7627,7 +7995,7 @@ int eval_every_of(int arg_handler_node, int condition_node)
 	n = CDR(arg_handler_node);
 
 	// test the whole argument list
-	num_valid_arguments = test_argument_list_for_condition(n, condition_node, &num_true, &num_false, &num_known_true, &num_known_false);
+	num_valid_arguments = test_argument_nodes_for_condition(n, condition_node, &num_true, &num_false, &num_known_true, &num_known_false);
 
 	// use the sexp_and algorithm
 	if (num_known_false)
@@ -7654,7 +8022,7 @@ int eval_number_of(int arg_handler_node, int condition_node)
 	n = CDR(n);
 
 	// test the whole argument list
-	num_valid_arguments = test_argument_list_for_condition(n, condition_node, &num_true, &num_false, &num_known_true, &num_known_false);
+	num_valid_arguments = test_argument_nodes_for_condition(n, condition_node, &num_true, &num_false, &num_known_true, &num_known_false);
 
 	// use the sexp_or algorithm, modified
 	// (true if at least threshold arguments are true)
@@ -7804,11 +8172,81 @@ int eval_in_sequence(int arg_handler_node, int condition_node)
 	return val;
 }
 
+// is there a better place to put this?  seems useful...
+// credit to http://stackoverflow.com/questions/1903954/is-there-a-standard-sign-function-signum-sgn-in-c-c
+template <typename T>
+T sign(T t) 
+{
+    if (t == 0)
+        return T(0);
+    else
+        return (t < 0) ? T(-1) : T(1);
+}
+
+// Goober5000
+int eval_for_counter(int arg_handler_node, int condition_node)
+{
+	int n, num_valid_arguments, num_true, num_false, num_known_true, num_known_false;
+	int i, counter_start, counter_stop, counter_step;
+	char buf[NAME_LENGTH];
+	Assert(arg_handler_node != -1 && condition_node != -1);
+
+	// determine the counter parameters
+	n = CDR(arg_handler_node);
+	counter_start = eval_num(n);
+	n = CDR(n);
+	counter_stop = eval_num(n);
+	n = CDR(n);
+	counter_step = (n >= 0) ? eval_num(n) : 1;
+
+	// a bunch of error checking
+	if (counter_step == 0)
+	{
+		Warning(LOCATION, "A counter increment of 0 is illegal!  (start=%d, stop=%d, increment=%d)", counter_start, counter_stop, counter_step);
+		return SEXP_KNOWN_FALSE;
+	}
+	else if (counter_start == counter_stop)
+	{
+		Warning(LOCATION, "The counter start and stop values are identical!  (start=%d, stop=%d, increment=%d)", counter_start, counter_stop, counter_step);
+		return SEXP_KNOWN_FALSE;
+	}
+	else if (sign(counter_stop - counter_start) != sign(counter_step))
+	{
+		Warning(LOCATION, "The counter cannot complete with the given values!  (start=%d, stop=%d, increment=%d)", counter_start, counter_stop, counter_step);
+		return SEXP_KNOWN_FALSE;
+	}
+
+	// build a vector of counter values
+	SCP_vector<char*> argument_vector;
+	for (i = counter_start; ((counter_step > 0) ? i <= counter_stop : i >= counter_stop); i += counter_step)
+	{
+		sprintf(buf, "%d", i);
+		argument_vector.push_back(strdup(buf));
+	}
+
+	// test the whole argument vector
+	num_valid_arguments = test_argument_vector_for_condition(argument_vector, true, condition_node, &num_true, &num_false, &num_known_true, &num_known_false);
+
+	// use the sexp_or algorithm
+	if (num_known_true)
+		return SEXP_KNOWN_TRUE;
+	else if (num_known_false == num_valid_arguments)
+		return SEXP_KNOWN_FALSE;
+	else if (num_true)
+		return SEXP_TRUE;
+	else
+		return SEXP_FALSE;
+}
+
 void sexp_change_all_argument_validity(int n, bool invalidate)
 {
 	int arg_handler, arg_n;
 
 	arg_handler = get_handler_for_x_of_operator(n);
+
+	// can't change validity of for-counter
+	if (get_operator_const(CTEXT(arg_handler)) == OP_FOR_COUNTER)
+		return;
 		
 	while (n != -1)
 	{
@@ -7837,6 +8275,10 @@ void sexp_change_argument_validity(int n, bool invalidate)
 
 	arg_handler = get_handler_for_x_of_operator(n);
 
+	// can't change validity of for-counter
+	if (get_operator_const(CTEXT(arg_handler)) == OP_FOR_COUNTER)
+		return;
+		
 	// loop through arguments
 	while (n != -1)
 	{
@@ -7950,6 +8392,7 @@ bool is_blank_of_op(int op_const)
 		case OP_RANDOM_OF:
 		case OP_RANDOM_MULTIPLE_OF:
 		case OP_IN_SEQUENCE:
+		case OP_FOR_COUNTER:
 			return true;
 
 		default:
@@ -10469,11 +10912,11 @@ void sexp_add_background_bitmap(int n)
 	}
 
 	// angles
-	sle.ang.p = fl_radian(eval_num(n) % 360);
+	sle.ang.p = fl_radians(eval_num(n) % 360);
 	n = CDR(n);
-	sle.ang.b = fl_radian(eval_num(n) % 360);
+	sle.ang.b = fl_radians(eval_num(n) % 360);
 	n = CDR(n);
-	sle.ang.h = fl_radian(eval_num(n) % 360);
+	sle.ang.h = fl_radians(eval_num(n) % 360);
 	n = CDR(n);
 
 	// scale
@@ -10563,11 +11006,11 @@ void sexp_add_sun_bitmap(int n)
 	}
 
 	// angles
-	sle.ang.p = fl_radian(eval_num(n) % 360);
+	sle.ang.p = fl_radians(eval_num(n) % 360);
 	n = CDR(n);
-	sle.ang.b = fl_radian(eval_num(n) % 360);
+	sle.ang.b = fl_radians(eval_num(n) % 360);
 	n = CDR(n);
-	sle.ang.h = fl_radian(eval_num(n) % 360);
+	sle.ang.h = fl_radians(eval_num(n) % 360);
 	n = CDR(n);
 
 	// scale
@@ -17948,6 +18391,35 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = avg_sexp(node);
 				break;
 
+			case OP_POW:
+				sexp_val = pow_sexp(node);
+				break;
+
+			case OP_SET_BIT:
+			case OP_UNSET_BIT:
+				sexp_val = sexp_set_bit(node, op_num == OP_SET_BIT);
+				break;
+
+			case OP_IS_BIT_SET:
+				sexp_val = sexp_is_bit_set(node);
+				break;
+
+			case OP_BITWISE_AND:
+				sexp_val = sexp_bitwise_and(node);
+				break;
+
+			case OP_BITWISE_OR:
+				sexp_val = sexp_bitwise_or(node);
+				break;
+
+			case OP_BITWISE_NOT:
+				sexp_val = sexp_bitwise_not(node);
+				break;
+
+			case OP_BITWISE_XOR:
+				sexp_val = sexp_bitwise_xor(node);
+				break;
+
 			// boolean operators can have one of the special sexp values (known true, known false, unknown)
 			case OP_TRUE:
 				sexp_val = SEXP_KNOWN_TRUE;
@@ -17967,6 +18439,10 @@ int eval_sexp(int cur_node, int referenced_node)
 
 			case OP_AND_IN_SEQUENCE:
 				sexp_val = sexp_and_in_sequence(node);
+				break;
+
+			case OP_XOR:
+				sexp_val = sexp_xor(node);
 				break;
 
 			case OP_EQUALS:
@@ -18342,6 +18818,11 @@ int eval_sexp(int cur_node, int referenced_node)
 			// Karajorma
 			case OP_IN_SEQUENCE:
 				sexp_val = eval_in_sequence( cur_node, referenced_node );
+				break;
+
+			// Goober5000
+			case OP_FOR_COUNTER:
+				sexp_val = eval_for_counter( cur_node, referenced_node );
 				break;
 
 			// Karajorma
@@ -18949,8 +19430,19 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = sexp_get_object_coordinate(node, op_num - OP_GET_OBJECT_X);
 				break;
 
+			case OP_GET_OBJECT_PITCH:
+			case OP_GET_OBJECT_BANK:
+			case OP_GET_OBJECT_HEADING:
+				sexp_val = sexp_get_object_angle(node, op_num - OP_GET_OBJECT_PITCH);
+				break;
+
 			case OP_SET_OBJECT_POSITION:
 				sexp_set_object_position(node);
+				sexp_val = SEXP_TRUE;
+				break;
+
+			case OP_SET_OBJECT_ORIENTATION:
+				sexp_set_object_orientation(node);
 				sexp_val = SEXP_TRUE;
 				break;
 
@@ -20081,6 +20573,7 @@ int query_operator_return_type(int op)
 		case OP_AND_IN_SEQUENCE:
 		case OP_OR:
 		case OP_NOT:
+		case OP_XOR:
 		case OP_EQUALS:
 		case OP_GREATER_THAN:
 		case OP_LESS_THAN:
@@ -20172,6 +20665,7 @@ int query_operator_return_type(int op)
 		case OP_IS_FACING:
 		case OP_HAS_PRIMARY_WEAPON:
 		case OP_HAS_SECONDARY_WEAPON:
+		case OP_IS_BIT_SET:
 			return OPR_BOOL;
 
 		case OP_PLUS:
@@ -20184,9 +20678,13 @@ int query_operator_return_type(int op)
 		case OP_MIN:
 		case OP_MAX:
 		case OP_AVG:
+		case OP_POW:
 		case OP_GET_OBJECT_X:
 		case OP_GET_OBJECT_Y:
 		case OP_GET_OBJECT_Z:
+		case OP_GET_OBJECT_PITCH:
+		case OP_GET_OBJECT_BANK:
+		case OP_GET_OBJECT_HEADING:
 		case OP_SCRIPT_EVAL_NUM:
 		case OP_SCRIPT_EVAL_STRING:
 		case OP_STRING_TO_INT:
@@ -20195,6 +20693,12 @@ int query_operator_return_type(int op)
 			return OPR_NUMBER;
 
 		case OP_ABS:
+		case OP_SET_BIT:
+		case OP_UNSET_BIT:
+		case OP_BITWISE_AND:
+		case OP_BITWISE_OR:
+		case OP_BITWISE_NOT:
+		case OP_BITWISE_XOR:
 		case OP_TIME_SHIP_DESTROYED:
 		case OP_TIME_SHIP_ARRIVED:
 		case OP_TIME_SHIP_DEPARTED:
@@ -20394,6 +20898,7 @@ int query_operator_return_type(int op)
 		case OP_EXPLOSION_EFFECT:
 		case OP_WARP_EFFECT:
 		case OP_SET_OBJECT_POSITION:
+		case OP_SET_OBJECT_ORIENTATION:
 		case OP_SET_OBJECT_FACING:
 		case OP_SET_OBJECT_FACING_OBJECT:
 		case OP_SHIP_MANEUVER:
@@ -20537,6 +21042,7 @@ int query_operator_return_type(int op)
 		case OP_RANDOM_MULTIPLE_OF:
 		case OP_NUMBER_OF:
 		case OP_IN_SEQUENCE:
+		case OP_FOR_COUNTER:
 			return OPR_FLEXIBLE_ARGUMENT;
 
 		default:
@@ -20593,6 +21099,7 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_AND_IN_SEQUENCE:
 		case OP_OR:
 		case OP_NOT:
+		case OP_XOR:
 			return OPF_BOOL;
 
 		case OP_PLUS:
@@ -20614,6 +21121,12 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_AVG:
 			return OPF_NUMBER;
 
+		case OP_POW:
+			if (argnum == 0)
+				return OPF_NUMBER;
+			else
+				return OPF_POSITIVE;
+
 		case OP_STRING_EQUALS:
 		case OP_STRING_GREATER_THAN:
 		case OP_STRING_LESS_THAN:
@@ -20629,6 +21142,13 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_HUD_SET_MAX_TARGETING_RANGE:
 		case OP_MISSION_SET_NEBULA:	//WMC
 		case OP_MISSION_SET_SUBSPACE:
+		case OP_SET_BIT:
+		case OP_UNSET_BIT:
+		case OP_IS_BIT_SET:
+		case OP_BITWISE_AND:
+		case OP_BITWISE_OR:
+		case OP_BITWISE_NOT:
+		case OP_BITWISE_XOR:
 			return OPF_POSITIVE;
 
 		case OP_AI_WARP:								// this operator is obsolete
@@ -20845,8 +21365,19 @@ int query_operator_argument_type(int op, int argnum)
 			else
 				return OPF_NUMBER;
 
+		case OP_GET_OBJECT_PITCH:
+		case OP_GET_OBJECT_BANK:
+		case OP_GET_OBJECT_HEADING:
+			return OPF_SHIP_WING_POINT;
+
 		case OP_SET_OBJECT_POSITION:
-			if(argnum==0)
+			if(argnum == 0)
+				return OPF_SHIP_WING_POINT;
+			else
+				return OPF_NUMBER;
+
+		case OP_SET_OBJECT_ORIENTATION:
+			if (argnum == 0)
 				return OPF_SHIP_WING_POINT;
 			else
 				return OPF_NUMBER;
@@ -21053,6 +21584,9 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_POSITIVE;
 			else
 				return OPF_ANYTHING;
+
+		case OP_FOR_COUNTER:
+			return OPF_NUMBER;
 
 		case OP_INVALIDATE_ARGUMENT:
 		case OP_VALIDATE_ARGUMENT:
@@ -21751,7 +22285,7 @@ int query_operator_argument_type(int op, int argnum)
 			}
 
 		case OP_SUPERNOVA_START:
-			return OPF_NUMBER;
+			return OPF_POSITIVE;
 
 		case OP_SHIELD_RECHARGE_PCT:
 		case OP_WEAPON_RECHARGE_PCT:
@@ -23467,6 +24001,7 @@ int get_subcategory(int sexp_id)
 			return CHANGE_SUBCATEGORY_MODELS_AND_TEXTURES;
 
 		case OP_SET_OBJECT_POSITION:
+		case OP_SET_OBJECT_ORIENTATION:
 		case OP_SET_OBJECT_FACING:
 		case OP_SET_OBJECT_FACING_OBJECT:
 		case OP_SET_OBJECT_SPEED_X:
@@ -23634,6 +24169,9 @@ int get_subcategory(int sexp_id)
 		case OP_GET_OBJECT_X:
 		case OP_GET_OBJECT_Y:
 		case OP_GET_OBJECT_Z:
+		case OP_GET_OBJECT_PITCH:
+		case OP_GET_OBJECT_BANK:
+		case OP_GET_OBJECT_HEADING:
 		case OP_NUM_WITHIN_BOX:
 		case OP_SPECIAL_WARP_DISTANCE:
 			return STATUS_SUBCATEGORY_DISTANCE_AND_COORDINATES;
@@ -23761,6 +24299,46 @@ sexp_help_struct Sexp_help[] = {
 	{ OP_AVG, "Average value (Arithmetic operator)\r\n"
 		"\tReturns the average (rounded to the nearest integer) of a set of numbers.  Takes 1 or more numeric arguments.\r\n" },
 
+	// Goober5000
+	{ OP_POW, "Power (Arithmetic operator)\r\n"
+		"\tRaises one number to the power of the next number.  If the result will be larger than INT_MAX or smaller than INT_MIN, the appropriate limit will be returned.  Takes 2 numeric arguments.\r\n" },
+
+	// Goober5000
+	{ OP_SET_BIT, "set-bit\r\n"
+		"\tTurns on (sets to 1) a certain bit in the provided number, returning the result.  This allows numbers to store up to 32 boolean flags, from 2^0 to 2^31.  Takes 2 numeric arguments...\r\n"
+		"\t1: The number whose bit should be set\r\n"
+		"\t2: The index of the bit to set.  Valid indexes are between 0 and 31, inclusive.\r\n" },
+
+	// Goober5000
+	{ OP_UNSET_BIT, "unset-bit\r\n"
+		"\tTurns off (sets to 0) a certain bit in the provided number, returning the result.  This allows numbers to store up to 32 boolean flags, from 2^0 to 2^31.  Takes 2 numeric arguments...\r\n"
+		"\t1: The number whose bit should be unset\r\n"
+		"\t2: The index of the bit to unset.  Valid indexes are between 0 and 31, inclusive.\r\n" },
+
+	// Goober5000
+	{ OP_IS_BIT_SET, "is-bit-set\r\n"
+		"\tReturns true if the specified bit is set (equal to 1) in the provided number.  Takes 2 numeric arguments...\r\n"
+		"\t1: The number whose bit should be tested\r\n"
+		"\t2: The index of the bit to test.  Valid indexes are between 0 and 31, inclusive.\r\n" },
+
+	// Goober5000
+	{ OP_BITWISE_AND, "bitwise-and\r\n"
+		"\tPerforms the bitwise AND operator on its arguments.  This is the same as if the logical AND operator was performed on each successive bit.  Takes 2 or more numeric arguments.\r\n" },
+
+	// Goober5000
+	{ OP_BITWISE_OR, "bitwise-or\r\n"
+		"\tPerforms the bitwise OR operator on its arguments.  This is the same as if the logical OR operator was performed on each successive bit.  Takes 2 or more numeric arguments.\r\n" },
+
+	// Goober5000
+	{ OP_BITWISE_NOT, "bitwise-not\r\n"
+		"\tPerforms the bitwise NOT operator on its argument.  This is the same as if the logical NOT operator was performed on each successive bit.\r\n\r\n"
+		"Note that the operation is performed as if on an unsigned integer whose maximum value is INT_MAX.  In other words, there is no need to worry about the sign bit.\r\n\r\n"
+		"Takes only 1 argument.\r\n" },
+
+	// Goober5000
+	{ OP_BITWISE_XOR, "bitwise-xor\r\n"
+		"\tPerforms the bitwise XOR operator on its arguments.  This is the same as if the logical XOR operator was performed on each successive bit.  Takes 2 or more numeric arguments.\r\n" },
+
 	{ OP_SET_OBJECT_SPEED_X, "set-object-speed-x\r\n"
 		"\tSets the X speed of a ship, wing, or waypoint."
 		"Takes 2 or 3 arguments...\r\n"
@@ -23818,14 +24396,38 @@ sexp_help_struct Sexp_help[] = {
 		"\t4: The relative Y coordinate (optional).\r\n"
 		"\t5: The relative Z coordinate (optional).\r\n" },
 
-		// Goober5000
+	// Goober5000
 	{ OP_SET_OBJECT_POSITION, "set-object-position\r\n"
 		"\tInstantaneously sets an object's spatial coordinates."
 		"Takes 4 arguments...\r\n"
-		"\t1: The name of an object.\r\n"
+		"\t1: The name of a ship, wing, or waypoint.\r\n"
 		"\t2: The new X coordinate.\r\n"
 		"\t3: The new Y coordinate.\r\n"
 		"\t4: The new Z coordinate." },
+
+	// Goober5000
+	{ OP_GET_OBJECT_PITCH, "get-object-pitch\r\n"
+		"\tReturns the pitch angle, in degrees, of a particular object.  The returned value will be between 0 and 360.  Takes 1 argument...\r\n"
+		"\t1: The name of a ship, wing, or waypoint.\r\n" },
+
+	// Goober5000
+	{ OP_GET_OBJECT_BANK, "get-object-bank\r\n"
+		"\tReturns the bank angle, in degrees, of a particular object.  The returned value will be between 0 and 360.  Takes 1 argument...\r\n"
+		"\t1: The name of a ship, wing, or waypoint.\r\n" },
+
+	// Goober5000
+	{ OP_GET_OBJECT_HEADING, "get-object-heading\r\n"
+		"\tReturns the heading angle, in degrees, of a particular object.  The returned value will be between 0 and 360.  Takes 1 argument...\r\n"
+		"\t1: The name of a ship, wing, or waypoint.\r\n" },
+
+	// Goober5000
+	{ OP_SET_OBJECT_ORIENTATION, "set-object-orientation\r\n"
+		"\tInstantaneously sets an object's spatial orientation."
+		"Takes 4 arguments...\r\n"
+		"\t1: The name of a ship, wing, or waypoint.\r\n"
+		"\t2: The new pitch angle, in degrees.  The angle can be any number; it does not have to be between 0 and 360.\r\n"
+		"\t3: The new bank angle, in degrees.  The angle can be any can be any number; it does not have to be between 0 and 360.\r\n"
+		"\t4: The new heading angle, in degrees.  The angle can be any number; it does not have to be between 0 and 360." },
 
 	{ OP_TRUE, "True (Boolean operator)\r\n"
 		"\tA true boolean state\r\n\r\n"
@@ -23842,6 +24444,10 @@ sexp_help_struct Sexp_help[] = {
 	{ OP_OR, "Or (Boolean operator)\r\n"
 		"\tOr is true if any of its arguments are true.\r\n\r\n"
 		"Returns a boolean value.  Takes 2 or more boolean arguments." },
+
+	{ OP_XOR, "Xor (Boolean operator)\r\n"
+		"\tXor is true if exactly one of its arguments is true.\r\n\r\n"
+		"Returns a boolean value.  Takes 2 boolean arguments." },
 
 	{ OP_EQUALS, "Equals (Boolean operator)\r\n"
 		"\tIs true if all of its arguments are equal.\r\n\r\n"
@@ -24298,6 +24904,7 @@ sexp_help_struct Sexp_help[] = {
 	{ OP_ANY_OF, "Any-of (Conditional operator)\r\n"
 		"\tSupplies arguments for the " SEXP_ARGUMENT_STRING " special data item.  Any of the supplied arguments can satisfy the expression(s) "
 		"in which " SEXP_ARGUMENT_STRING " is used.\r\n\r\n"
+		"In practice, this will behave like a standard \"for-each\" statement, evaluating the action operators for each argument that satisfies the condition.\r\n\r\n"
 		"Takes 1 or more arguments...\r\n"
 		"\tAll:\tAnything that could be used in place of " SEXP_ARGUMENT_STRING "." },
 
@@ -24336,6 +24943,18 @@ sexp_help_struct Sexp_help[] = {
 		"in which " SEXP_ARGUMENT_STRING " is used. The same argument will be returned by all subsequent calls\r\n\r\n"
 		"Takes 1 or more arguments...\r\n"
 		"\tAll:\tAnything that could be used in place of " SEXP_ARGUMENT_STRING "." },
+
+	// Goober5000
+	{ OP_FOR_COUNTER, "For-Counter (Conditional operator)\r\n"
+		"\tSupplies counter values for the " SEXP_ARGUMENT_STRING " special data item.  This sexp will count up from the start value to the stop value, and each value will be provided as an argument to the action operators.  "
+		"The default increment is 1, but if the optional increment parameter is provided, the counter will increment by that number.  The stop value will be supplied if appropriate; e.g. counting from 0 to 10 by 2 will supply 0, 2, 4, 6, 8, and 10; "
+		"but counting by 3 will supply 0, 3, 6, and 9.\r\n\r\n"
+		"Note that the counter values are all treated as valid arguments, and it is impossible to invalidate a counter argument.  If you want to invalidate a counter value, use Any-of and list the values explicitly.\r\n\r\n"
+		"This sexp will usually need to be accompanied by the string-to-int sexp, as the counter variables are provided in string format but are most useful in integer format.\r\n\r\n"
+		"Takes 2 or 3 arguments...\r\n"
+		"\t1:\tCounter start value\r\n"
+		"\t2:\tCounter stop value\r\n"
+		"\t3:\tCounter increment (optional)" },
 
 	// Goober5000
 	{ OP_INVALIDATE_ARGUMENT, "Invalidate-argument (Conditional operator)\r\n"

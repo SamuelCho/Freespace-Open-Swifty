@@ -243,7 +243,8 @@ flag_def_list Subsystem_flags[] = {
 	{ "no replace",				MSS_FLAG_NO_REPLACE,		0 },
 	{ "no live debris",			MSS_FLAG_NO_LIVE_DEBRIS,	0 },
 	{ "ignore if dead",			MSS_FLAG_IGNORE_IF_DEAD,	0 },
-	{ "allow vanishing",		MSS_FLAG_ALLOW_VANISHING,	0 }
+	{ "allow vanishing",		MSS_FLAG_ALLOW_VANISHING,	0 },
+	{ "damage as hull",			MSS_FLAG_DAMAGE_AS_HULL,	0 },
 };
 
 int Num_subsystem_flags = sizeof(Subsystem_flags)/sizeof(flag_def_list);
@@ -3191,9 +3192,9 @@ strcpy_s(parse_error_text, temp_error);
 							current_trigger->absolute = true;
 							stuff_vector(&current_trigger->angle );
 		
-							current_trigger->angle.xyz.x = fl_radian(current_trigger->angle.xyz.x);
-							current_trigger->angle.xyz.y = fl_radian(current_trigger->angle.xyz.y);
-							current_trigger->angle.xyz.y = fl_radian(current_trigger->angle.xyz.z);
+							current_trigger->angle.xyz.x = fl_radians(current_trigger->angle.xyz.x);
+							current_trigger->angle.xyz.y = fl_radians(current_trigger->angle.xyz.y);
+							current_trigger->angle.xyz.y = fl_radians(current_trigger->angle.xyz.z);
 						}else{
 							current_trigger->absolute = false;
 							if(!optional_string("+relative_angle:"))
@@ -3201,23 +3202,23 @@ strcpy_s(parse_error_text, temp_error);
 
 							stuff_vector(&current_trigger->angle );
 		
-							current_trigger->angle.xyz.x = fl_radian(current_trigger->angle.xyz.x);
-							current_trigger->angle.xyz.y = fl_radian(current_trigger->angle.xyz.y);
-							current_trigger->angle.xyz.z = fl_radian(current_trigger->angle.xyz.z);
+							current_trigger->angle.xyz.x = fl_radians(current_trigger->angle.xyz.x);
+							current_trigger->angle.xyz.y = fl_radians(current_trigger->angle.xyz.y);
+							current_trigger->angle.xyz.z = fl_radians(current_trigger->angle.xyz.z);
 						}
 		
 						if(optional_string("+velocity:")){
 							stuff_vector(&current_trigger->vel );
-							current_trigger->vel.xyz.x = fl_radian(current_trigger->vel.xyz.x);
-							current_trigger->vel.xyz.y = fl_radian(current_trigger->vel.xyz.y);
-							current_trigger->vel.xyz.z = fl_radian(current_trigger->vel.xyz.z);
+							current_trigger->vel.xyz.x = fl_radians(current_trigger->vel.xyz.x);
+							current_trigger->vel.xyz.y = fl_radians(current_trigger->vel.xyz.y);
+							current_trigger->vel.xyz.z = fl_radians(current_trigger->vel.xyz.z);
 						}
 		
 						if(optional_string("+acceleration:")){
 							stuff_vector(&current_trigger->accel );
-							current_trigger->accel.xyz.x = fl_radian(current_trigger->accel.xyz.x);
-							current_trigger->accel.xyz.y = fl_radian(current_trigger->accel.xyz.y);
-							current_trigger->accel.xyz.z = fl_radian(current_trigger->accel.xyz.z);
+							current_trigger->accel.xyz.x = fl_radians(current_trigger->accel.xyz.x);
+							current_trigger->accel.xyz.y = fl_radians(current_trigger->accel.xyz.y);
+							current_trigger->accel.xyz.z = fl_radians(current_trigger->accel.xyz.z);
 						}
 
 						if(optional_string("+time:"))
@@ -3238,30 +3239,30 @@ strcpy_s(parse_error_text, temp_error);
 							current_trigger->absolute = true;
 							stuff_vector(&current_trigger->angle );
 		
-							current_trigger->angle.xyz.x = fl_radian(current_trigger->angle.xyz.x);
-							current_trigger->angle.xyz.y = fl_radian(current_trigger->angle.xyz.y);
-							current_trigger->angle.xyz.y = fl_radian(current_trigger->angle.xyz.z);
+							current_trigger->angle.xyz.x = fl_radians(current_trigger->angle.xyz.x);
+							current_trigger->angle.xyz.y = fl_radians(current_trigger->angle.xyz.y);
+							current_trigger->angle.xyz.y = fl_radians(current_trigger->angle.xyz.z);
 						}else{
 							current_trigger->absolute = false;
 							required_string("+relative_angle:");
 							stuff_vector(&current_trigger->angle );
 		
-							current_trigger->angle.xyz.x = fl_radian(current_trigger->angle.xyz.x);
-							current_trigger->angle.xyz.y = fl_radian(current_trigger->angle.xyz.y);
-							current_trigger->angle.xyz.z = fl_radian(current_trigger->angle.xyz.z);
+							current_trigger->angle.xyz.x = fl_radians(current_trigger->angle.xyz.x);
+							current_trigger->angle.xyz.y = fl_radians(current_trigger->angle.xyz.y);
+							current_trigger->angle.xyz.z = fl_radians(current_trigger->angle.xyz.z);
 						}
 		
 						required_string("+velocity:");
 						stuff_vector(&current_trigger->vel );
-						current_trigger->vel.xyz.x = fl_radian(current_trigger->vel.xyz.x);
-						current_trigger->vel.xyz.y = fl_radian(current_trigger->vel.xyz.y);
-						current_trigger->vel.xyz.z = fl_radian(current_trigger->vel.xyz.z);
+						current_trigger->vel.xyz.x = fl_radians(current_trigger->vel.xyz.x);
+						current_trigger->vel.xyz.y = fl_radians(current_trigger->vel.xyz.y);
+						current_trigger->vel.xyz.z = fl_radians(current_trigger->vel.xyz.z);
 		
 						required_string("+acceleration:");
 						stuff_vector(&current_trigger->accel );
-						current_trigger->accel.xyz.x = fl_radian(current_trigger->accel.xyz.x);
-						current_trigger->accel.xyz.y = fl_radian(current_trigger->accel.xyz.y);
-						current_trigger->accel.xyz.z = fl_radian(current_trigger->accel.xyz.z);
+						current_trigger->accel.xyz.x = fl_radians(current_trigger->accel.xyz.x);
+						current_trigger->accel.xyz.y = fl_radians(current_trigger->accel.xyz.y);
+						current_trigger->accel.xyz.z = fl_radians(current_trigger->accel.xyz.z);
 
 						if(optional_string("+time:"))
 							stuff_int(&current_trigger->end );
@@ -5036,6 +5037,8 @@ int subsys_set(int objnum, int ignore_subsys_info)
 			ship_system->flags |= SSF_MISSILES_IGNORE_IF_DEAD;
 		if (model_system->flags & MSS_FLAG_ALLOW_VANISHING)
 			ship_system->flags |= SSF_VANISHED;
+		if (model_system->flags & MSS_FLAG_DAMAGE_AS_HULL)
+			ship_system->flags |= SSF_DAMAGE_AS_HULL;
 		if (model_system->flags & MSS_FLAG_ROTATES)
 			ship_system->flags |= SSF_ROTATES;
 

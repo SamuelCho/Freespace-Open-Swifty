@@ -1201,12 +1201,14 @@ void bm_lock_ani( int handle, int bitmapnum, bitmap_entry *be, bitmap *bmp, ubyt
 	nframes = bm_bitmaps[first_frame].info.ani.num_frames;
 
 	if ( (the_anim = anim_load(bm_bitmaps[first_frame].filename, bm_bitmaps[first_frame].dir_type)) == NULL ) {
-		// Error(LOCATION, "Error opening %s in bm_lock\n", be->filename);
+		nprintf(("BMPMAN", "Error opening %s in bm_lock\n", be->filename));
+		return;
 	}
 
 	if ( (the_anim_instance = init_anim_instance(the_anim, bpp)) == NULL ) {
-		// Error(LOCATION, "Error opening %s in bm_lock\n", be->filename);
+		nprintf(("BMPMAN", "Error opening %s in bm_lock\n", be->filename));
 		anim_free(the_anim);
+		return;
 	}
 
 	int can_drop_frames = 0;
@@ -1376,9 +1378,6 @@ void bm_lock_tga( int handle, int bitmapnum, bitmap_entry *be, bitmap *bmp, ubyt
 		Assert( (bpp == 16) || (bpp == 24 ) || (bpp == 32) );
 	}
 
-	// should never try to make an aabitmap out of a targa
-	Assert(!(flags & BMP_AABITMAP));
-
 	// allocate bitmap data
 	byte_size = (bpp >> 3);
 
@@ -1498,9 +1497,6 @@ void bm_lock_png( int handle, int bitmapnum, bitmap_entry *be, bitmap *bmp, ubyt
 	// Unload any existing data
 	bm_free_data( bitmapnum );
 
-	// should never try to make an aabitmap out of a png
-	Assert(!(flags & BMP_AABITMAP));
-
 	// allocate bitmap data
 	Assert( bmp->w * bmp->h > 0 );
 
@@ -1544,9 +1540,6 @@ void bm_lock_jpg( int handle, int bitmapnum, bitmap_entry *be, bitmap *bmp, ubyt
 
 	// Unload any existing data
 	bm_free_data( bitmapnum );	
-
-	// should never try to make an aabitmap out of a jpeg
-	Assert(!(flags & BMP_AABITMAP));
 
 	d_size = (bpp >> 3);
 
