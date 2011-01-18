@@ -1558,3 +1558,23 @@ void gr_opengl_set_state_block(int handle)
 /*	if(handle < 0) return;
 	glCallList(handle);*/
 }
+
+void gr_opengl_gen_occlude_ids(int n, uint *ids)
+{
+	Assert(n > 0);
+	Assert(ids != NULL);
+
+	vglGenQueriesARB(n, ids);
+}
+
+void gr_opengl_start_occlude_query(uint id)
+{
+	Assert(id >= 0);
+
+	vglBeginQueryARB(GL_SAMPLES_PASSED_ARB, id);
+}
+
+void gr_opengl_end_occlude_query()
+{
+	vglEndQueryARB(GL_SAMPLES_PASSED_ARB);
+}
