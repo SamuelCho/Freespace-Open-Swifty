@@ -86,6 +86,7 @@
 #include "graphics/2d.h"
 #include "object/objectsnd.h"
 #include "graphics/font.h"
+#include "asteroid/asteroid.h"
 
 #ifndef NDEBUG
 #include "hud/hudmessage.h"
@@ -129,7 +130,7 @@ sexp_oper Operators[] = {
 	{ "and-in-sequence",				OP_AND_IN_SEQUENCE,			2, INT_MAX, },
 	{ "or",								OP_OR,							2,	INT_MAX,	},
 	{ "not",								OP_NOT,							1, 1,			},
-	{ "xor",								OP_XOR,							2, 2,			},	// Goober5000
+	{ "xor",								OP_XOR,							2, INT_MAX,			},	// Goober5000
 	{ "=",								OP_EQUALS,						2,	INT_MAX,	},
 	{ "!=",								OP_NOT_EQUAL,						2,	INT_MAX,	},	// Goober5000
 	{ ">",								OP_GREATER_THAN,				2,	INT_MAX,	},
@@ -139,6 +140,7 @@ sexp_oper Operators[] = {
 	{ "string-equals",						OP_STRING_EQUALS,				2,	INT_MAX,	},
 	{ "string-greater-than",				OP_STRING_GREATER_THAN,			2,	INT_MAX,	},
 	{ "string-less-than",					OP_STRING_LESS_THAN,			2,	INT_MAX,	},
+	{ "perform-actions",			OP_PERFORM_ACTIONS,						2,	INT_MAX,	},	// Goober5000
 	{ "has-time-elapsed",			OP_HAS_TIME_ELAPSED,			1,	1,			},
 
 	{ "is-goal-true-delay",					OP_GOAL_TRUE_DELAY,				2, 2,	},
@@ -274,6 +276,7 @@ sexp_oper Operators[] = {
 	{ "when-argument",				OP_WHEN_ARGUMENT,			3, INT_MAX, },	// Goober5000
 	{ "every-time",					OP_EVERY_TIME,				2, INT_MAX, },	// Goober5000
 	{ "every-time-argument",		OP_EVERY_TIME_ARGUMENT,		3, INT_MAX, },	// Goober5000
+	{ "if-then-else",				OP_IF_THEN_ELSE,			3, INT_MAX,	},	// Goober5000
 	{ "any-of",						OP_ANY_OF,					1, INT_MAX, },	// Goober5000
 	{ "every-of",					OP_EVERY_OF,				1, INT_MAX, },	// Goober5000
 	{ "random-of",					OP_RANDOM_OF,				1, INT_MAX, },	// Goober5000
@@ -369,7 +372,7 @@ sexp_oper Operators[] = {
 	{ "ship-subsys-targetable",		OP_SHIP_SUBSYS_TARGETABLE,		2, INT_MAX },	// Goober5000
 	{ "ship-subsys-no-replace",		OP_SHIP_SUBSYS_NO_REPLACE,		3, INT_MAX },	// FUBAR
 	{ "ship-subsys-no-live-debris",	OP_SHIP_SUBSYS_NO_LIVE_DEBRIS,	3, INT_MAX },	// FUBAR
-	{ "ship-subsys-vanished",		OP_SHIP_SUBSYS_VANISHED,		3, INT_MAX },	// FUBAR
+	{ "ship-subsys-vanish",			OP_SHIP_SUBSYS_VANISHED,		3, INT_MAX },	// FUBAR
 	{ "ship-subsys-ignore_if_dead",	OP_SHIP_SUBSYS_IGNORE_IF_DEAD,	3, INT_MAX },	// FUBAR
 	{ "ship-subsys-untargetable",	OP_SHIP_SUBSYS_UNTARGETABLE,	2, INT_MAX },	// Goober5000
 	{ "ship-vaporize",				OP_SHIP_VAPORIZE,				1, INT_MAX },	// Goober5000
@@ -491,6 +494,10 @@ sexp_oper Operators[] = {
 	{ "ship-rot-maneuver",		OP_SHIP_ROT_MANEUVER,		6, 6 }, // Wanderer
 	{ "ship-lat-maneuver",		OP_SHIP_LAT_MANEUVER,		6, 6 }, // Wanderer
 	{ "force-glide",			OP_FORCE_GLIDE,				2, 2 }, // The E
+	{ "weapon-set-damage-type",		OP_WEAPON_SET_DAMAGE_TYPE,		4, INT_MAX }, // FUBAR
+	{ "ship-set-damage-type",		OP_SHIP_SET_DAMAGE_TYPE,		4, INT_MAX }, // FUBAR
+	{ "ship-set-shockwave-damage-type",		OP_SHIP_SHOCKWAVE_SET_DAMAGE_TYPE,		3, INT_MAX }, // FUBAR
+	{ "field-set-damage-type",		OP_FIELD_SET_DAMAGE_TYPE,		2,2 }, // FUBAR
 	
 	//background and nebula sexps
 	{ "mission-set-nebula",			OP_MISSION_SET_NEBULA,				1, 1 }, //-Sesquipedalian
@@ -565,7 +572,6 @@ sexp_oper Operators[] = {
 	{ "primaries-depleted",		OP_PRIMARIES_DEPLETED,		1, 1,			},
 	{ "secondaries-depleted",	OP_SECONDARIES_DEPLETED,	1, 1,			},
 	{ "special-check",			OP_SPECIAL_CHECK,				1, 1,			},
-	{ "string-to-int",			OP_STRING_TO_INT,				1, 1,			}, // Karajorma
 
 	{ "set-training-context-fly-path",	OP_SET_TRAINING_CONTEXT_FLY_PATH,	2, 2, },
 	{ "set-training-context-speed",		OP_SET_TRAINING_CONTEXT_SPEED,		2, 2, },
@@ -603,6 +609,9 @@ sexp_oper Operators[] = {
 	{ "script-eval-num",			OP_SCRIPT_EVAL_NUM,						1, 1, },
 	{ "script-eval-string",			OP_SCRIPT_EVAL_STRING,					1, 1, },
 	{ "script-eval",				OP_SCRIPT_EVAL,							1, INT_MAX},
+	{ "string-to-int",				OP_STRING_TO_INT,						1, 1,			}, // Karajorma
+	{ "int-to-string",				OP_INT_TO_STRING,						2, 2,			}, // Goober5000
+	{ "string-concatenate",			OP_STRING_CONCATENATE,					3, 3,			}, // Goober5000
 
 	{ "do-nothing",	OP_NOP,	0, 0,			},
 };
@@ -2676,6 +2685,23 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 					return SEXP_CHECK_INVALID_INTEL_NAME;
 				
 				break;
+
+			case OPF_DAMAGE_TYPES:
+				if ( type2 != SEXP_ATOM_STRING )
+					return SEXP_CHECK_TYPE_MISMATCH;
+
+				if (!stricmp(CTEXT(node), SEXP_NONE_STRING))
+					break;
+
+				for (st = 0; st < Damage_types.size(); st++ ) {
+					if ( !stricmp(CTEXT(node), Damage_types[st].name) )
+						break;
+				}
+
+				if ( st == Armor_types.size() )
+					return SEXP_CHECK_INVALID_INTEL_NAME;
+				
+				break;
 	
 			case OPF_TARGET_PRIORITIES:
 				if ( type2 != SEXP_ATOM_STRING )
@@ -2997,6 +3023,8 @@ int get_sexp(char *token)
 				strcpy(token, "change-ship-class");
 			else if (!stricmp(token, "radar-set-max-range"))
 				strcpy(token, "hud-set-max-targeting-range");
+			else if (!stricmp(token, "ship-subsys-vanished"))
+				strcpy(token, "ship-subsys-vanish");
 
 			op = get_operator_index(token);
 			if (op != -1) {
@@ -7625,10 +7653,8 @@ int special_argument_appears_in_sexp_tree(int node)
 
 	// we don't want to include special arguments if they are nested in a new argument SEXP
 	if (Sexp_nodes[node].type == SEXP_ATOM && Sexp_nodes[node].subtype == SEXP_ATOM_OPERATOR) {
-		switch (get_operator_const(CTEXT(node))) {
-			case OP_WHEN_ARGUMENT:
-			case OP_EVERY_TIME_ARGUMENT:
-				return 0; 
+		if (is_blank_argument_op(get_operator_const(CTEXT(node)))) {
+			return 0; 
 		}
 	}
 
@@ -7653,20 +7679,81 @@ int special_argument_appears_in_sexp_list(int node)
 }
 
 // conditional sexpressions follow
+
+// Goober5000
+void eval_when_do_one_exp(int exp)
+{	
+	arg_item *ptr;
+	int do_node;
+
+	switch (get_operator_const(CTEXT(exp)))
+	{
+		// if the op is a conditional then we just evaluate it
+		case OP_WHEN:
+		case OP_EVERY_TIME:
+		case OP_IF_THEN_ELSE:
+			// need to account for the possibility this call uses <arguments>
+			if (special_argument_appears_in_sexp_tree(exp)) { 
+				ptr = Sexp_applicable_argument_list.get_next();
+				if (ptr != NULL) {
+					eval_when_for_each_special_argument(exp);
+				}
+				else {
+					eval_sexp(exp);
+				}
+			}
+			else {
+				eval_sexp(exp);
+			}
+			break;
+
+		case OP_DO_FOR_VALID_ARGUMENTS:
+			if (special_argument_appears_in_sexp_tree(exp)) { 
+				Warning(LOCATION, "<Argument> used within Do-for-valid-arguments SEXP. Skipping entire SEXP"); 
+				break; 
+			}
+
+			do_node = CDR(exp); 
+			while (do_node != -1) {
+				do_action_for_each_special_argument(do_node); 
+				do_node = CDR(do_node); 
+			}
+			break;
+
+		case OP_WHEN_ARGUMENT:
+		case OP_EVERY_TIME_ARGUMENT:
+			eval_sexp(exp);
+			break; 
+
+		// otherwise we need to check if arguments are used
+		default: 
+			// if we're using the special argument in this action
+			if (special_argument_appears_in_sexp_tree(exp))
+			{
+				do_action_for_each_special_argument(exp);			// these sexps eval'd only for side effects
+			}
+			// if not, just evaluate it once as-is
+			else
+			{
+				// Goober5000 - possible bug? (see when val is used below)
+				/*val = */eval_sexp(exp);							// these sexps eval'd only for side effects
+			}
+	}
+}
+
 	
 // Goober5000 - added capability for arguments
+// Goober5000 - and also if-then-else and perform-actions
 // eval_when evaluates the when conditional
-int eval_when(int n, int use_arguments)
+int eval_when(int n, int when_op_num)
 {
-	int arg_handler, cond, val, actions, exp, op_num, do_node;
-	arg_item *ptr;
-
+	int cond, val, actions;
 	Assert( n >= 0 );
 
 	// get the parts of the sexp and evaluate the conditional
-	if (use_arguments)
+	if (is_blank_argument_op(when_op_num))
 	{
-		arg_handler = CAR(n);
+		int arg_handler = CAR(n);
 		cond = CADR(n);
 		actions = CDDR(n);
 
@@ -7674,6 +7761,7 @@ int eval_when(int n, int use_arguments)
 		// evaluate for custom arguments
 		val = eval_sexp(arg_handler, cond);
 	}
+	// normal evaluation
 	else
 	{
 		cond = CAR(n);
@@ -7684,77 +7772,65 @@ int eval_when(int n, int use_arguments)
 	}
 
 	// if value is true, perform the actions in the 'then' part
-	if (val == SEXP_TRUE || val == SEXP_KNOWN_TRUE)
+	if (val == SEXP_TRUE || val == SEXP_KNOWN_TRUE || when_op_num == OP_PERFORM_ACTIONS)
 	{
 		// loop through every action
 		while (actions != -1)
 		{
 			// get the operator
-			exp = CAR(actions);
+			int exp = CAR(actions);
 			if (exp != -1)
-			{
-				
-				op_num = get_operator_const(CTEXT(exp));
-				switch (op_num) {
-					// if the op is a conditional then we just evaluate it
-					case OP_WHEN:
-					case OP_EVERY_TIME:
-						// need to account for the possibility this call uses <arguments>
-						if (special_argument_appears_in_sexp_tree(exp)) { 
-							ptr = Sexp_applicable_argument_list.get_next();
-							if (ptr != NULL) {
-								eval_when_for_each_special_argument(exp);
-							}
-							else {
-								eval_sexp(exp);
-							}
-						}
-						else {
-							eval_sexp(exp);
-						}
-						break;
+				eval_when_do_one_exp(exp);
 
-					case OP_DO_FOR_VALID_ARGUMENTS:
-						if (special_argument_appears_in_sexp_tree(exp)) { 
-							Warning(LOCATION, "<Argument> used within Do-for-valid-arguments SEXP. Skipping entire SEXP"); 
-							break; 
-						}
-
-						do_node = CDR(exp); 
-						while (do_node != -1) {
-							do_action_for_each_special_argument(do_node); 
-							do_node = CDR(do_node); 
-						}
-						break;
-
-					case OP_WHEN_ARGUMENT:
-					case OP_EVERY_TIME_ARGUMENT:
-						eval_sexp(exp);
-						break; 
-
-					// otherwise we need to check if arguments are used
-					default: 
-						// if we're using the special argument in this action
-						if (special_argument_appears_in_sexp_tree(exp))
-						{
-							do_action_for_each_special_argument(exp);			// these sexps eval'd only for side effects
-						}
-						// if not, just evaluate it once as-is
-						else
-						{
-							// Goober5000 - possible bug? (see when val is used below)
-							/*val = */eval_sexp(exp);							// these sexps eval'd only for side effects
-						}
-				}
-			}
+			// iterate
 			actions = CDR(actions);
+
+			// if-then-else only has one "if" action
+			if (when_op_num == OP_IF_THEN_ELSE)
+				break;
 		}
 	}
+	// if-then-else has actions to perform under "else"
+	else if ((val == SEXP_FALSE || val == SEXP_KNOWN_FALSE) && when_op_num == OP_IF_THEN_ELSE)
+	{
+		// skip past the "if" action
+		actions = CDR(actions);
 
-	if (use_arguments) {
+		// loop through every action
+		while (actions != -1)
+		{
+			// get the operator
+			int exp = CAR(actions);
+			if (exp != -1)
+				eval_when_do_one_exp(exp);
+
+			// iterate
+			actions = CDR(actions);
+		}
+
+		// invert val so that we behave like a when with opposite results
+		if (val == SEXP_KNOWN_FALSE)
+			val = SEXP_KNOWN_TRUE;
+		else
+			val = SEXP_TRUE;
+	}
+
+	if (is_blank_argument_op(when_op_num))
+	{
 		// clean up any special sexp stuff
 		Sexp_applicable_argument_list.clear_nesting_level();
 		Sexp_current_argument_nesting_level--;
+	}
+
+	// perform-actions should return whatever val was, but should not return known-*
+	if (when_op_num == OP_PERFORM_ACTIONS)
+	{
+		if (val == SEXP_KNOWN_TRUE)
+			return SEXP_TRUE;
+		else if (val == SEXP_KNOWN_FALSE)
+			return SEXP_FALSE;
+		else
+			return val;
 	}
 
 	if (Sexp_nodes[cond].value == SEXP_KNOWN_FALSE)
@@ -15183,6 +15259,191 @@ void sexp_set_armor_type(int node)
 	}
 }
 
+void sexp_weapon_set_damage_type(int node)
+{	
+	int windex, damage, swave, rset;
+	size_t t;
+
+	// weapon or shockwave
+	swave = is_sexp_true(node);
+
+	// get damage type
+	node = CDR(node);
+	if (!stricmp(SEXP_NONE_STRING, CTEXT(node)))
+		damage = -1;
+	else 
+	{
+		for(t = 0; t < Damage_types.size(); t++) 
+		{
+			if ( !stricmp(Damage_types[t].name, CTEXT(node)))  
+				break;
+		}
+		if (t == Damage_types.size()) 
+			return;
+		damage = (int)t;
+	}
+
+	//Set or reset to defualt
+	node = CDR(node);
+	rset = is_sexp_true(node);
+	
+	//Set Damage
+	node = CDR(node);
+	while(node != -1)
+	{
+		// get the weapon
+		windex = weapon_info_lookup(CTEXT(node));
+		if(windex >= 0) 
+		{
+			// set the damage type
+			if (swave)
+				if (!rset)
+					Weapon_info[windex].damage_type_idx = Weapon_info[windex].damage_type_idx_sav;
+				else
+					Weapon_info[windex].damage_type_idx = damage;
+			else
+				if (!rset)
+					Weapon_info[windex].shockwave.damage_type_idx = Weapon_info[windex].shockwave.damage_type_idx_sav;
+				else
+					Weapon_info[windex].shockwave.damage_type_idx = damage;
+		// next
+		}
+		node = CDR(node);
+	}
+}
+
+void sexp_ship_set_damage_type(int node)
+{	
+	int sindex, damage, debris, rset;
+	size_t t;
+	ship *shipp = NULL;
+
+	// collision or debris
+	debris = is_sexp_true(node);
+
+	// get damage type
+	node = CDR(node);
+	if (!stricmp(SEXP_NONE_STRING, CTEXT(node)))
+		damage = -1;
+	else 
+	{
+		for(t = 0; t < Damage_types.size(); t++) 
+		{
+			if ( !stricmp(Damage_types[t].name, CTEXT(node)))  
+				break;
+		}
+		if (t == Damage_types.size()) 
+			return;
+		damage = (int)t;
+	}
+
+	//Set or reset to defualt
+	node = CDR(node);
+	rset = is_sexp_true(node);
+	
+	//Set Damage
+	node = CDR(node);
+	while(node != -1)
+	{
+		// get the ship
+		sindex = ship_name_lookup(CTEXT(node));
+		if(sindex >= 0) 
+		{
+			shipp = &Ships[sindex];
+			// set the damage type
+			if (debris)
+			{
+				if (!rset)
+					shipp[sindex].collision_damage_type_idx = Ship_info[shipp[sindex].ship_info_index].collision_damage_type_idx;
+				else
+					shipp[sindex].collision_damage_type_idx = damage;
+			}
+			else 
+			{
+				if (!rset)
+					shipp[sindex].debris_damage_type_idx = Ship_info[shipp[sindex].ship_info_index].debris_damage_type_idx;
+				else
+					shipp[sindex].debris_damage_type_idx = damage;
+			}
+			// next
+		}
+		node = CDR(node);
+	}
+}
+void sexp_ship_shockwave_set_damage_type(int node)
+{	
+	int sindex, damage, rset;
+	size_t t;
+
+	// get damage type
+	if (!stricmp(SEXP_NONE_STRING, CTEXT(node)))
+		damage = -1;
+	else 
+	{
+		for(t = 0; t < Damage_types.size(); t++) 
+		{
+			if ( !stricmp(Damage_types[t].name, CTEXT(node)))  
+				break;
+		}
+		if (t == Damage_types.size()) 
+			return;
+		damage = (int)t;
+	}
+
+	//Set or reset to defualt
+	node = CDR(node);
+	rset = is_sexp_true(node);
+	
+	//Set Damage
+	node = CDR(node);
+	while(node != -1)
+	{
+		// get the ship
+		sindex = ship_info_lookup(CTEXT(node));
+		if(sindex >= 0) 
+		{
+			// set the damage type
+			if (!rset)
+				Ship_info[sindex].shockwave.damage_type_idx = Ship_info[sindex].shockwave.damage_type_idx_sav;
+			else
+				Ship_info[sindex].shockwave.damage_type_idx = damage;
+			// next
+		}
+		node = CDR(node);
+	}
+}
+void sexp_field_set_damage_type(int node)
+{	
+	int damage, rset;
+	size_t t;
+
+	// get damage type
+	if (!stricmp(SEXP_NONE_STRING, CTEXT(node)))
+		damage = -1;
+	else 
+	{
+		for(t = 0; t < Damage_types.size(); t++) 
+		{
+			if ( !stricmp(Damage_types[t].name, CTEXT(node)))  
+				break;
+		}
+		if (t == Damage_types.size()) 
+			return;
+		damage = (int)t;
+	}
+
+	//Set or reset to defualt
+	node = CDR(node);
+	rset = is_sexp_true(node);
+	
+	//Set Damage
+	node = CDR(node);
+	for(t = 0; t < Asteroid_info.size(); t++) 
+	if (!rset)
+		Asteroid_info[t].damage_type_idx = Asteroid_info[t].damage_type_idx_sav;
+	else
+		Asteroid_info[t].damage_type_idx = damage;
+}
 void sexp_turret_set_target_order(int node)
 {	
 	int sindex;
@@ -17119,13 +17380,114 @@ int process_special_sexps(int index)
 	return SEXP_FALSE;
 }
 
-// Karajorma
-int sexp_string_to_int (int n)
+// Karajorma / Goober5000
+int sexp_string_to_int(int n)
 {
+	bool first_ch = true;
+	char *ch, *buf_ch, buf[TOKEN_LENGTH];
 	Assert (n != -1);
-	return atoi(CTEXT(n));
+
+	// copy all numeric characters to buf
+	// also, copy a sign symbol if we haven't copied numbers yet
+	buf_ch = buf;
+	for (ch = CTEXT(n); *ch != 0; ch++)
+	{
+		if ((first_ch && (*ch == '-' || *ch == '+')) || strchr("0123456789", *ch))
+		{
+			*buf_ch = *ch;
+			buf_ch++;
+
+			first_ch = false;
+		}
+
+		// don't save the fractional parts of decimal numbers
+		if (*ch == '.')
+			break;
+	}
+
+	// terminate string
+	*buf_ch = '\0';
+
+	return atoi(buf);
 }
 
+// Goober5000
+void sexp_int_to_string(int n)
+{
+	int i, sexp_variable_index;
+	char new_text[TOKEN_LENGTH];
+
+	// Only do single player of multi host
+	if ( MULTIPLAYER_CLIENT )
+		return;
+
+	i = eval_num(n);
+	n = CDR(n);
+
+	// get sexp_variable index
+	Assert(Sexp_nodes[n].first == -1);
+	sexp_variable_index = atoi(Sexp_nodes[n].text);
+
+	// verify variable set
+	Assert(Sexp_variables[sexp_variable_index].type & SEXP_VARIABLE_SET);
+
+	// check variable type
+	if (!(Sexp_variables[sexp_variable_index].type & SEXP_VARIABLE_STRING))
+	{
+		Warning(LOCATION, "Cannot assign a string to a non-string variable!");
+		return;
+	}
+
+	// write string
+	sprintf(new_text, "%d", i);
+
+	// assign to variable
+	sexp_modify_variable(new_text, sexp_variable_index);
+}
+
+// Goober5000
+void sexp_string_concatenate(int n)
+{
+	int sexp_variable_index;
+	char new_text[TOKEN_LENGTH];
+
+	// Only do single player of multi host
+	if ( MULTIPLAYER_CLIENT )
+		return;
+
+	char *str1 = CTEXT(n);
+	n = CDR(n);
+	char *str2 = CTEXT(n);
+	n = CDR(n);
+
+	// get sexp_variable index
+	Assert(Sexp_nodes[n].first == -1);
+	sexp_variable_index = atoi(Sexp_nodes[n].text);
+
+	// verify variable set
+	Assert(Sexp_variables[sexp_variable_index].type & SEXP_VARIABLE_SET);
+
+	// check variable type
+	if (!(Sexp_variables[sexp_variable_index].type & SEXP_VARIABLE_STRING))
+	{
+		Warning(LOCATION, "Cannot assign a string to a non-string variable!");
+		return;
+	}
+
+	// add first string
+	memset(new_text, 0, TOKEN_LENGTH);
+	strcpy(new_text, str1);
+
+	// check length
+	if (strlen(str1) + strlen(str2) >= TOKEN_LENGTH)
+		Warning(LOCATION, "Concatenated string is too long and will be truncated.");
+
+	// add second string
+	strncat(new_text, str2, TOKEN_LENGTH - strlen(str1) - 1);
+
+	// assign to variable
+	sexp_modify_variable(new_text, sexp_variable_index);
+}
 
 // custom sexp operator for handling misc training stuff
 int sexp_special_training_check(int node)
@@ -18778,7 +19140,9 @@ int eval_sexp(int cur_node, int referenced_node)
 			// conditional sexpressions
 			case OP_WHEN:
 			case OP_WHEN_ARGUMENT:
-				sexp_val = eval_when( node, (op_num == OP_WHEN_ARGUMENT) );
+			case OP_IF_THEN_ELSE:
+			case OP_PERFORM_ACTIONS:
+				sexp_val = eval_when( node, op_num );
 				break;
 
 			case OP_COND:
@@ -18789,7 +19153,7 @@ int eval_sexp(int cur_node, int referenced_node)
 			// and return SEXP_NAN so this will always be re-evaluated
 			case OP_EVERY_TIME:
 			case OP_EVERY_TIME_ARGUMENT:
-				eval_when( node, (op_num == OP_EVERY_TIME_ARGUMENT) );
+				eval_when( node, op_num );
 				flush_sexp_tree(node);
 				sexp_val = SEXP_NAN;
 				break;
@@ -19573,6 +19937,18 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = sexp_string_to_int(node);
 				break;
 
+			// Goober5000
+			case OP_INT_TO_STRING:
+				sexp_int_to_string(node);
+				sexp_val = SEXP_TRUE;
+				break;
+
+			// Goober5000
+			case OP_STRING_CONCATENATE:
+				sexp_string_concatenate(node);
+				sexp_val = SEXP_TRUE;
+				break;
+
 /*			// debugging operators
 			case OP_INT3:
 				Int3();
@@ -19699,6 +20075,26 @@ int eval_sexp(int cur_node, int referenced_node)
 			case OP_SET_ARMOR_TYPE:
 				sexp_val = SEXP_TRUE;
 				sexp_set_armor_type(node);
+				break;
+
+			case OP_WEAPON_SET_DAMAGE_TYPE:
+				sexp_val = SEXP_TRUE;
+				sexp_weapon_set_damage_type(node);
+				break;
+
+			case OP_SHIP_SET_DAMAGE_TYPE:
+				sexp_val = SEXP_TRUE;
+				sexp_ship_set_damage_type(node);
+				break;
+
+			case OP_SHIP_SHOCKWAVE_SET_DAMAGE_TYPE:
+				sexp_val = SEXP_TRUE;
+				sexp_ship_shockwave_set_damage_type(node);
+				break;
+
+			case OP_FIELD_SET_DAMAGE_TYPE:
+				sexp_val = SEXP_TRUE;
+				sexp_field_set_damage_type(node);
 				break;
 
 			case OP_SHIP_TURRET_TARGET_ORDER:
@@ -20583,6 +20979,7 @@ int query_operator_return_type(int op)
 		case OP_STRING_EQUALS:
 		case OP_STRING_GREATER_THAN:
 		case OP_STRING_LESS_THAN:
+		case OP_PERFORM_ACTIONS:
 		case OP_IS_DESTROYED:
 		case OP_IS_SUBSYSTEM_DESTROYED:
 		case OP_IS_DISABLED:
@@ -20751,6 +21148,7 @@ int query_operator_return_type(int op)
 		case OP_WHEN_ARGUMENT:
 		case OP_EVERY_TIME:
 		case OP_EVERY_TIME_ARGUMENT:
+		case OP_IF_THEN_ELSE:
 		case OP_INVALIDATE_ARGUMENT:
 		case OP_VALIDATE_ARGUMENT:
 		case OP_INVALIDATE_ALL_ARGUMENTS:
@@ -20858,6 +21256,10 @@ int query_operator_return_type(int op)
 		case OP_TURRET_SET_TARGET_PRIORITIES:
 		case OP_TURRET_SET_TARGET_ORDER:
 		case OP_SET_ARMOR_TYPE:
+		case OP_WEAPON_SET_DAMAGE_TYPE:
+		case OP_SHIP_SET_DAMAGE_TYPE:
+		case OP_SHIP_SHOCKWAVE_SET_DAMAGE_TYPE:
+		case OP_FIELD_SET_DAMAGE_TYPE:
 		case OP_SHIP_TURRET_TARGET_ORDER:
 		case OP_TURRET_SUBSYS_TARGET_DISABLE:
 		case OP_TURRET_SUBSYS_TARGET_ENABLE:
@@ -21011,6 +21413,8 @@ int query_operator_return_type(int op)
 		case OP_HUD_SET_DIRECTIVE:
 		case OP_HUD_GAUGE_SET_ACTIVE:
 		case OP_HUD_ACTIVATE_GAUGE_TYPE:
+		case OP_STRING_CONCATENATE:
+		case OP_INT_TO_STRING:
 			return OPR_NULL;
 
 		case OP_AI_CHASE:
@@ -21132,6 +21536,20 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_STRING_LESS_THAN:
 		case OP_STRING_TO_INT:		// Karajorma
 			return OPF_STRING;
+
+		case OP_STRING_CONCATENATE:
+			if (argnum == 0 || argnum == 1) {
+				return OPF_STRING;
+			} else if (argnum == 2) {
+				return OPF_VARIABLE_NAME;
+			}
+
+		case OP_INT_TO_STRING:
+			if (argnum == 0) {
+				return OPF_NUMBER;
+			} else if (argnum == 1) {
+				return OPF_VARIABLE_NAME;
+			}
 
 		case OP_HAS_TIME_ELAPSED:
 		case OP_SPEED:
@@ -21555,6 +21973,8 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_COND:
 		case OP_WHEN:
 		case OP_EVERY_TIME:
+		case OP_IF_THEN_ELSE:
+		case OP_PERFORM_ACTIONS:
 			if (!argnum)
 				return OPF_BOOL;
 			else
@@ -22202,6 +22622,44 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_ARMOR_TYPES;
 			} else {
 				return OPF_SUBSYSTEM;
+			}
+
+		case OP_WEAPON_SET_DAMAGE_TYPE:
+			if(argnum == 0) {
+				return OPF_BOOL;
+			} else if(argnum == 1) {
+				return OPF_DAMAGE_TYPES;
+			} else if(argnum == 2) {
+				return OPF_BOOL;
+			} else {
+				return OPF_WEAPON_NAME;
+			}
+
+		case OP_SHIP_SET_DAMAGE_TYPE:
+			if(argnum == 0) {
+				return OPF_BOOL;
+			} else if(argnum == 1) {
+				return OPF_DAMAGE_TYPES;
+			} else if(argnum == 2) {
+				return OPF_BOOL;
+			} else {
+				return OPF_SHIP;
+			}
+
+		case OP_SHIP_SHOCKWAVE_SET_DAMAGE_TYPE:
+			if(argnum == 0) {
+				return OPF_DAMAGE_TYPES;
+			} else if(argnum == 1) {
+				return OPF_BOOL;
+			} else {
+				return OPF_SHIP_CLASS_NAME;
+			}
+
+		case OP_FIELD_SET_DAMAGE_TYPE:
+			if(argnum == 0) {
+				return OPF_DAMAGE_TYPES;
+			} else {
+				return OPF_BOOL;
 			}
 
 		case OP_TURRET_SET_TARGET_ORDER:
@@ -24046,6 +24504,10 @@ int get_subcategory(int sexp_id)
 		case OP_WARP_EFFECT:
 		case OP_SHIP_COPY_DAMAGE:
 		case OP_REMOVE_WEAPONS:
+		case OP_WEAPON_SET_DAMAGE_TYPE:
+		case OP_SHIP_SET_DAMAGE_TYPE:
+		case OP_SHIP_SHOCKWAVE_SET_DAMAGE_TYPE:
+		case OP_FIELD_SET_DAMAGE_TYPE:
 			return CHANGE_SUBCATEGORY_SPECIAL;
 
 		case OP_SET_SKYBOX_MODEL:
@@ -24447,7 +24909,7 @@ sexp_help_struct Sexp_help[] = {
 
 	{ OP_XOR, "Xor (Boolean operator)\r\n"
 		"\tXor is true if exactly one of its arguments is true.\r\n\r\n"
-		"Returns a boolean value.  Takes 2 boolean arguments." },
+		"Returns a boolean value.  Takes 2 or more boolean arguments." },
 
 	{ OP_EQUALS, "Equals (Boolean operator)\r\n"
 		"\tIs true if all of its arguments are equal.\r\n\r\n"
@@ -24472,6 +24934,14 @@ sexp_help_struct Sexp_help[] = {
 	{ OP_LESS_OR_EQUAL, "Less Than Or Equal To (Boolean operator)\r\n"
 		"\tTrue if the first argument is less than or equal to the subsequent argument(s).\r\n\r\n"
 		"Returns a boolean value.  Takes 2 numeric arguments." },
+
+	// Goober5000
+	{ OP_PERFORM_ACTIONS, "perform-actions\r\n"
+		"\tThis sexp allows actions to be performed as part of a conditional test.  It is most useful for assigning variables or performing some sort of pre-test action within the conditional part of \"when\", etc.  "
+		"It works well as the first branch of an \"and\" sexp, provided it returns true so as to evaluate the other \"and\" arguments.\r\n\r\n"
+		"Returns a boolean value.  Takes 2 or more arguments.\r\n"
+		"\t1:\tA boolean value to return after all successive actions have been performed.\r\n"
+		"\tRest:\tActions to perform, which would normally appear in a \"when\" sexp.\r\n" },
 
 	// Goober5000
 	{ OP_STRING_EQUALS, "String Equals (Boolean operator)\r\n"
@@ -24890,6 +25360,16 @@ sexp_help_struct Sexp_help[] = {
 		"\t1:\tThe arguments to evaluate (see any-of, all-of, random-of, etc.).\r\n"
 		"\t2:\tBoolean expression that must be true for actions to take place.\r\n"
 		"\tRest:\tActions to take when the boolean expression becomes true." },
+
+	// Goober5000
+	{ OP_IF_THEN_ELSE, "If-then-else (Conditional operator)\r\n"
+		"\tPerforms one action if a condition is true (like \"when\"), or another action (or set of actions) if the condition is false.  "
+		"Note that this sexp only completes one of its branches once the condition has been determined; "
+		"it does not come back later and evaluate the other branch if the condition happens to switch truth values.\r\n\r\n"
+		"Takes 3 or more arguments...\r\n"
+		"\t1:\tBoolean expression to evaluate.\r\n"
+		"\t2:\tActions to take if that expression becomes true.\r\n"
+		"\tRest:\tActions to take if that expression becomes false.\r\n" },
 
 	// Karajorma
 	{ OP_DO_FOR_VALID_ARGUMENTS, "Do-for-valid-arguments (Conditional operator)\r\n"
@@ -25614,11 +26094,27 @@ sexp_help_struct Sexp_help[] = {
 		"\t2:\tMaximum speed of range player is to fly between." },
 
 	// Karajorma
-	{ OP_STRING_TO_INT, "String-to-int \r\n"
+	{ OP_STRING_TO_INT, "string-to-int\r\n"
 		"\tConverts a string into an integer. The string must only contain numeric characters "
 		"or zero is returned \r\n"
 		"Takes 1 argument...\r\n"
-		"\t1:\tString to convert." },
+		"\t1:\tString to convert" },
+
+	// Goober5000
+	{ OP_INT_TO_STRING, "int-to-string\r\n"
+		"\tConverts an integer into a string.  The destination must be a string variable.\r\n"
+		"Takes 2 argument...\r\n"
+		"\t1:\tInteger to convert\r\n"
+		"\t2:\tString variable to contain the result\r\n" },
+
+	// Goober5000
+	{ OP_STRING_CONCATENATE, "string-concatenate\r\n"
+		"\tConcatenates two strings, putting the result into a string variable.  If the length of the string will "
+		"exceed the sexp variable token limit (currently 32), it will be truncated.\r\n\r\n"
+		"Takes 3 arguments...\r\n"
+		"\t1: First string\r\n"
+		"\t2: Second string\r\n"
+		"\t3: String variable to hold the result\r\n" },
 
 	{ OP_GRANT_PROMOTION, "Grant promotion (Action operator)\r\n"
 		"\tIn a single player game, this function grants a player an automatic promotion to the "
@@ -25932,8 +26428,9 @@ sexp_help_struct Sexp_help[] = {
 		"\tRest: Name of the ship's subsystem(s)" },
 
 	// FUBAR
-	{ OP_SHIP_SUBSYS_VANISHED, "ship-subsys-vanished\r\n"
-		"\tCauses the subsystem to vanish without a trace it's destroyed.\r\n"
+	{ OP_SHIP_SUBSYS_VANISHED, "ship-subsys-vanish\r\n"
+		"\tCauses the subsystem to vanish without a trace - no fanfare, notification, or special effects.  See also ship-vanish.\r\n"
+		"\tSingle Player Only!  Warning: This will cause subsystem destruction not to be logged, so 'has-departed', etc. will not work\r\n"
 		"Takes 3 or more arguments...\r\n"
 		"\t1:\tName of a ship\r\n"
 		"\t2:\tTrue = vanish or False = don't vanish\r\n"
@@ -26262,6 +26759,31 @@ sexp_help_struct Sexp_help[] = {
 		"\t2: Set = true/Reset to defualt = false\r\n"
 		"\t3: Armor type to set or <none>\r\n"
 		"\trest: Subsystems to set (hull for ship, shield for shields)\r\n"},
+
+	{ OP_WEAPON_SET_DAMAGE_TYPE, "weapon-set-damage-type\r\n"
+		"\tSets the damage type for weapons or their shockwaves\r\n"
+		"\t1: True = set weapon, False = set shockwave\r\n"
+		"\t2: damage type to set or <none>\r\n"
+		"\t3: Set = true/Reset to defualt = false\r\n"
+		"\trest: Weapons to set\r\n"},
+
+	{ OP_SHIP_SET_DAMAGE_TYPE, "ship-set-damage-type\r\n"
+		"\tSets the damage type for ships collision or debris\r\n"
+		"\t1: true = set collision, False = set debris\r\n"
+		"\t2: Damage type to set or <none>\r\n"
+		"\t3: Set = true/Reset to defualt = false\r\n"
+		"\trest: Ships to set\r\n"},
+
+	{ OP_SHIP_SHOCKWAVE_SET_DAMAGE_TYPE, "ship-set-shockwave-damage-type\r\n"
+		"\tSets the shockwave damage type for a class of ship.  All ships of that class are changed.\r\n"
+		"\t1: Damage type to set or <none>\r\n"
+		"\t2: Set = true/Reset to defualt = false\r\n"
+		"\trest: Ship classes to set\r\n"},
+
+	{ OP_FIELD_SET_DAMAGE_TYPE, "field-set-damage-type\r\n"
+		"\tSets the damage type for asteroid/debris fields\r\n"
+		"\t1: Damage type to set or <none>\r\n"
+		"\t2: Set = true/Reset to defualt = false\r\n"},
 
 	{ OP_TURRET_SET_TARGET_ORDER, "turret-set-target-order\r\n"
 		"\tSets targeting order of a given turret\r\n"

@@ -634,6 +634,8 @@ void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2)
 			weaponp->wi_flags2 |= WIF2_TAKES_BLAST_DAMAGE;
 		else if (!stricmp(NOX("takes shockwave damage"), weapon_strings[i]))
 			weaponp->wi_flags2 |= WIF2_TAKES_SHOCKWAVE_DAMAGE;
+		else if (!stricmp(NOX("hide from radar"), weapon_strings[i]))
+			weaponp->wi_flags2 |= WIF2_DONT_SHOW_ON_RADAR;
 		else
 			Warning(LOCATION, "Bogus string in weapon flags: %s\n", weapon_strings[i]);
 	}	
@@ -697,7 +699,8 @@ void parse_shockwave_info(shockwave_create_info *sci, char *pre_char)
 	sprintf(buf, "%sShockwave damage type:", pre_char);
 	if(optional_string(buf)) {
 		stuff_string(buf, F_NAME, NAME_LENGTH);
-		sci->damage_type_idx = damage_type_add(buf);
+		sci->damage_type_idx_sav = damage_type_add(buf);
+		sci->damage_type_idx = sci->damage_type_idx_sav;
 	}
 
 	sprintf(buf, "%sBlast Force:", pre_char);
@@ -809,6 +812,7 @@ void init_weapon_entry(int weap_info_index)
 	wip->damage = 0.0f;
 	
 	wip->damage_type_idx = -1;
+	wip->damage_type_idx_sav = -1;
 
 	wip->arm_time = 0;
 	wip->arm_dist = 0.0f;
@@ -993,6 +997,7 @@ void init_weapon_entry(int weap_info_index)
 
 	// this can get reset after the constructor, so be sure it's correct
 	wip->shockwave.damage_type_idx = -1;
+	wip->shockwave.damage_type_idx_sav = -1;
 
 	wip->weapon_hitpoints = 0;
 
@@ -1284,7 +1289,8 @@ int parse_weapon(int subtype, bool replace)
 		//This is checked for validity on every armor type
 		//If it's invalid (or -1), then armor has no effect
 		stuff_string(buf, F_NAME, WEAPONS_MULTITEXT_LENGTH);
-		wip->damage_type_idx = damage_type_add(buf);
+		wip->damage_type_idx_sav = damage_type_add(buf);
+		wip->damage_type_idx = wip->damage_type_idx_sav;
 	}
 
 	if(optional_string("$Arm time:")) {
@@ -3205,6 +3211,11 @@ void weapon_level_init()
 		Weapons[i].weapon_info_index = -1;
 	}
 
+	for (i=0; i<MAX_WEAPON_TYPES; i++)	{
+		Weapon_info[i].damage_type_idx = Weapon_info[i].damage_type_idx_sav;
+		Weapon_info[i].shockwave.damage_type_idx = Weapon_info[i].shockwave.damage_type_idx_sav;
+	}
+
 	trail_level_init();		// reset all missile trails
 
 	swarm_level_init();
@@ -4366,7 +4377,7 @@ void weapon_process_post(object * obj, float frame_time)
 	}
 
 	// plot homing missiles on the radar
-	if ((wip->wi_flags & WIF_BOMB) || (wip->wi_flags2 & WIF2_SHOWN_ON_RADAR)) {
+	if (((wip->wi_flags & WIF_BOMB) || (wip->wi_flags2 & WIF2_SHOWN_ON_RADAR)) && !(wip->wi_flags2 & WIF2_DONT_SHOW_ON_RADAR)) {
 		if ( hud_gauge_active(HUD_RADAR) ) {
 			radar_plot_object( obj );
 		}
@@ -4689,7 +4700,7 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 	// beam weapons should never come through here!
 	if(wip->wi_flags & WIF_BEAM)
 	{
-		Warning(LOCATION, "An attempt to fire a beam ('%s') through weapon_create() was made.", wip->name);
+		Warning(LOCATION, "An attempt to fire a beam ('%s') through weapon_create() was made.\n", wip->name);
 		return -1;
 	}
 

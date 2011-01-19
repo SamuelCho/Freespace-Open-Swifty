@@ -2230,7 +2230,9 @@ int sexp_tree::add_default_operator(int op, int argnum)
 		{
 			if ((argnum == 0 && Operators[op].value == OP_MODIFY_VARIABLE) ||
 				(argnum == 8 && Operators[op].value == OP_ADD_BACKGROUND_BITMAP) ||
-				(argnum == 5 && Operators[op].value == OP_ADD_SUN_BITMAP))
+				(argnum == 5 && Operators[op].value == OP_ADD_SUN_BITMAP) ||
+				(argnum == 2 && Operators[op].value == OP_STRING_CONCATENATE) ||
+				(argnum == 1 && Operators[op].value == OP_INT_TO_STRING))
 			{
 
 				int sexp_var_index = get_index_sexp_variable_name(item.text);
@@ -2669,6 +2671,7 @@ int sexp_tree::query_default_argument_available(int op, int i)
 		case OPF_POST_EFFECT:
 		case OPF_TARGET_PRIORITIES:
 		case OPF_ARMOR_TYPES:
+		case OPF_DAMAGE_TYPES:
 		case OPF_FONT:
 		case OPF_HUD_ELEMENT:
 		case OPF_SOUND_ENVIRONMENT:
@@ -3267,7 +3270,9 @@ void sexp_tree::verify_and_fix_arguments(int node)
 					// special case for SEXPs which can modify a variable 
 					if ((arg_num == 0 && Operators[op].value == OP_MODIFY_VARIABLE) ||
 						(arg_num == 8 && Operators[op].value == OP_ADD_BACKGROUND_BITMAP) ||
-						(arg_num == 5 && Operators[op].value == OP_ADD_SUN_BITMAP))
+						(arg_num == 5 && Operators[op].value == OP_ADD_SUN_BITMAP) ||
+						(arg_num == 2 && Operators[op].value == OP_STRING_CONCATENATE) ||
+						(arg_num == 1 && Operators[op].value == OP_INT_TO_STRING))
 					{
 						// make text_ptr to start - before '('
 						get_variable_name_from_sexp_tree_node_text(tree_nodes[item_index].text, default_variable_text);
@@ -4361,6 +4366,10 @@ sexp_list_item *sexp_tree::get_listing_opf(int opf, int parent_node, int arg_ind
 
 		case OPF_ARMOR_TYPES:
 			list = get_listing_opf_armor_types();
+			break;
+
+		case OPF_DAMAGE_TYPES:
+			list = get_listing_opf_damage_types();
 			break;
 
 		case OPF_PERSONA:
@@ -5791,6 +5800,16 @@ sexp_list_item *sexp_tree::get_listing_opf_armor_types()
 	head.add_data(SEXP_NONE_STRING);
 	for (t=0; t<Armor_types.size(); t++)
 		head.add_data(Armor_types[t].GetNamePtr());
+	return head.next;
+}
+
+sexp_list_item *sexp_tree::get_listing_opf_damage_types()
+{
+	size_t t;
+	sexp_list_item head;
+	head.add_data(SEXP_NONE_STRING);
+	for (t=0; t<Damage_types.size(); t++)
+		head.add_data(Damage_types[t].name);
 
 	return head.next;
 }
