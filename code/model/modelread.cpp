@@ -2621,6 +2621,20 @@ int model_create_instance(int model_num, int submodel_num)
 	return open_slot;
 }
 
+void model_delete_instance(int model_instance_num)
+{
+	Assert(model_instance_num >= 0);
+	Assert(model_instance_num < (int)Polygon_model_instances.size());
+	Assert(Polygon_model_instances[model_instance_num] != NULL);
+
+	polymodel_instance *pmi = Polygon_model_instances[model_instance_num];
+
+	vm_free(pmi->submodel);
+	vm_free(pmi);
+
+	Polygon_model_instances[model_instance_num] = NULL;
+}
+
 // ensure that the subsys path is at least SUBSYS_PATH_DIST from the 
 // second last to last point.
 void model_maybe_fixup_subsys_path(polymodel *pm, int path_num)
