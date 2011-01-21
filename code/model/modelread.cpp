@@ -2606,6 +2606,9 @@ int model_create_instance(int model_num, int submodel_num)
 		model_clear_submodel_instance( &pmi->submodel[i] );
 	}
 
+	uint *occlude_ids = (int*)vm_malloc( sizeof(int)*pm->n_models );
+
+	gr_gen_occlude_ids(pm->n_models, occlude_ids);
 	pmi->model_num = model_num;
 
 	if ( submodel_num < 0 ) {

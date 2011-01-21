@@ -87,6 +87,7 @@ typedef struct submodel_instance {
 	angles prev_angs;
 	//int num_arcs;
 	bool collision_checked;
+	int occlude_id;
 	//submodel_instance_info *sii;
 } submodel_instance;
 
