@@ -316,10 +316,10 @@ sexp_oper Operators[] = {
 	{ "change-iff",					OP_CHANGE_IFF,					2,	INT_MAX,	},
 	{ "change-iff-color",			OP_CHANGE_IFF_COLOR,			6,	INT_MAX,	},
 	{ "change-ai-class",			OP_CHANGE_AI_CLASS,				2,	INT_MAX,	},
-	{ "protect-ship",				OP_PROTECT_SHIP,				1, INT_MAX,	},
-	{ "unprotect-ship",				OP_UNPROTECT_SHIP,				1, INT_MAX,	},
-	{ "beam-protect-ship",			OP_BEAM_PROTECT_SHIP,			1, INT_MAX,	},
-	{ "beam-unprotect-ship",		OP_BEAM_UNPROTECT_SHIP,			1, INT_MAX,	},
+	{ "protect-ship",				OP_PROTECT_SHIP,				0, INT_MAX,	},
+	{ "unprotect-ship",				OP_UNPROTECT_SHIP,				0, INT_MAX,	},
+	{ "beam-protect-ship",			OP_BEAM_PROTECT_SHIP,			0, INT_MAX,	},
+	{ "beam-unprotect-ship",		OP_BEAM_UNPROTECT_SHIP,			0, INT_MAX,	},
 	{ "turret-protect-ship",		OP_TURRET_PROTECT_SHIP,			2, INT_MAX,	},	// Goober5000
 	{ "turret-unprotect-ship",		OP_TURRET_UNPROTECT_SHIP,		2, INT_MAX,	},	// Goober5000
 	{ "kamikaze",					OP_KAMIKAZE,					2, INT_MAX }, //-Sesquipedalian
@@ -347,46 +347,46 @@ sexp_oper Operators[] = {
 	{ "set-secondary-ammo",			OP_SET_SECONDARY_AMMO,			3, 4 },		// Karajorma
 	{ "set-primary-weapon",			OP_SET_PRIMARY_WEAPON,			3, 5 },		// Karajorma
 	{ "set-secondary-weapon",		OP_SET_SECONDARY_WEAPON,		3, 5 },		// Karajorma
-	{ "lock-primary-weapon",		OP_LOCK_PRIMARY_WEAPON,			1, INT_MAX },		// Karajorma
-	{ "unlock-primary-weapon",		OP_UNLOCK_PRIMARY_WEAPON,		1, INT_MAX },		// Karajorma
-	{ "lock-secondary-weapon",		OP_LOCK_SECONDARY_WEAPON,		1, INT_MAX },		// Karajorma
-	{ "unlock-secondary-weapon",	OP_UNLOCK_SECONDARY_WEAPON,		1, INT_MAX },		// Karajorma
+	{ "lock-primary-weapon",		OP_LOCK_PRIMARY_WEAPON,			0, INT_MAX },		// Karajorma
+	{ "unlock-primary-weapon",		OP_UNLOCK_PRIMARY_WEAPON,		0, INT_MAX },		// Karajorma
+	{ "lock-secondary-weapon",		OP_LOCK_SECONDARY_WEAPON,		0, INT_MAX },		// Karajorma
+	{ "unlock-secondary-weapon",	OP_UNLOCK_SECONDARY_WEAPON,		0, INT_MAX },		// Karajorma
 	{ "change-subsystem-name",		OP_CHANGE_SUBSYSTEM_NAME,		3, INT_MAX },		// Karajorma
-	{ "lock-afterburner",			OP_LOCK_AFTERBURNER,			1, INT_MAX },		// KeldorKatarn
-	{ "unlock-afterburner",			OP_UNLOCK_AFTERBURNER,			1, INT_MAX },		// KeldorKatarn
+	{ "lock-afterburner",			OP_LOCK_AFTERBURNER,			0, INT_MAX },		// KeldorKatarn
+	{ "unlock-afterburner",			OP_UNLOCK_AFTERBURNER,			0, INT_MAX },		// KeldorKatarn
 	{ "set-afterburner-energy",		OP_SET_AFTERBURNER_ENERGY,		2, INT_MAX },		// Karajorma
 	{ "set-weapon-energy",			OP_SET_WEAPON_ENERGY,			2, INT_MAX },		// Karajorma
 	{ "set-shield-energy",			OP_SET_SHIELD_ENERGY,			2, INT_MAX },		// Karajorma
 	{ "set-ambient-light",			OP_SET_AMBIENT_LIGHT,			3, 3 },				// Karajorma
 	{ "set-post-effect",			OP_SET_POST_EFFECT,				2, 2 },				// Hery
 
-	{ "ship-invulnerable",			OP_SHIP_INVULNERABLE,			1, INT_MAX	},
-	{ "ship-vulnerable",			OP_SHIP_VULNERABLE,			1, INT_MAX	},
+	{ "ship-invulnerable",			OP_SHIP_INVULNERABLE,			0, INT_MAX	},
+	{ "ship-vulnerable",			OP_SHIP_VULNERABLE,			0, INT_MAX	},
 	{ "ship-guardian",				OP_SHIP_GUARDIAN,				1, INT_MAX	},
 	{ "ship-no-guardian",			OP_SHIP_NO_GUARDIAN,			1, INT_MAX	},
 	{ "ship-guardian-threshold",	OP_SHIP_GUARDIAN_THRESHOLD,				2, INT_MAX	},
 	{ "ship-subsys-guardian-threshold",	OP_SHIP_SUBSYS_GUARDIAN_THRESHOLD,	3, INT_MAX	},
-	{ "ship-invisible",				OP_SHIP_INVISIBLE,				1, INT_MAX	},
-	{ "ship-visible",				OP_SHIP_VISIBLE,				1, INT_MAX	},
-	{ "ship-stealthy",				OP_SHIP_STEALTHY,				1, INT_MAX },
-	{ "ship-unstealthy",			OP_SHIP_UNSTEALTHY,				1, INT_MAX },			// Goober5000
-	{ "friendly-stealth-invisible",	OP_FRIENDLY_STEALTH_INVISIBLE,	1, INT_MAX },	// Goober5000
-	{ "friendly-stealth-visible",	OP_FRIENDLY_STEALTH_VISIBLE,	1, INT_MAX },	// Goober5000
-	{ "ship-targetable-as-bomb",	OP_SHIP_BOMB_TARGETABLE,			1, INT_MAX	},
-	{ "ship-untargetable-as-bomb",	OP_SHIP_BOMB_UNTARGETABLE,			1, INT_MAX	},
+	{ "ship-invisible",				OP_SHIP_INVISIBLE,				0, INT_MAX	},
+	{ "ship-visible",				OP_SHIP_VISIBLE,				0, INT_MAX	},
+	{ "ship-stealthy",				OP_SHIP_STEALTHY,				0, INT_MAX },
+	{ "ship-unstealthy",			OP_SHIP_UNSTEALTHY,				0, INT_MAX },			// Goober5000
+	{ "friendly-stealth-invisible",	OP_FRIENDLY_STEALTH_INVISIBLE,	0, INT_MAX },	// Goober5000
+	{ "friendly-stealth-visible",	OP_FRIENDLY_STEALTH_VISIBLE,	0, INT_MAX },	// Goober5000
+	{ "ship-targetable-as-bomb",	OP_SHIP_BOMB_TARGETABLE,			0, INT_MAX	},
+	{ "ship-untargetable-as-bomb",	OP_SHIP_BOMB_UNTARGETABLE,			0, INT_MAX	},
 	{ "ship-subsys-targetable",		OP_SHIP_SUBSYS_TARGETABLE,		2, INT_MAX },	// Goober5000
 	{ "ship-subsys-no-replace",		OP_SHIP_SUBSYS_NO_REPLACE,		3, INT_MAX },	// FUBAR
 	{ "ship-subsys-no-live-debris",	OP_SHIP_SUBSYS_NO_LIVE_DEBRIS,	3, INT_MAX },	// FUBAR
 	{ "ship-subsys-vanish",			OP_SHIP_SUBSYS_VANISHED,		3, INT_MAX },	// FUBAR
 	{ "ship-subsys-ignore_if_dead",	OP_SHIP_SUBSYS_IGNORE_IF_DEAD,	3, INT_MAX },	// FUBAR
 	{ "ship-subsys-untargetable",	OP_SHIP_SUBSYS_UNTARGETABLE,	2, INT_MAX },	// Goober5000
-	{ "ship-vaporize",				OP_SHIP_VAPORIZE,				1, INT_MAX },	// Goober5000
-	{ "ship-no-vaporize",			OP_SHIP_NO_VAPORIZE,			1, INT_MAX },	// Goober5000
+	{ "ship-vaporize",				OP_SHIP_VAPORIZE,				0, INT_MAX },	// Goober5000
+	{ "ship-no-vaporize",			OP_SHIP_NO_VAPORIZE,			0, INT_MAX },	// Goober5000
 	{ "set-explosion-option",		OP_SET_EXPLOSION_OPTION,		3, INT_MAX	},	// Goober5000
-	{ "break-warp",					OP_WARP_BROKEN,					1, INT_MAX,	},
-	{ "fix-warp",					OP_WARP_NOT_BROKEN,				1, INT_MAX,	},
-	{ "never-warp",					OP_WARP_NEVER,					1, INT_MAX, },
-	{ "allow-warp",					OP_WARP_ALLOWED,				1, INT_MAX, },
+	{ "break-warp",					OP_WARP_BROKEN,					0, INT_MAX,	},
+	{ "fix-warp",					OP_WARP_NOT_BROKEN,				0, INT_MAX,	},
+	{ "never-warp",					OP_WARP_NEVER,					0, INT_MAX, },
+	{ "allow-warp",					OP_WARP_ALLOWED,				0, INT_MAX, },
 	{ "set-armor-type",				OP_SET_ARMOR_TYPE,				4, INT_MAX, },  // FUBAR
 
 	{ "fire-beam",						OP_BEAM_FIRE,					3, 4		},
@@ -451,8 +451,8 @@ sexp_oper Operators[] = {
 	{ "change-team-score",			OP_CHANGE_TEAM_SCORE,			2, 2 },			// Karajorma
 	{ "set-respawns",			OP_SET_RESPAWNS,			2, INT_MAX },	// Karajorma
 
-	{ "don't-collide-invisible",	OP_DONT_COLLIDE_INVISIBLE,		1, INT_MAX },	// Goober5000
-	{ "collide-invisible",			OP_COLLIDE_INVISIBLE,			1, INT_MAX },	// Goober5000
+	{ "don't-collide-invisible",	OP_DONT_COLLIDE_INVISIBLE,		0, INT_MAX },	// Goober5000
+	{ "collide-invisible",			OP_COLLIDE_INVISIBLE,			0, INT_MAX },	// Goober5000
 	{ "change-ship-class",			OP_CHANGE_SHIP_CLASS,			2, INT_MAX },	// Goober5000
 	{ "deactivate-glow-points",		OP_DEACTIVATE_GLOW_POINTS,		1, INT_MAX },	//-Bobboau
 	{ "activate-glow-points",		OP_ACTIVATE_GLOW_POINTS,		1, INT_MAX },	//-Bobboau
@@ -484,8 +484,8 @@ sexp_oper Operators[] = {
 	{ "weapon-create",					OP_WEAPON_CREATE,				5, 10	},	// Goober5000
 	{ "ship-vanish",					OP_SHIP_VANISH,					1, INT_MAX	},
 	{ "supernova-start",				OP_SUPERNOVA_START,				1,	1			},
-	{ "shields-on",					OP_SHIELDS_ON,					1, INT_MAX			}, //-Sesquipedalian
-	{ "shields-off",					OP_SHIELDS_OFF,					1, INT_MAX			}, //-Sesquipedalian
+	{ "shields-on",					OP_SHIELDS_ON,					0, INT_MAX			}, //-Sesquipedalian
+	{ "shields-off",					OP_SHIELDS_OFF,					0, INT_MAX			}, //-Sesquipedalian
 	{ "ship-tag",				OP_SHIP_TAG,				3, 8			},	// Goober5000
 	{ "ship-untag",				OP_SHIP_UNTAG,				1, 1			},	// Goober5000
 	{ "explosion-effect",			OP_EXPLOSION_EFFECT,			11, 13 },			// Goober5000
@@ -1777,8 +1777,8 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 					break;
 				}
 
-				// IFFs are fine for ship_wing_team
-				if (type == OPF_SHIP_WING_TEAM && iff_lookup(CTEXT(node)) >= 0)	{
+				// IFFs and SEXP_SHIP_WING_ADV_STRING are fine for ship_wing_team
+				if ((type == OPF_SHIP_WING_TEAM) && ((iff_lookup(CTEXT(node)) >= 0) || (!stricmp(CTEXT(node), SEXP_SHIP_WING_ADV_STRING))))	{
 					break;
 				}
 
@@ -4277,6 +4277,8 @@ int sexp_string_compare(int n, int op)
 #define OSWPT_TYPE_TEAM			4
 #define OSWPT_TYPE_PARSE_OBJECT	5
 #define OSWPT_TYPE_EXITED		6
+#define OSWPT_TYPE_FUTURE_WING	7
+#define OSWPT_TYPE_IFF			8
 
 // Goober5000
 typedef struct object_ship_wing_point_team
@@ -4296,7 +4298,7 @@ object_ship_wing_point_team;
 // Goober5000
 void sexp_get_object_ship_wing_point_team(object_ship_wing_point_team *oswpt, char *object_name)
 {
-	int team, ship_num, wing_num, object_num;
+	int team, ship_num, wing_num, object_num, iff;
 	p_object *p_objp;
 
 	Assert(oswpt != NULL);
@@ -4385,22 +4387,21 @@ void sexp_get_object_ship_wing_point_team(object_ship_wing_point_team *oswpt, ch
 
 
 	// at this point, we must have a wing or point for a target
-	wing_num = wing_name_lookup(object_name);
+	wing_num = wing_name_lookup(object_name, 1);
 	if (wing_num >= 0)
 	{
 		wing *wingp = &Wings[wing_num];
 
 		// make sure that at least one ship exists and that the wing leader is valid
 		if ( (wingp->current_count >= 0) && (wingp->ship_index[wingp->special_ship] >= 0) )
-		{
 			oswpt->type = OSWPT_TYPE_WING;
-
-			// point to wing leader
-			oswpt->wingp = wingp;
-			oswpt->shipp = &Ships[wingp->ship_index[wingp->special_ship]];
-			oswpt->objp = &Objects[oswpt->shipp->objnum];
-		}
-
+		else 
+			oswpt->type = OSWPT_TYPE_FUTURE_WING;  
+		// point to wing leader
+		oswpt->wingp = wingp;
+		oswpt->shipp = &Ships[wingp->ship_index[wingp->special_ship]];
+		oswpt->objp = &Objects[oswpt->shipp->objnum];
+		
 		return;
 	}
 
@@ -4413,6 +4414,32 @@ void sexp_get_object_ship_wing_point_team(object_ship_wing_point_team *oswpt, ch
 
 		oswpt->waypointp = oswpt->objp = &Objects[object_num];
 
+		return;
+	}
+
+	// This should be up after team but there is no check for giving ships or wings IFF names.
+	// if we have an IFF type, pick the first ship of that IFF
+	iff = iff_lookup(object_name);
+	if (iff >= 0)
+	{
+		for (ship_obj *so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so))
+		{
+			object *objp = &Objects[so->objnum];
+			ship *shipp = &Ships[objp->instance];
+
+			if (shipp->team == iff)
+			{
+				oswpt->type = OSWPT_TYPE_IFF;
+
+				oswpt->team = team;
+				oswpt->objp = objp;
+				oswpt->shipp = shipp;
+
+				return;
+			}			
+		}
+
+		// no match
 		return;
 	}
 
@@ -8573,6 +8600,7 @@ int sexp_is_iff(int n)
 			}
 
 			case OSWPT_TYPE_WING:
+			case OSWPT_TYPE_FUTURE_WING:
 			{
 				for (i = 0; i < oswpt.wingp->current_count; i++)
 				{
@@ -8613,9 +8641,13 @@ void sexp_parse_ship_change_iff(p_object *parse_obj, int new_team)
 }
 
 // Goober5000 - added wing capability
+// FUBAR - added team capability and option to always process ships in future wing waves
 void sexp_change_iff(int n)
 {
-	int new_team;
+	int team, new_team;
+	ship_obj	*so;
+	ship		*shipp;
+	bool ship_wave_adv = false;  
 
 	new_team = iff_lookup(CTEXT(n));
 	n = CDR(n);
@@ -8631,6 +8663,11 @@ void sexp_change_iff(int n)
 			case OSWPT_TYPE_SHIP:
 			{
 				sexp_ingame_ship_change_iff(oswpt.shipp, new_team);
+
+				// change future waves if ship is in a wing and ship_wave_adv flag set
+				p_object *p_objp = mission_parse_get_arrival_ship(oswpt.shipp->ship_name);
+				if (p_objp && ship_wave_adv && p_objp->wingnum > -1)
+					  sexp_parse_ship_change_iff(p_objp, new_team);
 
 				break;
 			}
@@ -8649,16 +8686,63 @@ void sexp_change_iff(int n)
 				// current ships
 				for (int i = 0; i < oswpt.wingp->current_count; i++)
 					sexp_ingame_ship_change_iff(&Ships[oswpt.wingp->ship_index[i]], new_team);
-
 				// ships yet to arrive
 				for (p_object *p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
 				{
 					if (p_objp->wingnum == WING_INDEX(oswpt.wingp))
 						sexp_parse_ship_change_iff(p_objp, new_team);
 				}
+				break;
+			}
+			// maybe change wings yet to arrive
+			case OSWPT_TYPE_FUTURE_WING:
+			{
+				if (ship_wave_adv)
+					for (p_object *p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
+					{
+						if (p_objp->wingnum == WING_INDEX(oswpt.wingp))
+							sexp_parse_ship_change_iff(p_objp, new_team);
+					}
 
 				break;
 			}
+	
+			//chage entire team
+ 		    case OSWPT_TYPE_IFF:
+			{
+				team = iff_lookup(CTEXT(n));
+				if (team >= 0) 
+				{
+					for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) 
+					{
+						shipp=&Ships[Objects[so->objnum].instance];
+						if (shipp->team == team) 
+						{
+							sexp_ingame_ship_change_iff(shipp, new_team);
+						}
+					}
+					// ships yet to arrive
+					for (p_object *p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
+					{
+						if (p_objp->team == team)
+						{
+							sexp_parse_ship_change_iff(p_objp, new_team);
+						}
+					}
+				}
+				break;			   
+			}
+			case OSWPT_TYPE_NONE:
+				{
+				// Allow flags set by ship argument to carry over to next wave while
+				// preserving backward compatibility.  
+				if (!strcmp (SEXP_SHIP_WING_ADV_STRING, CTEXT(n)))
+				{
+					ship_wave_adv = true;
+					break;
+				}
+			}
+
 		}
 	}
 }
@@ -8682,11 +8766,15 @@ void sexp_parse_ship_change_iff_color(p_object *parse_obj, int observer_team, in
 }
 
  // Wanderer
+ // FUBAR - added team capability and option to always process ships in future wing waves
 void sexp_change_iff_color(int n)
 {
 	int observer_team, observed_team, alternate_iff_color;
-	int i;
+	int i, team;
 	int rgb[3];
+	ship_obj	*so;
+	ship		*shipp;
+	bool ship_wave_adv = false;  
 
 	// First node
 	if(n == -1){
@@ -8733,6 +8821,11 @@ void sexp_change_iff_color(int n)
 			{
 				sexp_ingame_ship_change_iff_color(oswpt.shipp, observer_team, observed_team, alternate_iff_color);
 
+				// change future waves if ship is in a wing and ship_wave_adv flag set
+				p_object *p_objp = mission_parse_get_arrival_ship(oswpt.shipp->ship_name);
+				if (p_objp && ship_wave_adv && p_objp->wingnum > -1)
+					sexp_parse_ship_change_iff_color(p_objp, observer_team, observed_team, alternate_iff_color);
+
 				break;
 			}
 
@@ -8759,6 +8852,52 @@ void sexp_change_iff_color(int n)
 				}
 
 				break;
+			}
+			// maybe change wings yet to arrive 
+			case OSWPT_TYPE_FUTURE_WING:
+			{
+				if (ship_wave_adv)
+					for (p_object *p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
+					{
+						if (p_objp->wingnum == WING_INDEX(oswpt.wingp))
+						sexp_parse_ship_change_iff_color(p_objp, observer_team, observed_team, alternate_iff_color);
+					}
+ 				break;
+			}
+			//chage entire team
+ 		    case OSWPT_TYPE_IFF:
+			{
+				team = iff_lookup(CTEXT(n));
+				if (team >= 0) 
+				{
+					for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) 
+					{
+						shipp=&Ships[Objects[so->objnum].instance];
+						if (shipp->team == team) 
+						{
+						sexp_ingame_ship_change_iff_color(shipp, observer_team, observed_team, alternate_iff_color);
+						}
+					}
+					// ships yet to arrive
+					for (p_object *p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
+					{
+						if (p_objp->team == team)
+						{
+							sexp_parse_ship_change_iff_color(p_objp, observer_team, observed_team, alternate_iff_color);
+						}
+					}
+				}
+				break;			   
+			}
+			case OSWPT_TYPE_NONE:
+			{
+				// Allow flags set by ship argument to carry over to next wave while
+				// preserving backward compatibility.  
+				if (!strcmp (SEXP_SHIP_WING_ADV_STRING, CTEXT(n)))
+				{
+					ship_wave_adv = true;
+					break;
+				}
 			}
 		}
 	}
@@ -11521,12 +11660,120 @@ void sexp_allow_weapon(int n)
 	}
 }
 
-// Goober5000
+// Guts of sexp_deal_with_ship_flag_new
+void sexp_deal_with_ship_flag_helper(char *ship_name, int SWT, int object_flag, int object_flag2, int ship_flag, int ship_flag2, int p_object_flag, int p_object_flag2, int set_it, bool send_multiplayer, bool include_players_in_ship_lookup, bool ship_wave_adv)				
+{
+	int ship_index;
+
+	// see if ship exists in-mission
+	ship_index = ship_name_lookup(ship_name, include_players_in_ship_lookup ? 1 : 0);
+
+	// if ship is in-mission
+	if (ship_index >= 0)
+	{
+		// see if we have an object flag to set
+		if (object_flag)
+		{
+			// set or clear?
+			if (set_it)
+				Objects[Ships[ship_index].objnum].flags |= object_flag;
+			else
+				Objects[Ships[ship_index].objnum].flags &= ~object_flag;
+		}
+
+		// see if we have an object flag2 to set
+		if (object_flag2)
+		{
+/*		uncomment for multiplayer if object_flag2 is ever used
+		// set or clear?
+		if (set_it)
+			Objects[Ships[ship_index].objnum].flags2 |= object_flag2;
+		else
+			Objects[Ships[ship_index].objnum].flags2 &= ~object_flag2;
+*/		}
+
+		// see if we have a ship flag to set
+		if (ship_flag)
+		{
+			// set or clear?
+			if (set_it)
+				Ships[ship_index].flags |= ship_flag;
+			else
+				Ships[ship_index].flags &= ~ship_flag;
+			}
+
+		// see if we have a ship flag2 to set
+		if (ship_flag2)
+		{
+			// set or clear?
+			if (set_it)
+				Ships[ship_index].flags2 |= ship_flag2;
+			else
+				Ships[ship_index].flags2 &= ~ship_flag2;
+		}
+			// the lock afterburner SEXP also needs to set a physics flag
+		if (ship_flag2 == SF2_AFTERBURNER_LOCKED) {
+			if (set_it) {
+				Objects[Ships[ship_index].objnum].phys_info.flags &= ~PF_AFTERBURNER_ON;
+			}
+		}
+
+		if (send_multiplayer && MULTIPLAYER_MASTER) {
+			multi_send_bool(true); 
+			multi_send_ship(ship_index); 
+		}
+	}
+	// if it's not in-mission or the argument is a wing or team
+	// Needed to preserve backwards compatibility as flags set on individual ships in wings that had
+	// arrived were not carried over to the next wave.  Set by wings and teams should always carry over.
+	// Added flag ship_wave_adv to allow FREDder to choose to override backward compatibility and carry flag
+	// to next wave no matter what
+	if (((!(ship_index >= 0)) || (SWT != OSWPT_TYPE_SHIP)) || ship_wave_adv)
+	{
+		// grab it from the arrival list
+		p_object *p_objp = mission_parse_get_arrival_ship(ship_name);
+	
+		// ships that have had ship-vanish used on them should be skipped
+		if (!p_objp) {
+			return;
+		}
+
+		// see if we have a p_object flag to set
+		if (p_object_flag)
+		{
+			// set or clear?
+			if (set_it)
+				p_objp->flags |= p_object_flag;
+			else
+				p_objp->flags &= ~p_object_flag;
+		}
+
+		// see if we have a p_object flag2 to set
+		if (p_object_flag2)
+		{
+			// set or clear?
+			if (set_it)
+				p_objp->flags2 |= p_object_flag2;
+			else
+				p_objp->flags2 &= ~p_object_flag2;
+			}
+			if (send_multiplayer && MULTIPLAYER_MASTER) {
+			multi_send_bool(false); 
+			multi_send_parse_object(p_objp); 
+		}
+	}
+}
+// Original by Goober5000 modified to take wings and teams or all ships by FUBAR
 // generic function for all those sexps that set flags
+// It allows the use of IFF name and wing as well as the original ship arguments.
 void sexp_deal_with_ship_flag(int node, bool process_subsequent_nodes, int object_flag, int object_flag2, int ship_flag, int ship_flag2, int p_object_flag, int p_object_flag2, bool set_it, bool send_multiplayer = false, bool include_players_in_ship_lookup = false)
 {
 	char *ship_name;
-	int ship_index;
+	object_ship_wing_point_team oswpt;
+	ship_obj	*so;
+	ship		*shipp;	
+	int team = -1;
+	bool ship_wave_adv = false;  
 	int n = node;
 
 	if (send_multiplayer && MULTIPLAYER_MASTER) {
@@ -11543,117 +11790,103 @@ void sexp_deal_with_ship_flag(int node, bool process_subsequent_nodes, int objec
 		multi_send_bool(set_it); 
 	}
 
-	// loop for all ships in the sexp
+		// loop to set all ships if no argument provided
+	if (node == -1)
+	{
+		ship_wave_adv = true;
+		for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) 
+		{
+			shipp=&Ships[Objects[so->objnum].instance];
+			ship_name = shipp->ship_name;
+			sexp_deal_with_ship_flag_helper(ship_name, OSWPT_TYPE_SHIP, object_flag, object_flag2, ship_flag, ship_flag2, p_object_flag, p_object_flag2, set_it, send_multiplayer, include_players_in_ship_lookup, ship_wave_adv);
+		}
+		// ships yet to arrive
+		for (p_object *p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
+		{
+			ship_name = p_objp->name;
+			sexp_deal_with_ship_flag_helper(ship_name, OSWPT_TYPE_PARSE_OBJECT, object_flag, object_flag2, ship_flag, ship_flag2, p_object_flag, p_object_flag2, set_it, send_multiplayer, include_players_in_ship_lookup, ship_wave_adv);
+		}
+	return;
+	}
+
 	// NB: if the flag is set, we will continue acting on nodes until we run out of them;
 	//     if not, we will only act on the first one
 	for (; n >= 0; process_subsequent_nodes ? n = CDR(n) : n = -1)
 	{
-		// get ship name
-		ship_name = CTEXT(n);
-
-		// check to see if ship destroyed or departed.  In either case, do nothing.
-		if (mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL))
-			continue;
-
-		// see if ship exists in-mission
-		ship_index = ship_name_lookup(ship_name, include_players_in_ship_lookup ? 1 : 0);
-
-		// if ship is in-mission
-		if (ship_index >= 0)
-		{
-			// see if we have an object flag to set
-			if (object_flag)
-			{
-				// set or clear?
-				if (set_it)
-					Objects[Ships[ship_index].objnum].flags |= object_flag;
-				else
-					Objects[Ships[ship_index].objnum].flags &= ~object_flag;
-			}
-
-			// see if we have an object flag2 to set
-			if (object_flag2)
-			{
-/*
-				// set or clear?
-				if (set_it)
-					Objects[Ships[ship_index].objnum].flags2 |= object_flag2;
-				else
-					Objects[Ships[ship_index].objnum].flags2 &= ~object_flag2;
-*/
-			}
-
-			// see if we have a ship flag to set
-			if (ship_flag)
-			{
-				// set or clear?
-				if (set_it)
-					Ships[ship_index].flags |= ship_flag;
-				else
-					Ships[ship_index].flags &= ~ship_flag;
-			}
-
-			// see if we have a ship flag2 to set
-			if (ship_flag2)
-			{
-				// set or clear?
-				if (set_it)
-					Ships[ship_index].flags2 |= ship_flag2;
-				else
-					Ships[ship_index].flags2 &= ~ship_flag2;
-			}
-
-			// the lock afterburner SEXP also needs to set a physics flag
-			if (ship_flag2 == SF2_AFTERBURNER_LOCKED) {
-				if (set_it) {
-					Objects[Ships[ship_index].objnum].phys_info.flags &= ~PF_AFTERBURNER_ON;
+		sexp_get_object_ship_wing_point_team(&oswpt, CTEXT(n));
+		switch (oswpt.type)
+		{	
+			// Process entire team
+ 		    case OSWPT_TYPE_IFF:
+				team = iff_lookup(CTEXT(n));
+				if (team >= 0) 
+				{
+					for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) 
+					{
+						shipp=&Ships[Objects[so->objnum].instance];
+						if (shipp->team == team) 
+						{
+							ship_name = shipp->ship_name;
+							sexp_deal_with_ship_flag_helper(ship_name, oswpt.type, object_flag, object_flag2, ship_flag, ship_flag2, p_object_flag, p_object_flag2, set_it, send_multiplayer, include_players_in_ship_lookup, ship_wave_adv);
+						}
+					}
+					// ships yet to arrive
+					for (p_object *p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
+					{
+						if (p_objp->team == team)
+						{
+							ship_name = p_objp->name;
+							sexp_deal_with_ship_flag_helper(ship_name, oswpt.type, object_flag, object_flag2, ship_flag, ship_flag2, p_object_flag, p_object_flag2, set_it, send_multiplayer, include_players_in_ship_lookup, ship_wave_adv);
+						}
+					}
 				}
-			}
+				break;
 
-			if (send_multiplayer && MULTIPLAYER_MASTER) {
-				multi_send_bool(true); 
-				multi_send_ship(ship_index); 
-			}
-		}
-		// if it's not in-mission
-		else
-		{
-			// grab it from the arrival list
-			p_object *p_objp = mission_parse_get_arrival_ship(ship_name);
-			
-			// ships that have had ship-vanish used on them should be skipped
-			if (!p_objp) {
-				continue;
-			}
+			// process individual ships
+			case OSWPT_TYPE_SHIP:
+			case OSWPT_TYPE_PARSE_OBJECT:
+				// get ship name
+				ship_name = CTEXT(n);
+				// check to see if ship destroyed or departed.  In either case, do nothing.
+				if ((!((mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL)))) || ship_wave_adv)
+					sexp_deal_with_ship_flag_helper(ship_name, oswpt.type, object_flag, object_flag2, ship_flag, ship_flag2, p_object_flag, p_object_flag2, set_it, send_multiplayer, include_players_in_ship_lookup, ship_wave_adv);
+				break;
 
-			// see if we have a p_object flag to set
-			if (p_object_flag)
-			{
-				// set or clear?
-				if (set_it)
-					p_objp->flags |= p_object_flag;
-				else
-					p_objp->flags &= ~p_object_flag;
-			}
+			//Process ships in wing.
+			case OSWPT_TYPE_WING:
+			case OSWPT_TYPE_FUTURE_WING:
+				// current ships
+				for (int i = 0; i < oswpt.wingp->current_count; i++) 
+				{
+					ship_name = Ships[oswpt.wingp->ship_index[i]].ship_name;
+					sexp_deal_with_ship_flag_helper(ship_name, oswpt.type, object_flag, object_flag2, ship_flag, ship_flag2, p_object_flag, p_object_flag2, set_it, send_multiplayer, include_players_in_ship_lookup, ship_wave_adv);
+				}	
+				// ships yet to arrive
+				for (p_object *p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
+				{
+					if (p_objp->wingnum == WING_INDEX(oswpt.wingp)) 
+					{
+						ship_name = p_objp->name;
+						sexp_deal_with_ship_flag_helper(ship_name, oswpt.type, object_flag, object_flag2, ship_flag, ship_flag2, p_object_flag, p_object_flag2, set_it, send_multiplayer, include_players_in_ship_lookup, ship_wave_adv);
+					}
+				}
+				break;
 
-			// see if we have a p_object flag2 to set
-			if (p_object_flag2)
-			{
-				// set or clear?
-				if (set_it)
-					p_objp->flags2 |= p_object_flag2;
-				else
-					p_objp->flags2 &= ~p_object_flag2;
-			}
+			case OSWPT_TYPE_NONE:
+				ship_name = CTEXT(n);
 
-			if (send_multiplayer && MULTIPLAYER_MASTER) {
-				multi_send_bool(false); 
-				multi_send_parse_object(p_objp); 
-			}
+				// Allow flags set by ship argument to carry over to next wave while
+				// preserving backward compatibility.  
+				if (!strcmp (SEXP_SHIP_WING_ADV_STRING, CTEXT(n)))
+				{
+					ship_wave_adv = true;
+					break;
+				}
 		}
 	}
 
-	if (send_multiplayer && MULTIPLAYER_MASTER) {
+	if (send_multiplayer && MULTIPLAYER_MASTER) 
+	{
 		multi_end_packet();
 	}
 }
@@ -12442,63 +12675,286 @@ void sexp_ships_vaporize(int n, bool vaporize)
 
 // sexpression to make ships "visible" and "invisible" to sensors.  The visible parameter is true
 // when making ships visible, false otherwise
-void sexp_ships_visible(int n, bool visible)
+void sexp_ships_visible(int node, bool visible)
 {
-	sexp_deal_with_ship_flag(n, true, 0, 0, SF_HIDDEN_FROM_SENSORS, 0, P_SF_HIDDEN_FROM_SENSORS, 0, !visible, true);
+	int shipnum = -1;
+	char *ship_name;
+	object_ship_wing_point_team oswpt;
+	ship_obj	*so;
+	ship		*shipp;
+	int team = -1;
+
+	sexp_deal_with_ship_flag(node, true, 0, 0, SF_HIDDEN_FROM_SENSORS, 0, P_SF_HIDDEN_FROM_SENSORS, 0, !visible, true);
 
 	// we also have to add any escort ships that were made visible
-	for (; n >= 0; n = CDR(n))
+	// loop for all ships
+	if (node == -1)
 	{
-		int shipnum = ship_name_lookup(CTEXT(n));
-		if (shipnum < 0)
-			continue;
+		for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) 
+		{
+			shipp=&Ships[Objects[so->objnum].instance];
+			ship_name = shipp->ship_name;
+			shipnum = ship_name_lookup(ship_name);
+			if (shipnum < 0)
+				continue;
 
-		if (!visible && Player_ai->target_objnum == Ships[shipnum].objnum) {
-			hud_cease_targeting(); 
-		}
+			if (!visible && Player_ai->target_objnum == Ships[shipnum].objnum) 
+			{
+				hud_cease_targeting(); 
+			}
 
-		else if (visible && (Ships[shipnum].flags & SF_ESCORT)) {
+			else if (visible && (Ships[shipnum].flags & SF_ESCORT)) 
+			{
 				hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
-		}		
+			}		
+		}
+		return;
+	}
+
+	// loop for all arguments in the sexp
+	for (; node >= 0; node = CDR(node))
+	{
+		sexp_get_object_ship_wing_point_team(&oswpt, CTEXT(node));
+		switch (oswpt.type)
+		{	
+			// Process entire team
+ 		    case OSWPT_TYPE_IFF:
+				team = iff_lookup(CTEXT(node));
+				if (team >= 0) 
+				{
+					for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) 
+					{
+						shipp=&Ships[Objects[so->objnum].instance];
+						if (shipp->team == team) 
+						{
+							ship_name = shipp->ship_name;
+							shipnum = ship_name_lookup(ship_name);
+							if (shipnum < 0)
+								continue;
+
+							if (!visible && Player_ai->target_objnum == Ships[shipnum].objnum) {
+								hud_cease_targeting(); 
+							}
+
+							else if (visible && (Ships[shipnum].flags & SF_ESCORT)) {
+								hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
+							}		
+						}
+					}
+				}
+				break;
+
+			// process individual ships
+			case OSWPT_TYPE_SHIP:
+				shipnum = ship_name_lookup(CTEXT(node));
+				if (shipnum < 0)
+					break;
+
+				if (!visible && Player_ai->target_objnum == Ships[shipnum].objnum) {
+					hud_cease_targeting(); 
+				}
+
+				else if (visible && (Ships[shipnum].flags & SF_ESCORT)) {
+					hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
+				}		
+				break;
+
+			//Process ships in wing.
+			case OSWPT_TYPE_WING:
+				for (int i = 0; i < oswpt.wingp->current_count; i++) 
+				{
+					ship_name = Ships[oswpt.wingp->ship_index[i]].ship_name;
+					shipnum = ship_name_lookup(ship_name);
+					if (shipnum < 0)
+						continue;
+
+					if (!visible && Player_ai->target_objnum == Ships[shipnum].objnum) {
+						hud_cease_targeting(); 
+					}
+
+					else if (visible && (Ships[shipnum].flags & SF_ESCORT)) {
+						hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
+					}		
+				}	
+				break;
+		}
 	}
 }
 
 // Goober5000
-void sexp_ships_stealthy(int n, bool stealthy)
+void sexp_ships_stealthy(int node, bool stealthy)
 {
-	sexp_deal_with_ship_flag(n, true, 0, 0, 0, SF2_STEALTH, 0, P_SF2_STEALTH, stealthy, true);
+	int shipnum = -1;
+	char *ship_name;
+	object_ship_wing_point_team oswpt;
+	ship_obj	*so;
+	ship		*shipp;
+	int team = -1;
+
+	sexp_deal_with_ship_flag(node, true, 0, 0, 0, SF2_STEALTH, 0, P_SF2_STEALTH, stealthy, true);
 
 	// we also have to add any escort ships that were made visible
 	if (!stealthy)
 	{
-		for (; n >= 0; n = CDR(n))
+		// loop for all ships
+		if (node == -1)
 		{
-			int shipnum = ship_name_lookup(CTEXT(n));
-			if (shipnum < 0)
-				continue;
+			for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) 
+			{
+				shipp=&Ships[Objects[so->objnum].instance];
+				ship_name = shipp->ship_name;
+				shipnum = ship_name_lookup(ship_name);
+				if (shipnum < 0)
+					continue;
 
-			if (Ships[shipnum].flags & SF_ESCORT)
-				hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
+				if (Ships[shipnum].flags & SF_ESCORT)
+					hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
+			}
+			return;
+		}
+
+		// loop for all arguments in the sexp
+		for (; node >= 0; node = CDR(node))
+		{
+			sexp_get_object_ship_wing_point_team(&oswpt, CTEXT(node));
+			switch (oswpt.type)
+			{	
+			// Process entire team
+ 			    case OSWPT_TYPE_IFF:
+					team = iff_lookup(CTEXT(node));
+					if (team >= 0) 
+					{
+						for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) 
+						{
+							shipp=&Ships[Objects[so->objnum].instance];
+							if (shipp->team == team) 
+							{
+								ship_name = shipp->ship_name;
+								shipnum = ship_name_lookup(ship_name);
+								if (shipnum < 0)
+									continue;
+
+								if (Ships[shipnum].flags & SF_ESCORT)
+									hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
+							}
+						}
+					}
+					break;
+
+				// process individual ships
+				case OSWPT_TYPE_SHIP:
+					shipnum = ship_name_lookup(CTEXT(node));
+					if (shipnum < 0)
+						break;
+
+					if (Ships[shipnum].flags & SF_ESCORT)
+						hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
+				
+					break;
+
+				//Process ships in wing.
+				case OSWPT_TYPE_WING:
+					for (int i = 0; i < oswpt.wingp->current_count; i++) 
+					{
+						ship_name = Ships[oswpt.wingp->ship_index[i]].ship_name;
+						shipnum = ship_name_lookup(ship_name);
+						if (shipnum < 0)
+							continue;
+
+						if (Ships[shipnum].flags & SF_ESCORT)
+							hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
+					}	
+					break;
+			}
 		}
 	}
 }
 
 // Goober5000
-void sexp_friendly_stealth_invisible(int n, bool invisible)
+void sexp_friendly_stealth_invisible(int node, bool invisible)
 {
-	sexp_deal_with_ship_flag(n, true, 0, 0, 0, SF2_FRIENDLY_STEALTH_INVIS, 0, P_SF2_FRIENDLY_STEALTH_INVIS, invisible, true);
+	int shipnum = -1;
+	char *ship_name;
+	object_ship_wing_point_team oswpt;
+	ship_obj	*so;
+	ship		*shipp;
+	int team = -1;
+
+	sexp_deal_with_ship_flag(node, true, 0, 0, 0, SF2_FRIENDLY_STEALTH_INVIS, 0, P_SF2_FRIENDLY_STEALTH_INVIS, invisible, true);
 
 	// we also have to add any escort ships that were made visible
 	if (!invisible)
 	{
-		for (; n >= 0; n = CDR(n))
+		// loop for all ships
+		if (node == -1)
 		{
-			int shipnum = ship_name_lookup(CTEXT(n));
-			if (shipnum < 0)
-				continue;
+			for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) 
+			{
+				shipp=&Ships[Objects[so->objnum].instance];
+				ship_name = shipp->ship_name;
+				shipnum = ship_name_lookup(ship_name);
+				if (shipnum < 0)
+					continue;
 
-			if (Ships[shipnum].flags & SF_ESCORT)
-				hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
+				if (Ships[shipnum].flags & SF_ESCORT)
+					hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
+			}
+			return;
+		}
+
+		// loop for all arguments in the sexp
+		for (; node >= 0; node = CDR(node))
+		{
+			sexp_get_object_ship_wing_point_team(&oswpt, CTEXT(node));
+			switch (oswpt.type)
+			{	
+				// Process entire team
+ 			    case OSWPT_TYPE_IFF:
+					team = iff_lookup(CTEXT(node));
+					if (team >= 0) 
+					{
+						for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) 
+						{
+							shipp=&Ships[Objects[so->objnum].instance];
+							if (shipp->team == team) 
+							{
+								ship_name = shipp->ship_name;
+								shipnum = ship_name_lookup(ship_name);
+								if (shipnum < 0)
+									continue;
+								
+								if (Ships[shipnum].flags & SF_ESCORT)
+									hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
+							}
+						}
+					}
+					break;
+
+				// process individual ships
+				case OSWPT_TYPE_SHIP:
+					shipnum = ship_name_lookup(CTEXT(node));
+					if (shipnum < 0)
+						break;
+
+					if (Ships[shipnum].flags & SF_ESCORT)
+						hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
+			
+					break;
+
+				//Process ships in wing.
+				case OSWPT_TYPE_WING:
+					for (int i = 0; i < oswpt.wingp->current_count; i++) 
+					{
+						ship_name = Ships[oswpt.wingp->ship_index[i]].ship_name;
+						shipnum = ship_name_lookup(ship_name);
+						if (shipnum < 0)
+							continue;
+
+						if (Ships[shipnum].flags & SF_ESCORT)
+							hud_add_ship_to_escort(Ships[shipnum].objnum, 1);
+					}	
+					break;
+			}
 		}
 	}
 }
@@ -13047,16 +13503,16 @@ void sexp_parse_ship_kamikaze(p_object *parse_obj, int kdamage)
 }
 
 // Goober5000 - redone, added wing stuff
+// FUBAR - added team capability and option to always process ships in future wing waves
 void sexp_kamikaze(int n, int kamikaze)
 {
-	int kdamage;
+	int kdamage, team;
+	ship_obj	*so;
+	ship		*shipp;
+	bool ship_wave_adv = false;  
 
-	kdamage = 0;
-	if (kamikaze)
-	{
-		kdamage = eval_num(n);
-		n = CDR(n);
-	}
+	kdamage = eval_num(n);
+	n = CDR(n);
 
 	for ( ; n != -1; n = CDR(n) )
 	{
@@ -13070,6 +13526,10 @@ void sexp_kamikaze(int n, int kamikaze)
 			{
 				sexp_ingame_ship_kamikaze(oswpt.shipp, kdamage);
 
+				// change future waves if ship is in a wing and ship_wave_adv flag set
+				p_object *p_objp = mission_parse_get_arrival_ship(oswpt.shipp->ship_name);
+				if (p_objp && ship_wave_adv && p_objp->wingnum > -1)
+					sexp_parse_ship_kamikaze(p_objp, kdamage);
 				break;
 			}
 
@@ -13093,6 +13553,52 @@ void sexp_kamikaze(int n, int kamikaze)
 				{
 					if (p_objp->wingnum == WING_INDEX(oswpt.wingp))
 						sexp_parse_ship_kamikaze(p_objp, kdamage);
+				}
+			}
+			// maybe change wings yet to arrive 
+			case OSWPT_TYPE_FUTURE_WING:
+			{
+				if (ship_wave_adv)
+					for (p_object *p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
+					{
+						if (p_objp->wingnum == WING_INDEX(oswpt.wingp))
+							sexp_parse_ship_kamikaze(p_objp, kdamage);
+					}
+ 				break;
+			}
+			//chage entire team
+ 		    case OSWPT_TYPE_IFF:
+			{
+				team = iff_lookup(CTEXT(n));
+				if (team >= 0) 
+				{
+					for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) 
+					{
+						shipp=&Ships[Objects[so->objnum].instance];
+						if (shipp->team == team) 
+						{
+							sexp_ingame_ship_kamikaze(shipp, kdamage);
+						}
+					}
+					// ships yet to arrive
+					for (p_object *p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
+					{
+						if (p_objp->team == team)
+						{
+							sexp_parse_ship_kamikaze(p_objp, kdamage);
+						}
+					}
+				}
+				break;			   
+			}
+			case OSWPT_TYPE_NONE:
+			{
+				// Allow flags set by ship argument to carry over to next wave while
+				// preserving backward compatibility.  
+				if (!strcmp (SEXP_SHIP_WING_ADV_STRING, CTEXT(n)))
+				{
+					ship_wave_adv = true;
+					break;
 				}
 			}
 		}
@@ -13144,10 +13650,15 @@ void sexp_parse_ship_alt_name(p_object *parse_obj, int alt_index)
 }
 
 // Goober5000
+// FUBAR - added team capability and option to always process ships in future wing waves
 void sexp_ship_change_alt_name(int node)
 {
 	int n = node, new_alt_index;
 	char *new_alt_name;
+	int team;
+	ship_obj	*so;
+	ship		*shipp;
+	bool ship_wave_adv = false;  
 
 	// get the alt-name
 	new_alt_name = CTEXT(n);
@@ -13175,14 +13686,19 @@ void sexp_ship_change_alt_name(int node)
 			// change ingame ship
 			case OSWPT_TYPE_SHIP:
 			{
-				sexp_ingame_ship_alt_name(oswpt.shipp, new_alt_index);
+				sexp_ingame_ship_alt_name(oswpt.shipp, char(new_alt_index));
+				// change future waves if ship is in a wing and ship_wave_adv flag set
+				p_object *p_objp = mission_parse_get_arrival_ship(oswpt.shipp->ship_name);
+				if (p_objp && ship_wave_adv && p_objp->wingnum > -1)
+					sexp_parse_ship_alt_name(p_objp, char(new_alt_index));
+
 				break;
 			}
 
 			// change ship yet to arrive
 			case OSWPT_TYPE_PARSE_OBJECT:
 			{
-				sexp_parse_ship_alt_name(oswpt.p_objp, new_alt_index);
+				sexp_parse_ship_alt_name(oswpt.p_objp, char(new_alt_index));
 				break;
 			}
 
@@ -13191,15 +13707,63 @@ void sexp_ship_change_alt_name(int node)
 			{		
 				// current ships
 				for (int i = 0; i < oswpt.wingp->current_count; i++)
-					sexp_ingame_ship_alt_name(&Ships[oswpt.wingp->ship_index[i]], new_alt_index);
+					sexp_ingame_ship_alt_name(&Ships[oswpt.wingp->ship_index[i]], char(new_alt_index));
 	
 				// ships yet to arrive
 				for (p_object *p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
 				{
 					if (p_objp->wingnum == WING_INDEX(oswpt.wingp))
-						sexp_parse_ship_alt_name(p_objp, new_alt_index);
+						sexp_parse_ship_alt_name(p_objp, char(new_alt_index));
 				}
 				break;
+			}
+			// maybe change wings yet to arrive
+			case OSWPT_TYPE_FUTURE_WING:
+			{
+				if (ship_wave_adv)
+					for (p_object *p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
+					{
+						if (p_objp->wingnum == WING_INDEX(oswpt.wingp))
+							sexp_parse_ship_alt_name(p_objp, char(new_alt_index));
+					}
+
+				break;
+			}
+	
+			//chage entire team
+ 		    case OSWPT_TYPE_IFF:
+			{
+				team = iff_lookup(CTEXT(n));
+				if (team >= 0) 
+				{
+					for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) 
+					{
+						shipp=&Ships[Objects[so->objnum].instance];
+						if (shipp->team == team) 
+						{
+							sexp_ingame_ship_alt_name(shipp, char(new_alt_index));
+						}
+					}
+					// ships yet to arrive
+					for (p_object *p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
+					{
+						if (p_objp->team == team)
+						{
+							sexp_parse_ship_alt_name(p_objp, char(new_alt_index));
+						}
+					}
+				}
+				break;			   
+			}
+			case OSWPT_TYPE_NONE:
+				{
+				// Allow flags set by ship argument to carry over to next wave while
+				// preserving backward compatibility.  
+				if (!strcmp (SEXP_SHIP_WING_ADV_STRING, CTEXT(n)))
+				{
+					ship_wave_adv = true;
+					break;
+				}
 			}
 		}
 	}
@@ -13238,7 +13802,7 @@ void sexp_ship_change_callsign(int node)
 		if (sindex >= 0) 
 		{
 			shipp = &Ships[sindex];
-			shipp->callsign_index = cindex;
+			shipp->callsign_index = char(cindex);
 			multi_send_ship(shipp);
 		}
 		node = CDR(node);
@@ -14337,21 +14901,18 @@ void sexp_set_weapon (int node, bool primary)
 // KeldorKatarn - Locks or unlocks the afterburner on the requested ship
 void sexp_deal_with_afterburner_lock (int node, bool lock)
 {
-	Assert (node != -1);
 	sexp_deal_with_ship_flag(node, true, 0, 0, 0, SF2_AFTERBURNER_LOCKED, 0, 0, (lock ? 1:0), true);
 }
 
 // Karajorma - locks or unlocks primary weapons on the requested ship
 void sexp_deal_with_primary_lock (int node, bool lock)
 {
-	Assert (node != -1);	
 	sexp_deal_with_ship_flag(node, true, 0, 0, 0, SF2_PRIMARIES_LOCKED, 0, P2_SF2_PRIMARIES_LOCKED, (lock ? 1:0), true);
 
 }
 
 void sexp_deal_with_secondary_lock (int node, bool lock)
 {
-	Assert (node != -1);	
 	sexp_deal_with_ship_flag(node, true, 0, 0, 0, SF2_SECONDARIES_LOCKED, 0, P2_SF2_SECONDARIES_LOCKED, (lock ? 1:0), true);
 
 }
@@ -21697,27 +22258,11 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_HITS_LEFT:
 		case OP_SIM_HITS_LEFT:
 		case OP_CLEAR_SHIP_GOALS:
-		case OP_PROTECT_SHIP:
-		case OP_UNPROTECT_SHIP:
-		case OP_BEAM_PROTECT_SHIP:
-		case OP_BEAM_UNPROTECT_SHIP:
 		case OP_TRANSFER_CARGO:
 		case OP_EXCHANGE_CARGO:
-		case OP_SHIP_INVISIBLE:
-		case OP_SHIP_VISIBLE:	
-		case OP_SHIP_INVULNERABLE:
-		case OP_SHIP_VULNERABLE:
-		case OP_SHIP_BOMB_TARGETABLE:
-		case OP_SHIP_BOMB_UNTARGETABLE:
 		case OP_SHIP_GUARDIAN:
 		case OP_SHIP_NO_GUARDIAN:
 		case OP_SHIP_VANISH:
-		case OP_SHIELDS_ON:
-		case OP_SHIELDS_OFF:
-		case OP_SHIP_STEALTHY:
-		case OP_SHIP_UNSTEALTHY:
-		case OP_FRIENDLY_STEALTH_INVISIBLE:
-		case OP_FRIENDLY_STEALTH_VISIBLE:
 		case OP_PRIMARIES_DEPLETED:
 		case OP_SECONDARIES_DEPLETED:
 		case OP_SPECIAL_WARP_DISTANCE:
@@ -21728,7 +22273,25 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_GET_DAMAGE_CAUSED:
 		case OP_GET_THROTTLE_SPEED:
 			return OPF_SHIP;
-		
+
+		case OP_SHIP_INVISIBLE:
+		case OP_SHIP_VISIBLE:	
+		case OP_SHIP_STEALTHY:
+		case OP_SHIP_UNSTEALTHY:
+		case OP_FRIENDLY_STEALTH_INVISIBLE:
+		case OP_FRIENDLY_STEALTH_VISIBLE:
+		case OP_SHIELDS_ON:
+		case OP_SHIELDS_OFF:
+		case OP_SHIP_INVULNERABLE:
+		case OP_SHIP_VULNERABLE:
+		case OP_PROTECT_SHIP:
+		case OP_UNPROTECT_SHIP:
+		case OP_BEAM_PROTECT_SHIP:
+		case OP_BEAM_UNPROTECT_SHIP:
+		case OP_SHIP_BOMB_TARGETABLE:
+		case OP_SHIP_BOMB_UNTARGETABLE:
+			return OPF_SHIP_WING_TEAM;
+
 		case OP_SHIP_CREATE:
 			if(argnum == 0)
 				return OPF_STRING;
@@ -21852,7 +22415,7 @@ int query_operator_argument_type(int op, int argnum)
 			if (argnum == 0)
 				return OPF_STRING;
 			else
-				return OPF_SHIP_WING;
+				return OPF_SHIP_WING_TEAM;
 
 		case OP_SHIP_CHANGE_CALLSIGN:
 			if (argnum == 0)
@@ -22060,7 +22623,7 @@ int query_operator_argument_type(int op, int argnum)
 			if (!argnum)
 				return OPF_IFF;
 			else
-				return OPF_SHIP_WING;
+				return OPF_SHIP_WING_TEAM;
 
 		case OP_ADD_SHIP_GOAL:
 			if (!argnum)
@@ -22530,17 +23093,13 @@ int query_operator_argument_type(int op, int argnum)
 
 		case OP_SHIP_VAPORIZE:
 		case OP_SHIP_NO_VAPORIZE:
-			return OPF_SHIP;
-
 		case OP_DONT_COLLIDE_INVISIBLE:
 		case OP_COLLIDE_INVISIBLE:
-			return OPF_SHIP;
-
 		case OP_WARP_BROKEN:
 		case OP_WARP_NOT_BROKEN:
 		case OP_WARP_NEVER:
 		case OP_WARP_ALLOWED:
-			return OPF_SHIP;
+			return OPF_SHIP_WING_TEAM;
 
 		case OP_FLASH_HUD_GAUGE:
 			return OPF_HUD_GAUGE_NAME;
@@ -22912,7 +23471,7 @@ int query_operator_argument_type(int op, int argnum)
 		// KeldorKatarn		
 		case OP_LOCK_AFTERBURNER:
 		case OP_UNLOCK_AFTERBURNER:
-			return OPF_SHIP;
+			return OPF_SHIP_WING_TEAM;
 
 		
 		case OP_SET_AFTERBURNER_ENERGY: 
@@ -23011,7 +23570,7 @@ int query_operator_argument_type(int op, int argnum)
 			if (argnum==0)
 				return OPF_POSITIVE;
 			else
-				return OPF_SHIP_WING;
+				return OPF_SHIP_WING_TEAM;
 
 		case OP_NUM_SHIPS_IN_BATTLE:	//phreak modified by FUBAR
 			return OPF_SHIP_WING_TEAM;
@@ -23238,7 +23797,7 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_IFF;
 			else if ((argnum >= 2) && (argnum <=4))
 				return OPF_POSITIVE;
-			else return OPF_SHIP_WING;
+			else return OPF_SHIP_WING_TEAM;
 
 		case OP_HUD_DISPLAY_GAUGE:
 			if ( argnum == 0 ) {
@@ -25596,21 +26155,31 @@ sexp_help_struct Sexp_help[] = {
 
 	// Goober5000 - added wing capability
 	{ OP_CHANGE_IFF, "Change IFF (Action operator)\r\n"
-		"\tSets the specified ship(s) or wing(s) to the specified team.\r\n"
+		"\tSets the specified ship(s) or wing(s) or team(s) to the specified team.\r\n"
+		"\tFor teams:  All current and future ships in the team are changed.\r\n"
+		"\tFor wings:  If wing names are supplied they are only changed if the wing has arrived.\r\n"
+		"\tFor wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes remaining arguments for wings and ships in wings to update all current and future waves.\r\n\r\n"
 		"Takes 2 or more arguments...\r\n"
 		"\t1:\tTeam to change to (\"friendly\", \"hostile\" or \"unknown\").\r\n"
-		"\tRest:\tName of ship or wing to change team status of." },
+		"\tRest:\tName of ship or wing to change team status of or " SEXP_SHIP_WING_ADV_STRING "." },
 
 	// Wanderer
 	{ OP_CHANGE_IFF_COLOR, "Change IFF Color (Action operator)\r\n"
 		"\tSets the specified ship(s) or wing(s) apparent color.\r\n"
+		"\tFor teams:  All current and future ships in the team are changed.\r\n"
+		"\tFor wings:  If wing names are supplied they are only changed if the wing has arrived.\r\n"
+		"\tFor wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes remaining arguments for wings and ships in wings to update all current and future waves.\r\n\r\n"
 		"Takes 6 or more arguments...\r\n"
 		"\t1:\tName of the team from which target is observed from.\r\n"
 		"\t2:\tName of the team of the observed target to receive the alternate color.\r\n"
 		"\t3:\tRed color (value from 0 to 255).\r\n"
 		"\t4:\tGreen color (value from 0 to 255).\r\n"
 		"\t5:\tBlue color (value from 0 to 255).\r\n"
-		"\tRest:\tName of ship or wing to change team status of." },
+		"\tRest:\tName of ship or wing to change team status of or " SEXP_SHIP_WING_ADV_STRING "." },
 
 	// Goober5000
 	{ OP_CHANGE_AI_CLASS, "Change AI Class (Action operator)\r\n"
@@ -25646,28 +26215,52 @@ sexp_help_struct Sexp_help[] = {
 	{ OP_PROTECT_SHIP, "Protect ship (Action operator)\r\n"
 		"\tProtects a ship from being attacked by any enemy ship.  Any ship "
 		"that is protected will not come under enemy fire.\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\tAll:\tName of ship(s) to protect." },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tName of team, wing, or ship to protect. (optional)" },
 
 	{ OP_UNPROTECT_SHIP, "Unprotect ship (Action operator)\r\n"
 		"\tUnprotects a ship from being attacked by any enemy ship.  Any ship "
 		"that is not protected can come under enemy fire.  This function is the opposite "
 		"of protect-ship.\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\tAll:\tName of ship(s) to unprotect." },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tName of team, wing or ship to unprotect. (optional)" },
 
 	{ OP_BEAM_PROTECT_SHIP, "Beam Protect ship (Action operator)\r\n"
 		"\tProtects a ship from being attacked with beam weapon.  Any ship "
 		"that is beam protected will not come under enemy beam fire.\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\tAll:\tName of ship(s) to protect." },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tName of team, wing, or ship to protect. (optional)" },
 
 	{ OP_BEAM_UNPROTECT_SHIP, "Beam Unprotect ship (Action operator)\r\n"
 		"\tUnprotects a ship from being attacked with beam weapon.  Any ship "
 		"that is not beam protected can come under enemy beam fire.  This function is the opposite "
 		"of beam-protect-ship.\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\tAll:\tName of ship(s) to unprotect." },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tName of team, wing or ship to unprotect. (optional)" },
 
 	// Goober5000
 	{ OP_TURRET_PROTECT_SHIP, "Turret Protect ship (Action operator)\r\n"
@@ -26454,43 +27047,92 @@ sexp_help_struct Sexp_help[] = {
 
 	{ OP_SHIP_VISIBLE, "ship-visible\r\n"
 		"\tCauses the ships listed in this sexpression to be visible with player sensors.\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\t1+:\tName of ships to make visible to sensors." },
+
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\t1+:\tName of teams, wings, or ships to make visible to sensors. (optional)" },
 
 	{ OP_SHIP_INVISIBLE, "ship-invisible\r\n"
 		"\tCauses the ships listed in this sexpression to be invisible to player sensors.\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\t1+:\tName of ships to make invisible to sensors." },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\t1+:\tName of teams, wings, or ships to make invisible to sensors. (optional)" },
 
 	{ OP_SHIP_VULNERABLE, "ship-vulnerable\r\n"
 		"\tCauses the ship listed in this sexpression to be vulnerable to weapons.\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
 		"\t1+:\tName of ships to make vulnerable to weapons." },
 
 	{ OP_SHIP_INVULNERABLE, "ship-invulnerable\r\n"
 		"\tCauses the ships listed in this sexpression to be invulnerable to weapons.  Use with caution!!!!\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
 		"\t1+:\tName of ships to make invulnerable to weapons." },
 
 	{ OP_SHIP_BOMB_TARGETABLE, "ship-targetable-as-bomb\r\n"
 		"\tCauses the ships listed in this sexpression to be targetable with bomb targetting key.\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\t1+:\tName of ships to make targetable with bomb targeting key." },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\t1+:\tName of teams, wings, or ships to make targetable with bomb targeting key. (optional)" },
 
 	{ OP_SHIP_BOMB_UNTARGETABLE, "ship-untargetable-as-bomb\r\n"
 		"\tCauses the ships listed in this sexpression to not be targetable with bomb targetting key.\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\t1+:\tName of ships to make nontargetable with bomb targeting key." },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\t1+:\tName of teams, wings, or ships to make nontargetable with bomb targeting key. (optional)" },
 
 	{ OP_SHIELDS_ON, "shields-on\r\n" //-Sesquipedalian
 		"\tCauses the ship listed in this sexpression to have their shields activated.\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\t1+:\tName of ships to activate shields on." },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\t1+:\tName of team, wing, or ship to activate shields on. (optional)" },
 
 	{ OP_SHIELDS_OFF, "shields-off\r\n" //-Sesquipedalian
 		"\tCauses the ships listed in this sexpression to have their shields deactivated.  \r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\t1+:\tName of ships to deactivate shields on." },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing argument was supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\t1+:\tName of team, wing, or ship to deactivate shields on. (optional)" },
 
 	{ OP_SHIP_GUARDIAN, "ship-guardian\r\n"
 		"\tCauses the ships listed in this sexpression to not be killable by weapons.  Use with caution!!!!\r\n\r\n"
@@ -26522,29 +27164,55 @@ sexp_help_struct Sexp_help[] = {
 	// Goober5000
 	{ OP_SHIP_STEALTHY, "ship-stealthy\r\n"
 		"\tCauses the ships listed in this sexpression to become stealth ships (i.e. invisible to radar).\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\tAll:\tName of ships to make stealthy." },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tName of teams, wings, or ships to make stealthy. (optional)" },
+ 
 
 	// Goober5000
 	{ OP_SHIP_UNSTEALTHY, "ship-unstealthy\r\n"
 		"\tCauses the ships listed in this sexpression to become non-stealth ships (i.e. visible to radar).\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\tAll:\tName of ships to make non-stealthy." },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tName of teams, wings, or ships to make non-stealthy. (optional)" },
 
 	// Goober5000
 	{ OP_FRIENDLY_STEALTH_INVISIBLE, "friendly-stealth-invisible\r\n"
 		"\tCauses the friendly ships listed in this sexpression to be invisible to radar, just like hostile stealth ships."
 		"It doesn't matter if the ship is friendly at the time this sexp executes: as long as it is a stealth ship, it will"
 		"be invisible to radar both as hostile and as friendly.\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\tAll:\tName of ships" },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tName of teams, wings, or ships. (optional)" },
+
 
 	// Goober5000
 	{ OP_FRIENDLY_STEALTH_VISIBLE, "friendly-stealth-visible\r\n"
 		"\tCauses the friendly ships listed in this sexpression to resume their normal behavior of being visible to radar as"
 		"stealth friendlies.  Does not affect their visibility as stealth hostiles.\r\n\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\tAll:\tName of ships" },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tName of teams, wings, or ships. (optional)" },
 
 	// Goober5000
 	{ OP_SHIP_SUBSYS_TARGETABLE, "ship-subsys-targetable\r\n"
@@ -26599,8 +27267,14 @@ sexp_help_struct Sexp_help[] = {
 	// Goober5000
 	{ OP_SHIP_CHANGE_ALT_NAME, "ship-change-alt-name\r\n"
 		"\tChanges the alternate ship class name displayed in the HUD target window.  Takes 2 or more arguments...\r\n"
+		"\tFor teams:  All current and future ships in the team are changed.\r\n"
+		"\tFor wings:  If wing names are supplied they are only changed if the wing has arrived.\r\n"
+		"\tFor wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes remaining arguments for wings and ships in wings to update all current and future waves.\r\n\r\n"
+		"Takes 2 or more arguments...\r\n"
 		"\t1:\tThe ship class name to display\r\n"
-		"\tRest:\tThe ships to display the new class name" },
+		"\tRest:\tThe ships or wings to display the new class name or "  SEXP_SHIP_WING_ADV_STRING "." },
 
 	// FUBAR
 	{ OP_SHIP_CHANGE_CALLSIGN, "ship-change-callsign\r\n"
@@ -26733,41 +27407,97 @@ sexp_help_struct Sexp_help[] = {
 
 	{ OP_SHIP_VAPORIZE, "ship-vaporize\r\n"
 		"\tSets the ship to vaporize when it is destroyed.  Does not actually destroy the ship - use self-destruct for that.\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\tAll:\tList of ships on which to set the vaporize flag" },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tList of teams, wings, or ships on which to set the vaporize flag. (optional)" },
 
 	{ OP_SHIP_NO_VAPORIZE, "ship-no-vaporize\r\n"
 		"\tSets the ship to not vaporize when it is destroyed.  Does not actually destroy the ship - use self-destruct for that.\r\n"
-		"Takes 1 or more arguments...\r\n"
-		"\tAll:\tList of ships on which to unset the vaporize flag" },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tList of teams, wings, or ships on which to unset the vaporize flag. (optional)" },
 
 	{ OP_DONT_COLLIDE_INVISIBLE, "don't-collide-invisible\r\n"
 		"\tSets the \"dont collide invisible\" flag on a list of ships.  Takes 1 or more arguments..."
-		"\tAll:\tList of ships on which to set the \"dont collide invisible\" flag" },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tList of ships on which to set the \"dont collide invisible\" flag. (optional)" },
+
 
 	{ OP_COLLIDE_INVISIBLE, "collide-invisible\r\n"
 		"\tUnsets the \"dont collide invisible\" flag on a list of ships.  Takes 1 or more arguments..."
-		"\tAll:\tList of ships on which to unset the \"dont collide invisible\" flag" },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tList of ships on which to unset the \"dont collide invisible\" flag. (optional)" },
 
 	{ OP_WARP_BROKEN, "break-warp\r\n"
 		"\tBreak the warp drive on the specified ship.  A broken warp drive can be repaired by "
 		"a repair ship.  Takes 1 or more arguments...\r\n"
-		"\tAll:\tList of ships to break the warp drive on" },
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tList of ships to break the warp drive on. (optional)" },
 
 	{ OP_WARP_NOT_BROKEN, "fix-warp\r\n"
 		"\tFixes a broken warp drive instantaneously.  This option applies to warp drives broken with "
 		"the break-warp sepxression.  Takes 1 or more arguments...\r\n"
-		"\tAll:\tList of ships whose warp drive should be fixed"},
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tList of ships who warp drive should be fixed. (optional)"},
 
 	{ OP_WARP_NEVER, "never-warp\r\n"
 		"\tNever allows a ship to warp out.  When this sexpression is used, the given ships will "
 		"never be able to warp out.  The warp drive cannot be repaired.  Takes 1 or more arguments...\r\n"
-		"\tAll:\tList of ships whose are not allowed to warp out under any condition"},
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tList of ships who are not allowed to warp out under any condition. (optional)"},
+
 
 	{ OP_WARP_ALLOWED, "allow-warp\r\n"
 		"\tAllows a ship which was previously not allowed to warp out to do so.  When this sexpression is "
 		"used, the given ships will be able to warp out again.  Takes 1 or more arguments...\r\n"
-		"\tAll:\tList of ships whose are allowed to warp out"},
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\tAll:\tList of teams, whings, or ships who are allowed to warp out. (optional)"},
 
 	{ OP_JETTISON_CARGO, "jettison-cargo-delay\r\n"
 		"\tCauses a cargo carrying ship to jettison its cargo without the undocking procedure. Takes 2 or more arguments...\r\n"
@@ -27231,9 +27961,14 @@ sexp_help_struct Sexp_help[] = {
 
 	//-Sesquipedalian
 	{ OP_KAMIKAZE, "kamikaze\r\n"
-		"\tTells ships to perform a kamikaze on its current target. Takes 2 or more arguments...\r\n"
+		"\tTells ships or wings to perform a kamikaze on its current target. Takes 2 or more arguments...\r\n"
+		"\tFor teams:  All current and future ships in the team are changed.\r\n"
+		"\tFor wings:  If wing names are supplied they are only changed if the wing has arrived.\r\n"
+		"\tFor wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes remaining arguments for wings and ships in wings to update all current and future waves.\r\n\r\n"
 		"\t1: Damage dealt when kamikaze is done\r\n"
-		"\tRest: Names of ships to perform kamikaze\r\n"
+		"\tRest: Names of ships or wings to perform kamikaze or " SEXP_SHIP_WING_ADV_STRING ".\r\n"
 	},
 	
 	//phreak
@@ -27330,43 +28065,79 @@ sexp_help_struct Sexp_help[] = {
 	// Karajorma
 	{ OP_LOCK_PRIMARY_WEAPON, "lock-primary-weapon\r\n"
 		"\tLocks the primary banks for the specified ship(s)\r\n"
-		"\tTakes 1 or more arguments\r\n"
-		"\t(all): Name(s) of ship(s) to lock"
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\t(all): Name of team, wing, or ship to lock. (optional)"
 	},
 
 	// Karajorma
 	{ OP_UNLOCK_PRIMARY_WEAPON, "unlock-primary-weapon\r\n"
 		"\tUnlocks the primary banks for the specified ship(s)\r\n"
-		"\tTakes 1 or more arguments\r\n"
-		"\t(all): Name(s) of ship(s) to lock"
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\t(all): Name of team, wing, or ship to unlock. (optional)"
 	},
 	
 	// Karajorma
 	{ OP_LOCK_SECONDARY_WEAPON, "lock-secondary-weapon\r\n"
 		"\tLocks the secondary banks for the specified ship(s)\r\n"
-		"\tTakes 1 or more arguments\r\n"
-		"\t(all): Name(s) of ship(s) to lock"
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\t(all): Name of team, wing, or ship to lock. (optional)"
 	},
 
 	// Karajorma
 	{ OP_UNLOCK_SECONDARY_WEAPON, "unlock-secondary-weapon\r\n"
 		"\tUnlocks the secondary banks for the specified ship(s)\r\n"
-		"\tTakes 1 or more arguments\r\n"
-		"\t(all): Name(s) of ship(s) to lock"
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\t(all): Name of team, wing, or ship to unlock. (optional)"
 	},
 	
 	// KeldorKatarn
 	{ OP_LOCK_AFTERBURNER, "lock-afterburner\r\n"
 		"\tLocks the afterburners on the specified ship(s)\r\n"
-		"\tTakes 1 or more arguments\r\n"
-		"\t(all): Name(s) of ship(s) to lock"
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\t(all): Name of team, wing, or ship to lock. (optional)"
 	},
 
 	// KeldorKatarn
 	{ OP_UNLOCK_AFTERBURNER, "unlock-afterburner\r\n"
 		"\tUnlocks the afterburners on the specified ship(s)\r\n"
-		"\tTakes 1 or more arguments\r\n"
-		"\t(all): Name(s) of ship(s) to lock"
+		"\tIf no argument provided all ships are changed.\r\n"
+		"\tIf a Team name is supplied all current and future ships and wing waves are changed.\r\n"
+		"\tFor Wings:  If wing names are supplied current and future waves are changed.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has not arrive yet all waves are chagned.\r\n"
+		"\tFor Wings:  If ship names are supplied and wing has arrive only the current ships are changed.\r\n"
+		"\t" SEXP_SHIP_WING_ADV_STRING " causes ship arguments for ships in wings to be treated as if a wing were supplied.\r\n\r\n"
+		"Takes any number of arguments...\r\n"
+		"\t(all): Name of team, wing, or ship to unlock. (optional)"
 	},
 
 	// Karajorma

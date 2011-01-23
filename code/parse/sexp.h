@@ -749,6 +749,7 @@ struct ship;
 #define SEXP_NONE_STRING			"<none>"
 #define SEXP_ANY_STRING				"<any string>"
 #define SEXP_ALL_BANKS_STRING		"<all weapon banks>"
+#define SEXP_SHIP_WING_ADV_STRING	"<ship wave carry>"
 
 // macros for accessing sexpression atoms
 #define CAR(n)		((n < 0) ? -1 : Sexp_nodes[n].first)

@@ -26,18 +26,20 @@ extern char *Default_shiptypes_table;
 extern char *Default_ai_profiles_table;
 extern char *Default_autopilot_table;
 extern char *Default_fonts_table;
+extern char *Default_controlconfig_table;
 //**********
 
 //:PART 2:
 //**********
 def_file Default_files[] =
 {
-	{ "species_defs.tbl",		Default_species_table },
-	{ "iff_defs.tbl",			Default_iff_table },
-	{ "objecttypes.tbl",		Default_shiptypes_table },
-	{ "ai_profiles.tbl",		Default_ai_profiles_table },
-	{ "autopilot.tbl",			Default_autopilot_table },
-	{ "fonts.tbl",				Default_fonts_table },
+	{ "species_defs.tbl",		    Default_species_table },
+	{ "iff_defs.tbl",			    Default_iff_table },
+	{ "objecttypes.tbl",		    Default_shiptypes_table },
+	{ "ai_profiles.tbl",		    Default_ai_profiles_table },
+	{ "autopilot.tbl",			    Default_autopilot_table },
+	{ "fonts.tbl",				    Default_fonts_table },
+    { "controlconfigdefaults.tbl",  Default_controlconfig_table },
 };
 
 static int Num_default_files = sizeof(Default_files) / sizeof(def_file);
@@ -1058,3 +1060,9 @@ $Font: font03.vf														\n\
 																		\n\
 #End																	\n\
 ";
+
+char *Default_controlconfig_table = "\
+                                    #ControlConfigOverride \n\
+                                    \
+                                    #End\n\
+                                    ";
