@@ -2606,9 +2606,10 @@ int model_create_instance(int model_num, int submodel_num)
 		model_clear_submodel_instance( &pmi->submodel[i] );
 	}
 
-	uint *occlude_ids = (int*)vm_malloc( sizeof(int)*pm->n_models );
+	pmi->occlude_ids = (uint*)vm_malloc( sizeof(uint)*pm->n_models );
 
-	gr_gen_occlude_ids(pm->n_models, occlude_ids);
+	gr_gen_occlude_ids(pm->n_models, pmi->occlude_ids);
+
 	pmi->model_num = model_num;
 
 	if ( submodel_num < 0 ) {
@@ -2628,8 +2629,16 @@ void model_delete_instance(int model_instance_num)
 	Assert(Polygon_model_instances[model_instance_num] != NULL);
 
 	polymodel_instance *pmi = Polygon_model_instances[model_instance_num];
+	polymodel *pm = model_get(pmi->model_num);
 
-	vm_free(pmi->submodel);
+	if ( pmi->occlude_ids ) {
+		gr_delete_occlude_ids(pm->n_models, pmi->occlude_ids);
+	}
+
+	if ( pmi->submodel ) {
+		vm_free(pmi->submodel);
+	}
+
 	vm_free(pmi);
 
 	Polygon_model_instances[model_instance_num] = NULL;

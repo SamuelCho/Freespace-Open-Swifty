@@ -1567,6 +1567,32 @@ void gr_opengl_gen_occlude_ids(int n, uint *ids)
 	vglGenQueriesARB(n, ids);
 }
 
+void gr_opengl_delete_occlude_ids(int n, uint *ids)
+{
+	Assert(n > 0);
+	Assert(ids != NULL);
+
+	vglDeleteQueriesARB(n, ids);
+}
+
+int gr_opengl_get_occlude_query(uint id)
+{
+	int available;
+	uint sample_count;
+
+	Assert(id >= 0);
+
+	vglGetQueryObjectivARB(id, GL_QUERY_RESULT_AVAILABLE_ARB, &available);
+
+	if ( available ) {
+		vglGetQueryObjectuivARB(id, GL_QUERY_RESULT_ARB, &sample_count);
+
+		return sample_count;
+	}
+
+	return 0;
+}
+
 void gr_opengl_start_occlude_query(uint id)
 {
 	Assert(id >= 0);

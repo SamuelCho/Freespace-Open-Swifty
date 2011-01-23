@@ -169,13 +169,13 @@ static int FULLCLOAK = -1;
 
 // forward references
 int model_interp_sub(void *model_ptr, polymodel * pm, bsp_info *sm, int do_box_check);
-void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1);
+void model_really_render(int model_num, int model_instance_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1);
 void model_interp_sortnorm_b2f(ubyte * p,polymodel * pm, bsp_info *sm, int do_box_check);
 void model_interp_sortnorm_f2b(ubyte * p,polymodel * pm, bsp_info *sm, int do_box_check);
 void (*model_interp_sortnorm)(ubyte * p,polymodel * pm, bsp_info *sm, int do_box_check) = model_interp_sortnorm_b2f;
 int model_should_render_engine_glow(int objnum, int bank_obj);
-void model_render_buffers(polymodel *pm, int mn, bool is_child = false);
-void model_render_children_buffers(polymodel * pm, int mn, int detail_level);
+void model_render_buffers(polymodel *pm, polymodel_instance *pmi, int mn, bool is_child = false);
+void model_render_children_buffers(polymodel * pm, polymodel_instance *pmi, int mn, int detail_level);
 int model_interp_get_texture(texture_info *tinfo, fix base_frametime);
 
 
@@ -2325,7 +2325,7 @@ float scale_it( float min, float max, float v, float v1, float v2 )
 }
 */
 
-void model_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures)
+void model_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures, int model_instance_num)
 {
 	int cull = 0;
 	// replacement textures - Goober5000
@@ -2426,7 +2426,7 @@ void model_render(int model_num, matrix *orient, vec3d * pos, uint flags, int ob
 		num_lights = light_filter_push( objnum, pos, pm->rad );
 	}
 
-	model_really_render(model_num, orient, pos, flags, objnum);
+	model_really_render(model_num, model_instance_num, orient, pos, flags, objnum);
 
 	if ( !(flags & MR_NO_LIGHTING ) )	{
 		light_filter_pop();
@@ -3017,11 +3017,12 @@ void light_set_all_relevent();
 
 extern int Warp_model;
 
-void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum )
+void model_really_render(int model_num, int model_instance_num, matrix *orient, vec3d * pos, uint flags, int objnum )
 {
 	int i;
 	int cull = 1;
 	polymodel * pm;
+	polymodel_instance *pmi = NULL;
 
 	uint save_gr_zbuffering_mode;
 	int zbuf_mode;
@@ -3071,7 +3072,11 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 	Interp_flags = flags;			 
 
-	pm = model_get(model_num);	
+	pm = model_get(model_num);
+
+	if ( model_instance_num >= 0 ) {
+		pmi = model_get_instance(model_instance_num);
+	}
 
 	// Set the flags we will pass to the tmapper
 	Interp_tmap_flags = TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB;
@@ -3318,7 +3323,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		if ( !pm->submodel[i].is_thruster ) {
 			// When in htl mode render with htl method unless its a jump node
 			if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-				model_render_children_buffers( pm, i, Interp_detail_level );
+				model_render_children_buffers( pm, pmi, i, Interp_detail_level );
 			} else {
 				model_interp_subcall( pm, i, Interp_detail_level );
 			}
@@ -3346,7 +3351,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 	// When in htl mode render with htl method unless its a jump node
 	if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-		model_render_buffers(pm, pm->detail[Interp_detail_level]);
+		model_render_buffers(pm, pmi, pm->detail[Interp_detail_level]);
 	} else {
 		model_interp_subcall(pm, pm->detail[Interp_detail_level], Interp_detail_level);
 	}
@@ -3359,7 +3364,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 			if (pm->submodel[i].is_thruster) {
 				// When in htl mode render with htl method unless its a jump node
 				if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-					model_render_children_buffers( pm, i, Interp_detail_level );
+					model_render_children_buffers( pm, pmi, i, Interp_detail_level );
 				} else {
 					model_interp_subcall( pm, i, Interp_detail_level );
 				}
@@ -3558,7 +3563,7 @@ void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * po
 
 		gr_set_buffer(pm->vertex_buffer_id);
 
-		model_render_buffers(pm, submodel_num);
+		model_render_buffers(pm, NULL, submodel_num);
 			//	if(!Cmdline_nohtl)gr_set_lighting(false,false);
 
 		gr_set_buffer(-1);
@@ -4702,7 +4707,7 @@ inline int in_box(vec3d *min, vec3d *max, vec3d *pos)
 }
 
 
-void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
+void model_render_children_buffers(polymodel *pm, polymodel_instance *pmi, int mn, int detail_level)
 {
 	int i;
 
@@ -4779,7 +4784,7 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
 		}
 	}
 
-	model_render_buffers(pm, mn, true);
+	model_render_buffers(pm, pmi, mn, true);
 
 	if (Interp_flags & MR_SHOW_PIVOTS)
 		model_draw_debug_points( pm, &pm->submodel[mn] );
@@ -4792,7 +4797,7 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
 
 	while (i >= 0) {
 		if ( !pm->submodel[i].is_thruster ) {
-			model_render_children_buffers( pm, i, detail_level );
+			model_render_children_buffers( pm, pmi, i, detail_level );
 		}
 
 		i = pm->submodel[i].next_sibling;
@@ -4810,8 +4815,8 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
 
 	g3_done_instance(true);
 }
-
-void model_render_buffers(polymodel *pm, int mn, bool is_child)
+extern int Num_occluded_objects;
+void model_render_buffers(polymodel *pm, polymodel_instance *pmi, int mn, bool is_child)
 {
 	if (pm->vertex_buffer_id < 0)
 		return;
@@ -4878,6 +4883,15 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 	}
 
 	gr_push_scale_matrix(&scale);
+
+	if ( pmi ) {
+		if ( !gr_get_occlude_query(pmi->occlude_ids[mn]) ) {
+			Num_occluded_objects++;
+			return;
+		}
+
+		gr_start_occlude_query(pmi->occlude_ids[mn]);
+	}
 
 	uint buffer_size = model->buffer.tex_buf.size();
 
@@ -4981,6 +4995,10 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		if (tmap->is_transparent || Interp_thrust_scale_subobj) {
 			gr_zbuffer_set(zbuffer_save);
 		}
+	}
+
+	if ( pmi ) {
+		gr_end_occlude_query();
 	}
 
 	gr_pop_scale_matrix();

@@ -498,6 +498,8 @@ typedef struct screen {
 	void (*gf_line_htl)(vec3d *start, vec3d* end);
 	void (*gf_sphere_htl)(float rad);
 	void (*gf_gen_occlude_ids)(int n, uint *ids);
+	void (*gf_delete_occlude_ids)(int n, uint *ids);
+	int (*gf_get_occlude_query)(uint id);
 	void (*gf_start_occlude_query)(uint id);
 	void (*gf_end_occlude_query)();
 //	void (*gf_set_environment_mapping)(int i);
@@ -802,8 +804,10 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_sphere_htl					GR_CALL(*gr_screen.gf_sphere_htl)
 
 #define gr_gen_occlude_ids				GR_CALL(*gr_screen.gf_gen_occlude_ids)
-#define gr_start_occlude_query
-#define gr_end_occlude_query
+#define gr_delete_occlude_ids			GR_CALL(*gr_screen.gf_delete_occlude_ids)
+#define gr_get_occlude_query			GR_CALL(*gr_screen.gf_get_occlude_query)
+#define gr_start_occlude_query			GR_CALL(*gr_screen.gf_start_occlude_query)
+#define gr_end_occlude_query			GR_CALL(*gr_screen.gf_end_occlude_query)
 /*
 #define	gr_begin_sprites				GR_CALL(*gr_screen.gf_begin_sprites)
 #define	gr_draw_sprites					GR_CALL(*gr_screen.gf_draw_sprites)

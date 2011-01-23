@@ -3771,6 +3771,7 @@ camid game_render_frame_setup()
 extern void ai_debug_render_stuff();
 #endif
 
+int Num_occluded_objects = 0;
 int Game_subspace_effect = 0;
 DCF_BOOL( subspace, Game_subspace_effect )
 
@@ -3854,6 +3855,7 @@ void game_render_frame( camid cid )
 	game_sunspot_process(flFrametime);
 
 	bool draw_viewer_last = false;
+	Num_occluded_objects = 0;
 	obj_render_all(obj_render, &draw_viewer_last);
 	
 	//	Why do we not show the shield effect in these modes?  Seems ok.
@@ -4690,6 +4692,7 @@ void game_frame(int paused)
 				game_render_hud(cid);
 			}
 			HUD_reset_clip();
+			gr_printf( 20, 120, "Occluded Objects: %d", Num_occluded_objects );
 
 			if( (Game_detail_flags & DETAIL_FLAG_HUD) && (!(Game_mode & GM_MULTIPLAYER) || ((Game_mode & GM_MULTIPLAYER) && !(Net_player->flags & NETINFO_FLAG_OBSERVER))) ) {
 				anim_render_all(0, flFrametime);

@@ -53,6 +53,8 @@ void gr_opengl_set_state_block(int);
 void opengl_tnl_shutdown();
 
 void gr_opengl_gen_occlude_ids(int n, uint *ids);
+void gr_opengl_delete_occlude_ids(int n, uint *ids);
+int gr_opengl_get_occlude_query(uint id);
 void gr_opengl_start_occlude_query(uint id);
 void gr_opengl_end_occlude_query();
 

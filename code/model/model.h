@@ -87,7 +87,6 @@ typedef struct submodel_instance {
 	angles prev_angs;
 	//int num_arcs;
 	bool collision_checked;
-	int occlude_id;
 	//submodel_instance_info *sii;
 } submodel_instance;
 
@@ -95,6 +94,7 @@ typedef struct polymodel_instance {
 	int model_num;
 	int root_submodel_num;
 	submodel_instance *submodel;
+	uint *occlude_ids;
 	//float gun_submodel_rotation;
 } polymodel_instance;
 
@@ -780,7 +780,7 @@ void model_set_detail_level(int n);
 
 // Renders a model and all it's submodels.
 // See MR_? defines for values for flags
-void model_render(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL);
+void model_render(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL, int model_instance_num = -1);
 
 // Renders just one particular submodel on a model.
 // See MR_? defines for values for flags
