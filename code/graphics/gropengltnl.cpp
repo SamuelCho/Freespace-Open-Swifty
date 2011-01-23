@@ -1590,7 +1590,7 @@ int gr_opengl_get_occlude_query(uint id)
 		return sample_count;
 	}
 
-	return 0;
+	return 1;
 }
 
 void gr_opengl_start_occlude_query(uint id)
