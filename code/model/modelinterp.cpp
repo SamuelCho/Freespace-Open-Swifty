@@ -1360,8 +1360,20 @@ void model_interp_sortnorm_f2b(ubyte * p,polymodel * pm, bsp_info *sm, int do_bo
 	if (prelist) model_interp_sub(p+prelist,pm,sm,do_box_check);		// prelist
 }
 
+void model_draw_bounding_box( polymodel *pm, bsp_info *submodel )
+{
+	int i;
+	vertex pts[8];
 
+	for (i = 0; i < 8; i++ ) {
+		//g3_rotate_vertex( &pts[i], &submodel->bounding_box[i] );
+		pts[i] = submodel->bounding_box[i];
+	}
 
+	gr_set_color(128,128,128);
+
+	gr_render(8, pts, TMAP_FLAG_LINES | TMAP_HTL_3D_UNLIT);
+}
 
 void model_draw_debug_points( polymodel *pm, bsp_info * submodel )
 {
@@ -4887,6 +4899,13 @@ void model_render_buffers(polymodel *pm, polymodel_instance *pmi, int mn, bool i
 	if ( pmi ) {
 		if ( !gr_get_occlude_query(pmi->occlude_ids[mn]) ) {
 			Num_occluded_objects++;
+
+			gr_start_occlude_query(pmi->occlude_ids[mn]);
+			model_draw_bounding_box( pm, &pm->submodel[mn] );
+			gr_end_occlude_query();
+
+			gr_pop_scale_matrix();
+
 			return;
 		}
 

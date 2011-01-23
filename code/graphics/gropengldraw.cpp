@@ -1124,6 +1124,8 @@ void opengl_render_internal(int nverts, vertex *verts, uint flags)
 		gl_mode = GL_QUADS;
 	} else if (flags & TMAP_FLAG_QUADSTRIP) {
 		gl_mode = GL_QUAD_STRIP;
+	} else if (flags & TMAP_FLAG_LINES) {
+		gl_mode = GL_LINES;
 	}
 
 	if (flags & TMAP_FLAG_TEXTURED) {
@@ -1225,6 +1227,8 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 		gl_mode = GL_QUADS;
 	} else if (flags & TMAP_FLAG_QUADSTRIP) {
 		gl_mode = GL_QUAD_STRIP;
+	} else if (flags & TMAP_FLAG_LINES) {
+		gl_mode = GL_LINES;
 	}
 
 	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) ) {

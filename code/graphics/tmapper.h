@@ -68,9 +68,10 @@ extern void grx_tmapper( int nv, vertex * verts[], uint flags );
 #define TMAP_FLAG_TRILIST			(1<<15)
 #define TMAP_FLAG_QUADLIST			(1<<16)
 #define TMAP_FLAG_QUADSTRIP			(1<<17)
+#define TMAP_FLAG_LINES				(1<<18)
 
 // use greyscale texture
-#define TMAP_FLAG_BW_TEXTURE		(1<<18)
+#define TMAP_FLAG_BW_TEXTURE		(1<<19)
 
 
 #define TMAP_ADDRESS_WRAP			1
