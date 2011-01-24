@@ -2414,6 +2414,16 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 			}
 		}
 
+		char collision_name[128];
+		strcpy_s( collision_name, pm->submodel[i].name );
+		strcat_s( collision_name, "-collision" );
+		for ( j = 0; j < pm->n_models; j++ ) {
+			if ( !stricmp(pm->submodel[j].name, collision_name) ) {
+				// mprintf("Found collision model for '%s'\n", pm->submodel[i].name);
+				pm->submodel[i].collision_model = j;
+			}
+		}
+
 		// Search for models with live debris
 		// This debris comes from a destroyed subsystem when ship is still alive
 		char live_debris_name[128];
