@@ -284,12 +284,26 @@ void model_free_all()
 	}
 
 	mprintf(( "Freeing all existing models...\n" ));
+	model_instance_free_all();
 
 	for (i=0;i<MAX_POLYGON_MODELS;i++) {
 		// forcefully unload all loaded models (be careful with this)
 		model_unload(i, 1);		
 	}
+}
 
+void model_instance_free_all()
+{
+	size_t i;
+
+	// free any outstanding model instances
+	for ( i = 0; i < Polygon_model_instances.size(); ++i ) {
+		if ( Polygon_model_instances[i] ) {
+			model_delete_instance(i);
+		}
+	}
+
+	Polygon_model_instances.clear();
 }
 
 void model_page_in_start()
