@@ -41,7 +41,7 @@ obj_pair *Obj_pairs = NULL;
 obj_pair pair_used_list;
 obj_pair pair_free_list;
 
-SCP_vector<*object> Collision_sort_list;
+SCP_vector<int> Collision_sort_list;
 
 void obj_pairs_close()
 {
@@ -1078,4 +1078,82 @@ void init_collision_info_struct(collision_info_struct *cis)
 {
 	memset(cis, -1, sizeof(collision_info_struct));
 	cis->is_landing = false;
+}
+
+void obj_add_collider(int obj_index)
+{
+	Collision_sort_list.push_back(obj_index);
+}
+
+void obj_remove_collider(int obj_index)
+{
+	size_t i;
+
+	for ( i = 0; i < Collision_sort_list.size(); ++i ) {
+		if ( Collision_sort_list[i] == obj_index ) {
+			Collision_sort_list[i] = Collision_sort_list.back();
+			Collision_sort_list.pop_back();
+			break;
+		}
+	}
+}
+
+void obj_sort_colliders()
+{
+	
+}
+
+void obj_quicksort_colliders(SCP_vector<int> list, int left, int right, int axis)
+{
+	/*
+	 function quicksort(array, left, right)
+     if right > left  // subarray of 0 or 1 elements already sorted
+         select a pivotIndex in the range left ? pivotIndex ? right  // see Choice of pivot for possible choices
+         pivotNewIndex := partition(array, left, right, pivotIndex)  // element at pivotNewIndex is now at its final position
+         quicksort(array, left, pivotNewIndex - 1)  // recursively sort elements on the left of pivotNewIndex
+         quicksort(array, pivotNewIndex + 1, right)  // recursively sort elements on the right of pivotNewIndex 
+		 */
+
+	if ( right > left ) {
+		int pivot_index = left + (right - left) / 2;
+
+		int pivot_value = list[pivot_index];
+
+		// swap!
+		int temp = list[pivot_index];
+		list[pivot_index] = list[right];
+		list[right] = temp;
+
+		int store_index = left;
+
+		size_t i;
+		for ( i = left; i < right; ++i ) {
+			if ( list[i] <= pivot_value ) {
+				temp = list[i];
+				list[i] = list[store_index];
+				list[store_index] = list[i];
+				store_index++;
+			}
+		}
+
+		temp = list[right];
+		list[right] = list[store_index];
+		list[store_index] = list[right];
+
+		obj_quicksort_colliders(list, left, store_index - 1, axis);
+		obj_quicks
+	}
+
+	/*
+	function partition(array, left, right, pivotIndex)
+     pivotValue := array[pivotIndex]
+     swap array[pivotIndex] and array[right]  // Move pivot to end
+     storeIndex := left
+     for i  from  left to right - 1 // left ? i < right
+         if array[i] ? pivotValue
+             swap array[i] and array[storeIndex]
+             storeIndex := storeIndex + 1
+     swap array[storeIndex] and array[right]  // Move pivot to its final place
+     return storeIndex
+	*/
 }
