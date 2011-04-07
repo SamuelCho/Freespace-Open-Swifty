@@ -1141,7 +1141,7 @@ void obj_quicksort_colliders(SCP_vector<int> list, int left, int right, int axis
 		list[store_index] = list[right];
 
 		obj_quicksort_colliders(list, left, store_index - 1, axis);
-		obj_quicks
+		obj_quicksort_colliders(list, store_index + 1, right, axis);
 	}
 
 	/*
