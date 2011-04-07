@@ -1100,10 +1100,21 @@ void obj_remove_collider(int obj_index)
 
 void obj_sort_colliders()
 {
-	
+	obj_quicksort_colliders(Collision_sort_list, 0, Collision_sort_list.size() - 1, 0);
+	obj_quicksort_colliders(Collision_sort_list, 0, Collision_sort_list.size() - 1, 1);
+	obj_quicksort_colliders(Collision_sort_list, 0, Collision_sort_list.size() - 1, 2);
 }
 
-void obj_quicksort_colliders(SCP_vector<int> list, int left, int right, int axis)
+inline float obj_get_collider_endpoint(int obj_num, int axis, bool min)
+{
+	if ( min ) {
+		return Objects[obj_num].pos.a1d[axis] - Objects[obj_num].radius;
+	}
+
+	return Objects[obj_num].pos.a1d[axis] + Objects[obj_num].radius;
+}
+
+void obj_quicksort_colliders(SCP_vector<int> &list, int left, int right, int axis)
 {
 	/*
 	 function quicksort(array, left, right)
@@ -1117,7 +1128,7 @@ void obj_quicksort_colliders(SCP_vector<int> list, int left, int right, int axis
 	if ( right > left ) {
 		int pivot_index = left + (right - left) / 2;
 
-		int pivot_value = list[pivot_index];
+		float pivot_value = obj_get_collider_endpoint(list[pivot_index], axis, true);
 
 		// swap!
 		int temp = list[pivot_index];
@@ -1128,7 +1139,7 @@ void obj_quicksort_colliders(SCP_vector<int> list, int left, int right, int axis
 
 		size_t i;
 		for ( i = left; i < right; ++i ) {
-			if ( list[i] <= pivot_value ) {
+			if ( obj_get_collider_endpoint(list[i], axis, true) <= pivot_value ) {
 				temp = list[i];
 				list[i] = list[store_index];
 				list[store_index] = list[i];
