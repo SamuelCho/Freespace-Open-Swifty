@@ -41,6 +41,8 @@ obj_pair *Obj_pairs = NULL;
 obj_pair pair_used_list;
 obj_pair pair_free_list;
 
+SCP_vector<*object> Collision_sort_list;
+
 void obj_pairs_close()
 {
 	if (Obj_pairs != NULL) {
