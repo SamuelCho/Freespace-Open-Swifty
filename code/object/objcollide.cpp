@@ -1105,13 +1105,35 @@ void obj_sort_colliders()
 	obj_quicksort_colliders(Collision_sort_list, 0, Collision_sort_list.size() - 1, 2);
 }
 
-inline float obj_get_collider_endpoint(int obj_num, int axis, bool min)
+float obj_get_collider_endpoint(int obj_num, int axis, bool min)
 {
-	if ( min ) {
-		return Objects[obj_num].pos.a1d[axis] - Objects[obj_num].radius;
-	}
+	if ( Objects[obj_num].type == OBJ_BEAM ) {
+		beam *b = &Beams[Objects[obj_num].instance];
 
-	return Objects[obj_num].pos.a1d[axis] + Objects[obj_num].radius;
+		// use the last start and last shot as endpoints
+		float min_end, max_end;
+		if ( b->last_start.a1d[axis] > b->last_shot.a1d[axis] ) {
+			min_end = b->last_shot.a1d[axis];
+			max_end = b->last_start.a1d[axis];
+		} else {
+			min_end = b->last_start.a1d[axis];
+			max_end = b->last_shot.a1d[axis];
+		}
+
+		if ( min ) {
+			return min_end;
+		} else {
+			return max_end;
+		}
+	} else {
+		vec3d *pos = &Objects[obj_num].pos;
+
+		if ( min ) {
+			return pos->a1d[axis] - Objects[obj_num].radius;
+		} else {
+			return pos->a1d[axis] + Objects[obj_num].radius;
+		}
+	}
 }
 
 void obj_quicksort_colliders(SCP_vector<int> &list, int left, int right, int axis)
