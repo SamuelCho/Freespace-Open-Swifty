@@ -1098,11 +1098,56 @@ void obj_remove_collider(int obj_index)
 	}
 }
 
-void obj_sort_colliders()
+void obj_sort_and_collide()
 {
+	size_t i;
+	SCP_vector<int> sort_list_y;
+	SCP_vector<int> sort_list_z;
+
+	sort_list_y.clear();
 	obj_quicksort_colliders(Collision_sort_list, 0, Collision_sort_list.size() - 1, 0);
-	obj_quicksort_colliders(Collision_sort_list, 0, Collision_sort_list.size() - 1, 1);
-	obj_quicksort_colliders(Collision_sort_list, 0, Collision_sort_list.size() - 1, 2);
+	obj_find_overlap_colliders(sort_list_y, Collision_sort_list, 0, false);
+
+	sort_list_z.clear();
+	obj_quicksort_colliders(sort_list_y, 0, sort_list_y.size() - 1, 1);
+	obj_find_overlap_colliders(sort_list_z, sort_list_y, 1, false);
+
+	sort_list_y.clear();
+	obj_quicksort_colliders(sort_list_z, 0, sort_list_z.size() - 1, 2);
+	obj_find_overlap_colliders(sort_list_y, sort_list_z, 2, true);
+}
+
+void obj_find_overlap_colliders(SCP_vector<int> &overlap_list_out, SCP_vector<int> &list, int axis, bool collide)
+{
+	size_t i, j;
+	bool overlapped;
+	SCP_vector<int> overlappers;
+
+	for ( i = 0; i < list.size(); ++i ) {
+		overlapped = false;
+
+		for ( j = 0; j < overlappers.size(); ) {
+			if ( obj_get_collider_endpoint(list[i], axis, true) < obj_get_collider_endpoint(overlappers[j], axis, false) ) {
+				overlapped = true;
+				
+				if( collide ) {
+					obj_collide_pair(&Objects[list[i]], &Objects[overlappers[j]]);
+				}
+			} else {
+				overlappers[i] = overlappers.back();
+				overlappers.pop_back();
+				continue;
+			}
+
+			++j;
+		}
+
+		if ( overlapped ) {
+			overlap_list_out.push_back(list[i]);
+		}
+
+		overlappers.push_back(list[i]);
+	}
 }
 
 float obj_get_collider_endpoint(int obj_num, int axis, bool min)
@@ -1146,6 +1191,10 @@ void obj_quicksort_colliders(SCP_vector<int> &list, int left, int right, int axi
          quicksort(array, left, pivotNewIndex - 1)  // recursively sort elements on the left of pivotNewIndex
          quicksort(array, pivotNewIndex + 1, right)  // recursively sort elements on the right of pivotNewIndex 
 		 */
+	Assert( axis >= 0 );
+	Assert( axis <= 2 );
+	Assert( left >= 0 );
+	Assert( right < list.size() );
 
 	if ( right > left ) {
 		int pivot_index = left + (right - left) / 2;
@@ -1189,4 +1238,294 @@ void obj_quicksort_colliders(SCP_vector<int> &list, int left, int right, int axi
      swap array[storeIndex] and array[right]  // Move pivot to its final place
      return storeIndex
 	*/
+}
+
+void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
+{
+	uint ctype;
+	int (*check_collision)( obj_pair *pair );
+	int swapped = 0;	
+	
+	check_collision = NULL;
+
+	if ( A==B ) return;		// Don't check collisions with yourself
+
+	if ( !(A->flags&OF_COLLIDES) ) return;		// This object doesn't collide with anything
+	if ( !(B->flags&OF_COLLIDES) ) return;		// This object doesn't collide with anything
+	
+	// Make sure you're not checking a parent with it's kid or vicy-versy
+//	if ( A->parent_sig == B->signature && !(A->type == OBJ_SHIP && B->type == OBJ_DEBRIS) ) return;
+//	if ( B->parent_sig == A->signature && !(A->type == OBJ_DEBRIS && B->type == OBJ_SHIP) ) return;
+	if ( reject_obj_pair_on_parent(A,B) ) {
+		return;
+	}
+
+	Assert( A->type < 127 );
+	Assert( B->type < 127 );
+
+	ctype = COLLISION_OF(A->type,B->type);
+	switch( ctype )	{
+	case COLLISION_OF(OBJ_WEAPON,OBJ_SHIP):
+		swapped = 1;
+		check_collision = collide_ship_weapon;
+		break;
+	case COLLISION_OF(OBJ_SHIP, OBJ_WEAPON):
+		check_collision = collide_ship_weapon;
+		break;
+	case COLLISION_OF(OBJ_DEBRIS, OBJ_WEAPON):
+		check_collision = collide_debris_weapon;
+		break;
+	case COLLISION_OF(OBJ_WEAPON, OBJ_DEBRIS):
+		swapped = 1;
+		check_collision = collide_debris_weapon;
+		break;
+	case COLLISION_OF(OBJ_DEBRIS, OBJ_SHIP):
+		check_collision = collide_debris_ship;		
+		break;
+	case COLLISION_OF(OBJ_SHIP, OBJ_DEBRIS):
+		check_collision = collide_debris_ship;
+		swapped = 1;
+		break;
+	case COLLISION_OF(OBJ_ASTEROID, OBJ_WEAPON):
+		// Only check collision's with player weapons
+//		if ( Objects[B->parent].flags & OF_PLAYER_SHIP ) {
+			check_collision = collide_asteroid_weapon;
+//		}
+		break;
+	case COLLISION_OF(OBJ_WEAPON, OBJ_ASTEROID):
+		swapped = 1;
+		// Only check collision's with player weapons
+//		if ( Objects[A->parent].flags & OF_PLAYER_SHIP ) {
+			check_collision = collide_asteroid_weapon;
+//		}
+		break;
+	case COLLISION_OF(OBJ_ASTEROID, OBJ_SHIP):
+		// Only check collisions with player ships
+//		if ( B->flags & OF_PLAYER_SHIP )	{
+			check_collision = collide_asteroid_ship;
+//		}
+		break;
+	case COLLISION_OF(OBJ_SHIP, OBJ_ASTEROID):
+		// Only check collisions with player ships
+//		if ( A->flags & OF_PLAYER_SHIP )	{
+			check_collision = collide_asteroid_ship;
+//		}
+		swapped = 1;
+		break;
+	case COLLISION_OF(OBJ_SHIP,OBJ_SHIP):
+		check_collision = collide_ship_ship;
+		break;	
+	
+	case COLLISION_OF(OBJ_BEAM, OBJ_SHIP):
+		if(beam_collide_early_out(A, B)){
+			return;
+		}
+		check_collision = beam_collide_ship;
+		break;
+
+	case COLLISION_OF(OBJ_BEAM, OBJ_ASTEROID):
+		if(beam_collide_early_out(A, B)){
+			return;
+		}
+		check_collision = beam_collide_asteroid;
+		break;
+
+	case COLLISION_OF(OBJ_BEAM, OBJ_DEBRIS):
+		if(beam_collide_early_out(A, B)){
+			return;
+		}
+		check_collision = beam_collide_debris;
+		break;
+
+	case COLLISION_OF(OBJ_BEAM, OBJ_WEAPON):
+		if(beam_collide_early_out(A, B)){
+			return;
+		}		
+		check_collision = beam_collide_missile;
+		break;
+
+	case COLLISION_OF(OBJ_WEAPON, OBJ_WEAPON): {
+		weapon_info *awip, *bwip;
+		awip = &Weapon_info[Weapons[A->instance].weapon_info_index];
+		bwip = &Weapon_info[Weapons[B->instance].weapon_info_index];
+
+		if ((awip->weapon_hitpoints > 0) || (bwip->weapon_hitpoints > 0)) {
+			if (bwip->weapon_hitpoints == 0) {
+				check_collision = collide_weapon_weapon;
+				swapped=1;
+			} else {
+				check_collision = collide_weapon_weapon;
+			}
+		}
+
+		break;
+	}
+
+	default:
+		return;
+	}
+
+	// Swap them if needed
+	if ( swapped )	{
+		object *tmp = A;
+		A = B;
+		B = tmp;
+	}
+
+	// only check debris:weapon collisions for player
+	if (check_collision == collide_debris_weapon) {
+		// weapon is B
+		if ( !(Weapon_info[Weapons[B->instance].weapon_info_index].wi_flags & WIF_TURNS) ) {
+		// check for dumbfire weapon
+			// check if debris is behind laser
+			float vdot;
+			if (Weapon_info[Weapons[B->instance].weapon_info_index].subtype == WP_LASER) {
+				vec3d velocity_rel_weapon;
+				vm_vec_sub(&velocity_rel_weapon, &B->phys_info.vel, &A->phys_info.vel);
+				vdot = -vm_vec_dot(&velocity_rel_weapon, &B->orient.vec.fvec);
+			} else {
+				vdot = vm_vec_dot( &A->phys_info.vel, &B->phys_info.vel);
+			}
+			if ( vdot <= 0.0f )	{
+				// They're heading in opposite directions...
+				// check their positions
+				vec3d weapon2other;
+				vm_vec_sub( &weapon2other, &A->pos, &B->pos );
+				float pdot = vm_vec_dot( &B->orient.vec.fvec, &weapon2other );
+				if ( pdot <= -A->radius )	{
+					// The other object is behind the weapon by more than
+					// its radius, so it will never hit...
+					return;
+				}
+			}
+
+			// check dist vs. dist moved during weapon lifetime
+			vec3d delta_v;
+			vm_vec_sub(&delta_v, &B->phys_info.vel, &A->phys_info.vel);
+			if (vm_vec_dist_squared(&A->pos, &B->pos) > (vm_vec_mag_squared(&delta_v)*Weapons[B->instance].lifeleft*Weapons[B->instance].lifeleft)) {
+				return;
+			}
+
+			// for nonplayer ships, only create collision pair if close enough
+			if ( (B->parent >= 0) && !(Objects[B->parent].flags & OF_PLAYER_SHIP) && (vm_vec_dist(&B->pos, &A->pos) < (4.0f*A->radius + 200.0f)) )
+				return;
+		}
+	}
+
+	// don't check same team laser:ship collisions on small ships if not player
+	if (check_collision == collide_ship_weapon) {
+		// weapon is B
+		if ( (B->parent >= 0)
+			&& !(Objects[B->parent].flags & OF_PLAYER_SHIP)
+			&& (Ships[Objects[B->parent].instance].team == Ships[A->instance].team) 
+			&& (Ship_info[Ships[A->instance].ship_info_index].flags & SIF_SMALL_SHIP) 
+			&& (Weapon_info[Weapons[B->instance].weapon_info_index].subtype == WP_LASER) ) {
+			pairs_not_created++;
+			return;
+		}
+	}
+
+	if ( !check_collision ) return;
+	Pairs_created++;
+
+	// At this point, we have determined that collisions between
+	// these two should be checked, so add the pair to the
+	// collision pair list.
+
+	if ( pair_free_list.next == NULL )	{
+		nprintf(( "collision", "Out of object pairs!! Not all collisions will work!\n" ));
+		return;
+	}
+
+	if ( Num_pairs >= (Num_pairs_allocated - 20) ) {
+		int i;
+
+		Assert( Obj_pairs != NULL );
+
+		int old_pair_count = Num_pairs_allocated;
+		obj_pair *old_pairs_ptr = Obj_pairs;
+
+		// determine where we need to update the "previous" ptrs to
+		int prev_free_mark = (pair_free_list.next - old_pairs_ptr);
+		int prev_used_mark = (pair_used_list.next - old_pairs_ptr);
+
+		Obj_pairs = (obj_pair*) vm_realloc_q( Obj_pairs, sizeof(obj_pair) * (Num_pairs_allocated + PAIRS_BUMP) );
+
+		// allow us to fail here and only if we don't do we setup the new pairs
+
+		if (Obj_pairs == NULL) {
+			// failed, just go back to the way we were and use only the pairs we have already
+			Obj_pairs = old_pairs_ptr;
+		} else {
+			Num_pairs_allocated += PAIRS_BUMP;
+
+			Assert( Obj_pairs != NULL );
+
+			// have to reset all of the "next" ptrs for the old set and handle the new set
+			for (i = 0; i < Num_pairs_allocated; i++) {
+				if (i >= old_pair_count) {
+					memset( &Obj_pairs[i], 0, sizeof(obj_pair) );
+					Obj_pairs[i].next = &Obj_pairs[i+1];
+				} else {
+					if (Obj_pairs[i].next != NULL) {
+						// the "next" ptr will end up going backwards for used pairs so we have
+						// to allow for that with this craziness...
+						int next_mark = (Obj_pairs[i].next - old_pairs_ptr);
+						Obj_pairs[i].next = &Obj_pairs[next_mark];
+					}
+
+					// catch that last NULL from the previously allocated set
+					if ( i == (old_pair_count-1) ) {
+						Obj_pairs[i].next = &Obj_pairs[i+1];
+					}
+				}
+			}
+
+			Obj_pairs[Num_pairs_allocated-1].next = NULL;
+
+			// reset the "previous" ptrs
+			pair_free_list.next = &Obj_pairs[prev_free_mark];
+			pair_used_list.next = &Obj_pairs[prev_used_mark];
+		}
+	}
+
+	// get a new obj_pair from the free list
+	obj_pair * new_pair = pair_free_list.next;
+	pair_free_list.next = new_pair->next;
+
+	if ( add_to_end ) {
+		obj_pair *last, *tmp;
+
+		last = tmp = pair_used_list.next;
+		while( tmp != NULL )	{
+			if ( tmp->next == NULL )
+				last = tmp;
+
+			tmp = tmp->next;
+		}
+
+		if ( last == NULL )
+			last = &pair_used_list;
+			
+		last->next = new_pair;
+		Assert(new_pair != NULL);
+		new_pair->next = NULL;
+	}
+	else {
+		new_pair->next = pair_used_list.next;
+		pair_used_list.next = new_pair;
+	}
+
+	A->num_pairs++;
+	B->num_pairs++;
+	
+	new_pair->a = A;
+	new_pair->b = B;
+	new_pair->check_collision = check_collision;
+
+	if ( check_time == -1 ){
+		new_pair->next_check_time = timestamp(0);	// 0 means instantly time out
+	} else {
+		new_pair->next_check_time = check_time;
+	}
 }
