@@ -42,6 +42,7 @@ obj_pair pair_used_list;
 obj_pair pair_free_list;
 
 SCP_vector<int> Collision_sort_list;
+SCP_map<int, int> Collision_timing;
 
 void obj_pairs_close()
 {
@@ -1420,112 +1421,35 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 			&& (Ships[Objects[B->parent].instance].team == Ships[A->instance].team) 
 			&& (Ship_info[Ships[A->instance].ship_info_index].flags & SIF_SMALL_SHIP) 
 			&& (Weapon_info[Weapons[B->instance].weapon_info_index].subtype == WP_LASER) ) {
-			pairs_not_created++;
 			return;
 		}
 	}
 
 	if ( !check_collision ) return;
-	Pairs_created++;
-
-	// At this point, we have determined that collisions between
-	// these two should be checked, so add the pair to the
-	// collision pair list.
-
-	if ( pair_free_list.next == NULL )	{
-		nprintf(( "collision", "Out of object pairs!! Not all collisions will work!\n" ));
-		return;
-	}
-
-	if ( Num_pairs >= (Num_pairs_allocated - 20) ) {
-		int i;
-
-		Assert( Obj_pairs != NULL );
-
-		int old_pair_count = Num_pairs_allocated;
-		obj_pair *old_pairs_ptr = Obj_pairs;
-
-		// determine where we need to update the "previous" ptrs to
-		int prev_free_mark = (pair_free_list.next - old_pairs_ptr);
-		int prev_used_mark = (pair_used_list.next - old_pairs_ptr);
-
-		Obj_pairs = (obj_pair*) vm_realloc_q( Obj_pairs, sizeof(obj_pair) * (Num_pairs_allocated + PAIRS_BUMP) );
-
-		// allow us to fail here and only if we don't do we setup the new pairs
-
-		if (Obj_pairs == NULL) {
-			// failed, just go back to the way we were and use only the pairs we have already
-			Obj_pairs = old_pairs_ptr;
-		} else {
-			Num_pairs_allocated += PAIRS_BUMP;
-
-			Assert( Obj_pairs != NULL );
-
-			// have to reset all of the "next" ptrs for the old set and handle the new set
-			for (i = 0; i < Num_pairs_allocated; i++) {
-				if (i >= old_pair_count) {
-					memset( &Obj_pairs[i], 0, sizeof(obj_pair) );
-					Obj_pairs[i].next = &Obj_pairs[i+1];
-				} else {
-					if (Obj_pairs[i].next != NULL) {
-						// the "next" ptr will end up going backwards for used pairs so we have
-						// to allow for that with this craziness...
-						int next_mark = (Obj_pairs[i].next - old_pairs_ptr);
-						Obj_pairs[i].next = &Obj_pairs[next_mark];
-					}
-
-					// catch that last NULL from the previously allocated set
-					if ( i == (old_pair_count-1) ) {
-						Obj_pairs[i].next = &Obj_pairs[i+1];
-					}
-				}
-			}
-
-			Obj_pairs[Num_pairs_allocated-1].next = NULL;
-
-			// reset the "previous" ptrs
-			pair_free_list.next = &Obj_pairs[prev_free_mark];
-			pair_used_list.next = &Obj_pairs[prev_used_mark];
-		}
-	}
 
 	// get a new obj_pair from the free list
-	obj_pair * new_pair = pair_free_list.next;
-	pair_free_list.next = new_pair->next;
-
-	if ( add_to_end ) {
-		obj_pair *last, *tmp;
-
-		last = tmp = pair_used_list.next;
-		while( tmp != NULL )	{
-			if ( tmp->next == NULL )
-				last = tmp;
-
-			tmp = tmp->next;
-		}
-
-		if ( last == NULL )
-			last = &pair_used_list;
-			
-		last->next = new_pair;
-		Assert(new_pair != NULL);
-		new_pair->next = NULL;
-	}
-	else {
-		new_pair->next = pair_used_list.next;
-		pair_used_list.next = new_pair;
-	}
-
-	A->num_pairs++;
-	B->num_pairs++;
+	obj_pair new_pair;
 	
-	new_pair->a = A;
-	new_pair->b = B;
-	new_pair->check_collision = check_collision;
+	new_pair.a = A;
+	new_pair.b = B;
+	new_pair.check_collision = check_collision;
 
-	if ( check_time == -1 ){
-		new_pair->next_check_time = timestamp(0);	// 0 means instantly time out
-	} else {
-		new_pair->next_check_time = check_time;
+	check_collision(&new_pair);
+
+	int key = OBJ_INDEX(A) << 12 + OBJ_INDEX(B);
+}
+
+int obj_get_next_collision_time(obj_pair *colliders)
+{
+	int key = OBJ_INDEX(colliders->a) << 12 + OBJ_INDEX(colliders->b);
+
+	SCP_map<int,int>::iterator it;
+
+	it = Collision_timing.find(key);
+
+	if ( it == Collision_timing.end() ) {
+		return 0;
 	}
+
+	return it->second;
 }
