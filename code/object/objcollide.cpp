@@ -42,7 +42,7 @@ obj_pair pair_used_list;
 obj_pair pair_free_list;
 
 SCP_vector<int> Collision_sort_list;
-SCP_map<int, int> Collision_timing;
+SCP_map<int, collider_pair> Collision_timing;
 
 void obj_pairs_close()
 {
@@ -1427,29 +1427,65 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 
 	if ( !check_collision ) return;
 
-	// get a new obj_pair from the free list
-	obj_pair new_pair;
-	
+	collider_pair *collision_info;
+	int key = OBJ_INDEX(A) << 12 + OBJ_INDEX(B);
+	bool valid = false;
+
+	SCP_map<int,collider_pair>::iterator it = Collision_timing.find(key);
+
+	if ( it != Collision_timing.end() ) {
+		// found collision data concerning these two objects
+		collision_info = &it->second;
+
+		// make sure we're referring to the correct objects in case the original pair was deleted
+		if ( collision_info->signature_a == collision_info->a->signature && 
+			collision_info->signature_b == collision_info->b->signature ) {
+				valid = true;
+		}
+	}
+
+	if ( valid ) {
+		// if this signature is valid, make the necessary checks to see if we need to collide check
+		if ( collision_info->next_check_time == -1 ) {
+			return;
+		} else {
+			if ( !timestamp_elapsed(collision_info->next_check_time) ) {
+				return;
+			}
+		}
+	}
+
+	int new_time;
+	obj_pair new_pair;	
+
 	new_pair.a = A;
 	new_pair.b = B;
 	new_pair.check_collision = check_collision;
 
-	check_collision(&new_pair);
-
-	int key = OBJ_INDEX(A) << 12 + OBJ_INDEX(B);
-}
-
-int obj_get_next_collision_time(obj_pair *colliders)
-{
-	int key = OBJ_INDEX(colliders->a) << 12 + OBJ_INDEX(colliders->b);
-
-	SCP_map<int,int>::iterator it;
-
-	it = Collision_timing.find(key);
-
-	if ( it == Collision_timing.end() ) {
-		return 0;
+	if ( check_collision(&new_pair) ) {
+		// don't have to check ever again
+		new_time = -1;
+	} else {
+		new_time = new_pair.next_check_time;
 	}
 
-	return it->second;
+	if ( collision_info ) {
+		collision_info->next_check_time = new_time;
+
+		if ( !valid ) {
+			// the found collision data wasn't pertinent to these objects so update object data
+			collision_info->a = A;
+			collision_info->b = B;
+			collision_info->signature_a = A->signature;
+			collision_info->signature_b = B->signature;
+		}
+	} else {
+		collision_info = &Collision_timing[key];
+
+		collision_info->a = A;
+		collision_info->b = B;
+		collision_info->signature_a = A->signature;
+		collision_info->signature_b = B->signature;
+		collision_info->next_check_time = new_time;
+	}
 }
