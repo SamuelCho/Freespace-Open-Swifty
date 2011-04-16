@@ -1317,11 +1317,26 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 		check_collision = collide_ship_ship;
 		break;	
 	
+	case COLLISION_OF(OBJ_SHIP, OBJ_BEAM):
+		if(beam_collide_early_out(B, A)){
+			return;
+		}
+		check_collision = beam_collide_ship;
+		break;
+
 	case COLLISION_OF(OBJ_BEAM, OBJ_SHIP):
 		if(beam_collide_early_out(A, B)){
 			return;
 		}
 		check_collision = beam_collide_ship;
+		break;
+
+	case COLLISION_OF(OBJ_ASTEROID, OBJ_BEAM):
+		if(beam_collide_early_out(B, A)) {
+			return;
+		}
+		swapped = 1;
+		check_collision = beam_collide_asteroid;
 		break;
 
 	case COLLISION_OF(OBJ_BEAM, OBJ_ASTEROID):
@@ -1330,12 +1345,24 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 		}
 		check_collision = beam_collide_asteroid;
 		break;
-
+	case COLLISION_OF(OBJ_DEBRIS, OBJ_BEAM):
+		if(beam_collide_early_out(B, A)) {
+			return;
+		}
+		swapped = 1;
+		check_collision = beam_collide_debris;
 	case COLLISION_OF(OBJ_BEAM, OBJ_DEBRIS):
 		if(beam_collide_early_out(A, B)){
 			return;
 		}
 		check_collision = beam_collide_debris;
+		break;
+	case COLLISION_OF(OBJ_WEAPON, OBJ_BEAM):
+		if(beam_collide_early_out(B, A)) {
+			return;
+		}
+		swapped = 1;
+		check_collision = beam_collide_missile;
 		break;
 
 	case COLLISION_OF(OBJ_BEAM, OBJ_WEAPON):
@@ -1371,6 +1398,13 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 		object *tmp = A;
 		A = B;
 		B = tmp;
+	}
+
+	if ( check_collision == beam_collide_missile || check_collision == beam_collide_asteroid || check_collision == beam_collide_debris ||
+		check_collision == beam_collide_ship ) {
+		if(beam_collide_early_out(A, B)){
+			return;
+		}	
 	}
 
 	// only check debris:weapon collisions for player
