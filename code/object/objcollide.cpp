@@ -1403,20 +1403,29 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 	}
 
 	collider_pair *collision_info = NULL;
-	uint key = OBJ_INDEX(A) << 12 + OBJ_INDEX(B);
 	bool valid = false;
+	int new_time;
+	uint key = OBJ_INDEX(A) << 12 + OBJ_INDEX(B);
 
-	SCP_map<uint,collider_pair>::iterator it = Collision_timing.find(key);
+	collision_info = &Collision_timing[key];
 
-	if ( it != Collision_timing.end() ) {
-		// found collision data concerning these two objects
-		collision_info = &it->second;
-
+	if ( collision_info->initialized ) {
 		// make sure we're referring to the correct objects in case the original pair was deleted
 		if ( collision_info->signature_a == collision_info->a->signature && 
 			collision_info->signature_b == collision_info->b->signature ) {
-				valid = true;
+			valid = true;
+		} else {
+			collision_info->a = A;
+			collision_info->b = B;
+			collision_info->signature_a = A->signature;
+			collision_info->signature_b = B->signature;
 		}
+	} else {
+		collision_info->a = A;
+		collision_info->b = B;
+		collision_info->signature_a = A->signature;
+		collision_info->signature_b = B->signature;
+		collision_info->initialized = true;
 	}
 
 	if ( valid ) {
@@ -1429,18 +1438,18 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 			}
 		}
 	} else {
-		if ( check_collision == beam_collide_missile || check_collision == beam_collide_asteroid || check_collision == beam_collide_debris ||
-			check_collision == beam_collide_ship ) {
+		if ( A->type == OBJ_BEAM ) {
 			if(beam_collide_early_out(A, B)){
+				collision_info->next_check_time = -1;
 				return;
-			}	
+			}
 		}
 
 		// only check debris:weapon collisions for player
 		if (check_collision == collide_debris_weapon) {
 			// weapon is B
 			if ( !(Weapon_info[Weapons[B->instance].weapon_info_index].wi_flags & WIF_TURNS) ) {
-			// check for dumbfire weapon
+				// check for dumbfire weapon
 				// check if debris is behind laser
 				float vdot;
 				if (Weapon_info[Weapons[B->instance].weapon_info_index].subtype == WP_LASER) {
@@ -1459,6 +1468,7 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 					if ( pdot <= -A->radius )	{
 						// The other object is behind the weapon by more than
 						// its radius, so it will never hit...
+						collision_info->next_check_time = -1;
 						return;
 					}
 				}
@@ -1467,12 +1477,15 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 				vec3d delta_v;
 				vm_vec_sub(&delta_v, &B->phys_info.vel, &A->phys_info.vel);
 				if (vm_vec_dist_squared(&A->pos, &B->pos) > (vm_vec_mag_squared(&delta_v)*Weapons[B->instance].lifeleft*Weapons[B->instance].lifeleft)) {
+					collision_info->next_check_time = -1;
 					return;
 				}
 
 				// for nonplayer ships, only create collision pair if close enough
-				if ( (B->parent >= 0) && !(Objects[B->parent].flags & OF_PLAYER_SHIP) && (vm_vec_dist(&B->pos, &A->pos) < (4.0f*A->radius + 200.0f)) )
+				if ( (B->parent >= 0) && !(Objects[B->parent].flags & OF_PLAYER_SHIP) && (vm_vec_dist(&B->pos, &A->pos) < (4.0f*A->radius + 200.0f)) ) {
+					collision_info->next_check_time = -1;
 					return;
+				}
 			}
 		}
 
@@ -1484,12 +1497,12 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 				&& (Ships[Objects[B->parent].instance].team == Ships[A->instance].team) 
 				&& (Ship_info[Ships[A->instance].ship_info_index].flags & SIF_SMALL_SHIP) 
 				&& (Weapon_info[Weapons[B->instance].weapon_info_index].subtype == WP_LASER) ) {
+				collision_info->next_check_time = -1;
 				return;
 			}
 		}
 	}
 
-	int new_time;
 	obj_pair new_pair;	
 
 	new_pair.a = A;
@@ -1498,28 +1511,8 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 
 	if ( check_collision(&new_pair) ) {
 		// don't have to check ever again
-		new_time = -1;
+		collision_info->next_check_time = -1;
 	} else {
-		new_time = new_pair.next_check_time;
-	}
-
-	if ( collision_info ) {
-		collision_info->next_check_time = new_time;
-
-		if ( !valid ) {
-			// the found collision data wasn't pertinent to these objects so update object data
-			collision_info->a = A;
-			collision_info->b = B;
-			collision_info->signature_a = A->signature;
-			collision_info->signature_b = B->signature;
-		}
-	} else {
-		collision_info = &Collision_timing[key];
-
-		collision_info->a = A;
-		collision_info->b = B;
-		collision_info->signature_a = A->signature;
-		collision_info->signature_b = B->signature;
-		collision_info->next_check_time = new_time;
+		collision_info->next_check_time = new_pair.next_check_time;
 	}
 }

@@ -56,6 +56,7 @@ typedef struct collider_pair {
 	int signature_a;
 	int signature_b;
 	int next_check_time;
+	bool initialized;
 } collider_pair;
 
 // Keeps track of pairs of objects for collision detection
