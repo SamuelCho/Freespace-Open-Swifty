@@ -42,7 +42,7 @@ obj_pair pair_used_list;
 obj_pair pair_free_list;
 
 SCP_vector<int> Collision_sort_list;
-SCP_map<int, collider_pair> Collision_timing;
+SCP_map<uint, collider_pair> Collision_timing;
 
 void obj_pairs_close()
 {
@@ -1393,6 +1393,8 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 		return;
 	}
 
+	if ( !check_collision ) return;
+
 	// Swap them if needed
 	if ( swapped )	{
 		object *tmp = A;
@@ -1400,72 +1402,11 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 		B = tmp;
 	}
 
-	if ( check_collision == beam_collide_missile || check_collision == beam_collide_asteroid || check_collision == beam_collide_debris ||
-		check_collision == beam_collide_ship ) {
-		if(beam_collide_early_out(A, B)){
-			return;
-		}	
-	}
-
-	// only check debris:weapon collisions for player
-	if (check_collision == collide_debris_weapon) {
-		// weapon is B
-		if ( !(Weapon_info[Weapons[B->instance].weapon_info_index].wi_flags & WIF_TURNS) ) {
-		// check for dumbfire weapon
-			// check if debris is behind laser
-			float vdot;
-			if (Weapon_info[Weapons[B->instance].weapon_info_index].subtype == WP_LASER) {
-				vec3d velocity_rel_weapon;
-				vm_vec_sub(&velocity_rel_weapon, &B->phys_info.vel, &A->phys_info.vel);
-				vdot = -vm_vec_dot(&velocity_rel_weapon, &B->orient.vec.fvec);
-			} else {
-				vdot = vm_vec_dot( &A->phys_info.vel, &B->phys_info.vel);
-			}
-			if ( vdot <= 0.0f )	{
-				// They're heading in opposite directions...
-				// check their positions
-				vec3d weapon2other;
-				vm_vec_sub( &weapon2other, &A->pos, &B->pos );
-				float pdot = vm_vec_dot( &B->orient.vec.fvec, &weapon2other );
-				if ( pdot <= -A->radius )	{
-					// The other object is behind the weapon by more than
-					// its radius, so it will never hit...
-					return;
-				}
-			}
-
-			// check dist vs. dist moved during weapon lifetime
-			vec3d delta_v;
-			vm_vec_sub(&delta_v, &B->phys_info.vel, &A->phys_info.vel);
-			if (vm_vec_dist_squared(&A->pos, &B->pos) > (vm_vec_mag_squared(&delta_v)*Weapons[B->instance].lifeleft*Weapons[B->instance].lifeleft)) {
-				return;
-			}
-
-			// for nonplayer ships, only create collision pair if close enough
-			if ( (B->parent >= 0) && !(Objects[B->parent].flags & OF_PLAYER_SHIP) && (vm_vec_dist(&B->pos, &A->pos) < (4.0f*A->radius + 200.0f)) )
-				return;
-		}
-	}
-
-	// don't check same team laser:ship collisions on small ships if not player
-	if (check_collision == collide_ship_weapon) {
-		// weapon is B
-		if ( (B->parent >= 0)
-			&& !(Objects[B->parent].flags & OF_PLAYER_SHIP)
-			&& (Ships[Objects[B->parent].instance].team == Ships[A->instance].team) 
-			&& (Ship_info[Ships[A->instance].ship_info_index].flags & SIF_SMALL_SHIP) 
-			&& (Weapon_info[Weapons[B->instance].weapon_info_index].subtype == WP_LASER) ) {
-			return;
-		}
-	}
-
-	if ( !check_collision ) return;
-
-	collider_pair *collision_info;
-	int key = OBJ_INDEX(A) << 12 + OBJ_INDEX(B);
+	collider_pair *collision_info = NULL;
+	uint key = OBJ_INDEX(A) << 12 + OBJ_INDEX(B);
 	bool valid = false;
 
-	SCP_map<int,collider_pair>::iterator it = Collision_timing.find(key);
+	SCP_map<uint,collider_pair>::iterator it = Collision_timing.find(key);
 
 	if ( it != Collision_timing.end() ) {
 		// found collision data concerning these two objects
@@ -1484,6 +1425,65 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 			return;
 		} else {
 			if ( !timestamp_elapsed(collision_info->next_check_time) ) {
+				return;
+			}
+		}
+	} else {
+		if ( check_collision == beam_collide_missile || check_collision == beam_collide_asteroid || check_collision == beam_collide_debris ||
+			check_collision == beam_collide_ship ) {
+			if(beam_collide_early_out(A, B)){
+				return;
+			}	
+		}
+
+		// only check debris:weapon collisions for player
+		if (check_collision == collide_debris_weapon) {
+			// weapon is B
+			if ( !(Weapon_info[Weapons[B->instance].weapon_info_index].wi_flags & WIF_TURNS) ) {
+			// check for dumbfire weapon
+				// check if debris is behind laser
+				float vdot;
+				if (Weapon_info[Weapons[B->instance].weapon_info_index].subtype == WP_LASER) {
+					vec3d velocity_rel_weapon;
+					vm_vec_sub(&velocity_rel_weapon, &B->phys_info.vel, &A->phys_info.vel);
+					vdot = -vm_vec_dot(&velocity_rel_weapon, &B->orient.vec.fvec);
+				} else {
+					vdot = vm_vec_dot( &A->phys_info.vel, &B->phys_info.vel);
+				}
+				if ( vdot <= 0.0f )	{
+					// They're heading in opposite directions...
+					// check their positions
+					vec3d weapon2other;
+					vm_vec_sub( &weapon2other, &A->pos, &B->pos );
+					float pdot = vm_vec_dot( &B->orient.vec.fvec, &weapon2other );
+					if ( pdot <= -A->radius )	{
+						// The other object is behind the weapon by more than
+						// its radius, so it will never hit...
+						return;
+					}
+				}
+
+				// check dist vs. dist moved during weapon lifetime
+				vec3d delta_v;
+				vm_vec_sub(&delta_v, &B->phys_info.vel, &A->phys_info.vel);
+				if (vm_vec_dist_squared(&A->pos, &B->pos) > (vm_vec_mag_squared(&delta_v)*Weapons[B->instance].lifeleft*Weapons[B->instance].lifeleft)) {
+					return;
+				}
+
+				// for nonplayer ships, only create collision pair if close enough
+				if ( (B->parent >= 0) && !(Objects[B->parent].flags & OF_PLAYER_SHIP) && (vm_vec_dist(&B->pos, &A->pos) < (4.0f*A->radius + 200.0f)) )
+					return;
+			}
+		}
+
+		// don't check same team laser:ship collisions on small ships if not player
+		if (check_collision == collide_ship_weapon) {
+			// weapon is B
+			if ( (B->parent >= 0)
+				&& !(Objects[B->parent].flags & OF_PLAYER_SHIP)
+				&& (Ships[Objects[B->parent].instance].team == Ships[A->instance].team) 
+				&& (Ship_info[Ships[A->instance].ship_info_index].flags & SIF_SMALL_SHIP) 
+				&& (Weapon_info[Weapons[B->instance].weapon_info_index].subtype == WP_LASER) ) {
 				return;
 			}
 		}
