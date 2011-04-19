@@ -8,13 +8,15 @@
 */
 
 
-#include "network/multi_oo.h"
+#include "network/multi_obj.h"
 #include "globalincs/globals.h"
 #include "freespace2/freespace.h"
 #include "io/timer.h"
+#include "io/key.h"
 #include "globalincs/linklist.h"
 #include "network/multimsgs.h"
 #include "network/multiutil.h"
+#include "network/multi_options.h"
 #include "network/multi_rate.h"
 #include "network/multi.h"
 #include "object/object.h"
@@ -910,7 +912,9 @@ int multi_oo_unpack_data(net_player *pl, ubyte *data)
 			// add the value just generated (it was zero'ed above) into the array of generic system types
 			subsys_type = subsysp->system_info->type;					// this is the generic type of subsystem
 			Assert ( subsys_type < SUBSYSTEM_MAX );
-			shipp->subsys_info[subsys_type].current_hits += val;
+			if (!(subsysp->flags & SSF_NO_AGGREGATE)) {
+				shipp->subsys_info[subsys_type].aggregate_current_hits += val;
+			}
 			subsys_count++;
 
 			// if we've reached max subsystems for some reason, bail out
