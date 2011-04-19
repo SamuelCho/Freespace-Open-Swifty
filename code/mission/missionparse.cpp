@@ -306,6 +306,8 @@ char *Parse_object_flags_2[MAX_PARSE_OBJECT_FLAGS_2] = {
 	"lock-all-turrets",
 	"afterburners-locked",
 	"force-shields-on",
+	"immobile",
+	"no-ets",
 };
 
 
@@ -2158,9 +2160,11 @@ int parse_create_object_sub(p_object *p_objp)
 				{
 					ptr->max_hits = ptr->system_info->max_subsys_strength * (shipp->ship_max_hull_strength / sip->max_hull_strength);
 
-					float new_hits;
-					new_hits = ptr->max_hits * (100.0f - sssp->percent) / 100.f;
-					shipp->subsys_info[ptr->system_info->type].current_hits -= (ptr->max_hits - new_hits);
+					float new_hits = ptr->max_hits * (100.0f - sssp->percent) / 100.f;
+					if (!(ptr->flags & SSF_NO_AGGREGATE)) {
+						shipp->subsys_info[ptr->system_info->type].aggregate_current_hits -= (ptr->max_hits - new_hits);
+					}
+
 					if ((100.0f - sssp->percent) < 0.5)
 					{
 						ptr->current_hits = 0.0f;
@@ -2287,9 +2291,10 @@ int parse_create_object_sub(p_object *p_objp)
 		}
 		
 		// possibly add this ship to a hotkey set
-		if ((shipp->wingnum == -1) && (shipp->hotkey != -1))
+		// Ships can now have both a ship-hotkey and a wing-hotkey -- FSF
+		if (shipp->hotkey != -1)
 			mission_hotkey_mf_add(shipp->hotkey, shipp->objnum, HOTKEY_MISSION_FILE_ADDED);
-		else if ((shipp->wingnum != -1) && (Wings[shipp->wingnum].hotkey != -1))
+		if ((shipp->wingnum != -1) && (Wings[shipp->wingnum].hotkey != -1))
 			mission_hotkey_mf_add(Wings[shipp->wingnum].hotkey, shipp->objnum, HOTKEY_MISSION_FILE_ADDED);
 
 		// possibly add this ship to the hud escort list
@@ -2443,6 +2448,12 @@ void resolve_parse_flags(object *objp, int parse_flags, int parse_flags2)
 
 	if (parse_flags2 & P2_OF_FORCE_SHIELDS_ON) 
 		shipp->flags2 |= SF2_FORCE_SHIELDS_ON;
+
+	if (parse_flags2 & P2_OF_IMMOBILE)
+		objp->flags |= OF_IMMOBILE;
+
+	if (parse_flags2 & P2_SF2_NO_ETS)
+		shipp->flags2 |= SF2_NO_ETS;
 }
 
 void fix_old_special_explosions(p_object *p_objp, int variable_index) 
@@ -3252,11 +3263,11 @@ void parse_common_object_data(p_object	*objp)
 		stuff_string(Subsys_status[i].name, F_NAME, NAME_LENGTH);
 		
 		// Genghis: check that the subsystem name makes sense for this ship type
-		if (stricmp("Pilot", Subsys_status[i].name))
+		if (subsystem_stricmp(Subsys_status[i].name, NOX("pilot")))
 		{
 			int j;
 			for (j=0; j < sip->n_subsystems; ++j)
-				if (!stricmp(sip->subsystems[j].subobj_name, Subsys_status[i].name))
+				if (!subsystem_stricmp(sip->subsystems[j].subobj_name, Subsys_status[i].name))
 					break;
 			if (j == sip->n_subsystems)
 				Warning(LOCATION, "Ship \"%s\", class \"%s\"\nUnknown subsystem \"%s\" found in mission!", objp->name, sip->name, Subsys_status[i].name);
@@ -3265,7 +3276,7 @@ void parse_common_object_data(p_object	*objp)
 		if (optional_string("$Damage:"))
 			stuff_float(&Subsys_status[i].percent);
 
-		Subsys_status[i].subsys_cargo_name = -1;
+		Subsys_status[i].subsys_cargo_name = 0;
 		if (optional_string("+Cargo Name:")) {
 			char cargo_name[NAME_LENGTH];
 			stuff_string(cargo_name, F_NAME, NAME_LENGTH);

@@ -1066,6 +1066,12 @@ bool HudGauge::canRender()
 		}
 	}
 
+	if (gauge_config == HUD_ETS_GAUGE) {
+		if (Ships[Player_obj->instance].flags2 & SF2_NO_ETS) {
+			return false;
+		}
+	}
+
 	return true;
 }
 
@@ -2806,7 +2812,7 @@ void HudGaugeSupport::render(float frametime)
 			bool repairing = false;
 			for (i = 0; i < SUBSYSTEM_MAX; i++)
 			{
-				if (Player_ship->subsys_info[i].num > 0) 
+				if (Player_ship->subsys_info[i].type_count > 0) 
 				{
 					if (ship_get_subsystem_strength(Player_ship, i) < 1.0f)
 					{
@@ -3722,6 +3728,11 @@ HudGauge* hud_get_gauge(char* name)
 HudGaugeMultiMsg::HudGaugeMultiMsg():
 HudGauge(HUD_OBJECT_MULTI_MSG, HUD_MESSAGE_LINES, true, false, true, 0, 255, 255, 255)
 {
+}
+
+bool HudGaugeMultiMsg::canRender() 
+{
+	return true;
 }
 
 // render multiplayer text message currently being entered if any

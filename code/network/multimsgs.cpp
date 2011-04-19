@@ -7178,7 +7178,9 @@ void process_client_update_packet(ubyte *data, header *hinfo)
 					// add the value just generated (it was zero'ed above) into the array of generic system types
 					subsys_type = subsysp->system_info->type;					// this is the generic type of subsystem
 					Assert ( subsys_type < SUBSYSTEM_MAX );
-					shipp->subsys_info[subsys_type].current_hits += fl_val;
+					if (!(subsysp->flags & SSF_NO_AGGREGATE)) {
+						shipp->subsys_info[subsys_type].aggregate_current_hits += fl_val;
+					}
 					n_subsystems++;
 				}
 			}
@@ -7661,8 +7663,6 @@ void send_NEW_primary_fired_packet(ship *shipp, int banks_fired)
 		// ubanks_fired |= (1<<7);
 	// }	
 
-	// determine if its a player ship and don't send to him if we're in "client firing" mode
-	// if((Netgame.debug_flags & NETD_FLAG_CLIENT_FIRING) && MULTIPLAYER_MASTER){
 	if(MULTIPLAYER_MASTER){
 		np_index = multi_find_player_by_net_signature(objp->net_signature);
 		if((np_index >= 0) && (np_index < MAX_PLAYERS)){
@@ -7784,8 +7784,7 @@ void send_NEW_countermeasure_fired_packet(object *objp, int cmeasure_count, int 
 
 	nprintf(("Network","Sending NEW countermeasure packet!\n"));
 
-	// determine if its a player ship and don't send to him if we're in "client firing" mode
-	// if((Netgame.debug_flags & NETD_FLAG_CLIENT_FIRING) && MULTIPLAYER_MASTER){
+	// determine if its a player
 	if(MULTIPLAYER_MASTER){
 		np_index = multi_find_player_by_net_signature(objp->net_signature);
 		if((np_index >= 0) && (np_index < MAX_PLAYERS)){
@@ -7824,8 +7823,7 @@ void process_NEW_countermeasure_fired_packet(ubyte *data, header *hinfo)
 		return;
 	}	
 
-	// if we're in client firing mode, ignore ones for myself
-	// if((Netgame.debug_flags & NETD_FLAG_CLIENT_FIRING) && (Player_obj != NULL) && (Player_obj == objp)){		
+	// if we're in client firing mode, ignore ones for myself	
 	if((Player_obj != NULL) && (Player_obj == objp)){		
 		return;
 	}

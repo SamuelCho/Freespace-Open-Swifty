@@ -67,7 +67,7 @@ int Lcl_english = 1;
 // the english version (in the code) to a foreign version (in the table).  Thus, if you
 // add a new string to the code, you must assign it a new index.  Use the number below for
 // that index and increase the number below by one.
-#define XSTR_SIZE	1571
+#define XSTR_SIZE	1572
 
 
 // struct to allow for strings.tbl-determined x offset
@@ -534,6 +534,9 @@ void lcl_ext_close()
 
 void lcl_replace_stuff(char *text, unsigned int max_len)
 {
+	if (Fred_running)
+		return;
+
 	Assert(text);	// Goober5000
 
 	// delegate to SCP_string for the replacements
@@ -541,13 +544,15 @@ void lcl_replace_stuff(char *text, unsigned int max_len)
 	lcl_replace_stuff(temp_text);
 
 	// fill up the original string
-	strcpy(text, temp_text.substr(0, max_len).c_str());
+	int len = temp_text.copy(text, max_len);
+	text[len] = 0;
 }
 
 // Goober5000 - replace stuff in the string, e.g. $callsign with player's callsign
 // now will also replace $rank with rank, e.g. "Lieutenant"
 // now will also replace $quote with double quotation marks
 // now will also replace $semicolon with semicolon mark
+// now will also replace $slash and $backslash
 void lcl_replace_stuff(SCP_string &text)
 {
 	if (Fred_running)
@@ -560,10 +565,15 @@ void lcl_replace_stuff(SCP_string &text)
 	}
 	replace_all(text, "$quote", "\"");
 	replace_all(text, "$semicolon", ";");
+	replace_all(text, "$slash", "/");
+	replace_all(text, "$backslash", "\\");
 }
 
 void lcl_fred_replace_stuff(char *text, unsigned int max_len)
 {
+	if (!Fred_running)
+		return;
+
 	Assert(text);	// Goober5000
 
 	// delegate to SCP_string for the replacements
@@ -571,7 +581,8 @@ void lcl_fred_replace_stuff(char *text, unsigned int max_len)
 	lcl_fred_replace_stuff(temp_text);
 
 	// fill up the original string
-	strcpy(text, temp_text.substr(0, max_len).c_str());
+	int len = temp_text.copy(text, max_len);
+	text[len] = 0;
 }
 
 void lcl_fred_replace_stuff(SCP_string &text)
@@ -581,6 +592,8 @@ void lcl_fred_replace_stuff(SCP_string &text)
 
 	replace_all(text, "\"", "$quote");
 	replace_all(text, ";", "$semicolon");
+	replace_all(text, "/", "$slash");
+	replace_all(text, "\\", "$backslash");
 }
 
 // get the localized version of the string. if none exists, return the original string

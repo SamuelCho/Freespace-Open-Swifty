@@ -247,6 +247,7 @@ flag_def_list Subsystem_flags[] = {
 	{ "allow vanishing",		MSS_FLAG_ALLOW_VANISHING,	0 },
 	{ "damage as hull",			MSS_FLAG_DAMAGE_AS_HULL,	0 },
 	{ "starts locked",          MSS_FLAG_TURRET_LOCKED,     0 },
+	{ "no aggregate",			MSS_FLAG_NO_AGGREGATE,		0 },
 };
 
 int Num_subsystem_flags = sizeof(Subsystem_flags)/sizeof(flag_def_list);
@@ -295,6 +296,7 @@ flag_def_list Ship_flags[] = {
 	{ "intrinsic no shields",		SIF2_INTRINSIC_NO_SHIELDS,	1 },
 	{ "no primary linking",			SIF2_NO_PRIMARY_LINKING,	1 },
 	{ "no pain flash",				SIF2_NO_PAIN_FLASH,			1 },
+	{ "no ets",						SIF2_NO_ETS,				1 },
 
 	// to keep things clean, obsolete options go last
 	{ "ballistic primaries",		-1,		255 }
@@ -373,6 +375,8 @@ static int Ship_cargo_check_timer;
 static int Thrust_anim_inited = 0;
 
 bool warning_too_many_ship_classes = false;
+
+int ship_get_subobj_model_num(ship_info* sip, char* subobj_name);
 
 // set the ship_obj struct fields to default values
 void ship_obj_list_reset_slot(int index)
@@ -699,6 +703,12 @@ void init_ship_entry(ship_info *sip)
 	
 	sip->explosion_propagates = 0;
 	sip->big_exp_visual_rad = -1.0f;
+	sip->prop_exp_rad_mult = 1.0f;
+	sip->death_roll_base_time = 3000;
+	sip->death_roll_r_mult = 1.0f;
+	sip->death_roll_time_mult = 1.0f;
+	sip->death_fx_r_mult = 1.0f;
+	sip->death_fx_count = 6;
 	sip->vaporize_chance = 0;
 	sip->shockwave_count = 1;
 	sip->explosion_bitmap_anims.clear();
@@ -877,8 +887,57 @@ void init_ship_entry(ship_info *sip)
 	sip->n_subsystems = 0;
 	sip->subsystems = NULL;
 
-	sip->ispew_max_particles = -1;
-	sip->dspew_max_particles = -1;
+	// default values from shipfx.cpp
+	sip->impact_spew.n_high = 30;
+	sip->impact_spew.n_low = 25;
+	sip->impact_spew.max_rad = 0.5f;
+	sip->impact_spew.min_rad = 0.2f;
+	sip->impact_spew.max_life = 0.55f;
+	sip->impact_spew.min_life = 0.05f;
+	sip->impact_spew.max_vel = 12.0f;
+	sip->impact_spew.min_vel = 2.0f;
+	sip->impact_spew.variance = 1.0f;
+	
+	// default values from shipfx.cpp
+	sip->damage_spew.n_high = 1;						// 1 is used here to trigger retail behaviour
+	sip->damage_spew.n_low = 0;
+	sip->damage_spew.max_rad = 1.3f;
+	sip->damage_spew.min_rad = 0.7f;
+	sip->damage_spew.max_life = 0.0f;
+	sip->damage_spew.min_life = 0.0f;
+	sip->damage_spew.max_vel = 12.0f;
+	sip->damage_spew.min_vel = 3.0f;
+	sip->damage_spew.variance = 0.0f;
+
+	sip->knossos_end_particles.n_high = 30;
+	sip->knossos_end_particles.n_low = 15;
+	sip->knossos_end_particles.max_rad = 100.0f;
+	sip->knossos_end_particles.min_rad = 30.0f;
+	sip->knossos_end_particles.max_life = 12.0f;
+	sip->knossos_end_particles.min_life = 2.0f;
+	sip->knossos_end_particles.max_vel = 350.0f;
+	sip->knossos_end_particles.min_vel = 50.0f;
+	sip->knossos_end_particles.variance = 2.0f;
+
+	sip->split_particles.n_high = 80;
+	sip->split_particles.n_low = 40;
+	sip->split_particles.max_rad = 0.0f;
+	sip->split_particles.min_rad = 0.0f;
+	sip->split_particles.max_life = 0.0f;
+	sip->split_particles.min_life = 0.0f;
+	sip->split_particles.max_vel = 0.0f;
+	sip->split_particles.min_vel = 0.0f;
+	sip->split_particles.variance = 2.0f;
+
+	sip->regular_end_particles.n_high = 100;
+	sip->regular_end_particles.n_low = 50;
+	sip->regular_end_particles.max_rad = 1.5f;
+	sip->regular_end_particles.min_rad = 0.1f;
+	sip->regular_end_particles.max_life = 4.0f;
+	sip->regular_end_particles.min_life = 0.5f;
+	sip->regular_end_particles.max_vel = 20.0f;
+	sip->regular_end_particles.min_vel = 0.0f;
+	sip->regular_end_particles.variance = 2.0f;
 
 	sip->cockpit_model_num = -1;
 	sip->model_num = -1;
@@ -1110,6 +1169,109 @@ int parse_ship_template()
 	}
 	
 	return rtn;
+}
+
+void parse_ship_particle_effect(ship_info* sip, particle_effect* pe, char *id_string)
+{
+	float tempf;
+	int temp;
+	if(optional_string("+Max particles:"))
+	{
+		stuff_int(&temp);
+		if (temp < 0) {
+			Warning(LOCATION,"Bad value %i, defined as %s particle number (max) in ship '%s'.\nValue should be a non-negative integer.\n", temp, id_string, sip->name);
+		} else {
+			pe->n_high = temp;
+			if (pe->n_high == 0) {
+				// notification for disabling the particles
+				mprintf(("Particle effect for %s disabled on ship '%s'.\n", id_string, sip->name));
+			}
+		}
+	}
+	if(optional_string("+Min particles:"))
+	{
+		stuff_int(&temp);
+		if (temp < 0) {
+			Warning(LOCATION,"Bad value %i, defined as %s particle number (min) in ship '%s'.\nValue should be a non-negative integer.\n", temp, id_string, sip->name);
+		} else {
+			pe->n_low = temp;
+		}
+	}
+	if (pe->n_low > pe->n_high)
+		pe->n_low = pe->n_high;
+
+	if(optional_string("+Max Radius:"))
+	{
+		stuff_float(&tempf);
+		if (tempf <= 0.0f) {
+			Warning(LOCATION,"Bad value %f, defined as %s particle radius (max) in ship '%s'.\nValue should be a positive float.\n", tempf, id_string, sip->name);
+		} else {
+			pe->max_rad = tempf;
+		}
+	}
+	if(optional_string("+Min Radius:"))
+	{
+		stuff_float(&tempf);
+		if (tempf < 0.0f) {
+			Warning(LOCATION,"Bad value %f, defined as %s particle radius (min) in ship '%s'.\nValue should be a non-negative float.\n", tempf, id_string, sip->name);
+		} else {
+			pe->min_rad = tempf;
+		}
+	}
+	if (pe->min_rad > pe->max_rad)
+		pe->min_rad = pe->max_rad;
+
+	if(optional_string("+Max Lifetime:"))
+	{
+		stuff_float(&tempf);
+		if (tempf <= 0.0f) {
+			Warning(LOCATION,"Bad value %f, defined as %s particle lifetime (max) in ship '%s'.\nValue should be a positive float.\n", tempf, id_string, sip->name);
+		} else {
+			pe->max_life = tempf;
+		}
+	}
+	if(optional_string("+Min Lifetime:"))
+	{
+		stuff_float(&tempf);
+		if (tempf < 0.0f) {
+			Warning(LOCATION,"Bad value %f, defined as %s particle lifetime (min) in ship '%s'.\nValue should be a non-negative float.\n", tempf, id_string, sip->name);
+		} else {
+			pe->min_life = tempf;
+		}
+	}
+	if (pe->min_life > pe->max_life)
+		pe->min_life = pe->max_life;
+
+	if(optional_string("+Max Velocity:"))
+	{
+		stuff_float(&tempf);
+		if (tempf < 0.0f) {
+			Warning(LOCATION,"Bad value %f, defined as %s particle velocity (max) in ship '%s'.\nValue should be a non-negative float.\n", tempf, id_string, sip->name);
+		} else {
+			pe->max_vel = tempf;
+		}
+	}
+	if(optional_string("+Min Velocity:"))
+	{
+		stuff_float(&tempf);
+		if (tempf < 0.0f) {
+			Warning(LOCATION,"Bad value %f, defined as %s particle velocity (min) in ship '%s'.\nValue should be a non-negative float.\n", tempf, id_string, sip->name);
+		} else {
+			pe->min_vel = tempf;
+		}
+	}
+	if (pe->min_vel > pe->max_vel)
+		pe->min_vel = pe->max_vel;
+
+	if(optional_string("+Normal Variance:"))
+	{
+		stuff_float(&tempf);
+		if ((tempf >= 0.0f) && (tempf <= 2.0f)) {
+			pe->variance = tempf;
+		} else {
+			Warning(LOCATION,"Bad value %f, defined as %s particle normal variance in ship '%s'.\nValue should be a float from 0.0 to 2.0.\n", tempf, id_string, sip->name);
+		}
+	}
 }
 
 // Puts values into a ship_info.
@@ -1408,17 +1570,11 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 	//are settable, but erg, just not happening right now -C
 	if(optional_string("$Impact Spew:"))
 	{
-		if(optional_string("+Max particles:"))
-		{
-			stuff_int(&sip->ispew_max_particles);
-		}
+		parse_ship_particle_effect(sip, &sip->impact_spew, "impact spew");
 	}
 	if(optional_string("$Damage Spew:"))
 	{
-		if(optional_string("+Max particles:"))
-		{
-			stuff_int(&sip->dspew_max_particles);
-		}
+		parse_ship_particle_effect(sip, &sip->damage_spew, "damage spew");
 	}
 
 	if(optional_string("$Collision Physics:"))
@@ -1826,8 +1982,62 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		stuff_boolean(&sip->explosion_propagates);
 	}
 
+	if(optional_string("$Propagating Expl Radius Multiplier:")){
+		stuff_float(&sip->prop_exp_rad_mult);
+		if(sip->prop_exp_rad_mult <= 0) {
+			// on invalid value return to default setting
+			Warning(LOCATION, "Propagating explosion radius multiplier was set to non-positive value.\nDefaulting multiplier to 1.0 on ship '%s'.\n", sip->name);
+			sip->prop_exp_rad_mult = 1.0f;
+		}
+	}
+
 	if(optional_string("$Expl Visual Rad:")){
 		stuff_float(&sip->big_exp_visual_rad);
+	}
+
+	if(optional_string("$Base Death-Roll Time:")){
+		stuff_int(&sip->death_roll_base_time);
+		if (sip->death_roll_base_time < 2)
+			sip->death_roll_base_time = 2;
+	}
+
+	if(optional_string("$Death-Roll Explosion Radius Mult:")){
+		stuff_float(&sip->death_roll_r_mult);
+		if (sip->death_roll_r_mult < 0)
+			sip->death_roll_r_mult = 0;
+	}
+
+	if(optional_string("$Death-Roll Explosion Intensity Mult:")){
+		stuff_float(&sip->death_roll_time_mult);
+		if (sip->death_roll_time_mult <= 0)
+			sip->death_roll_time_mult = 1.0f;
+	}
+
+	if(optional_string("$Death FX Explosion Radius Mult:")){
+		stuff_float(&sip->death_fx_r_mult);
+		if (sip->death_fx_r_mult < 0)
+			sip->death_fx_r_mult = 0;
+	}
+
+	if(optional_string("$Death FX Explosion Count:")){
+		stuff_int(&sip->death_fx_count);
+		if (sip->death_fx_count < 0)
+			sip->death_fx_count = 0;
+	}
+
+	if(optional_string("$Ship Splitting Particles:"))
+	{
+		parse_ship_particle_effect(sip, &sip->split_particles, "ship split spew");
+	}
+
+	if(optional_string("$Ship Death Particles:"))
+	{
+		parse_ship_particle_effect(sip, &sip->regular_end_particles, "normal death spew");
+	}
+
+	if(optional_string("$Alternate Death Particles:"))
+	{
+		parse_ship_particle_effect(sip, &sip->knossos_end_particles, "knossos death spew");
 	}
 
 	if(optional_string("$Vaporize Percent Chance:")){
@@ -2856,7 +3066,7 @@ strcpy_s(parse_error_text, temp_error);
 			Mp++;
 			for(i = 0;i < sip->n_subsystems; i++)
 			{
-				if(!stricmp(sip->subsystems[i].subobj_name, name_tmp))
+				if(!subsystem_stricmp(sip->subsystems[i].subobj_name, name_tmp))
 					sp = &sip->subsystems[i];
 			}
 
@@ -3176,6 +3386,12 @@ strcpy_s(parse_error_text, temp_error);
 						current_trigger->subtype = ANIMATION_SUBTYPE_ALL;
 					}
 
+					if(optional_string("+sub_name:")) {
+						stuff_string(current_trigger->sub_name, F_NAME, NAME_LENGTH);
+					} else {
+						strcpy_s(current_trigger->sub_name, "<none>");
+					}
+
 
 					if(current_trigger->type == TRIGGER_TYPE_INITIAL){
 						//the only thing initial animation type needs is the angle, 
@@ -3294,6 +3510,7 @@ strcpy_s(parse_error_text, temp_error);
 				}
 				else if(!stricmp(name_tmp, "linked"))
 				{
+					mprintf(("TODO: set up linked animation\n"));
 				}
 			}
 		}
@@ -3338,7 +3555,6 @@ strcpy_s(parse_error_text, temp_error);
 	model_anim_fix_reverse_times(sip);
 
 	strcpy_s(parse_error_text, "");
-
 
 	return rtn;	//0 for success
 }
@@ -4453,6 +4669,9 @@ void ship_set(int ship_index, int objnum, int ship_type)
 	if (sip->flags & SIF_SHIP_CLASS_DONT_COLLIDE_INVIS)
 		shipp->flags2 |= SF2_DONT_COLLIDE_INVIS;
 
+	if (sip->flags2 & SIF2_NO_ETS)
+		shipp->flags2 |= SF2_NO_ETS;
+
 	shipp->wash_killed = 0;
 	shipp->time_cargo_revealed = 0;
 	shipp->time_first_tagged = 0;
@@ -4816,21 +5035,23 @@ void ship_recalc_subsys_strength( ship *shipp )
 	// make the current strength be 1.0.  If there are initial conditions on the ship, then
 	// the mission parse code should take care of setting that.
 	for (i = 0; i < SUBSYSTEM_MAX; i++) {
-		shipp->subsys_info[i].num = 0;
-		shipp->subsys_info[i].total_hits = 0.0f;
-		shipp->subsys_info[i].current_hits = 0.0f;
+		shipp->subsys_info[i].type_count = 0;
+		shipp->subsys_info[i].aggregate_max_hits = 0.0f;
+		shipp->subsys_info[i].aggregate_current_hits = 0.0f;
 	}
 
 	// count all of the subsystems of a particular type.  For each generic type of subsystem, we store the
 	// total count of hits.  (i.e. for 3 engines, we store the sum of the max_hits for each engine)
 	for ( ship_system = GET_FIRST(&shipp->subsys_list); ship_system != END_OF_LIST(&shipp->subsys_list); ship_system = GET_NEXT(ship_system) ) {
-		int type;
 
-		type = ship_system->system_info->type;
-		Assert ( (type >= 0) && (type < SUBSYSTEM_MAX) );
-		shipp->subsys_info[type].num++;
-		shipp->subsys_info[type].total_hits += ship_system->max_hits;
-		shipp->subsys_info[type].current_hits += ship_system->current_hits;
+		if (!(ship_system->flags & SSF_NO_AGGREGATE)) {
+			int type = ship_system->system_info->type;
+			Assert ( (type >= 0) && (type < SUBSYSTEM_MAX) );
+
+			shipp->subsys_info[type].type_count++;
+			shipp->subsys_info[type].aggregate_max_hits += ship_system->max_hits;
+			shipp->subsys_info[type].aggregate_current_hits += ship_system->current_hits;
+		}
 
 		//Get rid of any persistent sounds on the subsystem
 		//This is inefficient + sloppy but there's not really an easy way to handle things
@@ -4894,7 +5115,7 @@ void ship_recalc_subsys_strength( ship *shipp )
 
 	// set any ship flags which should be set.  unset the flags since we might be repairing a subsystem
 	// through sexpressions.
-	if ( (shipp->subsys_info[SUBSYSTEM_ENGINE].num > 0) && (shipp->subsys_info[SUBSYSTEM_ENGINE].current_hits == 0.0f) ){
+	if ( (shipp->subsys_info[SUBSYSTEM_ENGINE].type_count > 0) && (shipp->subsys_info[SUBSYSTEM_ENGINE].aggregate_current_hits <= 0.0f) ) {
 		shipp->flags |= SF_DISABLED;
 	} else {
 		shipp->flags &= ~SF_DISABLED;
@@ -4902,7 +5123,7 @@ void ship_recalc_subsys_strength( ship *shipp )
 	}
 
 	/*
-	if ( (shipp->subsys_info[SUBSYSTEM_TURRET].num > 0) && (shipp->subsys_info[SUBSYSTEM_TURRET].current_hits == 0.0f) ){
+	if ( (shipp->subsys_info[SUBSYSTEM_TURRET].type_count > 0) && (shipp->subsys_info[SUBSYSTEM_TURRET].aggregate_current_hits <= 0.0f) ) {
 		shipp->flags |= SF_DISARMED;
 	} else {
 		shipp->flags &= ~SF_DISARMED;
@@ -5045,6 +5266,8 @@ int subsys_set(int objnum, int ignore_subsys_info)
 			ship_system->flags |= SSF_VANISHED;
 		if (model_system->flags & MSS_FLAG_DAMAGE_AS_HULL)
 			ship_system->flags |= SSF_DAMAGE_AS_HULL;
+		if (model_system->flags & MSS_FLAG_NO_AGGREGATE)
+			ship_system->flags |= SSF_NO_AGGREGATE;
 		if (model_system->flags & MSS_FLAG_ROTATES)
 			ship_system->flags |= SSF_ROTATES;
 
@@ -5081,7 +5304,7 @@ int subsys_set(int objnum, int ignore_subsys_info)
 		}
 		ship_system->optimum_range = model_system->optimum_range;
 		ship_system->favor_current_facing = model_system->favor_current_facing;
-		ship_system->subsys_cargo_name = -1;
+		ship_system->subsys_cargo_name = 0;
 		ship_system->time_subsys_cargo_revealed = 0;
 		
 		j = 0;
@@ -5208,6 +5431,20 @@ int subsys_set(int objnum, int ignore_subsys_info)
 
 	if ( !ignore_subsys_info ) {
 		ship_recalc_subsys_strength( shipp );
+	}
+
+	// Fix up animation code references
+	for (i = 0; i < sinfo->n_subsystems; i++) {
+		for (int j = 0; j < sinfo->subsystems[i].n_triggers; j++) {
+			if (subsystem_stricmp(sinfo->subsystems[i].triggers[j].sub_name, "<none>")) {
+				int idx = ship_get_subobj_model_num(sinfo, sinfo->subsystems[i].triggers[j].sub_name);
+				if (idx != -1) {
+					sinfo->subsystems[i].triggers[j].subtype = idx;
+				} else {
+					WarningEx(LOCATION, "Could not find subobject %s in ship class %s. Animation triggers will not work correctly.\n", sinfo->subsystems[i].triggers[j].sub_name, sinfo->name);
+				}
+			}
+		}
 	}
 
 	return 1;
@@ -6895,7 +7132,7 @@ void ship_dying_frame(object *objp, int ship_num)
 		objp->phys_info.desired_rotvel = shipp->deathroll_rotvel;
 
 		// Do fireballs for Big ship with propagating explostion, but not Kamikaze
-		if (!(Ai_info[shipp->ai_index].ai_flags & AIF_KAMIKAZE) && ship_get_exp_propagates(shipp)) {
+		if (!(Ai_info[shipp->ai_index].ai_flags & AIF_KAMIKAZE) && ship_get_exp_propagates(shipp) && (sip->death_roll_r_mult > 0.0f)) {
 			if ( timestamp_elapsed(shipp->next_fireball))	{
 				vec3d outpnt, pnt1, pnt2;
 				polymodel *pm = model_get(sip->model_num);
@@ -6908,13 +7145,24 @@ void ship_dying_frame(object *objp, int ship_num)
 
 				float rad = objp->radius*0.1f;
 				
+				if (sip->death_roll_r_mult != 1.0f)
+					rad *= sip->death_roll_r_mult;
+
 				int fireball_type = fireball_ship_explosion_type(sip);
 				if(fireball_type < 0) {
 					fireball_type = FIREBALL_EXPLOSION_LARGE1 + rand()%FIREBALL_NUM_LARGE_EXPLOSIONS;
 				}
 				fireball_create( &outpnt, fireball_type, FIREBALL_LARGE_EXPLOSION, OBJ_INDEX(objp), rad, 0, &objp->phys_info.vel );
 				// start the next fireball up in the next 50 - 200 ms (2-3 per frame)
-				shipp->next_fireball = timestamp_rand(333,500);
+				int min_time = 333;
+				int max_time = 500;
+
+				if (sip->death_roll_time_mult != 1.0f) {
+					min_time = (int) (min_time / sip->death_roll_time_mult);
+					max_time = (int) (max_time / sip->death_roll_time_mult);
+				}
+
+				shipp->next_fireball = timestamp_rand(min_time,max_time);
 
 				// do sound - maybe start a random sound, if it has played far enough.
 				do_sub_expl_sound(objp->radius, &outpnt, shipp->sub_expl_sound_handle);
@@ -6945,20 +7193,24 @@ void ship_dying_frame(object *objp, int ship_num)
 
 				// emit particles
 				particle_emitter	pe;
-
-				pe.num_low = 15;					// Lowest number of particles to create
-				pe.num_high = 30;				// Highest number of particles to create
+				particle_effect		pef = sip->knossos_end_particles;
+				
+				pe.num_low = pef.n_low;					// Lowest number of particles to create
+				pe.num_high = pef.n_high;				// Highest number of particles to create
 				pe.pos = outpnt;				// Where the particles emit from
 				pe.vel = objp->phys_info.vel;	// Initial velocity of all the particles
-				pe.min_life = 2.0f;	// How long the particles live
-				pe.max_life = 12.0f;	// How long the particles live
+				pe.min_life = pef.min_life;	// How long the particles live
+				pe.max_life = pef.max_life;	// How long the particles live
 				pe.normal = objp->orient.vec.uvec;	// What normal the particle emit around
-				pe.normal_variance = 2.0f;		//	How close they stick to that normal 0=on normal, 1=180, 2=360 degree
-				pe.min_vel = 50.0f;
-				pe.max_vel = 350.0f;
-				pe.min_rad = 30.0f;	// * objp->radius;
-				pe.max_rad = 100.0f; // * objp->radius;
-				particle_emit( &pe, PARTICLE_SMOKE2, 0, 50 );
+				pe.normal_variance = pef.variance;		//	How close they stick to that normal 0=on normal, 1=180, 2=360 degree
+				pe.min_vel = pef.min_vel;
+				pe.max_vel = pef.max_vel;
+				pe.min_rad = pef.min_rad;	// * objp->radius;
+				pe.max_rad = pef.max_rad; // * objp->radius;
+
+				if (pe.num_high > 0) {
+					particle_emit( &pe, PARTICLE_SMOKE2, 0, 50 );
+				}
 
 				// do sound - maybe start a random sound, if it has played far enough.
 				do_sub_expl_sound(objp->radius, &outpnt, shipp->sub_expl_sound_handle);
@@ -6985,9 +7237,15 @@ void ship_dying_frame(object *objp, int ship_num)
 				ship_blow_up_area_apply_blast( objp );
 			}
 
-			for (int zz=0; zz<6; zz++ ) {
+			int zz_max = sip->death_fx_count;
+
+			for (int zz=0; zz<zz_max; zz++ ) {
 				// don't make sequence of fireballs for knossos
 				if (knossos_ship) {
+					break;
+				}
+
+				if (sip->death_fx_r_mult <= 0.0f) {
 					break;
 				}
 				// Find two random vertices on the model, then average them
@@ -7000,8 +7258,10 @@ void ship_dying_frame(object *objp, int ship_num)
 				vm_vec_avg( &tmp, &pnt1, &pnt2 );
 				model_find_world_point(&outpnt, &tmp, pm->id, pm->detail[0], &objp->orient, &objp->pos );
 
-				float rad = frand()*0.30f;
-				rad += objp->radius*0.40f;
+				//float rad = frand()*0.30f; //this line never really did anything - better off without it
+				float rad = objp->radius*0.40f;
+
+				rad *= sip->death_fx_r_mult;
 
 				int fireball_type = fireball_ship_explosion_type(sip);
 				if(fireball_type < 0) {
@@ -7047,21 +7307,22 @@ void ship_dying_frame(object *objp, int ship_num)
 
 			// play a random explosion
 			particle_emitter	pe;
+			particle_effect		pef = sip->regular_end_particles;
 
-			pe.num_low = 50;					// Lowest number of particles to create
-			pe.num_high = 100;				// Highest number of particles to create
+			pe.num_low = pef.n_low;					// Lowest number of particles to create
+			pe.num_high = pef.n_high;				// Highest number of particles to create
 			pe.pos = objp->pos;				// Where the particles emit from
 			pe.vel = objp->phys_info.vel;	// Initial velocity of all the particles
-			pe.min_life = 0.5f;				// How long the particles live
-			pe.max_life = 4.0f;				// How long the particles live
+			pe.min_life = pef.min_life;				// How long the particles live
+			pe.max_life = pef.max_life;				// How long the particles live
 			pe.normal = objp->orient.vec.uvec;	// What normal the particle emit around
-			pe.normal_variance = 2.0f;		//	How close they stick to that normal 0=on normal, 1=180, 2=360 degree
-			pe.min_vel = 0.0f;				// How fast the slowest particle can move
-			pe.max_vel = 20.0f;				// How fast the fastest particle can move
-			pe.min_rad = 0.1f;				// Min radius
-			pe.max_rad = 1.5f;				// Max radius
+			pe.normal_variance = pef.variance;		//	How close they stick to that normal 0=on normal, 1=180, 2=360 degree
+			pe.min_vel = pef.min_vel;				// How fast the slowest particle can move
+			pe.max_vel = pef.max_vel;				// How fast the fastest particle can move
+			pe.min_rad = pef.min_rad;				// Min radius
+			pe.max_rad = pef.max_rad;				// Max radius
 
-			if (!knossos_ship) {
+			if ((!knossos_ship) && (pe.num_high > 0)) {
 				particle_emit( &pe, PARTICLE_SMOKE2, 0 );
 			}
 
@@ -7532,24 +7793,26 @@ void ship_auto_repair_frame(int shipnum, float frametime)
 		Assert(ssp->system_info->type >= 0 && ssp->system_info->type < SUBSYSTEM_MAX);
 		ssip = &sp->subsys_info[ssp->system_info->type];
 
-		if ( ssp->current_hits != ssp->max_hits ) {		
+		if ( ssp->current_hits < ssp->max_hits ) {
 
 			// only repair those subsystems which are not destroyed
 			if ( ssp->max_hits <= 0 || ssp->current_hits <= 0 )
 				continue;
 
 			// do incremental repair on the subsystem
-			ssp->current_hits += ssp->max_hits * real_repair_rate * frametime;
-			ssip->current_hits += ssip->total_hits * real_repair_rate * frametime;
-		
 			// check for overflow of current_hits
-			if ( ssp->current_hits >= ssp->max_hits ) {
-				// TODO: here is hook for when a subsystem is fully repaired (eg add voice)
+			ssp->current_hits += ssp->max_hits * real_repair_rate * frametime;
+			if ( ssp->current_hits > ssp->max_hits ) {
 				ssp->current_hits = ssp->max_hits;
 			}
-			if ( ssip->current_hits >= ssip->total_hits ) {
-				ssip->current_hits = ssip->total_hits;
-			}
+
+			// aggregate repair
+			if (!(ssp->flags & SSF_NO_AGGREGATE)) {
+				ssip->aggregate_current_hits += ssip->aggregate_max_hits * real_repair_rate * frametime;
+				if ( ssip->aggregate_current_hits > ssip->aggregate_max_hits ) {
+					ssip->aggregate_current_hits = ssip->aggregate_max_hits;
+				}
+			}		
 		}
 	}	// end for
 }
@@ -8932,6 +9195,11 @@ void change_ship_type(int n, int ship_type, int by_sexp)
 	else if (sip_orig->flags & SIF_SHIP_CLASS_DONT_COLLIDE_INVIS)	// changing FROM a don't-collide-invisible ship class
 		sp->flags2 &= ~SF2_DONT_COLLIDE_INVIS;
 
+	if (sip->flags2 & SIF2_NO_ETS)
+		sp->flags2 |= SF2_NO_ETS;
+	else if (sip_orig->flags2 & SIF2_NO_ETS)
+		sp->flags2 &= ~SF2_NO_ETS;
+
 
 	// Chief1983: Make sure that when changing to a new ship with secondaries, you switch to bank 0.  They still won't 
 	// fire if the SF2_SECONDARIES_LOCKED flag is on as this should have carried over.
@@ -9078,7 +9346,6 @@ int ship_launch_countermeasure(object *objp, int rand_val)
 
 send_countermeasure_fired:
 		// the new way of doing things
-		// if(Netgame.debug_flags & NETD_FLAG_CLIENT_FIRING){
 		if(Game_mode & GM_MULTIPLAYER){
 			send_NEW_countermeasure_fired_packet( objp, cmeasure_count, /*arand*/Objects[cobjnum].net_signature );
 		}
@@ -10044,7 +10311,6 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 	}	// end for (go to next primary bank)
 	
 	// if multiplayer and we're client-side firing, send the packet
-	// if((Game_mode & GM_MULTIPLAYER) && (Netgame.debug_flags & NETD_FLAG_CLIENT_FIRING)){
 	if(Game_mode & GM_MULTIPLAYER){
 		// if i'm a client, and this is not me, don't send
 		if(!(MULTIPLAYER_CLIENT && (shipp != Player_ship))){
@@ -11315,6 +11581,14 @@ int ship_info_lookup(char *token)
 
 		return -1;
 	}
+	else if (!stricmp(token, "GTF Loki (stealth)"))
+	{
+		idx = ship_info_lookup_sub("GTF Loki#stealth");
+		if (idx >= 0)
+			return idx;
+
+		return -1;
+	}
 
 	// get first part of new string
 	strcpy_s(temp1, token);
@@ -11840,7 +12114,7 @@ ship_subsys *ship_get_indexed_subsys( ship *sp, int index, vec3d *attacker_pos )
 		int subsys_type;
 		
 		subsys_type = -index;
-		if ( sp->subsys_info[subsys_type].current_hits == 0.0f )		// if there are no hits, no subsystem to attack.
+		if ( sp->subsys_info[subsys_type].aggregate_current_hits <= 0.0f )		// if there are no hits, no subsystem to attack.
 			return NULL;
 
 		if ( attacker_pos != NULL ) {
@@ -11933,18 +12207,20 @@ float ship_get_subsystem_strength( ship *shipp, int type )
 	ship_subsys *ssp;
 
 	Assert ( (type >= 0) && (type < SUBSYSTEM_MAX) );
-	if ( shipp->subsys_info[type].total_hits == 0.0f )
-		return 1.0f;
 
 	//	For a dying ship, all subsystem strengths are zero.
 	if (Objects[shipp->objnum].hull_strength <= 0.0f)
 		return 0.0f;
 
+	// short circuit 1
+	if (shipp->subsys_info[type].aggregate_max_hits <= 0.0f)
+		return 1.0f;
+
 	// short circuit 0
-	if (shipp->subsys_info[type].current_hits <= 0.0f)
+	if (shipp->subsys_info[type].aggregate_current_hits <= 0.0f)
 		return 0.0f;
 
-	strength = shipp->subsys_info[type].current_hits / shipp->subsys_info[type].total_hits;
+	strength = shipp->subsys_info[type].aggregate_current_hits / shipp->subsys_info[type].aggregate_max_hits;
 	Assert( strength != 0.0f );
 
 	if ( (type == SUBSYSTEM_ENGINE) && (strength < 1.0f) ) {
@@ -11965,7 +12241,7 @@ float ship_get_subsystem_strength( ship *shipp, int type )
 			}
 			ssp = GET_NEXT( ssp );
 		}
-		strength = percent / (float)shipp->subsys_info[type].num;
+		strength = percent / (float)shipp->subsys_info[type].type_count;
 	}
 
 	return strength;
@@ -11982,14 +12258,14 @@ void ship_set_subsystem_strength( ship *shipp, int type, float strength )
 	ship_subsys *ssp;
 
 	Assert ( (type >= 0) && (type < SUBSYSTEM_MAX) );
-	if ( shipp->subsys_info[type].total_hits == 0.0f )
+	if ( shipp->subsys_info[type].aggregate_max_hits <= 0.0f )
 		return;
 
 	total_current_hits = 0.0f;
 	ssp = GET_FIRST(&shipp->subsys_list);
 	while ( ssp != END_OF_LIST( &shipp->subsys_list ) ) {
 
-		if ( ssp->system_info->type == type ) {
+		if ( (ssp->system_info->type == type) && !(ssp->flags & SSF_NO_AGGREGATE) ) {
 			ssp->current_hits = strength * ssp->max_hits;
 			total_current_hits += ssp->current_hits;
 		}
@@ -11997,10 +12273,10 @@ void ship_set_subsystem_strength( ship *shipp, int type, float strength )
 	}
 
 	// update the objects integrity, needed since we've bashed the strength of a subsysem
-	diff = total_current_hits - shipp->subsys_info[type].current_hits;
+	diff = total_current_hits - shipp->subsys_info[type].aggregate_current_hits;
 	Objects[shipp->objnum].hull_strength += diff;
-	// fix up the shipp->subsys_info[type] current_hits value
-	shipp->subsys_info[type].current_hits = total_current_hits;
+	// fix up the shipp->subsys_info[type] aggregate_current_hits value
+	shipp->subsys_info[type].aggregate_current_hits = total_current_hits;
 }
 
 #define		SHIELD_REPAIR_RATE	0.20f			//	Percent of shield repaired per second.
@@ -12261,9 +12537,11 @@ int ship_do_rearm_frame( object *objp, float frametime )
 			}
 
 			// add repair to aggregate strength of subsystems of that type
-			shipp->subsys_info[subsys_type].current_hits += repair_delta;
-			if ( shipp->subsys_info[subsys_type].current_hits > shipp->subsys_info[subsys_type].total_hits )
-				shipp->subsys_info[subsys_type].current_hits = shipp->subsys_info[subsys_type].total_hits;
+			if (!(ssp->flags & SSF_NO_AGGREGATE)) {
+				shipp->subsys_info[subsys_type].aggregate_current_hits += repair_delta;
+				if ( shipp->subsys_info[subsys_type].aggregate_current_hits > shipp->subsys_info[subsys_type].aggregate_max_hits )
+					shipp->subsys_info[subsys_type].aggregate_current_hits = shipp->subsys_info[subsys_type].aggregate_max_hits;
+			}
 
 			// check to see if this subsystem was totally non functional before -- if so, then
 			// reset the flags
@@ -12930,14 +13208,14 @@ DCF(set_subsys, "Set the strength of a particular subsystem on player ship" )
 {
 	if ( Dc_command )	{
 		dc_get_arg(ARG_STRING);
-		if ( !stricmp( Dc_arg, "weapons" ))	{
+		if ( !subsystem_stricmp( Dc_arg, "weapons" ))	{
 			dc_get_arg(ARG_FLOAT);
 			if ( (Dc_arg_float < 0.0f) || (Dc_arg_float > 1.0f) )	{
 				Dc_help = 1;
 			} else {
 				ship_set_subsystem_strength( Player_ship, SUBSYSTEM_WEAPONS, Dc_arg_float );
 			} 
-		} else if ( !stricmp( Dc_arg, "engine" ))	{
+		} else if ( !subsystem_stricmp( Dc_arg, "engine" ))	{
 			dc_get_arg(ARG_FLOAT);
 			if ( (Dc_arg_float < 0.0f) || (Dc_arg_float > 1.0f) )	{
 				Dc_help = 1;
@@ -12949,28 +13227,28 @@ DCF(set_subsys, "Set the strength of a particular subsystem on player ship" )
 					Player_ship->flags &= (~SF_DISABLED);				// add the disabled flag
 				}
 			} 
-		} else if ( !stricmp( Dc_arg, "sensors" ))	{
+		} else if ( !subsystem_stricmp( Dc_arg, "sensors" ))	{
 			dc_get_arg(ARG_FLOAT);
 			if ( (Dc_arg_float < 0.0f) || (Dc_arg_float > 1.0f) )	{
 				Dc_help = 1;
 			} else {
 				ship_set_subsystem_strength( Player_ship, SUBSYSTEM_SENSORS, Dc_arg_float );
 			} 
-		} else if ( !stricmp( Dc_arg, "communication" ))	{
+		} else if ( !subsystem_stricmp( Dc_arg, "communication" ))	{
 			dc_get_arg(ARG_FLOAT);
 			if ( (Dc_arg_float < 0.0f) || (Dc_arg_float > 1.0f) )	{
 				Dc_help = 1;
 			} else {
 				ship_set_subsystem_strength( Player_ship, SUBSYSTEM_COMMUNICATION, Dc_arg_float );
 			} 
-		} else if ( !stricmp( Dc_arg, "navigation" ))	{
+		} else if ( !subsystem_stricmp( Dc_arg, "navigation" ))	{
 			dc_get_arg(ARG_FLOAT);
 			if ( (Dc_arg_float < 0.0f) || (Dc_arg_float > 1.0f) )	{
 				Dc_help = 1;
 			} else {
 				ship_set_subsystem_strength( Player_ship, SUBSYSTEM_NAVIGATION, Dc_arg_float );
 			} 
-		} else if ( !stricmp( Dc_arg, "radar" ))	{
+		} else if ( !subsystem_stricmp( Dc_arg, "radar" ))	{
 			dc_get_arg(ARG_FLOAT);
 			if ( (Dc_arg_float < 0.0f) || (Dc_arg_float > 1.0f) )	{
 				Dc_help = 1;
@@ -13616,7 +13894,7 @@ ship_subsys *ship_return_next_subsys(ship *shipp, int type, vec3d *attacker_pos)
 	Assert ( type >= 0 && type < SUBSYSTEM_MAX );
 
 	// If aggregate total is 0, that means no subsystem is alive of that type
-	if ( shipp->subsys_info[type].total_hits <= 0.0f )
+	if ( shipp->subsys_info[type].aggregate_max_hits <= 0.0f )
 		return NULL;
 
 	// loop through all the subsystems, if we find a match that has some strength, return it
@@ -13632,7 +13910,7 @@ ship_subsys *ship_get_closest_subsys_in_sight(ship *sp, int subsys_type, vec3d *
 	Assert ( subsys_type >= 0 && subsys_type < SUBSYSTEM_MAX );
 
 	// If aggregate total is 0, that means no subsystem is alive of that type
-	if ( sp->subsys_info[subsys_type].total_hits <= 0.0f )
+	if ( sp->subsys_info[subsys_type].aggregate_max_hits <= 0.0f )
 		return NULL;
 
 	ship_subsys	*closest_in_sight_subsys;
@@ -14039,6 +14317,9 @@ char *ship_return_time_to_goal(char *outbuf, ship *sp)
 	return outbuf;
 }
 
+/* Karajorma - V decided not to use this function so I've commented it out so it isn't confused with code
++that is actually in use. Someone might want to get it working using AI_Profiles at some point so I didn't
++simply delete it.
 
 // Called to check if any AI ships might reveal the cargo of any cargo containers.
 //
@@ -14110,6 +14391,7 @@ next_cargo:
 		cargo_so = GET_NEXT(cargo_so);
 	} // end while
 }
+*/
 
 
 // Maybe warn player about this attacking ship.  This is called once per frame, and the
@@ -14423,7 +14705,9 @@ void ship_maybe_ask_for_help(ship *sp)
 
 play_ask_help:
 
-	Assert(Ship_info[sp->ship_info_index].flags & (SIF_FIGHTER|SIF_BOMBER) );	// get Alan
+	if (!(Ship_info[sp->ship_info_index].flags & (SIF_FIGHTER|SIF_BOMBER))) //If we're still here, only continue if we're a fighter or bomber.
+		return;
+
 	if (!(sp->flags2 & SF2_NO_BUILTIN_MESSAGES)) // Karajorma - Only unsilenced ships should ask for help
 	{
 	message_send_builtin_to_player(MESSAGE_HELP, sp, MESSAGE_PRIORITY_HIGH, MESSAGE_TIME_IMMEDIATE, 0, 0, -1, multi_team_filter);
@@ -14869,8 +15153,8 @@ void ship_do_cap_subsys_cargo_revealed( ship *shipp, ship_subsys *subsys, int fr
 	subsys->time_subsys_cargo_revealed = Missiontime;
 
 	// if the cargo is something other than "nothing", then make a log entry
-	if ( (subsys->subsys_cargo_name > 0) && stricmp(Cargo_names[subsys->subsys_cargo_name], NOX("nothing")) ){
-		mission_log_add_entry(LOG_CAP_SUBSYS_CARGO_REVEALED, shipp->ship_name, subsys->system_info->subobj_name, subsys->subsys_cargo_name );
+	if ( stricmp(Cargo_names[subsys->subsys_cargo_name & CARGO_INDEX_MASK], NOX("nothing")) ){
+		mission_log_add_entry(LOG_CAP_SUBSYS_CARGO_REVEALED, shipp->ship_name, subsys->system_info->subobj_name, (subsys->subsys_cargo_name & CARGO_INDEX_MASK) );
 	}	
 }
 
@@ -16913,4 +17197,14 @@ void parse_weapon_targeting_priorities()
 		if(k == MAX_WEAPON_TYPES)
 			Warning(LOCATION, "Unrecognized weapon '%s' found when setting weapon targeting priorities.\n", tempname);
 	}
+}
+
+int ship_get_subobj_model_num(ship_info* sip, char* subobj_name) 
+{
+	for (int i = 0; i < sip->n_subsystems; i++) {
+		if (!subsystem_stricmp(sip->subsystems[i].subobj_name, subobj_name))
+			return sip->subsystems[i].subobj_num;
+	}
+
+	return -1;
 }

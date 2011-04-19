@@ -55,7 +55,7 @@ void cmeasure_set_ship_launch_vel(object *objp, object *parent_objp, int arand)
 void cmeasure_select_next(ship *shipp)
 {
 	Assert(shipp != NULL);
-	size_t i, new_index;
+	int i, new_index;
 
 	for (i = 1; i < Num_weapon_types; i++)
 	{
@@ -71,7 +71,15 @@ void cmeasure_select_next(ship *shipp)
 	mprintf(("Countermeasure type set to %i in frame %i\n", shipp->current_cmeasure, Framecount));
 }
 
-// If this is a player countermeasure, let the player know he evaded a missile
+
+/** 
+ * @brief If this is a player countermeasure, let the player know they evaded a missile.
+ * @param objp [description]
+ *
+ * During single player games, this function notifies the player that evasion has occurred.
+ * Multiplayer games ensure that #send_countermeasure_success_packet() is called to notify the other player.
+ */
+
 void cmeasure_maybe_alert_success(object *objp)
 {
 	//Is this a countermeasure, and does it have a parent
