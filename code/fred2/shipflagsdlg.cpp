@@ -51,6 +51,7 @@ void ship_flags_dlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_KAMIKAZE, m_kamikaze);
 	DDX_Control(pDX, IDC_INVULNERABLE, m_invulnerable);
 	DDX_Control(pDX, IDC_TARGETABLE_AS_BOMB, m_targetable_as_bomb);
+	DDX_Control(pDX, IDC_IMMOBILE, m_immobile);
 	DDX_Control(pDX, IDC_IGNORE_COUNT, m_ignore_count);
 	DDX_Control(pDX, IDC_HIDDEN_FROM_SENSORS, m_hidden);
 	DDX_Control(pDX, IDC_PRIMITIVE_SENSORS, m_primitive_sensors);
@@ -71,6 +72,7 @@ void ship_flags_dlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_NAV_CARRY, m_nav_carry);
 	DDX_Control(pDX, IDC_NAV_NEEDSLINK, m_nav_needslink);
 	DDX_Control(pDX, IDC_HIDE_SHIP_NAME, m_hide_ship_name);
+	DDX_Control(pDX, IDC_DISABLE_ETS, m_disable_ets);
 	DDX_Control(pDX, IDC_SET_CLASS_DYNAMICALLY, m_set_class_dynamically);
 	//}}AFX_DATA_MAP
 
@@ -109,6 +111,7 @@ BEGIN_MESSAGE_MAP(ship_flags_dlg, CDialog)
 	ON_BN_CLICKED(IDC_IGNORE_COUNT, OnIgnoreCount)
 	ON_BN_CLICKED(IDC_INVULNERABLE, OnInvulnerable)
 	ON_BN_CLICKED(IDC_TARGETABLE_AS_BOMB, OnTargetableAsBomb)
+	ON_BN_CLICKED(IDC_IMMOBILE, OnImmobile)
 	ON_BN_CLICKED(IDC_KAMIKAZE, OnKamikaze)
 	ON_BN_CLICKED(IDC_NO_ARRIVAL_MUSIC, OnNoArrivalMusic)
 	ON_BN_CLICKED(IDC_NO_DYNAMIC, OnNoDynamic)
@@ -132,6 +135,7 @@ BEGIN_MESSAGE_MAP(ship_flags_dlg, CDialog)
 	ON_BN_CLICKED(IDC_NAV_NEEDSLINK, OnNavNeedslink)
 	ON_BN_CLICKED(IDC_HIDE_SHIP_NAME, OnHideShipName)
 	ON_BN_CLICKED(IDC_SET_CLASS_DYNAMICALLY, OnSetClassDynamically)
+	ON_BN_CLICKED(IDC_DISABLE_ETS, OnDisableETS)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -147,13 +151,13 @@ BOOL ship_flags_dlg::OnInitDialog()
 {
 	int j, first;
 	int protect_ship = 0, beam_protect_ship = 0, flak_protect_ship = 0, laser_protect_ship = 0, missile_protect_ship = 0;
-	int ignore_count = 0, reinforcement = 0, cargo_known = 0;
+	int ignore_count = 0, reinforcement = 0, cargo_known = 0, immobile = 0;
 	int destroy_before_mission = 0, no_arrival_music = 0, escort = 0, invulnerable = 0, targetable_as_bomb = 0;
 	int hidden_from_sensors = 0, primitive_sensors = 0, no_subspace_drive = 0, affected_by_gravity = 0;
 	int toggle_subsystem_scanning = 0, scannable = 0, kamikaze = 0, no_dynamic = 0, red_alert_carry = 0;
 	int special_warpin = 0, disable_messages = 0, guardian = 0, vaporize = 0, stealth = 0, friendly_stealth_invisible = 0;
 	int no_death_scream = 0, always_death_scream = 0;
-	int nav_carry = 0, nav_needslink = 0, hide_ship_name = 0, set_class_dynamically = 0;
+	int nav_carry = 0, nav_needslink = 0, hide_ship_name = 0, set_class_dynamically = 0, no_ets = 0;
 
 	object *objp;
 	ship *shipp;
@@ -178,6 +182,7 @@ BOOL ship_flags_dlg::OnInitDialog()
 					missile_protect_ship = (objp->flags & OF_MISSILE_PROTECTED) ? 1 : 0;
 					invulnerable = (objp->flags & OF_INVULNERABLE) ? 1 : 0;
 					targetable_as_bomb = (objp->flags & OF_TARGETABLE_AS_BOMB) ? 1 : 0;
+					immobile = (objp->flags & OF_IMMOBILE) ? 1 : 0;
 					hidden_from_sensors = (shipp->flags & SF_HIDDEN_FROM_SENSORS) ? 1 : 0;
 					primitive_sensors = (shipp->flags2 & SF2_PRIMITIVE_SENSORS) ? 1 : 0;
 					no_subspace_drive = (shipp->flags2 & SF2_NO_SUBSPACE_DRIVE) ? 1 : 0;
@@ -198,6 +203,7 @@ BOOL ship_flags_dlg::OnInitDialog()
 					nav_carry = (shipp->flags2 & SF2_NAVPOINT_CARRY) ? 1 : 0; 
 					nav_needslink = (shipp->flags2 & SF2_NAVPOINT_NEEDSLINK) ? 1 : 0;
 					hide_ship_name = (shipp->flags2 & SF2_HIDE_SHIP_NAME) ? 1 : 0;
+					no_ets = (shipp->flags2 & SF2_NO_ETS) ? 1 : 0;
 
 					destroy_before_mission = (shipp->flags & SF_KILL_BEFORE_MISSION) ? 1 : 0;
 					m_destroy_value.init(shipp->final_death_time);
@@ -234,6 +240,7 @@ BOOL ship_flags_dlg::OnInitDialog()
 					missile_protect_ship = tristate_set(objp->flags & OF_MISSILE_PROTECTED, missile_protect_ship);
 					invulnerable = tristate_set(objp->flags & OF_INVULNERABLE, invulnerable);
 					targetable_as_bomb = tristate_set(objp->flags & OF_TARGETABLE_AS_BOMB, targetable_as_bomb);
+					immobile = tristate_set(objp->flags & OF_IMMOBILE, immobile);
 					hidden_from_sensors = tristate_set(shipp->flags & SF_HIDDEN_FROM_SENSORS, hidden_from_sensors);
 					primitive_sensors = tristate_set(shipp->flags2 & SF2_PRIMITIVE_SENSORS, primitive_sensors);
 					no_subspace_drive = tristate_set(shipp->flags2 & SF2_NO_SUBSPACE_DRIVE, no_subspace_drive);
@@ -254,6 +261,7 @@ BOOL ship_flags_dlg::OnInitDialog()
 					nav_carry = tristate_set(shipp->flags2 & SF2_NAVPOINT_CARRY, nav_carry);
 					nav_needslink = tristate_set(shipp->flags2 & SF2_NAVPOINT_NEEDSLINK, nav_needslink);
 					hide_ship_name = tristate_set(shipp->flags2 & SF2_HIDE_SHIP_NAME, hide_ship_name);
+					no_ets = tristate_set(shipp->flags2 & SF2_NO_ETS, no_ets);
 
 					// check the final death time and set the internal variable according to whether or not
 					// the final_death_time is set.  Also, the value in the edit box must be set if all the
@@ -303,6 +311,7 @@ BOOL ship_flags_dlg::OnInitDialog()
 	m_escort.SetCheck(escort);
 	m_invulnerable.SetCheck(invulnerable);
 	m_targetable_as_bomb.SetCheck(targetable_as_bomb);
+	m_immobile.SetCheck(immobile);
 	m_hidden.SetCheck(hidden_from_sensors);
 	m_primitive_sensors.SetCheck(primitive_sensors);
 	m_no_subspace_drive.SetCheck(no_subspace_drive);
@@ -324,6 +333,7 @@ BOOL ship_flags_dlg::OnInitDialog()
 	m_nav_carry.SetCheck(nav_carry);
 	m_nav_needslink.SetCheck(nav_needslink);
 	m_hide_ship_name.SetCheck(hide_ship_name);
+	m_disable_ets.SetCheck(no_ets);
 		
 	m_kdamage.setup(IDC_KDAMAGE, this);
 	m_destroy_value.setup(IDC_DESTROY_VALUE, this);
@@ -532,6 +542,22 @@ void ship_flags_dlg::update_ship(int shipnum)
 				set_modified();
 
 			objp->flags &= ~OF_TARGETABLE_AS_BOMB;
+			break;
+	}
+
+	switch (m_immobile.GetCheck()) {
+		case 1:
+			if ( !(objp->flags & OF_IMMOBILE) )
+				set_modified();
+
+			objp->flags |= OF_IMMOBILE;
+			break;
+
+		case 0:
+			if ( objp->flags & OF_IMMOBILE )
+				set_modified();
+
+			objp->flags &= ~OF_IMMOBILE;
 			break;
 	}
 
@@ -880,6 +906,22 @@ void ship_flags_dlg::update_ship(int shipnum)
 			break;
 	}
 
+	switch (m_disable_ets.GetCheck()) {
+		case 1:
+			if ( !(shipp->flags2 & SF2_NO_ETS) )
+				set_modified();
+
+			shipp->flags2 |= SF2_NO_ETS;
+			break;
+
+		case 0:
+			if ( shipp->flags2 & SF2_NO_ETS )
+				set_modified();
+
+			shipp->flags2 &= ~SF2_NO_ETS;
+			break;
+	}
+
 	switch (m_guardian.GetCheck()) {
 		case 1:
 			if ( !(shipp->ship_guardian_threshold) )
@@ -1074,6 +1116,15 @@ void ship_flags_dlg::OnTargetableAsBomb()
 		m_targetable_as_bomb.SetCheck(0);
 	} else {
 		m_targetable_as_bomb.SetCheck(1);
+	}
+}
+
+void ship_flags_dlg::OnImmobile() 
+{
+	if (m_immobile.GetCheck() == 1) {
+		m_immobile.SetCheck(0);
+	} else {
+		m_immobile.SetCheck(1);
 	}
 }
 
@@ -1274,5 +1325,16 @@ void ship_flags_dlg::OnHideShipName()
  		m_hide_ship_name.SetCheck(0);
 	} else {
 		m_hide_ship_name.SetCheck(1);
+	}
+}
+
+
+
+void ship_flags_dlg::OnDisableETS()
+{
+	if (m_disable_ets.GetCheck() == 1) {
+		m_disable_ets.SetCheck(0);
+	} else {
+		m_disable_ets.SetCheck(1);
 	}
 }

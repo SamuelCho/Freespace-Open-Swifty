@@ -176,6 +176,7 @@ sexp_oper Operators[] = {
 	{ "has-departed-delay",					OP_HAS_DEPARTED_DELAY,				2, INT_MAX,	},
 	{ "are-waypoints-done",					OP_WAYPOINTS_DONE,					2, 2,			},
 	{ "are-waypoints-done-delay",			OP_WAYPOINTS_DONE_DELAY,			3, 3,			},
+	{ "is-nav-visited",					OP_NAV_IS_VISITED,				1, 1 }, // Kazan
 	{ "ship-type-destroyed",				OP_SHIP_TYPE_DESTROYED,				2, 2,			},
 	{ "percent-ships-destroyed",			OP_PERCENT_SHIPS_DESTROYED,		2, INT_MAX,	},
 	{ "percent-ships-disabled",			OP_PERCENT_SHIPS_DISABLED,			2, INT_MAX,	},
@@ -262,6 +263,7 @@ sexp_oper Operators[] = {
 	{ "get-throttle-speed",			OP_GET_THROTTLE_SPEED,		1, 1,			}, // Karajorma
 	{ "has-primary-weapon",			OP_HAS_PRIMARY_WEAPON,		3,	INT_MAX},	// Karajorma
 	{ "has-secondary-weapon",		OP_HAS_SECONDARY_WEAPON,	3,	INT_MAX},	// Karajorma
+	{ "directive-is-variable",		OP_DIRECTIVE_IS_VARIABLE,	1,	2},	// Karajorma
 	
 	{ "time-ship-destroyed",	OP_TIME_SHIP_DESTROYED,		1,	1,	},
 	{ "time-ship-arrived",		OP_TIME_SHIP_ARRIVED,		1,	1,	},
@@ -292,6 +294,7 @@ sexp_oper Operators[] = {
 	{ "validate-argument",			OP_VALIDATE_ARGUMENT,		1, INT_MAX, },	// Karajorma
 	{ "validate-all-arguments",		OP_VALIDATE_ALL_ARGUMENTS,		0, 0, },	// Karajorma
 	{ "do-for-valid-arguments",		OP_DO_FOR_VALID_ARGUMENTS,	1, INT_MAX, },	// Karajorma
+	{ "num-valid-arguments",		OP_NUM_VALID_ARGUMENTS,		0, 0, },		// Karajorma
 
 	{ "send-message-list",			OP_SEND_MESSAGE_LIST,		4,	INT_MAX	},
 	{ "send-message",				OP_SEND_MESSAGE,			3,	3,		},
@@ -420,7 +423,6 @@ sexp_oper Operators[] = {
 	{ "end-campaign",					OP_END_CAMPAIGN,				0, 0 },
 	{ "end-of-campaign",				OP_END_OF_CAMPAIGN,				0, 0 },
 
-	{ "is-nav-visited",					OP_NAV_IS_VISITED,				1, 1 }, // Kazan
 	{ "distance-to-nav",				OP_NAV_DISTANCE,				1, 1 }, // Kazan
 	{ "add-nav-waypoint",				OP_NAV_ADD_WAYPOINT,			3, 4 }, //kazan
 	{ "add-nav-ship",					OP_NAV_ADD_SHIP,				2, 2 }, //kazan
@@ -503,6 +505,10 @@ sexp_oper Operators[] = {
 	{ "ship-set-damage-type",		OP_SHIP_SET_DAMAGE_TYPE,		4, INT_MAX }, // FUBAR
 	{ "ship-set-shockwave-damage-type",		OP_SHIP_SHOCKWAVE_SET_DAMAGE_TYPE,		3, INT_MAX }, // FUBAR
 	{ "field-set-damage-type",		OP_FIELD_SET_DAMAGE_TYPE,		2,2 }, // FUBAR
+	{ "disable-ets",				OP_DISABLE_ETS,			1, INT_MAX}, // The E
+	{ "enable-ets",					OP_ENABLE_ETS,			1, INT_MAX}, // The E
+	{ "set-immobile",		OP_SET_IMMOBILE,			1, INT_MAX	},	// Goober5000
+	{ "set-mobile",			OP_SET_MOBILE,			1, INT_MAX	},	// Goober5000
 	
 	//background and nebula sexps
 	{ "mission-set-nebula",			OP_MISSION_SET_NEBULA,				1, 1 }, //-Sesquipedalian
@@ -562,6 +568,7 @@ sexp_oper Operators[] = {
 	{ "key-reset",					OP_KEY_RESET,					1, INT_MAX,	},
 	{ "key-reset-multiple",			OP_KEY_RESET_MULTIPLE,			1, INT_MAX,	},
 	{ "targeted",					OP_TARGETED,					1, 3,			},
+	{ "node-targeted",				OP_NODE_TARGETED,					1, 2,		}, // FUBAR
 	{ "missile-locked",				OP_MISSILE_LOCKED,			1,	3	},	// Sesquipedalian
 	{ "speed",						OP_SPEED,						1, 1,			},
 	{ "facing",						OP_FACING,						2, 2,			},
@@ -5760,6 +5767,48 @@ int sexp_hits_left_subsystem_specific(int node)
 	return SEXP_NAN;
 }
 
+int sexp_directive_is_variable(int n)
+{
+	int sexp_variable_index;
+	int sexp_variable_value = 0;
+	int replace_current_value = SEXP_TRUE; 
+
+	Assert(n >= 0);
+
+	// get sexp_variable index
+	Assert(Sexp_nodes[n].first == -1);
+	sexp_variable_index = atoi(Sexp_nodes[n].text);
+
+	// verify variable set
+	Assert(Sexp_variables[sexp_variable_index].type & SEXP_VARIABLE_SET);
+
+	if (Sexp_variables[sexp_variable_index].type & SEXP_VARIABLE_NUMBER)
+	{
+		// get new numerical value
+		sexp_variable_value = atoi(Sexp_variables[sexp_variable_index].text);
+	}
+	else
+	{
+		Warning(LOCATION, "Invalid variable type. Directive variables must be a number!\n");
+		return SEXP_KNOWN_FALSE;
+	}
+
+	n = CDR(n);
+	if (n > -1) {
+		replace_current_value = eval_sexp(n);
+	}
+
+	if ((replace_current_value == SEXP_KNOWN_FALSE) || (replace_current_value == SEXP_FALSE) ) {
+		Directive_count += sexp_variable_value;
+	}
+	else {
+		Directive_count = sexp_variable_value;
+	}
+
+		
+	return SEXP_TRUE;
+}
+
 int sexp_determine_team(char *subj)
 {
 	int len;
@@ -8404,6 +8453,28 @@ void sexp_change_all_argument_validity(int n, bool invalidate)
 	}
 }
 
+int sexp_num_valid_arguments( int n )
+{
+	int arg_handler, arg_n;
+	int matches = 0;
+
+	arg_handler = get_handler_for_x_of_operator(n);
+
+	// loop through arguments
+	arg_n = CDR(arg_handler);
+	while (arg_n != -1) {
+		if (Sexp_nodes[arg_n].flags & SNF_ARGUMENT_VALID) {
+			matches++;
+		}
+
+		
+		// iterate
+		arg_n = CDR(arg_n);
+	}
+
+	return matches;
+}
+
 // Goober5000
 void sexp_change_argument_validity(int n, bool invalidate)
 {
@@ -10836,7 +10907,7 @@ void sexp_transfer_cargo(int n)
 		}
 	}
 #endif
-	Ships[shipnum2].cargo1 = char(Ships[shipnum1].cargo1 & CARGO_INDEX_MASK);
+	Ships[shipnum2].cargo1 = char((Ships[shipnum1].cargo1 & CARGO_INDEX_MASK) | (Ships[shipnum2].cargo1 & CARGO_NO_DEPLETE));
 
 	if ( !(Ships[shipnum1].cargo1 & CARGO_NO_DEPLETE) ) {
 		// need to set ship1's cargo to nothing.  scan the cargo_names array looking for the string nothing.
@@ -12434,6 +12505,18 @@ void sexp_dont_collide_invisible(int n, bool dont_collide)
 	sexp_deal_with_ship_flag(n, true, 0, 0, 0, SF2_DONT_COLLIDE_INVIS, 0, P_SF2_DONT_COLLIDE_INVIS, dont_collide);
 }
 
+// Goober5000 - sets the "immobile" flag on a list of ships
+void sexp_set_immobile(int n, bool immobile)
+{
+	sexp_deal_with_ship_flag(n, true, OF_IMMOBILE, 0, 0, 0, 0, P2_OF_IMMOBILE, immobile);
+}
+
+// Goober5000 - sets the "no-ets" flag on a list of ships
+void sexp_disable_ets(int n, bool disable)
+{
+	sexp_deal_with_ship_flag(n, true, 0, 0, 0, SF2_NO_ETS, 0, P2_SF2_NO_ETS, disable);
+}
+
 // Goober5000 - sets the vaporize flag on a list of ships
 void sexp_ships_vaporize(int n, bool vaporize)
 {
@@ -13363,6 +13446,26 @@ int sexp_targeted(int node)
 			if (!ptr || subsystem_stricmp(ptr->system_info->subobj_name, CTEXT(CDR(CDR(node))))){
 				return SEXP_FALSE;
 			}
+		}
+	}
+
+	return SEXP_TRUE;
+}
+
+int sexp_node_targeted(int node)
+{
+	int z;
+
+	jump_node *jnp = jumpnode_get_by_name(CTEXT(node));
+
+	if (jnp==NULL || !Player_ai || (jnp->get_objnum() != Player_ai->target_objnum)){
+		return SEXP_FALSE;
+	}
+
+	if (CDR(node) >= 0) {
+		z = eval_num(CDR(node)) * 1000;
+		if (!timestamp_has_time_elapsed(Players_target_timestamp, z)){
+			return SEXP_FALSE;
 		}
 	}
 
@@ -19287,6 +19390,10 @@ int eval_sexp(int cur_node, int referenced_node)
 				Int3();
 				break;
 
+			case OP_NUM_VALID_ARGUMENTS:
+				sexp_val = sexp_num_valid_arguments( cur_node );
+				break;
+
 			// sexpressions with side effects
 			case OP_CHANGE_IFF:
 				sexp_change_iff(node);
@@ -19803,6 +19910,12 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = SEXP_TRUE;
 				break;
 
+			case OP_SET_MOBILE:
+			case OP_SET_IMMOBILE:
+				sexp_set_immobile(node, (op_num == OP_SET_IMMOBILE));
+				sexp_val = SEXP_TRUE;
+				break;
+
 			// Goober5000 - sigh, was this messed up all along?
 			case OP_WARP_BROKEN:
 			case OP_WARP_NOT_BROKEN:
@@ -19947,6 +20060,10 @@ int eval_sexp(int cur_node, int referenced_node)
 
 			case OP_TARGETED:
 				sexp_val = sexp_targeted(node);
+				break;
+
+			case OP_NODE_TARGETED:
+				sexp_val = sexp_node_targeted(node);
 				break;
 
 			case OP_SPEED:
@@ -20422,6 +20539,13 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = sexp_has_weapon(node, op_num);
 				break;
 
+			case OP_DIRECTIVE_IS_VARIABLE:
+				sexp_val = sexp_directive_is_variable(node);
+				break;
+
+
+
+
 			case OP_CHANGE_SUBSYSTEM_NAME:
 				sexp_change_subsystem_name(node);
 				sexp_val = SEXP_TRUE;
@@ -20655,6 +20779,12 @@ int eval_sexp(int cur_node, int referenced_node)
 
 			case OP_CHANGE_IFF_COLOR:
 				sexp_change_iff_color(node);
+				sexp_val = SEXP_TRUE;
+				break;
+
+			case OP_DISABLE_ETS:
+			case OP_ENABLE_ETS:
+				sexp_disable_ets(node, (op_num == OP_DISABLE_ETS));
 				sexp_val = SEXP_TRUE;
 				break;
 
@@ -21110,6 +21240,7 @@ int query_operator_return_type(int op)
 		case OP_LAST_ORDER_TIME:
 		case OP_KEY_PRESSED:
 		case OP_TARGETED:
+		case OP_NODE_TARGETED:
 		case OP_SPEED:
 		case OP_FACING:
 		case OP_FACING2:
@@ -21154,6 +21285,7 @@ int query_operator_return_type(int op)
 		case OP_HAS_PRIMARY_WEAPON:
 		case OP_HAS_SECONDARY_WEAPON:
 		case OP_IS_BIT_SET:
+		case OP_DIRECTIVE_IS_VARIABLE:
 			return OPR_BOOL;
 
 		case OP_PLUS:
@@ -21235,6 +21367,7 @@ int query_operator_return_type(int op)
 		case OP_NAV_DISTANCE:
 		case OP_GET_DAMAGE_CAUSED:
 		case OP_CUTSCENES_GET_FOV:
+		case OP_NUM_VALID_ARGUMENTS:
 			return OPR_POSITIVE;
 
 		case OP_COND:
@@ -21376,6 +21509,8 @@ int query_operator_return_type(int op)
 		case OP_SET_EXPLOSION_OPTION:
 		case OP_DONT_COLLIDE_INVISIBLE:
 		case OP_COLLIDE_INVISIBLE:
+		case OP_SET_MOBILE:
+		case OP_SET_IMMOBILE:
 		case OP_CHANGE_SHIP_CLASS:
 		case OP_SHIP_COPY_DAMAGE:
 		case OP_DEACTIVATE_GLOW_POINTS:
@@ -21511,6 +21646,8 @@ int query_operator_return_type(int op)
 		case OP_HUD_ACTIVATE_GAUGE_TYPE:
 		case OP_STRING_CONCATENATE:
 		case OP_INT_TO_STRING:
+		case OP_DISABLE_ETS:
+		case OP_ENABLE_ETS:
 			return OPR_NULL;
 
 		case OP_AI_CHASE:
@@ -21593,6 +21730,7 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_RESET_ORDERS:
 		case OP_INVALIDATE_ALL_ARGUMENTS:
 		case OP_VALIDATE_ALL_ARGUMENTS:
+		case OP_NUM_VALID_ARGUMENTS:
 			return OPF_NONE;
 
 		case OP_AND:
@@ -22046,6 +22184,12 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_POSITIVE;
 			else
 				return OPF_SUBSYSTEM;
+
+		case OP_NODE_TARGETED:
+			if (!argnum)
+				return OPF_JUMP_NODE_NAME;
+			else if (argnum == 1)
+				return OPF_POSITIVE;
 
 		case OP_IS_SUBSYSTEM_DESTROYED_DELAY:
 			if ( argnum == 0 )
@@ -22534,6 +22678,10 @@ int query_operator_argument_type(int op, int argnum)
 
 		case OP_DONT_COLLIDE_INVISIBLE:
 		case OP_COLLIDE_INVISIBLE:
+			return OPF_SHIP;
+
+		case OP_SET_MOBILE:
+		case OP_SET_IMMOBILE:
 			return OPF_SHIP;
 
 		case OP_WARP_BROKEN:
@@ -23037,6 +23185,12 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_WEAPON_BANK_NUMBER;
 			else 
 				return OPF_WEAPON_NAME;
+			
+		case OP_DIRECTIVE_IS_VARIABLE:
+			if (argnum == 0)
+				return OPF_VARIABLE_NAME;
+			else 
+				return OPF_BOOL;			
 
 		case OP_NAV_IS_VISITED:		//Kazan
 		case OP_NAV_DISTANCE:		//kazan
@@ -23246,6 +23400,10 @@ int query_operator_argument_type(int op, int argnum)
 			} else {
 				return OPF_HUD_ELEMENT;
 			}
+
+		case OP_DISABLE_ETS:
+		case OP_ENABLE_ETS:
+				return OPF_SHIP;
 
 		case OP_IS_FACING:
 			if (argnum < 2)
@@ -23934,7 +24092,10 @@ void sexp_modify_variable(char *text, int index, bool sexp_callback)
 		// we want to use the same variable substitution that's in messages etc.
 		SCP_string temp_text = text;
 		sexp_replace_variable_names_with_values(temp_text);
-		strcpy_s(Sexp_variables[index].text, temp_text.substr(0, TOKEN_LENGTH).c_str());
+
+		// copy to original buffer
+		int len = temp_text.copy(Sexp_variables[index].text, TOKEN_LENGTH);
+		text[len] = 0;
 	}
 	else
 	{
@@ -24517,6 +24678,8 @@ int get_subcategory(int sexp_id)
 		case OP_WARP_ALLOWED:
 		case OP_SET_ARMOR_TYPE:
 		case OP_FORCE_GLIDE:
+		case OP_DISABLE_ETS:
+		case OP_ENABLE_ETS:
 			return CHANGE_SUBCATEGORY_SHIP_STATUS;
 			
 		case OP_BEAM_FIRE:
@@ -24621,6 +24784,8 @@ int get_subcategory(int sexp_id)
 		case OP_SHIP_SET_DAMAGE_TYPE:
 		case OP_SHIP_SHOCKWAVE_SET_DAMAGE_TYPE:
 		case OP_FIELD_SET_DAMAGE_TYPE:
+		case OP_SET_MOBILE:
+		case OP_SET_IMMOBILE:
 			return CHANGE_SUBCATEGORY_SPECIAL;
 
 		case OP_SET_SKYBOX_MODEL:
@@ -24682,6 +24847,23 @@ int get_subcategory(int sexp_id)
 		case OP_JUMP_NODE_SHOW_JUMPNODE:
 		case OP_JUMP_NODE_HIDE_JUMPNODE:
 			return CHANGE_SUBCATEGORY_JUMP_NODES;
+
+		case OP_NAV_ADD_WAYPOINT:
+		case OP_NAV_ADD_SHIP:
+		case OP_NAV_DEL:
+		case OP_NAV_HIDE:
+		case OP_NAV_RESTRICT:
+		case OP_NAV_UNHIDE:
+		case OP_NAV_UNRESTRICT:
+		case OP_NAV_SET_VISITED:
+		case OP_NAV_SET_CARRY:
+		case OP_NAV_UNSET_CARRY:
+		case OP_NAV_UNSET_VISITED:
+		case OP_NAV_SET_NEEDSLINK:
+		case OP_NAV_UNSET_NEEDSLINK:
+		case OP_NAV_USECINEMATICS:
+		case OP_NAV_USEAP:
+			return CHANGE_SUBCATEGORY_NAV;
 
 		case OP_NUM_PLAYERS:
 		case OP_TEAM_SCORE:
@@ -25514,6 +25696,11 @@ sexp_help_struct Sexp_help[] = {
 		"Takes 1 or more arguments...\r\n"
 		"\tAll:\tActions to take." },
 
+	// Karajorma
+	{ OP_NUM_VALID_ARGUMENTS, "num-valid-arguments (Conditional operator)\r\n"
+		"\tReturns the number of valid arguments in the argument list.\r\n\r\n"
+		"Takes no arguments...\r\n"},
+
 	// Goober5000
 	{ OP_ANY_OF, "Any-of (Conditional operator)\r\n"
 		"\tSupplies arguments for the " SEXP_ARGUMENT_STRING " special data item.  Any of the supplied arguments can satisfy the expression(s) "
@@ -26129,6 +26316,13 @@ sexp_help_struct Sexp_help[] = {
 		"\t2:\tLength of time target should have been kept for (optional).\r\n"
 		"\t3:\tName of subsystem on ship to check if targeted (optional)." },
 
+	{ OP_NODE_TARGETED, "Node-Targeted (Boolean training operator)\r\n"
+		"\tIs true as long as the player has the specified jump node targeted, "
+		"or has been targeted for the specified amount of time.\r\n\r\n"
+		"Returns a boolean value.  Takes 1 to 2 arguments (first required, rest optional):\r\n"
+		"\t1:\tName of Jump Node to check if targeted by player.\r\n"
+		"\t2:\tLength of time target should have been kept for (optional)."},
+
 	// Sesquipedalian
 	{ OP_MISSILE_LOCKED, "Missile-locked (Boolean training operator)\r\n"
 		"\tIs true as long as the player has had a missile lock for the specified amount of time. "
@@ -26742,12 +26936,24 @@ sexp_help_struct Sexp_help[] = {
 		"\tAll:\tList of ships on which to unset the vaporize flag" },
 
 	{ OP_DONT_COLLIDE_INVISIBLE, "don't-collide-invisible\r\n"
-		"\tSets the \"dont collide invisible\" flag on a list of ships.  Takes 1 or more arguments..."
+		"\tSets the \"dont collide invisible\" flag on a list of ships.\r\n"
+		"Takes 1 or more arguments...\r\n"
 		"\tAll:\tList of ships on which to set the \"dont collide invisible\" flag" },
 
 	{ OP_COLLIDE_INVISIBLE, "collide-invisible\r\n"
-		"\tUnsets the \"dont collide invisible\" flag on a list of ships.  Takes 1 or more arguments..."
+		"\tUnsets the \"dont collide invisible\" flag on a list of ships.\r\n"
+		"Takes 1 or more arguments...\r\n"
 		"\tAll:\tList of ships on which to unset the \"dont collide invisible\" flag" },
+
+	{ OP_SET_MOBILE, "set-mobile\r\n"
+		"\tAllows the specified ship(s) to move.  Opposite of set-immobile.\r\n"
+		"Takes 1 or more arguments...\r\n"
+		"\tAll:\tList of ships on which to unset the \"immobile\" flag" },
+
+	{ OP_SET_IMMOBILE, "set-immobile\r\n"
+		"\tPrevents the specified ship(s) from moving in any way.\r\n"
+		"Takes 1 or more arguments...\r\n"
+		"\tAll:\tList of ships on which to set the \"immobile\" flag" },
 
 	{ OP_WARP_BROKEN, "break-warp\r\n"
 		"\tBreak the warp drive on the specified ship.  A broken warp drive can be repaired by "
@@ -27549,6 +27755,14 @@ sexp_help_struct Sexp_help[] = {
 		"\tRest:\tWeapon name\r\n"
 	},
 
+	// Karajora
+	{ OP_DIRECTIVE_IS_VARIABLE, "directive-is-variable\r\n"
+		"\tCauses the variable to appear in the directive count\r\n"
+		"\tAlways returns true. Takes 1 or more arguments...\r\n\r\n"
+		"\t1:\tVariable name\r\n"
+		"\t2:\t(Optional) Reset the directive count set by any earlier SEXPs in the event.\r\n"
+	},
+
 	//phreak
 	{ OP_SCRAMBLE_MESSAGES, "scramble-messages\r\n"
 		"\tCauses messages to be sent as if the player has sustained communications subsystem or EMP damage.  Takes no arguments.\r\n"
@@ -27863,6 +28077,18 @@ sexp_help_struct Sexp_help[] = {
 		"\t1:\tScript\r\n"
 	},
 
+	{ OP_DISABLE_ETS, "disable-ets\r\n"
+		"\tSwitches a ships' ETS system off\r\n\r\n"
+		"Takes at least 1 argument...\r\n"
+		"\tAll:\tList of ships this sexp applies to\r\n"
+	},
+
+	{ OP_ENABLE_ETS, "enable-ets\r\n"
+		"\tSwitches a ships' ETS system on\r\n\r\n"
+		"Takes at least 1 argument...\r\n"
+		"\tAll:\tList of ships this sexp applies to\r\n"
+	},
+
 	{OP_SCRIPT_EVAL_STRING, "script-eval-string\r\n"
 		"\tEvaluates script to return a string"
 		"Takes 1 argument...\r\n"
@@ -27913,11 +28139,11 @@ op_menu_struct op_menu[] =
 	{ "Arithmetic",		OP_CATEGORY_ARITHMETIC },
 	{ "Status",			OP_CATEGORY_STATUS },
 	{ "Change",			OP_CATEGORY_CHANGE },
+/*	{ "Change2",		OP_CATEGORY_CHANGE2 },	merged with "Change" by Goober5000 */
 	{ "Conditionals",	OP_CATEGORY_CONDITIONAL },
 /*	{ "Debugging",		OP_CATEGORY_DEBUG },	discontinued by Goober5000 */
 	{ "Ai goals",		OP_CATEGORY_AI },
 	{ "Event/Goals",	OP_CATEGORY_GOAL_EVENT },
-	{ "Autopilot/NavPoints", OP_CATEGORY_NAVPOINTS},
 	{ "Training",		OP_CATEGORY_TRAINING },
 };
 
@@ -27935,6 +28161,7 @@ op_menu_struct op_submenu[] =
 	{	"Coordinate Manipulation",		CHANGE_SUBCATEGORY_COORDINATE_MANIPULATION			},
 	{	"Music and Sound",				CHANGE_SUBCATEGORY_MUSIC_AND_SOUND					},
 	{	"Hud",							CHANGE_SUBCATEGORY_HUD								},
+	{	"Nav",							CHANGE_SUBCATEGORY_NAV								},
 	{	"Cutscenes",					CHANGE_SUBCATEGORY_CUTSCENES						},
 	{	"Jump Nodes",					CHANGE_SUBCATEGORY_JUMP_NODES						},
 	{	"Backgrounds and Nebula",		CHANGE_SUBCATEGORY_BACKGROUND_AND_NEBULA			},
