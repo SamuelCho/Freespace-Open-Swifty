@@ -1450,7 +1450,11 @@ void obj_move_all(float frametime)
 	beam_move_all_pre();
 
 	if ( Collisions_enabled ) {
-		obj_check_all_collisions();		
+		if ( Cmdline_new_collision_sys ) {
+			obj_sort_and_collide();
+		} else {
+			obj_check_all_collisions();
+		}
 	}
 
 	if (!(Game_mode & GM_DEMO_PLAYBACK)) {
