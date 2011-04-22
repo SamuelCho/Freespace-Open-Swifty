@@ -990,6 +990,7 @@ camera* nav_get_set_camera()
 	return nav_camera.getCamera();
 }
 
+extern int Cmdline_new_collision_sys;
 void nav_warp(bool prewarp=false)
 {
 	/* ok... find our end distance - norm1 is still a unit vector in the
@@ -1044,8 +1045,11 @@ void nav_warp(bool prewarp=false)
 	}
 
 	// retime all collision pairs
-	obj_all_collisions_retime();
-
+	if ( Cmdline_new_collision_sys ) {
+		obj_collide_retime_cached_pairs();
+	} else {
+		obj_all_collisions_retime();
+	}
 }
 
 // ********************************************************************************************

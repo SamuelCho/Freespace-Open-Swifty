@@ -129,6 +129,7 @@ extern int Cmdline_no_di_mouse;
 
 // Developer/Testing related
 extern char *Cmdline_start_mission;
+extern int Cmdline_new_collision_sys;
 extern int Cmdline_dis_collisions;
 extern int Cmdline_dis_weapons;
 extern int Cmdline_noparseerrors;

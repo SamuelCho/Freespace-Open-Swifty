@@ -42,7 +42,7 @@ obj_pair pair_used_list;
 obj_pair pair_free_list;
 
 SCP_vector<int> Collision_sort_list;
-SCP_map<uint, collider_pair> Collision_timing;
+SCP_map<uint, collider_pair> Collision_cached_pairs;
 
 void obj_pairs_close()
 {
@@ -1099,6 +1099,20 @@ void obj_remove_collider(int obj_index)
 	}
 }
 
+void obj_reset_colliders()
+{
+	Collision_sort_list.clear();
+}
+
+void obj_collide_retime_cached_pairs(int checkdly)
+{
+	SCP_map<uint, collider_pair>::iterator it;
+
+	for ( it = Collision_cached_pairs.begin(); it != Collision_cached_pairs.end(); ++it ) {
+		it->second.next_check_time = timestamp(checkdly);
+	}
+}
+
 void obj_sort_and_collide()
 {
 	size_t i;
@@ -1407,7 +1421,7 @@ void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
 	int new_time;
 	uint key = OBJ_INDEX(A) << 12 + OBJ_INDEX(B);
 
-	collision_info = &Collision_timing[key];
+	collision_info = &Collision_cached_pairs[key];
 
 	if ( collision_info->initialized ) {
 		// make sure we're referring to the correct objects in case the original pair was deleted

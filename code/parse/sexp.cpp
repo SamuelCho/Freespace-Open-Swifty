@@ -6447,7 +6447,11 @@ void sexp_set_object_position(int n)
 	n = CDR(n);
 
 	// retime all collision checks so they're performed
-	obj_all_collisions_retime();
+	if ( Cmdline_new_collision_sys ) {
+		obj_collide_retime_cached_pairs();
+	} else {
+		obj_all_collisions_retime();
+	}
 
 	switch (oswpt.type)
 	{
@@ -6527,7 +6531,11 @@ void sexp_set_object_orientation(int n)
 	vm_angles_2_matrix(&target_orient, &a);
 
 	// retime all collision checks so they're performed
-	obj_all_collisions_retime();
+	if ( Cmdline_new_collision_sys ) {
+		obj_collide_retime_cached_pairs();
+	} else {
+		obj_all_collisions_retime();
+	}
 
 	switch (oswpt.type)
 	{

@@ -409,7 +409,7 @@ cmdline_parm no_grab("-nograb", NULL);				// Cmdline_no_grab
 #endif
 
 char *Cmdline_start_mission = NULL;
-int Cmdline_new_collision_sys = 1;
+int Cmdline_new_collision_sys = 0;
 int Cmdline_dis_collisions = 0;
 int Cmdline_dis_weapons = 0;
 int Cmdline_noparseerrors = 0;

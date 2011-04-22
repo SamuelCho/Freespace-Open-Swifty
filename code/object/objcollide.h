@@ -85,10 +85,16 @@ void obj_pairs_close();
 void obj_reset_pairs();
 void obj_add_pair( object *A, object *B, int check_time = -1, int add_to_end = 0 );
 
+void obj_add_collider(int obj_index);
+void obj_remove_collider(int obj_index);
+void obj_reset_colliders();
+
 void obj_check_all_collisions();
+void obj_sort_and_collide();
 
 // retimes all collision pairs to be checked (in 25ms by default)
 void obj_all_collisions_retime(int checkdly=25);
+void obj_collide_retime_cached_pairs(int checkdly=25);
 
 // Returns TRUE if the weapon will never hit the other object.
 // If it can it predicts how long until these two objects need
