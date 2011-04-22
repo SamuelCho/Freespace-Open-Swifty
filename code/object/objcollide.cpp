@@ -1236,7 +1236,7 @@ void obj_quicksort_colliders(SCP_vector<int> &list, int left, int right, int axi
 	obj_quicksort_colliders(list, store_index + 1, right, axis);
 }
 
-void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
+void obj_collide_pair(object *A, object *B)
 {
 	uint ctype;
 	int (*check_collision)( obj_pair *pair );

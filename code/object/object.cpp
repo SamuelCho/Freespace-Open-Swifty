@@ -55,7 +55,7 @@ object obj_create_list;
 object *Player_obj = NULL;
 object *Viewer_obj = NULL;
 
-
+extern int Cmdline_new_collision_sys;
 
 //Data for objects
 object Objects[MAX_OBJECTS];
@@ -629,7 +629,6 @@ void obj_delete_all_that_should_be_dead()
 
 }
 
-extern int Cmdline_new_collision_sys;
 // Add all newly created objects to the end of the used list and create their
 // object pairs for collision detection
 void obj_merge_created_list(void)
