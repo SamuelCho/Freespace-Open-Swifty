@@ -1198,61 +1198,42 @@ float obj_get_collider_endpoint(int obj_num, int axis, bool min)
 
 void obj_quicksort_colliders(SCP_vector<int> &list, int left, int right, int axis)
 {
-	/*
-	 function quicksort(array, left, right)
-     if right > left  // subarray of 0 or 1 elements already sorted
-         select a pivotIndex in the range left ? pivotIndex ? right  // see Choice of pivot for possible choices
-         pivotNewIndex := partition(array, left, right, pivotIndex)  // element at pivotNewIndex is now at its final position
-         quicksort(array, left, pivotNewIndex - 1)  // recursively sort elements on the left of pivotNewIndex
-         quicksort(array, pivotNewIndex + 1, right)  // recursively sort elements on the right of pivotNewIndex 
-		 */
 	Assert( axis >= 0 );
 	Assert( axis <= 2 );
 	Assert( left >= 0 );
 	Assert( right < list.size() );
 
-	if ( right > left ) {
-		int pivot_index = left + (right - left) / 2;
-
-		float pivot_value = obj_get_collider_endpoint(list[pivot_index], axis, true);
-
-		// swap!
-		int temp = list[pivot_index];
-		list[pivot_index] = list[right];
-		list[right] = temp;
-
-		int store_index = left;
-
-		size_t i;
-		for ( i = left; i < right; ++i ) {
-			if ( obj_get_collider_endpoint(list[i], axis, true) <= pivot_value ) {
-				temp = list[i];
-				list[i] = list[store_index];
-				list[store_index] = list[i];
-				store_index++;
-			}
-		}
-
-		temp = list[right];
-		list[right] = list[store_index];
-		list[store_index] = list[right];
-
-		obj_quicksort_colliders(list, left, store_index - 1, axis);
-		obj_quicksort_colliders(list, store_index + 1, right, axis);
+	if ( right <= left ) {
+		return;
 	}
 
-	/*
-	function partition(array, left, right, pivotIndex)
-     pivotValue := array[pivotIndex]
-     swap array[pivotIndex] and array[right]  // Move pivot to end
-     storeIndex := left
-     for i  from  left to right - 1 // left ? i < right
-         if array[i] ? pivotValue
-             swap array[i] and array[storeIndex]
-             storeIndex := storeIndex + 1
-     swap array[storeIndex] and array[right]  // Move pivot to its final place
-     return storeIndex
-	*/
+	int pivot_index = left + (right - left) / 2;
+
+	float pivot_value = obj_get_collider_endpoint(list[pivot_index], axis, true);
+
+	// swap!
+	int temp = list[pivot_index];
+	list[pivot_index] = list[right];
+	list[right] = temp;
+
+	int store_index = left;
+
+	size_t i;
+	for ( i = left; i < right; ++i ) {
+		if ( obj_get_collider_endpoint(list[i], axis, true) <= pivot_value ) {
+			temp = list[i];
+			list[i] = list[store_index];
+			list[store_index] = temp;
+			store_index++;
+		}
+	}
+
+	temp = list[right];
+	list[right] = list[store_index];
+	list[store_index] = list[right];
+
+	obj_quicksort_colliders(list, left, store_index - 1, axis);
+	obj_quicksort_colliders(list, store_index + 1, right, axis);
 }
 
 void obj_collide_pair( object *A, object *B, int check_time, int add_to_end )
