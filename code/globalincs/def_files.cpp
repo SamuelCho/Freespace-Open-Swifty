@@ -858,6 +858,10 @@ $Max Aim Update Delay: 0, 0, 0, 0, 0									\n\
 ;; aim. Applies for turrets vs small ships								\n\
 $Turret Max Aim Update Delay: 0, 0, 0, 0, 0								\n\
 																		\n\
+;; The maximum amount of delay allowed before turret AI will update its	\n\
+;; aim. Applies for turrets vs small ships								\n\
+$Detail Distance Multiplier: 0.125, 0.25, 1.0, 4.0, 8.0					\n\
+																		\n\
 ;; General AI-related flags.  These were previously all lumped together	\n\
 ;; under the New AI mission flag.										\n\
 																		\n\
@@ -1002,6 +1006,10 @@ $ai aims from ship center:			NO									\n\
 ;; If set, prevents fighters from linking their weapons in the first	\n\
 ;; few minutes of the mission											\n\
 $allow primary link delay:				YES								\n\
+																		\n\
+;; If set, prevents beams from instantly killing all weapons from first	\n\
+;; hit, instead allows weapon hitpoints to be used instead				\n\
+$allow beams to damage bombs:			NO								\n\
 																		\n\
 #End																	\n\
 ";

@@ -184,18 +184,20 @@ void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos
 
 	// next do a quick sanity check on the current hits that we are keeping for the generic subsystems
 	// I think that there might be rounding problems with the floats.  This code keeps us safe.
-	if ( ship_p->subsys_info[type].num == 1 ) {
-		ship_p->subsys_info[type].current_hits = 0.0f;
+	if ( ship_p->subsys_info[type].type_count == 1 ) {
+		ship_p->subsys_info[type].aggregate_current_hits = 0.0f;
 	} else {
 		float hits;
 		ship_subsys *ssp;
 
 		hits = 0.0f;
 		for ( ssp=GET_FIRST(&ship_p->subsys_list); ssp != END_OF_LIST(&ship_p->subsys_list); ssp = GET_NEXT(ssp) ) {
-			if ( ssp->system_info->type == type )
+			// type matches?
+			if ( (ssp->system_info->type == type) && !(ssp->flags & SSF_NO_AGGREGATE) ) {
 				hits += ssp->current_hits;
+			}
 		}
-		ship_p->subsys_info[type].current_hits = hits;
+		ship_p->subsys_info[type].aggregate_current_hits = hits;
 	}
 
 	// store an event in the event log.  Also, determine if all turrets or all
@@ -244,7 +246,7 @@ void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos
 	}
 
 	if ( psub->type == SUBSYSTEM_TURRET ) {
-		if ( ship_p->subsys_info[type].current_hits == 0.0f ) {
+		if ( ship_p->subsys_info[type].aggregate_current_hits <= 0.0f ) {
 			//	Don't create "disarmed" event for small ships.
 			if (!(Ship_info[ship_p->ship_info_index].flags & SIF_SMALL_SHIP)) {
 				mission_log_add_entry(LOG_SHIP_DISARMED, ship_p->ship_name, NULL );
@@ -255,7 +257,7 @@ void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos
 		// when an engine is destroyed, we must change the max velocity of the ship
 		// to be some fraction of its normal maximum value
 
-		if ( ship_p->subsys_info[type].current_hits == 0.0f ) {
+		if ( ship_p->subsys_info[type].aggregate_current_hits <= 0.0f ) {
 			mission_log_add_entry(LOG_SHIP_DISABLED, ship_p->ship_name, NULL );
 			ship_p->flags |= SF_DISABLED;				// add the disabled flag
 		}
@@ -514,9 +516,11 @@ float do_subobj_hit_stuff(object *ship_obj, object *other_obj, vec3d *hitpos, fl
 			Assert(Player_ai->targeted_subsys != NULL);
 			if ( (subsys == Player_ai->targeted_subsys) && (subsys->current_hits > 0) ) {
 				Assert(subsys->system_info->type == (int) -damage);
-				ship_p->subsys_info[subsys->system_info->type].current_hits -= subsys->current_hits;
-				if (ship_p->subsys_info[subsys->system_info->type].current_hits < 0) {
-					ship_p->subsys_info[subsys->system_info->type].current_hits = 0.0f;
+				if (!(subsys->flags & SSF_NO_AGGREGATE)) {
+					ship_p->subsys_info[subsys->system_info->type].aggregate_current_hits -= subsys->current_hits;
+					if (ship_p->subsys_info[subsys->system_info->type].aggregate_current_hits < 0.0f) {
+						ship_p->subsys_info[subsys->system_info->type].aggregate_current_hits = 0.0f;
+					}
 				}
 				subsys->current_hits = 0.0f;
 				do_subobj_destroyed_stuff( ship_p, subsys, hitpos );
@@ -682,16 +686,20 @@ float do_subobj_hit_stuff(object *ship_obj, object *other_obj, vec3d *hitpos, fl
 			}
 
 			subsys->current_hits -= damage_to_apply;
-			ship_p->subsys_info[subsys->system_info->type].current_hits -= damage_to_apply;
+			if (!(subsys->flags & SSF_NO_AGGREGATE)) {
+				ship_p->subsys_info[subsys->system_info->type].aggregate_current_hits -= damage_to_apply;
+			}
 
 			if (subsys->current_hits < 0.0f) {
 				damage_left -= subsys->current_hits;
-				ship_p->subsys_info[subsys->system_info->type].current_hits -= subsys->current_hits;
+				if (!(subsys->flags & SSF_NO_AGGREGATE)) {
+					ship_p->subsys_info[subsys->system_info->type].aggregate_current_hits -= subsys->current_hits;
+				}
 				subsys->current_hits = 0.0f;					// set to 0 so repair on subsystem takes immediate effect
 			}
 
-			if ( ship_p->subsys_info[subsys->system_info->type].current_hits < 0.0f ){
-				ship_p->subsys_info[subsys->system_info->type].current_hits = 0.0f;
+			if ( ship_p->subsys_info[subsys->system_info->type].aggregate_current_hits < 0.0f ){
+				ship_p->subsys_info[subsys->system_info->type].aggregate_current_hits = 0.0f;
 			}
 
 			// multiplayer clients never blow up subobj stuff on their own
@@ -1305,7 +1313,7 @@ void player_died_start(object *killer_objp)
 }
 
 
-#define	DEATHROLL_TIME						3000			//	generic deathroll is 3 seconds (3 * 1000 milliseconds)
+//#define	DEATHROLL_TIME						3000			//	generic deathroll is 3 seconds (3 * 1000 milliseconds) - Moved to ships.tbl
 #define	MIN_PLAYER_DEATHROLL_TIME		1000			// at least one second deathroll for a player
 #define	DEATHROLL_ROTVEL_CAP				6.3f			// maximum added deathroll rotvel in rad/sec (about 1 rev / sec)
 #define	DEATHROLL_ROTVEL_MIN				0.8f			// minimum added deathroll rotvel in rad/sec (about 1 rev / 12 sec)
@@ -1349,7 +1357,7 @@ void ship_generic_kill_stuff( object *objp, float percent_killed )
 
 	sp->flags |= SF_DYING;
 	objp->phys_info.flags |= (PF_DEAD_DAMP | PF_REDUCED_DAMP);
-	delta_time = (int) (DEATHROLL_TIME);
+	delta_time = (int) (sip->death_roll_base_time);
 
 	//	For smaller ships, subtract off time proportional to excess damage delivered.
 	if (objp->radius < BIG_SHIP_MIN_RADIUS)
@@ -1733,6 +1741,7 @@ void shiphit_hit_after_death(object *ship_obj, float damage)
 	float	percent_killed;
 	int	delta_time, time_remaining;
 	ship	*shipp = &Ships[ship_obj->instance];
+	ship_info *sip = &Ship_info[shipp->ship_info_index];
 
 	// Since the explosion has two phases (final_death_time and really_final_death_time)
 	// we should only shorten the deathroll time if that is the phase we're in.
@@ -1755,7 +1764,7 @@ void shiphit_hit_after_death(object *ship_obj, float damage)
 	if (percent_killed > 1.0f)
 		percent_killed = 1.0f;
 
-	delta_time = (int) (4 * DEATHROLL_TIME * percent_killed);
+	delta_time = (int) (4 * sip->death_roll_base_time * percent_killed);
 	time_remaining = timestamp_until(shipp->final_death_time);
 
 	//nprintf(("AI", "Gametime = %7.3f, Time until %s dies = %7.3f, delta = %7.3f\n", f2fl(Missiontime), Ships[ship_obj->instance].ship_name, (float)time_remaining/1000.0f, delta_time));
@@ -2316,14 +2325,6 @@ void ship_apply_local_damage(object *ship_obj, object *other_obj, vec3d *hitpos,
 		//	Ie, player can always do damage.  AI can only damage team if that ship is targeted.
 		if (wp->target_num != OBJ_INDEX(ship_obj)) {
 			if ((ship_p->team == wp->team) && !(Objects[other_obj->parent].flags & OF_PLAYER_SHIP) ) {
-				/*char	ship_name[64];
-
-				if (other_obj->parent_type == OBJ_SHIP) {
-					strcpy_s(ship_name, Ships[Objects[other_obj->parent].instance].ship_name);
-				} else
-					strcpy_s(ship_name, XSTR("[not a ship]",-1));
-				*/
-				// nprintf(("AI", "Ignoring hit on %s by weapon #%i, parent = %s\n", ship_p->ship_name, other_obj-Objects, ship_name));
 				return;
 			}
 		}
@@ -2342,31 +2343,24 @@ void ship_apply_local_damage(object *ship_obj, object *other_obj, vec3d *hitpos,
 		}
 	}
 
-	// send a packet in multiplayer -- but don't sent it if the ship is already dying.  Clients can
-	// take care of dealing with ship hits after a ship is already dead.
-	// if ( (MULTIPLAYER_MASTER) && !(ship_p->flags & SF_DYING) ){
-		// if this is a player ship which is not mine, send him a ship hit packet
-		// int np_index = multi_find_player_by_object(ship_obj);
-		// if((np_index > 0) && (np_index < MAX_PLAYERS) && (np_index != MY_NET_PLAYER_NUM) && MULTI_CONNECTED(Net_players[np_index])){
-			// send_ship_hit_packet( ship_obj, other_obj, hitpos, damage, quadrant, submodel_num, &Net_players[np_index]);
-		// }
-	// }
-
 	// maybe tag the ship
-	if(!MULTIPLAYER_CLIENT && (other_obj->type == OBJ_WEAPON) && (Weapon_info[Weapons[other_obj->instance].weapon_info_index].wi_flags & WIF_TAG)) {
-		// Goober5000 - temp probably should be hitpos
-		//vector temp;
-		//vm_vec_unrotate(&temp, &ship_obj->pos, &Objects[other_obj->instance].orient);
+	if(!MULTIPLAYER_CLIENT && (other_obj->type == OBJ_WEAPON || other_obj->type == OBJ_BEAM)) {
+		weapon_info *wip = NULL;
 
-		//vm_vec_add2(&temp, &Objects[aip->artillery_objnum].pos);
+		if (other_obj->type == OBJ_WEAPON)
+			wip = &Weapon_info[Weapons[other_obj->instance].weapon_info_index];
+		else if (other_obj->type == OBJ_BEAM)
+			wip = &Weapon_info[Beams[other_obj->instance].weapon_info_index];
 
-		weapon_info *wip = &Weapon_info[Weapons[other_obj->instance].weapon_info_index];
+		Assert(wip != NULL);
 
-		// ssm stuff
-		vec3d *start = hitpos;
-		int ssm_index = wip->SSM_index;
+		if (wip->wi_flags & WIF_TAG) {
+			// ssm stuff
+			vec3d *start = hitpos;
+			int ssm_index = wip->SSM_index;
 
-		ship_apply_tag(ship_obj->instance, wip->tag_level, wip->tag_time, ship_obj, start, ssm_index, wp->team);
+			ship_apply_tag(ship_obj->instance, wip->tag_level, wip->tag_time, ship_obj, start, ssm_index, wp->team);
+		}
 	}
 
 #ifndef NDEBUG

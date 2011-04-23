@@ -21,7 +21,7 @@
 #include "palman/palman.h"
 #include "weapon/trails.h"
 #include "ai/ai.h"
-#include "network/multi_oo.h"
+#include "network/multi_obj.h"
 #include "hud/hudparse.h"
 #include "render/3d.h"
 #include "weapon/shockwave.h"
@@ -146,6 +146,9 @@ typedef struct ship_weapon {
 
 	int	burst_counter[MAX_SHIP_PRIMARY_BANKS + MAX_SHIP_SECONDARY_BANKS];
 	int external_model_fp_counter[MAX_SHIP_PRIMARY_BANKS + MAX_SHIP_SECONDARY_BANKS];
+
+	size_t primary_bank_pattern_index[MAX_SHIP_PRIMARY_BANKS];
+	size_t secondary_bank_pattern_index[MAX_SHIP_SECONDARY_BANKS];
 } ship_weapon;
 
 //**************************************************************
@@ -258,6 +261,9 @@ typedef struct cockpit_display_info {
 #define SSF_MISSILES_IGNORE_IF_DEAD	(1 << 9)	// forces homing missiles to target hull if subsystem is dead before missile hits it.
 #define SSF_ROTATES				(1 << 10)
 #define SSF_DAMAGE_AS_HULL		(1 << 11)		// Applies armor damage instead of subsystem damge. - FUBAR
+#define SSF_NO_AGGREGATE		(1 << 12)		// exclude this subsystem from the aggregate subsystem-info tracking - Goober5000
+
+
 // Wanderer 
 #define SSSF_ALIVE					(1 << 0)		// subsystem has active alive sound
 #define SSSF_DEAD					(1 << 1)		// subsystem has active dead sound
@@ -362,9 +368,9 @@ typedef	struct ship_subsys {
 // we might have 3 engines), and the relative strength of the subsystem.  The #defines in model.h
 // for SUBSYSTEM_xxx will be used as indices into this array.
 typedef struct ship_subsys_info {
-	int	num;				// number of subsystems of type on this ship;
-	float total_hits;		// total number of hits between all subsystems of this type.
-	float current_hits;		// current count of hits for all subsystems of this type.	
+	int	type_count;					// number of subsystems of type on this ship;
+	float aggregate_max_hits;		// maximum number of hits for all subsystems of this type.
+	float aggregate_current_hits;	// current count of hits for all subsystems of this type.	
 } ship_subsys_info;
 
 
@@ -439,6 +445,7 @@ typedef struct ship_subsys_info {
 #define SF2_SET_CLASS_DYNAMICALLY			(1<<18)		// Karajorma - This ship should have its class assigned rather than simply read from the mission file 
 #define SF2_LOCK_ALL_TURRETS_INITIALLY		(1<<19)		// Karajorma - Lock all turrets on this ship at mission start or on arrival
 #define SF2_FORCE_SHIELDS_ON				(1<<20)
+#define SF2_NO_ETS							(1<<21)		// The E - This ship does not have an ETS
 
 // If any of these bits in the ship->flags are set, ignore this ship when targetting
 extern int TARGET_SHIP_IGNORE_FLAGS;
@@ -867,8 +874,9 @@ extern int ship_find_exited_ship_by_signature( int signature);
 #define SIF2_NO_PRIMARY_LINKING				(1 << 10)	// Chief - slated for 3.7 originally, but this looks pretty simple to implement.
 #define SIF2_NO_PAIN_FLASH					(1 << 11)	// The E - disable red pain flash
 #define SIF2_ALLOW_LANDINGS					(1 << 12)	// SUSHI: Automatically set if any subsystems allow landings (as a shortcut)
+#define SIF2_NO_ETS							(1 << 13)	// The E - No ETS on this ship class
 // !!! IF YOU ADD A FLAG HERE BUMP MAX_SHIP_FLAGS !!!
-#define	MAX_SHIP_FLAGS	13		//	Number of distinct flags for flags field in ship_info struct
+#define	MAX_SHIP_FLAGS	14		//	Number of distinct flags for flags field in ship_info struct
 #define	SIF_DEFAULT_VALUE		0
 #define SIF2_DEFAULT_VALUE		0
 
@@ -902,6 +910,17 @@ typedef struct thruster_particles {
 	float		variance;
 } thruster_particles;
 
+typedef struct particle_effect {
+	int				n_low;
+	int				n_high;
+	float			min_rad;
+	float			max_rad;
+	float			min_life;
+	float			max_life;
+	float			min_vel;
+	float			max_vel;
+	float			variance;
+} particle_effect;
 
 #define STI_MSG_COUNTS_FOR_ALONE		(1<<0)
 #define STI_MSG_PRAISE_DESTRUCTION		(1<<1)
@@ -1154,12 +1173,21 @@ typedef struct ship_info {
 	shockwave_create_info shockwave;
 	int	explosion_propagates;				// If true, then the explosion propagates
 	float big_exp_visual_rad;				//SUSHI: The visual size of the main explosion
+	float prop_exp_rad_mult;				// propagating explosions radius multiplier
+	float death_roll_r_mult;
+	float death_fx_r_mult;
+	float death_roll_time_mult;
+	int death_roll_base_time;
+	int death_fx_count;
 	int	shockwave_count;					// the # of total shockwaves
 	SCP_vector<int> explosion_bitmap_anims;
 	float vaporize_chance;					
 
-	int ispew_max_particles;						//Temp field until someone works on particles -C
-	int dspew_max_particles;						//Temp field until someone works on particles -C
+	particle_effect		impact_spew;
+	particle_effect		damage_spew;
+	particle_effect		split_particles;
+	particle_effect		knossos_end_particles;
+	particle_effect		regular_end_particles;
 
 	//Debris stuff
 	float			debris_min_lifetime;
@@ -1506,6 +1534,7 @@ extern int get_subsystem_pos(vec3d *pos, object *objp, ship_subsys *subsysp);
 //Template stuff, here's as good a place as any.
 int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool replace);
 extern int ship_template_lookup(char *name = NULL);
+void parse_ship_particle_effect(ship_info* sip, particle_effect* pe, char *id_string);
 
 extern int ship_info_lookup(char *name = NULL);
 extern int ship_name_lookup(char *name, int inc_players = 0);	// returns the index into Ship array of name
@@ -1662,7 +1691,6 @@ int ship_lock_threat(ship *sp);
 int	bitmask_2_bitnum(int num);
 char	*ship_return_orders(char *outbuf, ship *sp);
 char	*ship_return_time_to_goal(char *outbuf, ship *sp);
-void	ship_check_cargo_all();	// called from game_simulation_frame
 
 void	ship_maybe_warn_player(ship *enemy_sp, float dist);
 void	ship_maybe_praise_player(ship *deader_sp);

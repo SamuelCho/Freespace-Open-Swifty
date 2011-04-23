@@ -663,6 +663,7 @@ void mc_check_subobj( int mn )
 	vec3d tempv;
 	vec3d hitpt;		// used in bounding box check
 	bsp_info * sm;
+	bsp_info *test_sm;
 	int i;
 
 	Assert( mn >= 0 );
@@ -671,6 +672,13 @@ void mc_check_subobj( int mn )
 	if ( (mn < 0) || (mn>=Mc_pm->n_models) ) return;
 	
 	sm = &Mc_pm->submodel[mn];
+
+	if ( sm->collision_model >= 0 ) {
+		test_sm = &Mc_pm->submodel[sm->collision_model];
+	} else {
+		test_sm = sm;
+	}
+
 	if (sm->no_collisions) return; // don't do collisions
 	if (sm->nocollide_this_only) goto NoHit; // Don't collide for this model, but keep checking others
 
@@ -714,7 +722,7 @@ void mc_check_subobj( int mn )
 	Mc_submodel = mn;
 
 	// Check if the ray intersects this subobject's bounding box 	
-	if (mc_ray_boundingbox(&sm->min, &sm->max, &Mc_p0, &Mc_direction, &hitpt))	{
+	if (mc_ray_boundingbox(&test_sm->min, &test_sm->max, &Mc_p0, &Mc_direction, &hitpt))	{
 
 		// The ray interects this bounding box, so we have to check all the
 		// polygons in this submodel.
@@ -733,7 +741,7 @@ void mc_check_subobj( int mn )
 			Mc->hit_bitmap = -1;
 			Mc->num_hits++;
 		} else {
-			model_collide_sub(sm->bsp_data);
+			model_collide_sub(test_sm->bsp_data);
 		}
 	} else {
 		//Int3();
@@ -846,10 +854,17 @@ int model_collide(mc_info * mc_info)
 
 	float model_radius;		// How big is the model we're checking against
 	int first_submodel;		// Which submodel gets returned as hit if MC_ONLY_SPHERE specified
+	int collision_submodel;
 
 	if ( (Mc->flags & MC_SUBMODEL) || (Mc->flags & MC_SUBMODEL_INSTANCE) )	{
 		first_submodel = Mc->submodel_num;
-		model_radius = Mc_pm->submodel[first_submodel].rad;
+		collision_submodel = Mc_pm->submodel[first_submodel].collision_model;
+
+		if ( collision_submodel >= 0 ) {
+			model_radius = Mc_pm->submodel[collision_submodel].rad;
+		} else {
+			model_radius = Mc_pm->submodel[first_submodel].rad;
+		}
 	} else {
 		first_submodel = Mc_pm->detail[0];
 		model_radius = Mc_pm->rad;
