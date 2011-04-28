@@ -469,7 +469,7 @@ void model_collide_sortnorm(ubyte * p)
 
 	if ( Mc_pm->version >= 2000 )	{
 		if ( mc_ray_boundingbox( vp(p+56), vp(p+68), &Mc_p0, &Mc_direction, &hitpos) )	{
-			if ( !(Mc->flags & MC_CHECK_RAY) && (vm_vec_dist(&hitpos, &Mc_p0) > 1.0f) ) {
+			if ( !(Mc->flags & MC_CHECK_RAY) && (vm_vec_dist(&hitpos, &Mc_p0) > Mc_mag) ) {
 				return;
 			}
 		} else {
@@ -507,7 +507,7 @@ int model_collide_sub(void *model_ptr )
 		case OP_SORTNORM:		model_collide_sortnorm(p); break;
 		case OP_BOUNDBOX:	
 			if ( mc_ray_boundingbox( vp(p+8), vp(p+20), &Mc_p0, &Mc_direction, &hitpos ) )	{
-				if ( !(Mc->flags & MC_CHECK_RAY) && (vm_vec_dist(&hitpos, &Mc_p0) > 1.0f) ) {
+				if ( !(Mc->flags & MC_CHECK_RAY) && (vm_vec_dist(&hitpos, &Mc_p0) > Mc_mag) ) {
 					// The ray isn't long enough to intersect the bounding box
 					return 1;
 				}
