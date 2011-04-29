@@ -42,7 +42,13 @@ obj_pair pair_used_list;
 obj_pair pair_free_list;
 
 SCP_vector<int> Collision_sort_list;
+SCP_vector<int> overlappers;
+SCP_vector<int> sort_list_y;
+SCP_vector<int> sort_list_z;
 SCP_map<uint, collider_pair> Collision_cached_pairs;
+
+struct checkobject;
+extern checkobject CheckObjects[MAX_OBJECTS];
 
 void obj_pairs_close()
 {
@@ -1083,11 +1089,25 @@ void init_collision_info_struct(collision_info_struct *cis)
 
 void obj_add_collider(int obj_index)
 {
+#ifdef OBJECT_CHECK 
+	object *objp = &Objects[obj_index];
+
+	CheckObjects[obj_index].type = objp->type;
+	CheckObjects[obj_index].signature = objp->signature;
+	CheckObjects[obj_index].flags = objp->flags & ~(OF_NOT_IN_COLL);
+	CheckObjects[obj_index].parent_sig = objp->parent_sig;
+	CheckObjects[obj_index].parent_type = objp->parent_type;
+#endif	
+
 	Collision_sort_list.push_back(obj_index);
 }
 
 void obj_remove_collider(int obj_index)
 {
+#ifdef OBJECT_CHECK 
+	CheckObjects[obj_index].flags |= OF_NOT_IN_COLL;
+#endif	
+
 	size_t i;
 
 	for ( i = 0; i < Collision_sort_list.size(); ++i ) {
@@ -1116,40 +1136,39 @@ void obj_collide_retime_cached_pairs(int checkdly)
 void obj_sort_and_collide()
 {
 	size_t i;
-	SCP_vector<int> sort_list_y;
-	SCP_vector<int> sort_list_z;
 
 	sort_list_y.clear();
-	obj_quicksort_colliders(Collision_sort_list, 0, Collision_sort_list.size() - 1, 0);
-	obj_find_overlap_colliders(sort_list_y, Collision_sort_list, 0, false);
+	obj_quicksort_colliders(&Collision_sort_list, 0, Collision_sort_list.size() - 1, 0);
+	obj_find_overlap_colliders(&sort_list_y, &Collision_sort_list, 0, false);
 
 	sort_list_z.clear();
-	obj_quicksort_colliders(sort_list_y, 0, sort_list_y.size() - 1, 1);
-	obj_find_overlap_colliders(sort_list_z, sort_list_y, 1, false);
+	obj_quicksort_colliders(&sort_list_y, 0, sort_list_y.size() - 1, 1);
+	obj_find_overlap_colliders(&sort_list_z, &sort_list_y, 1, false);
 
 	sort_list_y.clear();
-	obj_quicksort_colliders(sort_list_z, 0, sort_list_z.size() - 1, 2);
-	obj_find_overlap_colliders(sort_list_y, sort_list_z, 2, true);
+	obj_quicksort_colliders(&sort_list_z, 0, sort_list_z.size() - 1, 2);
+	obj_find_overlap_colliders(&sort_list_y, &sort_list_z, 2, true);
 }
 
-void obj_find_overlap_colliders(SCP_vector<int> &overlap_list_out, SCP_vector<int> &list, int axis, bool collide)
+void obj_find_overlap_colliders(SCP_vector<int> *overlap_list_out, SCP_vector<int> *list, int axis, bool collide)
 {
 	size_t i, j;
 	bool overlapped;
-	SCP_vector<int> overlappers;
+	
+	overlappers.clear();
 
-	for ( i = 0; i < list.size(); ++i ) {
+	for ( i = 0; i < (*list).size(); ++i ) {
 		overlapped = false;
 
 		for ( j = 0; j < overlappers.size(); ) {
-			if ( obj_get_collider_endpoint(list[i], axis, true) < obj_get_collider_endpoint(overlappers[j], axis, false) ) {
+			if ( obj_get_collider_endpoint((*list)[i], axis, true) < obj_get_collider_endpoint(overlappers[j], axis, false) ) {
 				overlapped = true;
 				
 				if( collide ) {
-					obj_collide_pair(&Objects[list[i]], &Objects[overlappers[j]]);
+					obj_collide_pair(&Objects[(*list)[i]], &Objects[overlappers[j]]);
 				}
 			} else {
-				overlappers[i] = overlappers.back();
+				overlappers[j] = overlappers.back();
 				overlappers.pop_back();
 				continue;
 			}
@@ -1158,10 +1177,10 @@ void obj_find_overlap_colliders(SCP_vector<int> &overlap_list_out, SCP_vector<in
 		}
 
 		if ( overlapped ) {
-			overlap_list_out.push_back(list[i]);
+			overlap_list_out->push_back((*list)[i]);
 		}
 
-		overlappers.push_back(list[i]);
+		overlappers.push_back((*list)[i]);
 	}
 }
 
@@ -1196,41 +1215,47 @@ float obj_get_collider_endpoint(int obj_num, int axis, bool min)
 	}
 }
 
-void obj_quicksort_colliders(SCP_vector<int> &list, int left, int right, int axis)
+void obj_quicksort_colliders(SCP_vector<int> *list, int left, int right, int axis)
 {
 	Assert( axis >= 0 );
 	Assert( axis <= 2 );
-	Assert( left >= 0 );
-	Assert( right < list.size() );
 
 	if ( right <= left ) {
 		return;
 	}
 
+	if ( right >= list->size() || right < 0 ) {
+		return;
+	}
+
+	if ( left >= list->size() || left < 0 ) {
+		return;
+	}
+
 	int pivot_index = left + (right - left) / 2;
 
-	float pivot_value = obj_get_collider_endpoint(list[pivot_index], axis, true);
+	float pivot_value = obj_get_collider_endpoint((*list)[pivot_index], axis, true);
 
 	// swap!
-	int temp = list[pivot_index];
-	list[pivot_index] = list[right];
-	list[right] = temp;
+	int temp = (*list)[pivot_index];
+	(*list)[pivot_index] = (*list)[right];
+	(*list)[right] = temp;
 
 	int store_index = left;
 
 	size_t i;
-	for ( i = left; i < right; ++i ) {
-		if ( obj_get_collider_endpoint(list[i], axis, true) <= pivot_value ) {
-			temp = list[i];
-			list[i] = list[store_index];
-			list[store_index] = temp;
+	for ( i = left; i < right-1; ++i ) {
+		if ( obj_get_collider_endpoint((*list)[i], axis, true) <= pivot_value ) {
+			temp = (*list)[i];
+			(*list)[i] = (*list)[store_index];
+			(*list)[store_index] = temp;
 			store_index++;
 		}
 	}
 
-	temp = list[right];
-	list[right] = list[store_index];
-	list[store_index] = list[right];
+	temp = (*list)[right];
+	(*list)[right] = (*list)[store_index];
+	(*list)[store_index] = temp;
 
 	obj_quicksort_colliders(list, left, store_index - 1, axis);
 	obj_quicksort_colliders(list, store_index + 1, right, axis);

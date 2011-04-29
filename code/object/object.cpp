@@ -61,14 +61,6 @@ extern int Cmdline_new_collision_sys;
 object Objects[MAX_OBJECTS];
 
 #ifdef OBJECT_CHECK 
-typedef struct checkobject
-{
-	int	type;
-	int	signature;
-	uint	flags;
-	int	parent_sig;
-	int	parent_type;
-} checkobject;
 checkobject CheckObjects[MAX_OBJECTS];
 #endif
 
