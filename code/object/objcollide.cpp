@@ -42,9 +42,6 @@ obj_pair pair_used_list;
 obj_pair pair_free_list;
 
 SCP_vector<int> Collision_sort_list;
-SCP_vector<int> overlappers;
-SCP_vector<int> sort_list_y;
-SCP_vector<int> sort_list_z;
 SCP_map<uint, collider_pair> Collision_cached_pairs;
 
 struct checkobject;
@@ -1135,7 +1132,8 @@ void obj_collide_retime_cached_pairs(int checkdly)
 
 void obj_sort_and_collide()
 {
-	size_t i;
+	SCP_vector<int> sort_list_y;
+	SCP_vector<int> sort_list_z;
 
 	sort_list_y.clear();
 	obj_quicksort_colliders(&Collision_sort_list, 0, Collision_sort_list.size() - 1, 0);
@@ -1154,6 +1152,7 @@ void obj_find_overlap_colliders(SCP_vector<int> *overlap_list_out, SCP_vector<in
 {
 	size_t i, j;
 	bool overlapped;
+	SCP_vector<int> overlappers;
 	
 	overlappers.clear();
 
