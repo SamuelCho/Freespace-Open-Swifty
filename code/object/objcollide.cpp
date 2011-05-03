@@ -1086,17 +1086,23 @@ void init_collision_info_struct(collision_info_struct *cis)
 
 void obj_add_collider(int obj_index)
 {
-#ifdef OBJECT_CHECK 
 	object *objp = &Objects[obj_index];
 
+#ifdef OBJECT_CHECK 
 	CheckObjects[obj_index].type = objp->type;
 	CheckObjects[obj_index].signature = objp->signature;
 	CheckObjects[obj_index].flags = objp->flags & ~(OF_NOT_IN_COLL);
 	CheckObjects[obj_index].parent_sig = objp->parent_sig;
 	CheckObjects[obj_index].parent_type = objp->parent_type;
-#endif	
+#endif
+
+	if(!(objp->flags & OF_NOT_IN_COLL)){
+		return;
+	}
 
 	Collision_sort_list.push_back(obj_index);
+
+	objp->flags &= ~OF_NOT_IN_COLL;	
 }
 
 void obj_remove_collider(int obj_index)
@@ -1114,6 +1120,8 @@ void obj_remove_collider(int obj_index)
 			break;
 		}
 	}
+
+	Objects[obj_index].flags |= OF_NOT_IN_COLL;	
 }
 
 void obj_reset_colliders()
@@ -1152,18 +1160,34 @@ void obj_find_overlap_colliders(SCP_vector<int> *overlap_list_out, SCP_vector<in
 {
 	size_t i, j;
 	bool overlapped;
+	bool first_not_added = true;
 	SCP_vector<int> overlappers;
+
+	float min;
+	float max;
+	float overlap_min;
+	float overlap_max;
 	
 	overlappers.clear();
 
 	for ( i = 0; i < (*list).size(); ++i ) {
 		overlapped = false;
 
+		min = obj_get_collider_endpoint((*list)[i], axis, true);
+		max = obj_get_collider_endpoint((*list)[i], axis, false);
+
 		for ( j = 0; j < overlappers.size(); ) {
-			if ( obj_get_collider_endpoint((*list)[i], axis, true) < obj_get_collider_endpoint(overlappers[j], axis, false) ) {
+			overlap_min = obj_get_collider_endpoint(overlappers[j], axis, true);
+			overlap_max = obj_get_collider_endpoint(overlappers[j], axis, false);
+			if ( min <= overlap_max ) {
 				overlapped = true;
+
+				if ( overlappers.size() == 1 && first_not_added ) {
+					first_not_added = false;
+					overlap_list_out->push_back(overlappers[j]);
+				}
 				
-				if( collide ) {
+				if ( collide ) {
 					obj_collide_pair(&Objects[(*list)[i]], &Objects[overlappers[j]]);
 				}
 			} else {
@@ -1175,12 +1199,18 @@ void obj_find_overlap_colliders(SCP_vector<int> *overlap_list_out, SCP_vector<in
 			++j;
 		}
 
+		if ( overlappers.size() == 0 ) {
+			first_not_added = true;
+		}
+
 		if ( overlapped ) {
 			overlap_list_out->push_back((*list)[i]);
 		}
 
 		overlappers.push_back((*list)[i]);
 	}
+
+	overlapped = true;
 }
 
 float obj_get_collider_endpoint(int obj_num, int axis, bool min)
@@ -1219,45 +1249,35 @@ void obj_quicksort_colliders(SCP_vector<int> *list, int left, int right, int axi
 	Assert( axis >= 0 );
 	Assert( axis <= 2 );
 
-	if ( right <= left ) {
-		return;
-	}
+	if ( right > left ) {
+		int pivot_index = left + (right - left) / 2;
 
-	if ( right >= list->size() || right < 0 ) {
-		return;
-	}
+		float pivot_value = obj_get_collider_endpoint((*list)[pivot_index], axis, true);
 
-	if ( left >= list->size() || left < 0 ) {
-		return;
-	}
+		// swap!
+		int temp = (*list)[pivot_index];
+		(*list)[pivot_index] = (*list)[right];
+		(*list)[right] = temp;
 
-	int pivot_index = left + (right - left) / 2;
+		int store_index = left;
 
-	float pivot_value = obj_get_collider_endpoint((*list)[pivot_index], axis, true);
-
-	// swap!
-	int temp = (*list)[pivot_index];
-	(*list)[pivot_index] = (*list)[right];
-	(*list)[right] = temp;
-
-	int store_index = left;
-
-	size_t i;
-	for ( i = left; i < right-1; ++i ) {
-		if ( obj_get_collider_endpoint((*list)[i], axis, true) <= pivot_value ) {
-			temp = (*list)[i];
-			(*list)[i] = (*list)[store_index];
-			(*list)[store_index] = temp;
-			store_index++;
+		size_t i;
+		for ( i = left; i < right; ++i ) {
+			if ( obj_get_collider_endpoint((*list)[i], axis, true) <= pivot_value ) {
+				temp = (*list)[i];
+				(*list)[i] = (*list)[store_index];
+				(*list)[store_index] = temp;
+				store_index++;
+			}
 		}
+
+		temp = (*list)[right];
+		(*list)[right] = (*list)[store_index];
+		(*list)[store_index] = temp;
+
+		obj_quicksort_colliders(list, left, store_index - 1, axis);
+		obj_quicksort_colliders(list, store_index + 1, right, axis);
 	}
-
-	temp = (*list)[right];
-	(*list)[right] = (*list)[store_index];
-	(*list)[store_index] = temp;
-
-	obj_quicksort_colliders(list, left, store_index - 1, axis);
-	obj_quicksort_colliders(list, store_index + 1, right, axis);
 }
 
 void obj_collide_pair(object *A, object *B)
