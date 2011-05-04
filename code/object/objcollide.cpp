@@ -1261,7 +1261,7 @@ void obj_quicksort_colliders(SCP_vector<int> *list, int left, int right, int axi
 
 		int store_index = left;
 
-		size_t i;
+		int i;
 		for ( i = left; i < right; ++i ) {
 			if ( obj_get_collider_endpoint((*list)[i], axis, true) <= pivot_value ) {
 				temp = (*list)[i];
@@ -1443,8 +1443,7 @@ void obj_collide_pair(object *A, object *B)
 
 	collider_pair *collision_info = NULL;
 	bool valid = false;
-	int new_time;
-	uint key = OBJ_INDEX(A) << 12 + OBJ_INDEX(B);
+	uint key = (OBJ_INDEX(A) << 12) + OBJ_INDEX(B);
 
 	collision_info = &Collision_cached_pairs[key];
 
