@@ -527,6 +527,72 @@ int model_collide_sub(void *model_ptr )
 	return 1;
 }
 
+void model_collide_sub_iter(void *model_ptr)
+{
+	SCP_vector<ubyte*> chunk_stack; // using a vector as a makeshift stack
+
+	ubyte *p;
+	int chunk_type, chunk_size;
+	vec3d hitpos;
+	bool break_loop;
+
+	chunk_stack.push_back( (ubyte *)model_ptr );
+
+	while ( chunk_stack.size() > 0 ) {
+		p = chunk_stack.back();
+		chunk_stack.pop_back();
+
+		chunk_type = w(p);
+		chunk_size = w(p+4);
+
+		if ( chunk_type != OP_EOF ) {
+			chunk_stack.push_back(p + chunk_size);
+
+			switch ( chunk_type ) {
+			case OP_EOF: chunk_stack.pop_back(); break;
+			case OP_DEFPOINTS:
+				model_collide_defpoints(p);
+				break;
+			case OP_FLATPOLY:
+				model_collide_flatpoly(p);
+				break;
+			case OP_TMAPPOLY:
+				model_collide_tmappoly(p);
+				break;
+			case OP_SORTNORM:
+				int frontlist = w(p+36);
+				int backlist = w(p+40);
+				int prelist = w(p+44);
+				int postlist = w(p+48);
+				int onlist = w(p+52);
+				vec3d hitpos;
+
+				if ( Mc_pm->version >= 2000 )	{
+					if ( !mc_ray_boundingbox( vp(p+56), vp(p+68), &Mc_p0, &Mc_direction, NULL ) )	{
+						chunk_stack.pop_back();
+					}
+				} else {
+					if (postlist) chunk_stack.push_back(p+postlist);
+					if (frontlist) chunk_stack.push_back(p+frontlist);
+					if (onlist) chunk_stack.push_back(p+onlist);
+					if (backlist) chunk_stack.push_back(p+backlist);
+					if (prelist) chunk_stack.push_back(p+prelist);
+				}
+				break;
+			case OP_BOUNDBOX:
+				if ( !mc_ray_boundingbox( vp(p+8), vp(p+20), &Mc_p0, &Mc_direction, NULL ) ) {
+					chunk_stack.pop_back();
+				}
+				break;
+			default:
+				mprintf(( "Bad chunk type %d, len=%d in model_collide_sub\n", chunk_type, chunk_size ));
+				Int3();		// Bad chunk type!
+				return;
+			}
+		}
+	}
+}
+
 bool mc_shield_check_common(shield_tri	*tri)
 {
 	vec3d * points[3];
@@ -744,7 +810,8 @@ void mc_check_subobj( int mn )
 			Mc->hit_bitmap = -1;
 			Mc->num_hits++;
 		} else {
-			model_collide_sub(sm->bsp_data);
+			//model_collide_sub(sm->bsp_data);
+			model_collide_sub_iter(sm->bsp_data);
 		}
 	} else {
 		//Int3();
