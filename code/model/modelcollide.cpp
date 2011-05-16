@@ -530,11 +530,17 @@ int model_collide_sub(void *model_ptr )
 void model_collide_sub_iter(void *model_ptr)
 {
 	SCP_vector<ubyte*> chunk_stack; // using a vector as a makeshift stack
+	chunk_stack.clear();
 
 	ubyte *p;
 	int chunk_type, chunk_size;
 	vec3d hitpos;
-	bool break_loop;
+
+	int frontlist;
+	int backlist;
+	int prelist;
+	int postlist;
+	int onlist;
 
 	chunk_stack.push_back( (ubyte *)model_ptr );
 
@@ -560,16 +566,23 @@ void model_collide_sub_iter(void *model_ptr)
 				model_collide_tmappoly(p);
 				break;
 			case OP_SORTNORM:
-				int frontlist = w(p+36);
-				int backlist = w(p+40);
-				int prelist = w(p+44);
-				int postlist = w(p+48);
-				int onlist = w(p+52);
-				vec3d hitpos;
+				frontlist = w(p+36);
+				backlist = w(p+40);
+				prelist = w(p+44);
+				postlist = w(p+48);
+				onlist = w(p+52);
 
-				if ( Mc_pm->version >= 2000 )	{
-					if ( !mc_ray_boundingbox( vp(p+56), vp(p+68), &Mc_p0, &Mc_direction, NULL ) )	{
-						chunk_stack.pop_back();
+				if ( Mc_pm->version >= 2000 ) {
+					if ( mc_ray_boundingbox( vp(p+56), vp(p+68), &Mc_p0, &Mc_direction, &hitpos) )	{
+						if ( !(Mc->flags & MC_CHECK_RAY) && (vm_vec_dist(&hitpos, &Mc_p0) > Mc_mag) ) {
+							// The ray isn't long enough to intersect the bounding box
+						} else {
+							if (postlist) chunk_stack.push_back(p+postlist);
+							if (frontlist) chunk_stack.push_back(p+frontlist);
+							if (onlist) chunk_stack.push_back(p+onlist);
+							if (backlist) chunk_stack.push_back(p+backlist);
+							if (prelist) chunk_stack.push_back(p+prelist);
+						}
 					}
 				} else {
 					if (postlist) chunk_stack.push_back(p+postlist);
@@ -580,7 +593,12 @@ void model_collide_sub_iter(void *model_ptr)
 				}
 				break;
 			case OP_BOUNDBOX:
-				if ( !mc_ray_boundingbox( vp(p+8), vp(p+20), &Mc_p0, &Mc_direction, NULL ) ) {
+				if ( mc_ray_boundingbox( vp(p+8), vp(p+20), &Mc_p0, &Mc_direction, &hitpos ) )	{
+					if ( !(Mc->flags & MC_CHECK_RAY) && (vm_vec_dist(&hitpos, &Mc_p0) > Mc_mag) ) {
+						// The ray isn't long enough to intersect the bounding box
+						chunk_stack.pop_back();
+					}
+				} else {
 					chunk_stack.pop_back();
 				}
 				break;
