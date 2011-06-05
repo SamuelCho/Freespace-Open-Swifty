@@ -561,6 +561,7 @@ sexp_oper Operators[] = {
 	{ "ai-keep-safe-distance",	OP_AI_KEEP_SAFE_DISTANCE,	1, 1, },
 	{ "ai-stay-still",			OP_AI_STAY_STILL,				2, 2, },
 	{ "ai-play-dead",				OP_AI_PLAY_DEAD,				1, 1, },
+	{ "ai-form-on-wing",		OP_AI_FORM_ON_WING,			1,	1 },
 
 	{ "goals",	OP_GOALS_ID,	1, INT_MAX, },
 
@@ -613,6 +614,7 @@ sexp_oper Operators[] = {
 	{ "lock-perspective",			OP_CUTSCENES_FORCE_PERSPECTIVE,			1, 2, },
 	{ "set-camera-shudder",			OP_SET_CAMERA_SHUDDER,					2, 2, },
 
+	{ "set-jumpnode-name",			OP_JUMP_NODE_SET_JUMPNODE_NAME,			2, 2, }, //CommanderDJ
 	{ "set-jumpnode-color",			OP_JUMP_NODE_SET_JUMPNODE_COLOR,		5, 5, },
 	{ "set-jumpnode-model",			OP_JUMP_NODE_SET_JUMPNODE_MODEL,		3, 3, },
 	{ "show-jumpnode",				OP_JUMP_NODE_SHOW_JUMPNODE,				1, 1, },
@@ -650,6 +652,7 @@ sexp_ai_goal_link Sexp_ai_goal_links[] = {
 	{ AI_GOAL_IGNORE_NEW, OP_AI_IGNORE_NEW },
 	{ AI_GOAL_STAY_STILL, OP_AI_STAY_STILL },
 	{ AI_GOAL_PLAY_DEAD, OP_AI_PLAY_DEAD },
+	{ AI_GOAL_FORM_ON_WING, OP_AI_FORM_ON_WING }
 };
 
 char *HUD_gauge_text[NUM_HUD_GAUGES] = 
@@ -762,9 +765,10 @@ int hud_gauge_type_lookup(char* name);
 #define EO_INNER_RADIUS		2
 #define EO_OUTER_RADIUS		3
 #define EO_SHOCKWAVE_SPEED	4
+#define EO_DEATH_ROLL_TIME	5
 int sexp_explosion_option_lookup(char *text);
-char *Explosion_option[] = { "damage", "blast", "inner radius", "outer radius", "shockwave speed" };
-int Num_explosion_options = 5;
+char *Explosion_option[] = { "damage", "blast", "inner radius", "outer radius", "shockwave speed", "death roll time" };
+int Num_explosion_options = 6;
 
 int get_sexp(char *token);
 void build_extended_sexp_string(int cur_node, int level, int mode, int max_len);
@@ -3374,7 +3378,7 @@ void build_sexp_text_string(char *buffer, int node, int mode)
 	if (Sexp_nodes[node].type & SEXP_FLAG_VARIABLE) {
 
 		int sexp_variables_index = get_index_sexp_variable_name(Sexp_nodes[node].text);
-		Assert(sexp_variables_index != -1);
+		Assertion(sexp_variables_index != -1, "Couldn't find variable: %s\n", Sexp_nodes[node].text);
 		Assert( (Sexp_variables[sexp_variables_index].type & SEXP_VARIABLE_NUMBER) || (Sexp_variables[sexp_variables_index].type & SEXP_VARIABLE_STRING) );
 
 		// number
@@ -9781,6 +9785,7 @@ void sexp_set_explosion_option(int node)
 		shipp->special_exp_inner = sci->inner_rad;
 		shipp->special_exp_outer = sci->outer_rad;
 		shipp->special_exp_shockwave_speed = sci->speed;
+		shipp->special_exp_deathroll_time = 0;
 
 		shipp->use_special_explosion = true;
 		shipp->use_shockwave = (sci->speed > 0);
@@ -9811,12 +9816,19 @@ void sexp_set_explosion_option(int node)
 		} else if (option == EO_SHOCKWAVE_SPEED) {
 			shipp->special_exp_shockwave_speed = (float)val;
 			shipp->use_shockwave = (val > 0);
+		} else if (option == EO_DEATH_ROLL_TIME) {
+			shipp->special_exp_deathroll_time = val;
+
+			// hmm, it would be cool to modify the explosion in progress
+			if (shipp->flags & SF_DYING && val >= 2) {
+				shipp->final_death_time = timestamp(val);
+			}
 		}
 	}
 
 	// if all our values are the same as a standard exp, turn off the special exp
 	if ((shipp->special_exp_damage == sci->damage) && (shipp->special_exp_blast == sci->blast) && (shipp->special_exp_inner == sci->inner_rad)
-		&& (shipp->special_exp_outer == sci->outer_rad) && (shipp->special_exp_shockwave_speed == sci->speed))
+		&& (shipp->special_exp_outer == sci->outer_rad) && (shipp->special_exp_shockwave_speed == sci->speed) && (shipp->special_exp_deathroll_time == 0))
 	{
 		shipp->use_special_explosion = false;
 		shipp->use_shockwave = false;
@@ -9826,6 +9838,7 @@ void sexp_set_explosion_option(int node)
 		shipp->special_exp_inner = -1;
 		shipp->special_exp_outer = -1;
 		shipp->special_exp_shockwave_speed = -1;
+		shipp->special_exp_deathroll_time = 0;
 	}
 }
 
@@ -17780,7 +17793,7 @@ void sexp_toggle_cutscene_bars(int node, int set)
 	multi_end_packet();
 }
 
-void muli_sexp_toggle_cutscene_bars(int set)
+void multi_sexp_toggle_cutscene_bars(int set)
 {
 	float delta_speed;
 
@@ -18715,6 +18728,46 @@ void multi_sexp_set_camera_shudder()
 	}
 }
 
+void sexp_set_jumpnode_name(int n) //CommanderDJ
+{
+	jump_node *jnp = jumpnode_get_by_name(CTEXT(n));
+	
+	char *old_name = CTEXT(n); //for multi
+
+	if(jnp==NULL) 
+		return;
+
+	n=CDR(n);
+
+	jnp->set_name(CTEXT(n));
+
+	char *new_name = CTEXT(n); //for multi
+
+	//multiplayer callback
+	multi_start_packet();
+	multi_send_string(old_name);
+	multi_send_string(new_name);
+	multi_end_packet();
+}
+
+void multi_sexp_set_jumpnode_name(int n) //CommanderDJ
+{
+	char *old_name = "\0";
+	
+	multi_get_string(old_name);
+
+	char *new_name = "\0";
+
+	multi_get_string(new_name);
+
+	jump_node *jnp = jumpnode_get_by_name(old_name);
+
+	if(jnp==NULL) 
+		return;
+
+	jnp->set_name(new_name);
+}
+
 void sexp_set_jumpnode_color(int n)
 {
 	jump_node *jnp = jumpnode_get_by_name(CTEXT(n));
@@ -18736,7 +18789,7 @@ void sexp_set_jumpnode_model(int n)
 
 	n=CDR(n);
 
-	jnp->set_model(CTEXT(n),(CDR(n)==SEXP_KNOWN_TRUE));
+	jnp->set_model(CTEXT(n), is_sexp_true(CDR(n)) != 0);
 }
 
 void sexp_show_jumpnode(int n)
@@ -20748,6 +20801,11 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_set_camera_shudder(node);
 				break;
 
+			case OP_JUMP_NODE_SET_JUMPNODE_NAME: //CommanderDJ
+				sexp_val = SEXP_TRUE;
+				sexp_set_jumpnode_name(node);
+				break;
+
 			case OP_JUMP_NODE_SET_JUMPNODE_COLOR:
 				sexp_val = SEXP_TRUE;
 				sexp_set_jumpnode_color(node);
@@ -21037,11 +21095,15 @@ void multi_sexp_eval()
 				break;
 
 			case OP_CUTSCENES_SET_CUTSCENE_BARS:
-				muli_sexp_toggle_cutscene_bars(op_num == OP_CUTSCENES_SET_CUTSCENE_BARS );
+				multi_sexp_toggle_cutscene_bars(op_num == OP_CUTSCENES_SET_CUTSCENE_BARS );
 				break;
 
 			case OP_SET_CAMERA_SHUDDER:
 				multi_sexp_set_camera_shudder();
+				break;
+
+			case OP_JUMP_NODE_SET_JUMPNODE_NAME:
+				multi_sexp_set_jumpnode_name(op_num == OP_JUMP_NODE_SET_JUMPNODE_NAME);
 				break;
 
 			// bad sexp in the packet
@@ -21598,6 +21660,7 @@ int query_operator_return_type(int op)
 		case OP_CUTSCENES_RESET_TIME_COMPRESSION:
 		case OP_CUTSCENES_FORCE_PERSPECTIVE:
 		case OP_SET_CAMERA_SHUDDER:
+		case OP_JUMP_NODE_SET_JUMPNODE_NAME: //CommanderDJ
 		case OP_JUMP_NODE_SET_JUMPNODE_COLOR:
 		case OP_JUMP_NODE_SET_JUMPNODE_MODEL:
 		case OP_JUMP_NODE_SHOW_JUMPNODE:
@@ -21671,6 +21734,7 @@ int query_operator_return_type(int op)
 		case OP_AI_IGNORE_NEW:
 		case OP_AI_STAY_STILL:
 		case OP_AI_PLAY_DEAD:
+		case OP_AI_FORM_ON_WING:
 			return OPR_AI_GOAL;
 
 		case OP_ANY_OF:
@@ -22608,6 +22672,9 @@ int query_operator_argument_type(int op, int argnum)
 			else
 				return OPF_POSITIVE;
 
+		case OP_AI_FORM_ON_WING:
+			return OPF_SHIP;
+
 		case OP_GOOD_REARM_TIME:
 			if ( argnum == 0 )
 				return OPF_IFF;
@@ -23341,6 +23408,12 @@ int query_operator_argument_type(int op, int argnum)
 
 		//</Cutscenes>
 
+		case OP_JUMP_NODE_SET_JUMPNODE_NAME: //CommanderDJ
+			if(argnum==0)
+				return OPF_JUMP_NODE_NAME;
+			else if (argnum==1)
+				return OPF_STRING;
+
 		case OP_JUMP_NODE_SET_JUMPNODE_COLOR:
 			if(argnum==0)
 				return OPF_JUMP_NODE_NAME;
@@ -23350,8 +23423,10 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_JUMP_NODE_SET_JUMPNODE_MODEL:
 			if(argnum==0)
 				return OPF_JUMP_NODE_NAME;
-			else
+			else if (argnum == 1)
 				return OPF_STRING;
+			else
+				return OPF_BOOL;
 
 		case OP_JUMP_NODE_SHOW_JUMPNODE:
 		case OP_JUMP_NODE_HIDE_JUMPNODE:
@@ -24842,6 +24917,7 @@ int get_subcategory(int sexp_id)
 		case OP_SUPERNOVA_START:
 			return CHANGE_SUBCATEGORY_CUTSCENES;
 
+		case OP_JUMP_NODE_SET_JUMPNODE_NAME: //CommanderDJ
 		case OP_JUMP_NODE_SET_JUMPNODE_COLOR:
 		case OP_JUMP_NODE_SET_JUMPNODE_MODEL:
 		case OP_JUMP_NODE_SHOW_JUMPNODE:
@@ -26070,7 +26146,7 @@ sexp_help_struct Sexp_help[] = {
 		"Sets an explosion option on a particular ship.  Takes 3 or more arguments...\r\n"
 		"\t1:\tShip name\r\n"
 		"\t2:\tExplosion option\r\n"
-		"\t3:\tExplosion value (for shockwave speed, 0 will produce no shockwave)\r\n"
+		"\t3:\tExplosion value (for shockwave speed, 0 will produce no shockwave; for death roll time, 0 will use the default time)\r\n"
 		"Use Add-Data to specify additional explosion options in repeating option-value pairs, just like Send-Message-List can have additional messages in source-priority-message-delay groups.\r\n\r\n"
 		"IMPORTANT: Each additional option in the list MUST HAVE two entries; any option without the two proper fields will be ignored, as will any successive options." },
 
@@ -26640,6 +26716,12 @@ sexp_help_struct Sexp_help[] = {
 		"should really be named ai-is-dead\r\n\r\n"
 		"Takes 1 argument...\r\n"
 		"\t1:\tGoal priority (number between 0 and 89)." },
+
+	{ OP_AI_FORM_ON_WING, "Ai-form-on-wing (Ship Goal)\r\n"
+		"\tCauses the ship to form on the specified ship's wing. This works analogous to the "
+		"player order, and will cause all other goals specified for the ship to be purged.\r\n\r\n"
+		"Takes 1 argument...\r\n"
+		"\t1:\tShip to form on." },
 
 	{ OP_FLASH_HUD_GAUGE, "Ai-flash hud gauge (Training goal)\r\n"
 		"\tCauses the specified hud gauge to flash to draw the player's attention to it.\r\n\r\n"
@@ -27980,6 +28062,13 @@ sexp_help_struct Sexp_help[] = {
 		"\t2: Intensity.  For comparison, the Maxim has an intensity of 1440."
 	},
 
+	{ OP_JUMP_NODE_SET_JUMPNODE_NAME, "set-jumpnode-name\r\n"
+		"\tSets the name of a jump node. Takes 2 arguments...\r\n"
+		"\t1: Name of jump node to change name for\r\n"
+		"\t2: New name for jump node\r\n\r\n"
+		"\tNote: SEXPs referencing the old name will not work after the name change.\r\n"
+	},
+
 	{ OP_JUMP_NODE_SET_JUMPNODE_COLOR, "set-jumpnode-color\r\n"
 		"\tSets the color of a jump node.  "
 		"Takes 5 arguments...\r\n"
@@ -27995,7 +28084,7 @@ sexp_help_struct Sexp_help[] = {
 		"Takes 3 arguments...\r\n"
 		"\t1:\tJump node to change model for\r\n"
 		"\t2:\tModel filename\r\n"
-		"\t3:\tShow as normal model\r\n"
+		"\t3:\tShow as normal model. When this is true, the jumpnode will be rendered like a normal model.\r\n"
 	},
 
 	{ OP_JUMP_NODE_SHOW_JUMPNODE, "show-jumpnode\r\n"

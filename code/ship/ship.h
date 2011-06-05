@@ -54,7 +54,7 @@ extern vec3d	Original_vec_to_deader;
 #define	HP_SCALE						1.2			//	1.2 means die when 20% of hits remaining
 #define	MAX_SHIP_HITS				8				// hits to kill a ship
 #define	MAX_SHIP_DETAIL_LEVELS	5				// maximum detail levels that a ship can render at
-#define	MAX_REINFORCEMENTS		10
+#define	MAX_REINFORCEMENTS		32
 
 
 // defines for 'direction' parameter of ship_select_next_primary()
@@ -454,7 +454,7 @@ extern int TARGET_SHIP_IGNORE_FLAGS;
 #define MAX_SHIP_ARCS		2		// How many "arcs" can be active at once... Must be less than MAX_ARC_EFFECTS in model.h. 
 #define NUM_SUB_EXPL_HANDLES	2	// How many different big ship sub explosion sounds can be played.
 
-#define MAX_SHIP_CONTRAILS		12
+#define MAX_SHIP_CONTRAILS		24
 #define MAX_MAN_THRUSTERS	128
 
 typedef struct ship_spark {
@@ -535,6 +535,8 @@ typedef struct ship {
 	float special_exp_outer;
 	bool use_shockwave;
 	float special_exp_shockwave_speed;
+	int special_exp_deathroll_time;
+
 	int	special_hitpoints;
 	int	special_shield;
 
@@ -1096,6 +1098,10 @@ typedef struct ship_collision_physics {
 
 } ship_collision_physics;
 
+typedef struct path_metadata {
+	vec3d departure_rvec;
+} path_metadata;
+
 // The real FreeSpace ship_info struct.
 typedef struct ship_info {
 	char		name[NAME_LENGTH];				// name for the ship
@@ -1345,6 +1351,8 @@ typedef struct ship_info {
 	bool hud_retail;
 
 	SCP_vector<cockpit_display_info> displays;
+
+	SCP_map<SCP_string, path_metadata> pathMetadata;
 } ship_info;
 
 extern int Num_wings;
@@ -1874,5 +1882,8 @@ int armor_type_get_idx(char* name);
 void armor_init();
 
 int thruster_glow_anim_load(generic_anim *ga);
+
+// Sushi - Path metadata
+void init_path_metadata(path_metadata& metadata);
 
 #endif
