@@ -26,9 +26,6 @@ extern char *Default_shiptypes_table;
 extern char *Default_ai_profiles_table;
 extern char *Default_autopilot_table;
 extern char *Default_fonts_table;
-<<<<<<< HEAD
-extern char *Default_controlconfig_table;
-=======
 extern char *Default_post_processing_table;
 extern char* Default_main_vertex_shader;
 extern char* Default_main_fragment_shader;
@@ -38,14 +35,13 @@ extern char* Default_blur_fragment_shader;
 extern char* Default_brightpass_fragment_shader;
 extern char* Default_post_fragment_shader;
 extern char* Default_post_vertex_shader;
->>>>>>> master
+extern char *Default_controlconfig_table;
 //**********
 
 //:PART 2:
 //**********
 def_file Default_files[] =
 {
-<<<<<<< HEAD
 	{ "species_defs.tbl",		    Default_species_table },
 	{ "iff_defs.tbl",			    Default_iff_table },
 	{ "objecttypes.tbl",		    Default_shiptypes_table },
@@ -53,13 +49,6 @@ def_file Default_files[] =
 	{ "autopilot.tbl",			    Default_autopilot_table },
 	{ "fonts.tbl",				    Default_fonts_table },
     { "controlconfigdefaults.tbl",  Default_controlconfig_table },
-=======
-	{ "species_defs.tbl",		Default_species_table },
-	{ "iff_defs.tbl",			Default_iff_table },
-	{ "objecttypes.tbl",		Default_shiptypes_table },
-	{ "ai_profiles.tbl",		Default_ai_profiles_table },
-	{ "autopilot.tbl",			Default_autopilot_table },
-	{ "fonts.tbl",				Default_fonts_table },
 	{ "post_processing.tbl",	Default_post_processing_table},
 	{ "main-f.sdr",				Default_main_fragment_shader},
 	{ "main-v.sdr",				Default_main_vertex_shader},
@@ -69,7 +58,6 @@ def_file Default_files[] =
 	{ "brightpass-f.sdr",		Default_brightpass_fragment_shader},
 	{ "post-f.sdr",				Default_post_fragment_shader},
 	{ "post-v.sdr",				Default_post_vertex_shader},
->>>>>>> master
 };
 
 static int Num_default_files = sizeof(Default_files) / sizeof(def_file);
@@ -1099,13 +1087,6 @@ $Font: font03.vf														\n\
 #End																	\n\
 ";
 
-<<<<<<< HEAD
-char *Default_controlconfig_table = "\
-                                    #ControlConfigOverride \n\
-                                    \
-                                    #End\n\
-                                    ";
-=======
 //=========================================================================
 
 // This is the default table.
@@ -1887,4 +1868,9 @@ void main()									\n\
  #endif										\n\
 }											\n\
 ";
->>>>>>> master
+
+char *Default_controlconfig_table = "\
+                                    #ControlConfigOverride \n\
+                                    \
+                                    #End\n\
+                                    ";
