@@ -2732,7 +2732,7 @@ void create_model_path(object *pl_objp, object *mobjp, int path_num, int subsys_
 	ship			*shipp = &Ships[pl_objp->instance];
 	ai_info		*aip = &Ai_info[shipp->ai_index];
 
-//	ship_info	*osip = &Ship_info[Ships[mobjp->instance].ship_info_index];
+	ship_info	*osip = &Ship_info[Ships[mobjp->instance].ship_info_index];
 	polymodel	*pm = model_get(Ship_info[Ships[mobjp->instance].ship_info_index].model_num);
 	int			num_points;
 	model_path	*mp;
@@ -2800,6 +2800,17 @@ void create_model_path(object *pl_objp, object *mobjp, int path_num, int subsys_
 	aip->path_next_create_time = timestamp(1000);	//	OK to try to create one second later
 	aip->path_create_pos = pl_objp->pos;
 	aip->path_create_orient = pl_objp->orient;
+	
+	//Get path departure orientation from ships.tbl if it exists, otherwise zero it
+	SCP_string pathName(mp->name);
+	if (osip->pathMetadata.find(pathName) != osip->pathMetadata.end() && !IS_VEC_NULL(&osip->pathMetadata[pathName].departure_rvec))
+	{
+		vm_vec_copy_normalize(&aip->path_depart_orient, &osip->pathMetadata[pathName].departure_rvec);
+	}
+	else
+	{
+		vm_vec_zero(&aip->path_depart_orient);
+	}
 
 	aip->ai_flags &= ~AIF_USE_EXIT_PATH;			// ensure this flag is cleared
 }
@@ -3694,7 +3705,20 @@ float maybe_recreate_path(object *objp, ai_info *aip, int force_recreate_flag, i
 
 				aip->path_create_pos = path_objp->pos;
 				aip->path_create_orient = path_objp->orient;
-				
+		
+				//Get path departure orientation from ships.tbl if it exists, otherwise zero it
+				ship_info *osip = &Ship_info[Ships[path_objp->instance].ship_info_index];
+				model_path	*mp = &model_get(osip->model_num)->paths[aip->mp_index];
+				SCP_string pathName(mp->name);
+				if (osip->pathMetadata.find(pathName) != osip->pathMetadata.end() && !IS_VEC_NULL(&osip->pathMetadata[pathName].departure_rvec))
+				{
+					vm_vec_copy_normalize(&aip->path_depart_orient, &osip->pathMetadata[pathName].departure_rvec);
+				}
+				else
+				{
+					vm_vec_zero(&aip->path_depart_orient);
+				}
+
 				return dist;
 			}
 		}
@@ -3704,7 +3728,7 @@ float maybe_recreate_path(object *objp, ai_info *aip, int force_recreate_flag, i
 }
 
 //	Set acceleration for ai_dock().
-void set_accel_for_docking(object *objp, ai_info *aip, float dot, float dot_to_next, float dist_to_next, float dist_to_goal, ship_info *sip)
+void set_accel_for_docking(object *objp, ai_info *aip, float dot, float dot_to_next, float dist_to_next, float dist_to_goal, ship_info *sip, float max_allowed_speed)
 {
 	float prev_dot_to_goal = aip->prev_dot_to_goal;
 	
@@ -3719,12 +3743,17 @@ void set_accel_for_docking(object *objp, ai_info *aip, float dot, float dot_to_n
 			change_acceleration(aip, -1.0f);	//	-1.0f means subtract off flFrametime from acceleration value in 0.0..1.0
 		}
 	} else {
+		// If max_allowed_speed isn't set, use the ship max speed
+		if (max_allowed_speed <= 0)
+			max_allowed_speed = sip->max_speed;
+
 		if ((aip->mode == AIM_DOCK) && (dist_to_next < 150.0f) && (aip->path_start + aip->path_length - 2 == aip->path_cur)) {
-			set_accel_for_target_speed(objp, sip->max_speed * MAX(dist_to_next/500.0f, 1.0f));
+			set_accel_for_target_speed(objp, max_allowed_speed * MAX(dist_to_next/500.0f, 1.0f));
 			//mprintf(("dist = %7.3f, speed = %7.3f\n", dist_to_next, objp->phys_info.speed));
 		} else if ((dot_to_next >= dot * .9) || (dist_to_next > 100.0f)) {
-			if (dist_to_goal > 200.0f)
-				set_accel_for_target_speed(objp, sip->max_speed * (dot + 1.0f) / 2.0f);
+			if (dist_to_goal > 200.0f) {
+				set_accel_for_target_speed(objp, max_allowed_speed * (dot + 1.0f) / 2.0f);
+			}
 			else {
 				float	xdot;
 
@@ -3734,13 +3763,13 @@ void set_accel_for_docking(object *objp, ai_info *aip, float dot, float dot_to_n
 
 				// AL: if following a path not in dock mode, move full speed
 				if (( aip->mode != AIM_DOCK ) && (dot > 0.9f)) {
-					set_accel_for_target_speed(objp, sip->max_speed*dot*dot*dot);
+					set_accel_for_target_speed(objp, max_allowed_speed*dot*dot*dot);
 				} else {
 					if ((aip->path_cur - aip->path_start < aip->path_length-2) && (dist_to_goal < 2*objp->radius)) {
 						//nprintf(("AI", "Target speed = %7.3f\n", dist_to_goal/8.0f));
 						set_accel_for_target_speed(objp, dist_to_goal/8.0f + 2.0f);
 					} else {
-						set_accel_for_target_speed(objp, sip->max_speed * (2*xdot + 0.25f)/4.0f);
+						set_accel_for_target_speed(objp, max_allowed_speed * (2*xdot + 0.25f)/4.0f);
 					}
 				}
 			}
@@ -3749,7 +3778,7 @@ void set_accel_for_docking(object *objp, ai_info *aip, float dot, float dot_to_n
 
 			xdot = MAX(dot_to_next, 0.1f);
 			if ( aip->mode != AIM_DOCK ) {
-				set_accel_for_target_speed(objp, sip->max_speed);
+				set_accel_for_target_speed(objp, max_allowed_speed);
 			} else {
 				float	speed;
 				if ((aip->path_cur - aip->path_start < aip->path_length-2) && (dist_to_goal < 2*objp->radius)) {
@@ -3757,7 +3786,7 @@ void set_accel_for_docking(object *objp, ai_info *aip, float dot, float dot_to_n
 				} else if (dist_to_goal < 4*objp->radius + 50.0f) {
 					speed = dist_to_goal/4.0f + 4.0f;
 				} else {
-					speed = sip->max_speed * (3*xdot + 1.0f)/4.0f;
+					speed = max_allowed_speed * (3*xdot + 1.0f)/4.0f;
 				}
 				if (aip->mode == AIM_DOCK) {
 					speed = speed * 2.0f + 1.0f;
@@ -3921,7 +3950,7 @@ float ai_path_0()
 	dot = vm_vec_dot_to_point(&nvel_vec, &Pl_objp->pos, &gcvp);
 	dot_to_next = vm_vec_dot_to_point(&nvel_vec, &Pl_objp->pos, &gnvp);
 
-	set_accel_for_docking(Pl_objp, aip, dot, dot_to_next, dist_to_next, dist_to_goal, sip);
+	set_accel_for_docking(Pl_objp, aip, dot, dot_to_next, dist_to_next, dist_to_goal, sip, 0);
 	aip->prev_dot_to_goal = dot;
 
 //mprintf(("Goal index = %i, dist = %7.3f, dot = %7.3f\n", wp_index, dist_to_goal, dot));
@@ -3957,7 +3986,7 @@ float ai_path_0()
 }
 
 //	--------------------------------------------------------------------------
-//	Alternate version of default ai_path
+//	Alternate version of ai_path
 //  1. 
 float ai_path_1()
 {
@@ -4049,22 +4078,31 @@ float ai_path_1()
 	if (mag < 1.0f)
 		nvel_vec = Pl_objp->orient.vec.fvec;
 
-	// Turn toward midpoint between where we are on the path and the goal. This helps keep the ship flying
+	// For departures, optionally rotate so the ship is pointing the correct direction
+	// (so you can always have "wheels-down" landings)
+	vec3d rvec;
+	vec3d *prvec = NULL;
+	if ( aip->mode == AIM_BAY_DEPART && !IS_VEC_NULL(&aip->path_depart_orient) ) {
+		vm_vec_unrotate(&rvec, &aip->path_depart_orient, &Objects[aip->path_objnum].orient);
+		prvec = &rvec;
+	}
+
+	// Turn toward a point between where we are on the path and the goal. This helps keep the ship flying
 	// "down the line"
 	if (dist_to_goal > 0.1f) {
 		//Get nearest point on line between current and previous path points
 		vec3d closest_point;
 		float r = find_nearest_point_on_line(&closest_point, &gpvp, &gcvp, &Pl_objp->pos);
  
-		//Turn towards the midpoint between the closest point on the line and the current goal point 
+		//Turn towards the 1/3 point between the closest point on the line and the current goal point 
 		//(unless we are already past the current goal)
 		if (r <= 1.0f) {
 			vec3d midpoint;
-			vm_vec_avg(&midpoint, &gcvp, &closest_point);
-			ai_turn_towards_vector(&midpoint, Pl_objp, flFrametime, sip->srotation_time, NULL, NULL, 0.0f, 0);
+			vm_vec_avg3(&midpoint, &gcvp, &closest_point, &closest_point);
+			ai_turn_towards_vector(&midpoint, Pl_objp, flFrametime, sip->srotation_time, NULL, NULL, 0.0f, 0, prvec);
 		}
 		else {
-			ai_turn_towards_vector(&gcvp, Pl_objp, flFrametime, sip->srotation_time, NULL, NULL, 0.0f, 0);
+			ai_turn_towards_vector(&gcvp, Pl_objp, flFrametime, sip->srotation_time, NULL, NULL, 0.0f, 0, prvec);
 		}
 	}
 
@@ -4074,7 +4112,13 @@ float ai_path_1()
 	dot = vm_vec_dot_to_point(&nvel_vec, &Pl_objp->pos, &gcvp);
 	dot_to_next = vm_vec_dot_to_point(&nvel_vec, &Pl_objp->pos, &gnvp);
 
-	set_accel_for_docking(Pl_objp, aip, dot, dot_to_next, dist_to_next, dist_to_goal, sip);
+	// This path mode respects the "cap-waypoint-speed" SEXP
+	float max_allowed_speed = 0;
+	if ( aip->waypoint_speed_cap > 0) {
+		max_allowed_speed = (float) aip->waypoint_speed_cap;
+	}
+
+	set_accel_for_docking(Pl_objp, aip, dot, dot_to_next, dist_to_next, dist_to_goal, sip, max_allowed_speed);
 	aip->prev_dot_to_goal = dot;
 
 	//	If moving at a non-tiny velocity, detect attaining path point by its being close to
@@ -5334,8 +5378,6 @@ int ai_select_primary_weapon_OLD(object *objp, object *other_objp, int flags)
  * 
  * The AI will now intelligently choose the best weapon to use based on the overall shield
  * status of the target.
- * 
- * ##UnknownPlayer##
  */
 int ai_select_primary_weapon(object *objp, object *other_objp, int flags)
 {
@@ -14609,6 +14651,7 @@ void init_ai_object(int objnum)
 	aip->path_next_create_time = timestamp(1);
 	aip->path_create_pos = Objects[objnum].pos;
 	aip->path_create_orient = Objects[objnum].orient;
+	vm_vec_zero(&aip->path_depart_orient);
 
 	aip->ignore_expire_timestamp = timestamp(1);
 	aip->warp_out_timestamp = 0;
