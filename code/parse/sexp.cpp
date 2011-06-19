@@ -208,6 +208,7 @@ sexp_oper Operators[] = {
 	{ "secondary-ammo-pct",					OP_SECONDARY_AMMO_PCT,				2,	2			},
 	{ "get-primary-ammo",					OP_GET_PRIMARY_AMMO,				2,	2			}, // Karajorma
 	{ "get-secondary-ammo",					OP_GET_SECONDARY_AMMO,				2,	2			}, // Karajorma
+	{ "get-num-countermeasures",			OP_GET_NUM_COUNTERMEASURES,			1,	1			}, // Karajorma
 	{ "is-primary-selected",				OP_IS_PRIMARY_SELECTED,				2,	2			},
 	{ "is-secondary-selected",				OP_IS_SECONDARY_SELECTED,			2,	2			},
 	{ "afterburner-energy-pct",				OP_AFTERBURNER_LEFT,		1, 1			},
@@ -221,6 +222,7 @@ sexp_oper Operators[] = {
 	{ "distance",						OP_DISTANCE,					2, 2, },
 	{ "distance-ship-subsystem",	OP_DISTANCE_SUBSYSTEM,	3, 3 },					// Goober5000
 	{ "num-within-box",				OP_NUM_WITHIN_BOX,					7,	INT_MAX},	//WMC
+	{ "is-in-box",					OP_IS_IN_BOX,					7,	8},	//Sushi
 	{ "special-warp-dist",			OP_SPECIAL_WARP_DISTANCE,	1, 1,	},
 	{ "get-damage-caused",			OP_GET_DAMAGE_CAUSED,		2, INT_MAX	},
 
@@ -350,6 +352,7 @@ sexp_oper Operators[] = {
 	{ "set-secondary-ammo",			OP_SET_SECONDARY_AMMO,			3, 4 },		// Karajorma
 	{ "set-primary-weapon",			OP_SET_PRIMARY_WEAPON,			3, 5 },		// Karajorma
 	{ "set-secondary-weapon",		OP_SET_SECONDARY_WEAPON,		3, 5 },		// Karajorma
+	{ "set-num-countermeasures",	OP_SET_NUM_COUNTERMEASURES,		2, 2 },		// Karajorma
 	{ "lock-primary-weapon",		OP_LOCK_PRIMARY_WEAPON,			0, INT_MAX },		// Karajorma
 	{ "unlock-primary-weapon",		OP_UNLOCK_PRIMARY_WEAPON,		0, INT_MAX },		// Karajorma
 	{ "lock-secondary-weapon",		OP_LOCK_SECONDARY_WEAPON,		0, INT_MAX },		// Karajorma
@@ -15014,6 +15017,61 @@ void sexp_set_weapon (int node, bool primary)
 	}
 }
 
+int sexp_get_countermeasures(int node) 
+{
+	ship *shipp;
+
+	shipp = sexp_get_ship_from_node(node);
+
+	if (shipp !=NULL) {
+		return shipp->cmeasure_count;
+	}
+	else {
+		return SEXP_NAN;
+	}
+}
+
+void sexp_set_countermeasures(int node)
+{
+	ship *shipp;
+	int num_cmeasures;
+
+	shipp = sexp_get_ship_from_node(node);
+
+	if (shipp == NULL) {
+		return;
+	}
+	node = CDR(node);
+	num_cmeasures = eval_num(node);
+	if (num_cmeasures < 0) {
+		num_cmeasures = 0;
+	}
+	else if (num_cmeasures > Ship_info[shipp->ship_info_index].cmeasure_max) {
+		num_cmeasures = Ship_info[shipp->ship_info_index].cmeasure_max;
+	}
+
+	shipp->cmeasure_count = num_cmeasures;
+
+	multi_start_packet();
+	multi_send_ship(shipp);
+	multi_send_int(num_cmeasures);
+	multi_end_packet();
+}
+
+void multi_sexp_set_countermeasures()
+{	
+	int num_cmeasures = 0;
+	ship *shipp; 
+
+	multi_get_ship(shipp);
+	if (shipp == NULL) {
+		return;
+	}
+	if (multi_get_int(num_cmeasures)) {
+		shipp->cmeasure_count = num_cmeasures;
+	}
+}
+
 // KeldorKatarn - Locks or unlocks the afterburner on the requested ship
 void sexp_deal_with_afterburner_lock (int node, bool lock)
 {
@@ -19433,6 +19491,87 @@ void sexp_force_glide(int node)
 	return;
 }
 
+int sexp_is_in_box(int n)
+{
+	Assert(n >= 0);
+
+	object_ship_wing_point_team oswpt;
+	sexp_get_object_ship_wing_point_team(&oswpt, CTEXT(n));
+	n = CDR(n);
+
+	// Get box corners
+	float x1 = (float) eval_num(n);
+	n = CDR(n);
+	float x2 = (float) eval_num(n);
+	n = CDR(n);
+	float y1 = (float) eval_num(n);
+	n = CDR(n);
+	float y2 = (float) eval_num(n);
+	n = CDR(n);
+	float z1 = (float) eval_num(n);
+	n = CDR(n);
+	float z2 = (float) eval_num(n);
+	n = CDR(n);	
+	vec3d box_corner_1;
+	box_corner_1.xyz.x = MIN(x1, x2);
+	box_corner_1.xyz.y = MIN(y1, y2);
+	box_corner_1.xyz.z = MIN(z1, z2);
+	vec3d box_corner_2;
+	box_corner_2.xyz.x = MAX(x1, x2);
+	box_corner_2.xyz.y = MAX(y1, y2);
+	box_corner_2.xyz.z = MAX(z1, z2);
+
+	// Ship to define reference frame is optional
+	object* reference_ship_obj = NULL;
+	if (n != -1)
+	{
+		int sindex = ship_name_lookup(CTEXT(n));
+
+		if (sindex < 0 || Ships[sindex].objnum < 0)
+			return SEXP_FALSE;
+
+		reference_ship_obj = &Objects[Ships[sindex].objnum];
+	}
+
+	// Get position of test point
+	vec3d test_point;
+	switch (oswpt.type)
+	{
+		case OSWPT_TYPE_EXITED:
+			return SEXP_KNOWN_FALSE;
+
+		case OSWPT_TYPE_SHIP:
+		case OSWPT_TYPE_WING:
+		case OSWPT_TYPE_WAYPOINT:
+		case OSWPT_TYPE_TEAM:
+			test_point = oswpt.objp->pos;
+			break;
+
+		default:
+			return SEXP_FALSE;
+	}
+
+	// If reference_ship is specified, rotate test_point into its reference frame
+	if (reference_ship_obj != NULL) 
+	{
+		vec3d tempv;
+		vm_vec_sub(&tempv, &test_point, &reference_ship_obj->pos);
+		vm_vec_rotate(&test_point, &tempv, &reference_ship_obj->orient);
+	}
+
+	// Check to see if the test point is within the specified box
+	if ((test_point.xyz.x >= box_corner_1.xyz.x && test_point.xyz.x <= box_corner_2.xyz.x) &&
+		(test_point.xyz.y >= box_corner_1.xyz.y && test_point.xyz.y <= box_corner_2.xyz.y) &&
+		(test_point.xyz.z >= box_corner_1.xyz.z && test_point.xyz.z <= box_corner_2.xyz.z))
+	{
+		return SEXP_TRUE;
+	}
+	else
+	{
+		return SEXP_FALSE;
+	}
+}
+
 //Karajorma - Returns the subsystem type if the name of a subsystem is actually a generic type (e.g <all engines> or <all turrets> 
 int get_generic_subsys(char *subsys_name) 
 {
@@ -19862,6 +20001,10 @@ int eval_sexp(int cur_node, int referenced_node)
 
 			case OP_NUM_WITHIN_BOX:
 				sexp_val = sexp_num_within_box(node);
+				break;
+
+			case OP_IS_IN_BOX:
+				sexp_val = sexp_is_in_box(node);
 				break;
 
 			case OP_IS_SHIP_VISIBLE:
@@ -21008,6 +21151,11 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = sexp_get_secondary_ammo(node);
 				break;
 
+			// Karajorma
+			case OP_GET_NUM_COUNTERMEASURES:
+				sexp_val = sexp_get_countermeasures(node);
+				break;
+
 			case OP_IS_SECONDARY_SELECTED:
 				sexp_val = sexp_is_secondary_selected(node);
 				break;
@@ -21105,7 +21253,13 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_set_weapon(node, op_num == OP_SET_PRIMARY_WEAPON);
 				sexp_val = SEXP_TRUE;
 				break;
-				
+
+			// Karajorma
+			case OP_SET_NUM_COUNTERMEASURES:
+				sexp_set_countermeasures(node);
+				sexp_val = SEXP_TRUE;
+				break;
+
 			// Karajorma
 			case OP_LOCK_PRIMARY_WEAPON:
 			case OP_UNLOCK_PRIMARY_WEAPON:
@@ -21909,6 +22063,7 @@ int query_operator_return_type(int op)
 		case OP_HAS_SECONDARY_WEAPON:
 		case OP_IS_BIT_SET:
 		case OP_DIRECTIVE_IS_VARIABLE:
+		case OP_IS_IN_BOX:
 			return OPR_BOOL;
 
 		case OP_PLUS:
@@ -21981,6 +22136,7 @@ int query_operator_return_type(int op)
 		case OP_SECONDARY_AMMO_PCT:
 		case OP_GET_PRIMARY_AMMO:
 		case OP_GET_SECONDARY_AMMO:
+		case OP_GET_NUM_COUNTERMEASURES:
 		case OP_SPECIAL_WARP_DISTANCE:
 		case OP_IS_SHIP_VISIBLE:
 		case OP_TEAM_SCORE:
@@ -22242,6 +22398,7 @@ int query_operator_return_type(int op)
 		case OP_SET_SECONDARY_AMMO:
 		case OP_SET_PRIMARY_WEAPON:
 		case OP_SET_SECONDARY_WEAPON:
+		case OP_SET_NUM_COUNTERMEASURES:
 		case OP_SCRIPT_EVAL:
 		case OP_ENABLE_BUILTIN_MESSAGES:
 		case OP_DISABLE_BUILTIN_MESSAGES:
@@ -22794,6 +22951,14 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_POSITIVE;
 			else
 				return OPF_SHIP_WING;
+
+		case OP_IS_IN_BOX:
+			if (argnum == 0) // First arg is a ship/wing
+				return OPF_SHIP_WING_POINT;
+			else if (argnum <= 6) // Next 6 args are coordinates
+				return OPF_NUMBER;
+			else // Next arg is a ship
+				return OPF_SHIP;
 
 		// Sesquipedalian
 		case OP_MISSILE_LOCKED:
@@ -23677,6 +23842,16 @@ int query_operator_argument_type(int op, int argnum)
 			{
 				return OPF_NUMBER;
 			}
+
+			
+		case OP_GET_NUM_COUNTERMEASURES:
+			return OPF_SHIP;
+
+		case OP_SET_NUM_COUNTERMEASURES:
+			if (argnum == 0)
+				return OPF_SHIP;
+			else 
+				return OPF_POSITIVE;
 
 		// Karajorma	
 		case OP_LOCK_PRIMARY_WEAPON:
@@ -25272,8 +25447,9 @@ int get_subcategory(int sexp_id)
 		case OP_ROTATING_SUBSYS_SET_TURN_TIME:
 		case OP_SET_PRIMARY_AMMO:		// Karajorma
 		case OP_SET_SECONDARY_AMMO:		// Karajorma
-		case OP_SET_PRIMARY_WEAPON:	// Karajorma
+		case OP_SET_PRIMARY_WEAPON:		// Karajorma
 		case OP_SET_SECONDARY_WEAPON:	// Karajorma
+		case OP_SET_NUM_COUNTERMEASURES: // Karajorma
 		case OP_LOCK_PRIMARY_WEAPON:
 		case OP_UNLOCK_PRIMARY_WEAPON:
 		case OP_LOCK_SECONDARY_WEAPON:
@@ -25520,6 +25696,7 @@ int get_subcategory(int sexp_id)
 		case OP_IS_SECONDARY_SELECTED:
 		case OP_GET_PRIMARY_AMMO:
 		case OP_GET_SECONDARY_AMMO:
+		case OP_GET_NUM_COUNTERMEASURES:
 		case OP_AFTERBURNER_LEFT:
 		case OP_WEAPON_ENERGY_LEFT:
 		case OP_PRIMARY_FIRED_SINCE:
@@ -25569,6 +25746,7 @@ int get_subcategory(int sexp_id)
 		case OP_GET_OBJECT_SPEED_Z:
 		case OP_NUM_WITHIN_BOX:
 		case OP_SPECIAL_WARP_DISTANCE:
+		case OP_IS_IN_BOX:
 			return STATUS_SUBCATEGORY_DISTANCE_AND_COORDINATES;
 			
 		case OP_WAS_PROMOTION_GRANTED:
@@ -26260,6 +26438,17 @@ sexp_help_struct Sexp_help[] = {
 		"\t5: Box height\r\n"
 		"\t6: Box depth\r\n"
 		"\tRest:\tShips or wings to check" },
+
+	{ OP_IS_IN_BOX, "Whether an object is in the box specified. If a second ship is specified, "
+		"the box is relative to that ship's reference frame. \r\n"
+		"\t1: Ships or wings to check\r\n"
+		"\t2: Min X\r\n"
+		"\t3: Max X\r\n"
+		"\t4: Min Y\r\n"
+		"\t5: Max Y\r\n"
+		"\t6: Min Z\r\n"
+		"\t7: Max Z\r\n"
+		"\t8: Ship to use as reference frame (optional)." },
 
 	{ OP_GET_DAMAGE_CAUSED, "Get damage caused (Status operator)\r\n"
 		"\tReturns the amount of damage one or more ships have done to a ship.\r\n\r\n"
@@ -28088,6 +28277,11 @@ sexp_help_struct Sexp_help[] = {
 		"\t1: Ship name\r\n"
 		"\t2: Bank to check (from 0 to N-1, where N is the number of secondary banks in the ship; N or higher will return the cumulative average for all banks)" },
 
+	// Karajorma
+	{ OP_GET_NUM_COUNTERMEASURES, "get-num-countermeasures\r\n"
+		"\tReturns the amount of countermeasures remaining\r\n"
+		"\t1: Ship name\r\n" },
+
 	{ OP_IS_SECONDARY_SELECTED, "is-secondary-selected\r\n"
 		"\tReturns true if the specified bank is selected (0 .. num_banks - 1)\r\n"
 		"\t1: Ship name\r\n"
@@ -28348,6 +28542,16 @@ sexp_help_struct Sexp_help[] = {
 		"\t3: Name of the secondary weapon \r\n"
 		"\t4: Number to set this bank to (If this is larger than the maximimum, bank will be set to maximum)\r\n"
 		"\t5: Rearm Limit. Support ships will only supply this number of weapons (If this is larger than the maximimum, bank will be set to maximum)"
+	},
+
+
+	
+	// Karajorma
+	{ OP_SET_NUM_COUNTERMEASURES, "set-num-countermeasures\r\n"
+		"\tSets the number of countermeasures the ship has\r\n"
+		"\tValues greater than the maximum a ship can carry are set to the maximum\r\n"
+		"\t1: Ship name\r\n"
+		"\t2: Number to set"
 	},
 	
 	// Karajorma
