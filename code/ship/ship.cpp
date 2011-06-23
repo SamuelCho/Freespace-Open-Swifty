@@ -2632,6 +2632,12 @@ strcpy_s(parse_error_text, temp_error);
 	//Parse the engine sound
 	parse_sound("$EngineSnd:", &sip->engine_snd, sip->name);
 
+	//Parse optional sound to be used for beginning of a glide
+	parse_sound("$GlideStartSnd:", &sip->glide_start_snd, sip->name);
+
+	//Parse optional sound to be used for end of a glide
+	parse_sound("$GlideEndSnd:", &sip->glide_end_snd, sip->name);
+
 	if(optional_string("$Closeup_pos:"))
 	{
 		stuff_vector(&sip->closeup_pos);
@@ -4779,6 +4785,7 @@ void ship_set(int ship_index, int objnum, int ship_type)
 		swp->next_primary_fire_stamp[i] = timestamp(0);	
 		swp->last_primary_fire_stamp[i] = -1;	
 		swp->primary_bank_rearm_time[i] = timestamp(0);		// added by Goober5000
+		swp->last_primary_fire_sound_stamp[i] = timestamp(0); // added by Halleck
 
 		swp->primary_animation_position[i] = MA_POS_NOT_SET;
 		swp->secondary_animation_position[i] = MA_POS_NOT_SET;
@@ -8449,6 +8456,7 @@ void ship_set_default_weapons(ship *shipp, ship_info *sip)
 		swp->next_primary_fire_stamp[i] = timestamp(0);
 		swp->last_primary_fire_stamp[i] = -1;
 		swp->burst_counter[i] = 0;
+		swp->last_primary_fire_sound_stamp[i] = timestamp(0);
 	}
 
 	for ( i = 0; i < MAX_SHIP_SECONDARY_BANKS; i++ ){
@@ -10287,13 +10295,26 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 						weapon_info *wip;
 						ship_weapon *sw_pl;
 
-						// HACK
-						if(winfo_p->launch_snd == SND_AUTOCANNON_SHOT){
-							snd_play( &Snds[winfo_p->launch_snd], 0.0f, 1.0f, SND_PRIORITY_TRIPLE_INSTANCE );
-						} else {
-							snd_play( &Snds[winfo_p->launch_snd], 0.0f, 1.0f, SND_PRIORITY_MUST_PLAY );
+						//Update the last timestamp until continous fire is over, so we have the timestamp of the cease-fire.
+						if (shipp->was_firing_last_frame[bank_to_fire] == 1) {
+							swp->last_primary_fire_sound_stamp[bank_to_fire] = timestamp();
 						}
-		//				snd_play( &Snds[winfo_p->launch_snd] );
+
+						//Check for pre-launch sound and play if relevant
+						if( (winfo_p->pre_launch_snd != NULL)									//If this weapon type has a pre-fire sound
+							&& ((timestamp() - swp->last_primary_fire_sound_stamp[bank_to_fire]) >= winfo_p->pre_launch_snd_min_interval)	//and if we're past our minimum delay from the last cease-fire
+							&& (shipp->was_firing_last_frame[bank_to_fire] == 0)				//and if we are at the beginning of a firing stream
+						){ 
+							snd_play( &Snds[winfo_p->pre_launch_snd], 0.0f, 1.0f, SND_PRIORITY_MUST_PLAY); //play it 
+						} else { //Otherwise, play normal firing sounds
+							// HACK
+							if(winfo_p->launch_snd == SND_AUTOCANNON_SHOT){
+								snd_play( &Snds[winfo_p->launch_snd], 0.0f, 1.0f, SND_PRIORITY_TRIPLE_INSTANCE );
+							} else {
+								snd_play( &Snds[winfo_p->launch_snd], 0.0f, 1.0f, SND_PRIORITY_MUST_PLAY );
+							}
+			//				snd_play( &Snds[winfo_p->launch_snd] );
+						}
 	
 						sw_pl = &Player_ship->weapons;
 						if (sw_pl->current_primary_bank >= 0)
