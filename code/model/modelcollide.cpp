@@ -775,7 +775,7 @@ NoHit:
 		// Don't check it or its children if it is destroyed
 		// or if it's set to no collision
 		if ( !blown_off && !collision_checked && !csm->no_collisions )	{
-			if ( Mc_pmi && !(Mc->flags & MC_SUBMODEL_INSTANCE) ) {
+			if ( Mc_pmi ) {
 				Mc_orient = Mc_pmi->submodel[i].mc_orient;
 				Mc_base = Mc_pmi->submodel[i].mc_base;
 				vm_vec_add2(&Mc_base, Mc->pos);
@@ -950,7 +950,7 @@ void model_collide_preprocess_subobj(vec3d *pos, matrix *orient, polymodel *pm, 
 
 		matrix tm = IDENTITY_MATRIX;
 
-		vm_vec_unrotate(pos, &csm->offset, orient );
+		vm_vec_unrotate(pos, &csm->offset, &smi->mc_orient );
 		vm_vec_add2(pos, &smi->mc_base);
 
 		if( vm_matrix_same(&tm, &csm->orientation)) {
