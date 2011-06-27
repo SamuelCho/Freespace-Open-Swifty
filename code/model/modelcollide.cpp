@@ -974,7 +974,7 @@ void model_collide_preprocess_subobj(vec3d *pos, matrix *orient, polymodel *pm, 
 	}
 }
 
-void model_collide_preprocess(vec3d *pos, matrix *orient, int model_instance_num)
+void model_collide_preprocess(matrix *orient, int model_instance_num)
 {
 	polymodel_instance	*pmi;
 	polymodel *pm;

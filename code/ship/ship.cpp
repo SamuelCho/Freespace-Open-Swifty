@@ -11878,8 +11878,8 @@ void ship_model_update_instance(object *objp)
 
 	model_instance_dumb_rotation(model_instance_num);
 
-	// preprocess subobject orientations and positions for collision detection
-	model_collide_preprocess(&objp->pos, &objp->orient, model_instance_num);
+	// preprocess subobject orientations for collision detection
+	model_collide_preprocess(&objp->orient, model_instance_num);
 }
 
 //==========================================================
