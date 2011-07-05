@@ -35,6 +35,8 @@
 #define SDR_FLAG_HEIGHT_MAP		(1<<14)
 #define SDR_FLAG_ENV_MAP		(1<<15)
 
+#define SDR_FLAG_EFFECT_FIREBALL	(1<<0)
+#define SDR_FLAG_EFFECT_PARTICLE	(1<<1)
 
 #define MAX_SHADER_UNIFORMS		15
 

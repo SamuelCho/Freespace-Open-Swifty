@@ -44,6 +44,12 @@ struct opengl_shader_file_t {
 	char *uniforms[MAX_SHADER_UNIFORMS];
 };
 */
+
+static opengl_shader_file_t GL_effect_shader_files[] = {
+	{ "effect-fbl-v.sdr", "effect-fbl-f.sdr", (SDR_FLAG_EFFECT_FIREBALL), 1, {"tex"} },
+	{ "effect-part-v.sdr", "effect-part-f.sdr", (SDR_FLAG_EFFECT_PARTICLE), 1, {"tex"} }
+};
+
 static opengl_shader_file_t GL_shader_file[] = {
 	{ "null-v.sdr", "null-f.sdr", (0), 0, { NULL }, },
 
