@@ -356,6 +356,8 @@ typedef struct screen {
 	// Texture maps the current bitmap.  See TMAP_FLAG_?? defines for flag values
 	void (*gf_render)(int nv, vertex *verts, uint flags);
 
+	void (*gf_render_effect)(int nv, vertex *verts, uint flags, float radius);
+
 	// dumps the current screen to a file
 	void (*gf_print_screen)(char * filename);
 
@@ -663,6 +665,7 @@ __inline void gr_pixel(int x, int y, bool resize = true)
 #define gr_aascaler			GR_CALL(gr_screen.gf_aascaler)
 #define gr_tmapper			GR_CALL(gr_screen.gf_tmapper)
 #define gr_render			GR_CALL(gr_screen.gf_render)
+#define gr_render_effect	GR_CALL(gr_screen.gf_render_effect)
 
 //#define gr_gradient			GR_CALL(gr_screen.gf_gradient)
 __inline void gr_gradient(int x1, int y1, int x2, int y2, bool resize = true)

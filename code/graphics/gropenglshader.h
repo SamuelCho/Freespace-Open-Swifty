@@ -35,8 +35,7 @@
 #define SDR_FLAG_HEIGHT_MAP		(1<<14)
 #define SDR_FLAG_ENV_MAP		(1<<15)
 
-#define SDR_FLAG_EFFECT_FIREBALL	(1<<0)
-#define SDR_FLAG_EFFECT_PARTICLE	(1<<1)
+#define SDR_FLAG_EFFECT_PARTICLE	(1<<16)
 
 #define MAX_SHADER_UNIFORMS		15
 
@@ -71,6 +70,7 @@ typedef struct opengl_shader_t {
 } opengl_shader_t;
 
 extern SCP_vector<opengl_shader_t> GL_shader;
+extern SCP_vector<opengl_shader_t> GL_effect_shader;
 
 extern opengl_shader_t *Current_shader;
 
@@ -78,6 +78,7 @@ int opengl_shader_get_index(int flags);
 void opengl_shader_set_current(opengl_shader_t *shader_obj = NULL);
 
 void opengl_shader_init();
+void opengl_effect_shader_init();
 void opengl_shader_shutdown();
 
 GLhandleARB opengl_shader_create(const char *vs, const char *fs);

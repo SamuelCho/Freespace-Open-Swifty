@@ -55,7 +55,9 @@ def_file Default_files[] =
 	{ "blur-f.sdr",				Default_blur_fragment_shader},
 	{ "brightpass-f.sdr",		Default_brightpass_fragment_shader},
 	{ "post-f.sdr",				Default_post_fragment_shader},
-	{ "post-v.sdr",				Default_post_vertex_shader},
+	{ "post-v.sdr",				Default_post_vertex_shader}/*,
+	{ "effect-v.sdr",			Default_effect_vertex_shader},
+	{ "effect-f.sdr",			Default_effect_fragment_shader}*/
 };
 
 static int Num_default_files = sizeof(Default_files) / sizeof(def_file);

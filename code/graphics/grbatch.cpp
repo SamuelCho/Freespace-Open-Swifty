@@ -514,10 +514,14 @@ float geometry_batcher::draw_laser(vec3d *p0, float width1, vec3d *p1, float wid
 	return center.xyz.z;
 }
 
-void geometry_batcher::render(int flags)
+void geometry_batcher::render(int flags, float radius)
 {
 	if (n_to_render) {
-		gr_render(n_to_render * 3, vert, flags | TMAP_FLAG_TRILIST);
+		if ( flags & TMAP_FLAG_SOFT_VOLUME ) {
+			gr_render_effect(n_to_render * 3, vert, flags | TMAP_FLAG_TRILIST, radius);
+		} else {
+			gr_render(n_to_render * 3, vert, flags | TMAP_FLAG_TRILIST);
+		}
 		n_to_render = 0;
 	}
 }
@@ -534,6 +538,7 @@ struct batch_item {
 	int texture;
 	int tmap_flags;
 	float alpha;
+	float rad;
 
 	bool laser;
 };
@@ -593,6 +598,7 @@ int batch_add_bitmap(int texture, int tmap_flags, vertex *pnt, int orient, float
 
 	geometry_map[index].tmap_flags = tmap_flags;
 	geometry_map[index].alpha = alpha;
+	geometry_map[index].rad = rad;
 
 	item = &geometry_map[index].batch;
 
@@ -639,7 +645,7 @@ void batch_render_bitmaps()
 
 		Assert( bi->texture >= 0 );
 		gr_set_bitmap(bi->texture, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, bi->alpha);
-		bi->batch.render( bi->tmap_flags );
+		bi->batch.render( bi->tmap_flags, bi->rad );
 	}
 }
 

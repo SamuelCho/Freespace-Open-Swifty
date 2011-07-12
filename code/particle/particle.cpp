@@ -358,7 +358,7 @@ void particle_render_all()
 	int rotate = 1;
 	int framenum, cur_frame;
 	bool render_batch = false;
-	int tmap_flags = TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT;
+	int tmap_flags = TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_VOLUME;
 
 	if ( !Particles_enabled )
 		return;
@@ -453,7 +453,9 @@ void particle_render_all()
 	}
 
 	if (render_batch) {
+		int zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
 		batch_render_bitmaps();
+		gr_zbuffer_set(zbuff);
 	}
 }
 

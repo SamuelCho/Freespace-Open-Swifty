@@ -57,7 +57,7 @@ public:
 
 	// draw all of the batched geometry to the back buffer and flushes the cache
 	// accepts tmap flags so you can use anything you want really
-	void render(int flags);
+	void render(int flags, float radius = 0.0f);
 
 	// determine if we even need to try and render this (helpful for particle system)
 	int need_to_render() { return n_to_render; };

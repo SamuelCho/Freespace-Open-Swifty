@@ -29,6 +29,7 @@
 
 
 SCP_vector<opengl_shader_t> GL_shader;
+SCP_vector<opengl_shader_t> GL_effect_shader;
 
 static char *GLshader_info_log = NULL;
 static const int GLshader_info_log_size = 8192;
@@ -46,12 +47,19 @@ struct opengl_shader_file_t {
 */
 
 static opengl_shader_file_t GL_effect_shader_files[] = {
-	{ "effect-fbl-v.sdr", "effect-fbl-f.sdr", (SDR_FLAG_EFFECT_FIREBALL), 1, {"tex"} },
-	{ "effect-part-v.sdr", "effect-part-f.sdr", (SDR_FLAG_EFFECT_PARTICLE), 1, {"tex"} }
+	{ 
+		"effect-v.sdr",							// char *vert			
+		"effect-f.sdr",							// char *frag
+		(SDR_FLAG_EFFECT_PARTICLE),						// int flags
+		7,												// int num_uniforms
+		{"baseMap", "depthMap", "radius", "window_width", "window_height", "nearZ", "farZ"}				// char *uniforms[]
+	}
 };
 
+static const unsigned int Num_effect_shader_files = sizeof(GL_effect_shader_files) / sizeof(opengl_shader_file_t);
+
 static opengl_shader_file_t GL_shader_file[] = {
-	{ "null-v.sdr", "null-f.sdr", (0), 0, { NULL }, },
+	{ "null-v.sdr", "null-f.sdr", (0), 0, { NULL } },
 
 	{ "l-v.sdr", "lb-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP),
 		2, { "sBasemap", "n_lights" } },
@@ -532,6 +540,119 @@ void opengl_shader_init()
 	}
 
 	mprintf(("\n"));
+}
+
+static char *opengl_load_effect_shader(char *filename)
+{
+	std::string sflags;
+
+	//sflags += "#version 120\n";
+
+	if (Use_GLSL >= 4) {
+		sflags += "#define SHADER_MODEL 4\n";
+	} else if (Use_GLSL == 3) {
+		sflags += "#define SHADER_MODEL 3\n";
+	} else {
+		sflags += "#define SHADER_MODEL 2\n";
+	}
+
+	const char *shader_flags = sflags.c_str();
+	int flags_len = strlen(shader_flags);
+
+	CFILE *cf_shader = cfopen(filename, "rt", CFILE_NORMAL, CF_TYPE_EFFECTS);
+
+	if (cf_shader != NULL) {
+		int len = cfilelength(cf_shader);
+		char *shader = (char*) vm_malloc(len + flags_len + 1);
+
+		strcpy(shader, shader_flags);
+		memset(shader + flags_len, 0, len + 1);
+		cfread(shader + flags_len, len + 1, 1, cf_shader);
+		cfclose(cf_shader);
+
+		return shader;	
+	} else {
+		mprintf(("Loading built-in default shader for: %s\n", filename));
+		char* def_shader = defaults_get_file(filename);
+		size_t len = strlen(def_shader);
+		char *shader = (char*) vm_malloc(len + flags_len + 1);
+
+		strcpy(shader, shader_flags);
+		strcat(shader, def_shader);
+		//memset(shader + flags_len, 0, len + 1);
+
+		return shader;
+	}
+
+}
+
+void opengl_effect_shader_init()
+{
+	char *vert = NULL, *frag = NULL;
+	int i, idx;
+
+	if ( !Use_GLSL ) {
+		return;
+	}
+
+	GL_effect_shader.reserve(Num_effect_shader_files);
+
+	for ( idx = 0; idx < Num_effect_shader_files; idx++ ) {
+		bool in_error = false;
+		opengl_shader_t new_effect_shader;
+		opengl_shader_file_t *effect_shader_file = &GL_effect_shader_files[idx];
+
+		char *vert_name = effect_shader_file->vert;
+		char *frag_name = effect_shader_file->frag;
+
+		mprintf(("  Compiling shader: %s (%s), %s (%s)\n", vert_name, GL_effect_shader_files[idx].vert, frag_name, GL_effect_shader_files[idx].frag ));
+
+		// read vertex shader
+		if ( (vert = opengl_load_effect_shader(vert_name)) == NULL ) {
+			in_error = true;
+			goto Done;
+		}
+
+		if ( (frag = opengl_load_effect_shader(frag_name)) == NULL ) {
+			in_error = true;
+			goto Done;
+		}
+
+		Verify( vert != NULL );
+		Verify( frag != NULL );
+
+		new_effect_shader.program_id = opengl_shader_create(vert, frag);
+
+		if ( !new_effect_shader.program_id ) {
+			in_error = true;
+			goto Done;
+		}
+
+		new_effect_shader.flags = effect_shader_file->flags;
+
+		opengl_shader_set_current( &new_effect_shader );
+
+		new_effect_shader.uniforms.reserve(effect_shader_file->num_uniforms);
+
+		for ( i = 0; i < effect_shader_file->num_uniforms; i++ ) {
+			opengl_shader_init_uniform(effect_shader_file->uniforms[i]);
+		}
+
+		opengl_shader_set_current();
+
+		GL_effect_shader.push_back(new_effect_shader);
+	
+	Done:
+		if ( vert != NULL ) {
+			vm_free(vert);
+			vert = NULL;
+		}
+
+		if ( frag != NULL ) {
+			vm_free(frag);
+			frag = NULL;
+		}
+	}
 }
 
 void opengl_shader_check_info_log(GLhandleARB shader_object)

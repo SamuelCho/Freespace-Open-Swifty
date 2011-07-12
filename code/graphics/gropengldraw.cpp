@@ -30,7 +30,7 @@
 #include "graphics/gropengldraw.h"
 #include "debugconsole/timerbar.h"
 #include "nebula/neb.h"
-
+#include "graphics/gropenglshader.h"
 
 
 void gr_opengl_pixel(int x, int y, bool resize)
@@ -1240,6 +1240,85 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 	glVertexPointer(3, GL_FLOAT, sizeof(vertex), &verts[0].x);
 
 	glDrawArrays(gl_mode, 0, nverts);
+
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	glDisableClientState(GL_VERTEX_ARRAY);
+	glDisableClientState(GL_COLOR_ARRAY);
+
+	GL_state.CullFace(cull_face);
+	GL_state.Lighting(lighting);
+
+	GL_CHECK_FOR_ERRORS("end of render3d()");
+}
+
+GLuint Color_scene_texture;
+GLuint Depth_scene_texture;
+void gr_opengl_render_effect(int nverts, vertex *verts, uint flags, float radius)
+{
+	int alpha, tmap_type, r, g, b;
+	float u_scale = 1.0f, v_scale = 1.0f;
+	GLenum gl_mode = GL_TRIANGLE_FAN;
+
+	GL_CHECK_FOR_ERRORS("start of render3d()");
+
+	Assert(Depth_scene_texture != 0);
+
+	opengl_setup_render_states(r, g, b, alpha, tmap_type, flags);
+
+	if (flags & TMAP_FLAG_TEXTURED) {
+		opengl_shader_set_current(&GL_effect_shader[0]);
+
+		vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);
+		vglUniform1iARB(opengl_shader_get_uniform("depthMap"), 1);
+		vglUniform1fARB(opengl_shader_get_uniform("radius"), radius);
+		vglUniform1fARB(opengl_shader_get_uniform("window_width"), (float)gr_screen.max_w);
+		vglUniform1fARB(opengl_shader_get_uniform("window_height"), (float)gr_screen.max_h);
+		vglUniform1fARB(opengl_shader_get_uniform("nearZ"), Min_draw_distance);
+		vglUniform1fARB(opengl_shader_get_uniform("farZ"), Max_draw_distance);
+
+		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
+			return;
+		}
+
+		GL_state.Texture.SetActiveUnit(1);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(Depth_scene_texture);
+
+		glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+		glTexCoordPointer(2, GL_FLOAT, sizeof(vertex), &verts[0].u);
+	}
+
+	GLboolean cull_face = GL_state.CullFace(GL_FALSE);
+	GLboolean lighting = GL_state.Lighting(GL_FALSE);
+
+	if (flags & TMAP_FLAG_TRILIST) {
+		gl_mode = GL_TRIANGLES;
+	} else if (flags & TMAP_FLAG_TRISTRIP) {
+		gl_mode = GL_TRIANGLE_STRIP;
+	} else if (flags & TMAP_FLAG_QUADLIST) {
+		gl_mode = GL_QUADS;
+	} else if (flags & TMAP_FLAG_QUADSTRIP) {
+		gl_mode = GL_QUAD_STRIP;
+	}
+
+	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) ) {
+		glEnableClientState(GL_COLOR_ARRAY);
+		glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex), &verts[0].r);
+	}
+	// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
+	else {
+		glColor4ub( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
+	}
+
+	glEnableClientState(GL_VERTEX_ARRAY);
+	glVertexPointer(3, GL_FLOAT, sizeof(vertex), &verts[0].x);
+
+	glDrawArrays(gl_mode, 0, nverts);
+
+	opengl_shader_set_current();
+
+	GL_state.Texture.SetActiveUnit(1);
+	GL_state.Texture.Disable();
 
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	glDisableClientState(GL_VERTEX_ARRAY);

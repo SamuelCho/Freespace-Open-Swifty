@@ -3860,7 +3860,6 @@ void game_render_frame( camid cid )
 
 	bool draw_viewer_last = false;
 	obj_render_all(obj_render, &draw_viewer_last);
-	
 	//	Why do we not show the shield effect in these modes?  Seems ok.
 	//if (!(Viewer_mode & (VM_EXTERNAL | VM_SLEWED | VM_CHASE | VM_DEAD_VIEW))) {
 	render_shields();
@@ -3884,13 +3883,13 @@ void game_render_frame( camid cid )
 
 	// render local player nebula
 	neb2_render_player();
-
+	
 	//Draw the viewer 'cause we didn't before.
 	//This is so we can change the minimum clipping distance without messing everything up.
 	if(draw_viewer_last && Viewer_obj)
 	{
 		gr_post_process_save_zbuffer();
-		gr_zbuffer_clear(TRUE);
+		//gr_zbuffer_clear(TRUE);
 		ship_render(Viewer_obj);
 	}
 
@@ -3907,7 +3906,7 @@ void game_render_frame( camid cid )
 	extern void snd_spew_debug_info();
 	snd_spew_debug_info();
 #endif
-
+	
 	if(!Cmdline_nohtl)
 	{
 		gr_end_proj_matrix();
@@ -3918,7 +3917,7 @@ void game_render_frame( camid cid )
 	if(Viewer_obj != NULL && Viewer_mode != VM_TOPDOWN)
 	{
 		gr_post_process_save_zbuffer();
-		gr_zbuffer_clear(TRUE);
+		//gr_zbuffer_clear(TRUE);
 		ship_render_cockpit(Viewer_obj);
 	}
 	//================ END OF 3D RENDERING STUFF ====================

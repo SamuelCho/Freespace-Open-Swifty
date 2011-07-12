@@ -344,6 +344,10 @@ void gr_stub_render( int nverts, vertex *verts, uint flags )
 {
 }
 
+void gr_stub_render_effect( int nverts, vertex *verts, uint flags, float radius )
+{
+}
+
 void gr_stub_translate_texture_matrix(int unit, vec3d *shift)
 {
 }
@@ -683,6 +687,7 @@ bool gr_stub_init()
 	gr_screen.gf_scaler				= gr_stub_scaler;
 	gr_screen.gf_tmapper			= gr_stub_tmapper;
 	gr_screen.gf_render				= gr_stub_render;
+	gr_screen.gf_render_effect		= gr_stub_render_effect;
 
 	gr_screen.gf_gradient			= gr_stub_gradient;
 
