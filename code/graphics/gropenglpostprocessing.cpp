@@ -884,7 +884,7 @@ static bool opengl_post_init_framebuffer()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, Post_texture_width, Post_texture_height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, Post_texture_width, Post_texture_height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, Post_depth_texture_id, 0);
 
@@ -1018,7 +1018,7 @@ static bool opengl_post_init_framebuffer()
 
 	Color_scene_texture = Post_screen_texture_id;
 	Depth_scene_texture = Post_depth_texture_id;
-	Depth_scene_texture = Last_frame_depth_texture;
+	//Depth_scene_texture = Last_frame_depth_texture;
 
 	return rval;
 }

@@ -453,7 +453,7 @@ void particle_render_all()
 	}
 
 	if (render_batch) {
-		int zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
+		int zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
 		batch_render_bitmaps();
 		gr_zbuffer_set(zbuff);
 	}

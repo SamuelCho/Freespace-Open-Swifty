@@ -3918,7 +3918,7 @@ void game_render_frame( camid cid )
 	{
 		gr_post_process_save_zbuffer();
 		//gr_zbuffer_clear(TRUE);
-		ship_render_cockpit(Viewer_obj);
+		//ship_render_cockpit(Viewer_obj);
 	}
 	//================ END OF 3D RENDERING STUFF ====================
 
