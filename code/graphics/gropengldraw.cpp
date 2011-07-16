@@ -1251,7 +1251,6 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 	GL_CHECK_FOR_ERRORS("end of render3d()");
 }
 
-GLuint Color_scene_texture;
 GLuint Depth_scene_texture;
 void gr_opengl_render_effect(int nverts, vertex *verts, uint flags, float radius)
 {

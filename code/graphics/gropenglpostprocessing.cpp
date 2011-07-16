@@ -86,9 +86,6 @@ static GLuint Post_screen_texture_id = 0;
 static GLuint Post_depth_texture_id = 0;
 static GLuint Post_bloom_texture_id[3] = { 0 };
 
-static GLuint Last_frame_depth = 0;
-static GLuint Last_frame_depth_texture = 0;
-
 static int Post_texture_width = 0;
 static int Post_texture_height = 0;
 
@@ -214,7 +211,6 @@ void gr_opengl_post_process_begin()
 	}
 	
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[0]);
-	//vglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, Post_renderbuffer_id);
 
 //	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, Post_renderbuffer_id);
 
@@ -334,8 +330,6 @@ void gr_opengl_post_process_end()
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Post_screen_texture_id);
-	//GL_state.Texture.Enable(Post_depth_texture_id);
-	//GL_state.Texture.Enable(Last_frame_depth_texture);
 
 	glBegin(GL_QUADS);
 		glTexCoord2f(0.0f, 0.0f);
@@ -351,50 +345,13 @@ void gr_opengl_post_process_end()
 		glVertex2f(-1.0f, 1.0f);
 	glEnd();
 
-	GL_state.Texture.SetShaderMode(GL_FALSE);
-	opengl_shader_set_current();
-
-	GL_state.Texture.SetActiveUnit(1);
-	GL_state.Texture.Disable();
-
-	GL_state.Texture.SetActiveUnit(0);
-	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Post_depth_texture_id);
-
-	glBegin(GL_QUADS);
-	glTexCoord2f(0.0f, 1.0f);
-	glVertex2f(0.0f, 0.0f);
-
-	glTexCoord2f(1.0f, 1.0f);
-	glVertex2f((float)gr_screen.max_w/4.0f, 0.0f);
-
-	glTexCoord2f(1.0f, 0.0f);
-	glVertex2f((float)gr_screen.max_w/4.0f, (float)gr_screen.max_h/4.0f);
-
-	glTexCoord2f(0.0f, 0.0f);
-	glVertex2f(0.0f, (float)gr_screen.max_h/4.0f);
-	glEnd();
-
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Last_frame_depth);
-
-	glBegin(GL_QUADS);
-	glTexCoord2f(0.0f, 1.0f);
-	glVertex2f(0.0f, 0.0f);
-
-	glTexCoord2f(1.0f, 1.0f);
-	glVertex2f((float)gr_screen.max_w, 0.0f);
-
-	glTexCoord2f(1.0f, 0.0f);
-	glVertex2f((float)gr_screen.max_w, (float)gr_screen.max_h);
-
-	glTexCoord2f(0.0f, 0.0f);
-	glVertex2f(0.0f, (float)gr_screen.max_h);
-	glEnd();
-
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 
 	// Done!
 	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.Disable();
+
+	GL_state.Texture.SetActiveUnit(1);
 	GL_state.Texture.Disable();
 
 	// reset state
@@ -403,6 +360,9 @@ void gr_opengl_post_process_end()
 	GL_state.Lighting(light);
 	GL_state.Blend(blend);
 	GL_state.CullFace(cull);
+
+	GL_state.Texture.SetShaderMode(GL_FALSE);
+	opengl_shader_set_current();
 
 	Post_in_frame = false;
 }
@@ -823,7 +783,7 @@ static bool opengl_post_init_shader()
 
 	return rval;
 }
-extern GLuint Color_scene_texture;
+
 extern GLuint Depth_scene_texture;
 // generate and test the framebuffer and textures that we are going to use
 static bool opengl_post_init_framebuffer()
@@ -845,13 +805,6 @@ static bool opengl_post_init_framebuffer()
 	// create framebuffer
 	vglGenFramebuffersEXT(1, &Post_framebuffer_id[0]);
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[0]);
-
-	// create renderbuffer
-	//vglGenRenderbuffersEXT(1, &Post_renderbuffer_id);
-	//vglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, Post_renderbuffer_id);
-	//vglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT, Post_texture_width, Post_texture_height);
-
-	//vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, Post_renderbuffer_id);
 
 	// setup main render texture
 	glGenTextures(1, &Post_screen_texture_id);
@@ -990,35 +943,11 @@ static bool opengl_post_init_framebuffer()
 		rval = true;
 	}
 	
-	vglGenFramebuffersEXT(1, &Last_frame_depth);
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Last_frame_depth);
-
-	// setup main depth texture
-	glGenTextures(1, &Last_frame_depth_texture);
-
-	GL_state.Texture.SetActiveUnit(0);
-	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Last_frame_depth_texture);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Post_texture_width, Post_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
-
-	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Last_frame_depth_texture, 0);
-
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-	
 	if ( opengl_check_for_errors("post_init_framebuffer()") ) {
 		rval = false;
 	}
 
-	Color_scene_texture = Post_screen_texture_id;
 	Depth_scene_texture = Post_depth_texture_id;
-	//Depth_scene_texture = Last_frame_depth_texture;
 
 	return rval;
 }
