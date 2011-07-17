@@ -1054,7 +1054,8 @@ void mc_check_subobj( int mn )
 			Mc->hit_bitmap = -1;
 			Mc->num_hits++;
 		} else {
-			model_collide_sub(sm->bsp_data);
+			//model_collide_sub(sm->bsp_data);
+			model_collide_nodes(sm, 0);
 		}
 	} else {
 		//Int3();

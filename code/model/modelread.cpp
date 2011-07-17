@@ -2453,6 +2453,15 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 	// maybe generate vertex buffers
 	create_vertex_buffer(pm);
 
+	for ( i = 0; i < pm->n_models; ++i ) {
+		collision_node node;
+
+		pm->submodel[i].collision_tree.clear();
+		pm->submodel[i].collision_tree.push_back(node);
+
+		model_collide_parse(pm, &pm->submodel[i], pm->submodel[i].bsp_data, 0);
+	}
+
 //==============================
 // Find all the lower detail versions of the hires model
 	for (i=0; i<pm->n_models; i++ )	{
