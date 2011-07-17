@@ -35,18 +35,20 @@ extern char* Default_blur_fragment_shader;
 extern char* Default_brightpass_fragment_shader;
 extern char* Default_post_fragment_shader;
 extern char* Default_post_vertex_shader;
+extern char *Default_controlconfig_table;
 //**********
 
 //:PART 2:
 //**********
 def_file Default_files[] =
 {
-	{ "species_defs.tbl",		Default_species_table },
-	{ "iff_defs.tbl",			Default_iff_table },
-	{ "objecttypes.tbl",		Default_shiptypes_table },
-	{ "ai_profiles.tbl",		Default_ai_profiles_table },
-	{ "autopilot.tbl",			Default_autopilot_table },
-	{ "fonts.tbl",				Default_fonts_table },
+	{ "species_defs.tbl",		    Default_species_table },
+	{ "iff_defs.tbl",			    Default_iff_table },
+	{ "objecttypes.tbl",		    Default_shiptypes_table },
+	{ "ai_profiles.tbl",		    Default_ai_profiles_table },
+	{ "autopilot.tbl",			    Default_autopilot_table },
+	{ "fonts.tbl",				    Default_fonts_table },
+    { "controlconfigdefaults.tbl",  Default_controlconfig_table },
 	{ "post_processing.tbl",	Default_post_processing_table},
 	{ "main-f.sdr",				Default_main_fragment_shader},
 	{ "main-v.sdr",				Default_main_vertex_shader},
@@ -1866,3 +1868,9 @@ void main()									\n\
  #endif										\n\
 }											\n\
 ";
+
+char *Default_controlconfig_table = "\
+                                    #ControlConfigOverride \n\
+                                    \
+                                    #End\n\
+                                    ";

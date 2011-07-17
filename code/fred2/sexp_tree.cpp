@@ -4265,7 +4265,7 @@ sexp_list_item *sexp_tree::get_listing_opf(int opf, int parent_node, int arg_ind
 			break;
 
 		case OPF_SHIP_WING_TEAM:
-			list = get_listing_opf_ship_wing_team();
+			list = get_listing_opf_ship_wing_team(parent_node);
 			break;
 
 		case OPF_SHIP_WING_POINT_OR_NONE:
@@ -5374,10 +5374,11 @@ sexp_list_item *sexp_tree::get_listing_opf_ship_wing_point()
 	return head.next;
 }
 
-sexp_list_item *sexp_tree::get_listing_opf_ship_wing_team()
+sexp_list_item *sexp_tree::get_listing_opf_ship_wing_team(int parent_node)
 {
 	int i;
 	sexp_list_item head;
+	int op = get_operator_const(tree_nodes[parent_node].text);
 
 	for (i=0; i<Num_iffs; i++) {
 		head.add_data(Iff_info[i].iff_name);
@@ -5385,6 +5386,10 @@ sexp_list_item *sexp_tree::get_listing_opf_ship_wing_team()
 	
 	head.add_list(get_listing_opf_ship());
 	head.add_list(get_listing_opf_wing());
+
+	//add <ship_wing_adv> to list for processing of arriving wings
+	if (op != OP_NUM_SHIPS_IN_BATTLE)
+		head.add_data(SEXP_SHIP_WING_ADV_STRING);
 
 	return head.next;
 }
