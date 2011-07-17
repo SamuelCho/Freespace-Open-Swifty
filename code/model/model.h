@@ -250,7 +250,7 @@ typedef struct IBX {
 	char name[MAX_FILENAME_LEN];	// filename of the ibx, this is used in case a safety check fails and we delete the file
 } IBX;
 
-typedef struct collision_node {
+struct collision_node {
 	ubyte op;
 	int next;
 
@@ -264,17 +264,36 @@ typedef struct collision_node {
 	int on;
 	int front;
 	int post;
-} collision_node;
 
-typedef struct collision_tri {
+	collision_node(): op(0), next(-1), tri_num(-1), pre(-1), back(-1), on(-1), front(-1), post(-1)
+	{
+		memset( &min, 0, sizeof( min ) );
+		memset( &max, 0, sizeof( max ) );
+	}
+};
+
+struct collision_tri {
 	vec3d plane_pnt;
 	float face_rad;
 	vec3d plane_norm;
-	ubyte tmap_num;
+	int tmap_num;
 	int vert_start;
 	int uv_start;
 	int num_verts;
-} collision_tri;
+
+	collision_tri(): face_rad(0.0f), tmap_num(0), vert_start(0), uv_start(0), num_verts(0)
+	{
+		memset( &plane_pnt, 0, sizeof( plane_pnt ) );
+		memset( &plane_norm, 0, sizeof( plane_norm ) );
+	}
+};
+
+struct collision_tree {
+	SCP_vector<collision_node> node_list;
+	SCP_vector<collision_tri> tri_list;
+	SCP_vector<vec3d> point_list;
+	SCP_vector<uv_pair> uv_list;
+};
 
 typedef struct bsp_info {
 	char		name[MAX_NAME_LEN];	// name of the subsystem.  Probably displayed on HUD
@@ -287,10 +306,7 @@ typedef struct bsp_info {
 	int		bsp_data_size;
 	ubyte		*bsp_data;
 
-	SCP_vector<collision_node> collision_tree;
-	SCP_vector<collision_tri> collision_tris;
-	SCP_vector<vec3d> collision_point_list;
-	SCP_vector<uv_pair> collision_uv_list;
+	int collision_tree_index;
 
 	vec3d	geometric_center;		// geometric center of this subobject.  In the same Frame Of 
 	                              //  Reference as all other vertices in this submodel. (Relative to pivot point)
@@ -379,8 +395,8 @@ typedef struct bsp_info {
 		dumb_turn_rate = 0.f;
 		bsp_data = NULL;
 		rad = 0.f;
-		lod_name[ 0 ] = '\0';  
-		collision_model = -1;
+		lod_name[ 0 ] = '\0';
+		collision_tree_index = -1;
 		collision_model = -1;
 
 		/* Compound types */
@@ -1070,7 +1086,10 @@ typedef struct mc_info {
 */
 
 int model_collide(mc_info * mc_info);
-void model_collide_parse(polymodel *pm, bsp_info *sm, void *model_ptr, int starting_node);
+void model_collide_parse(collision_tree *tree, void *model_ptr, int starting_node, int version);
+
+int model_create_collision_tree();
+collision_tree *model_get_collision_tree(int tree_index);
 
 // Sets the submodel instance data in a submodel
 // If show_damaged is true it shows only damaged submodels.
