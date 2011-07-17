@@ -57,6 +57,8 @@ int model_render_flags_size = sizeof(model_render_flags)/sizeof(flag_def_list);
 polymodel *Polygon_models[MAX_POLYGON_MODELS];
 SCP_vector<polymodel_instance*> Polygon_model_instances;
 
+SCP_vector<collision_tree> Collision_tree_list;
+
 static int model_initted = 0;
 extern int Cmdline_nohtl;
 
@@ -2454,12 +2456,13 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 	create_vertex_buffer(pm);
 
 	for ( i = 0; i < pm->n_models; ++i ) {
+		pm->submodel[i].collision_tree_index = model_create_collision_tree();
+		collision_tree *tree = model_get_collision_tree(pm->submodel[i].collision_tree_index);
+
 		collision_node node;
+		tree->node_list.push_back(node);
 
-		pm->submodel[i].collision_tree.clear();
-		pm->submodel[i].collision_tree.push_back(node);
-
-		model_collide_parse(pm, &pm->submodel[i], pm->submodel[i].bsp_data, 0);
+		model_collide_parse(tree, pm->submodel[i].bsp_data, 0, pm->version);
 	}
 
 //==============================
@@ -4540,6 +4543,23 @@ int model_find_bay_path(int modelnum, char *bay_path_name)
 	}
 
 	return -1;
+}
+
+int model_create_collision_tree()
+{
+	collision_tree tree;
+
+	Collision_tree_list.push_back(tree);
+
+	return Collision_tree_list.size() - 1;
+}
+
+collision_tree *model_get_collision_tree(int tree_index)
+{
+	Assert(tree_index >= 0);
+	Assert(tree_index < Collision_tree_list.size());
+
+	return &Collision_tree_list[tree_index];
 }
 
 #if BYTE_ORDER == BIG_ENDIAN
