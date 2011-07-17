@@ -250,7 +250,31 @@ typedef struct IBX {
 	char name[MAX_FILENAME_LEN];	// filename of the ibx, this is used in case a safety check fails and we delete the file
 } IBX;
 
+typedef struct collision_node {
+	ubyte op;
+	int next;
 
+	vec3d min;
+	vec3d max;
+
+	int tri_num;
+
+	int pre;
+	int back;
+	int on;
+	int front;
+	int post;
+} collision_node;
+
+typedef struct collision_tri {
+	vec3d plane_pnt;
+	float face_rad;
+	vec3d plane_norm;
+	ubyte tmap_num;
+	int vert_start;
+	int uv_start;
+	int num_verts;
+} collision_tri;
 
 typedef struct bsp_info {
 	char		name[MAX_NAME_LEN];	// name of the subsystem.  Probably displayed on HUD
@@ -262,6 +286,11 @@ typedef struct bsp_info {
 
 	int		bsp_data_size;
 	ubyte		*bsp_data;
+
+	SCP_vector<collision_node> collision_tree;
+	SCP_vector<collision_tri> collision_tris;
+	SCP_vector<vec3d> collision_point_list;
+	SCP_vector<uv_pair> collision_uv_list;
 
 	vec3d	geometric_center;		// geometric center of this subobject.  In the same Frame Of 
 	                              //  Reference as all other vertices in this submodel. (Relative to pivot point)
@@ -1038,6 +1067,7 @@ typedef struct mc_info {
 */
 
 int model_collide(mc_info * mc_info);
+void model_collide_parse(polymodel *pm, bsp_info *sm, void *model_ptr, int starting_node);
 
 // Sets the submodel instance data in a submodel
 // If show_damaged is true it shows only damaged submodels.

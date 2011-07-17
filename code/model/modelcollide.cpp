@@ -516,6 +516,327 @@ int model_collide_sub(void *model_ptr )
 	return 1;
 }
 
+void model_collide_node_flatpoly(bsp_info *sm, collision_node *node)
+{
+	int i;
+	collision_tri *tri;
+	vec3d *points[TMAP_MAX_VERTS];
+
+	tri = &sm->collision_tris[node->tri_num];
+
+	int vert_start = tri->vert_start;
+	int nv = tri->num_verts;
+
+	for ( i = 0; i < nv; ++i ) {
+		points[i] = &sm->collision_point_list[vert_start+i];
+	}
+
+	if ( Mc->flags & MC_CHECK_SPHERELINE ) {
+		mc_check_sphereline_face(nv, points, &tri->plane_pnt, tri->face_rad, &tri->plane_norm, NULL, -1, NULL);
+	} else {
+		mc_check_face(nv, points, &tri->plane_pnt, tri->face_rad, &tri->plane_norm, NULL, -1, NULL);
+	}
+}
+
+void model_collide_node_tmappoly(bsp_info *sm, collision_node *node)
+{
+	int i;
+	collision_tri *tri;
+	uv_pair uvlist[TMAP_MAX_VERTS];
+	vec3d *points[TMAP_MAX_VERTS];
+
+	tri = &sm->collision_tris[node->tri_num];
+
+	int vert_start = tri->vert_start;
+	int nv = tri->num_verts;
+	int uv_start = tri->uv_start;
+
+	if ( (!(Mc->flags & MC_CHECK_INVISIBLE_FACES)) && (Mc_pm->maps[tri->tmap_num].textures[TM_BASE_TYPE].GetTexture() < 0) )	{
+		// Don't check invisible polygons.
+		//SUSHI: Unless $collide_invisible is set.
+		if (!(Mc_pm->submodel[Mc_submodel].collide_invisible))
+			return;
+	}
+
+	for ( i = 0; i < nv; ++i ) {
+		points[i] = &sm->collision_point_list[vert_start+i];
+		uvlist[i] = sm->collision_uv_list[uv_start+i];
+	}
+
+	if ( Mc->flags & MC_CHECK_SPHERELINE ) {
+		mc_check_sphereline_face(nv, points, &tri->plane_pnt, tri->face_rad, &tri->plane_norm, uvlist, tri->tmap_num, NULL);
+	} else {
+		mc_check_face(nv, points, &tri->plane_pnt, tri->face_rad, &tri->plane_norm, uvlist, tri->tmap_num, NULL);
+	}
+}
+
+void model_collide_nodes(bsp_info *sm, int starting_node)
+{
+	int current_node = starting_node;
+	collision_node *node = &sm->collision_tree[current_node];
+
+	while ( node->op != OP_EOF ) {
+		switch ( node->op ) {
+			case OP_EOF:
+				return;
+				break;
+			case OP_FLATPOLY:
+				model_collide_node_flatpoly(sm, node);
+				break;
+			case OP_TMAPPOLY:
+				model_collide_node_tmappoly(sm, node);
+				break;
+			case OP_SORTNORM:
+				if ( Mc_pm->version >= 2000 ) {
+					if ( !mc_ray_boundingbox(&node->min, &node->max, &Mc_p0, &Mc_direction, NULL) ) {
+						return;
+					}
+				}
+
+				if ( node->pre >= 0 )	model_collide_nodes(sm, node->pre);
+				if ( node->back >= 0 )	model_collide_nodes(sm, node->back);
+				if ( node->on >= 0 )	model_collide_nodes(sm, node->on);
+				if ( node->front >= 0 )	model_collide_nodes(sm, node->front);
+				if ( node->post >= 0 )	model_collide_nodes(sm, node->post);
+			case OP_BOUNDBOX:
+				if ( !mc_ray_boundingbox(&node->min, &node->max, &Mc_p0, &Mc_direction, NULL) ) {
+					return;
+				}
+				break;
+		}
+
+		if ( node->next >= 0 ) {
+			node = &sm->collision_tree[node->next];
+		} else {
+			return;
+		}
+	}
+}
+
+void model_collide_parse_flatpoly(bsp_info *sm, void *model_ptr, int current_node)
+{
+	ubyte *p = (ubyte *)model_ptr;
+
+	int i;
+	int nv;
+	short *verts;
+
+	nv = w(p+36);
+
+	if ( nv < 0 ) return;
+
+	if ( nv > TMAP_MAX_VERTS ) {
+		Int3();
+		return;
+	}
+
+	verts = (short *)(p+44);
+
+	sm->collision_tree[current_node].op = OP_FLATPOLY;
+	sm->collision_tree[current_node].tri_num = sm->collision_tris.size();
+
+	collision_tri new_tri;
+
+	new_tri.tmap_num = -1;
+	new_tri.num_verts = nv;
+	new_tri.vert_start = sm->collision_point_list.size();
+	new_tri.uv_start = -1;
+
+	vec3d *plane_pnt = vp(p+20);
+	float face_rad = fl(p+32);
+	vec3d *plane_norm = vp(p+8);
+
+	new_tri.plane_pnt = *plane_pnt;
+	new_tri.face_rad = face_rad;
+	new_tri.plane_norm = *plane_norm;
+
+	sm->collision_tris.push_back(new_tri);
+
+	for ( i = 0; i < nv; ++i ) {
+		sm->collision_point_list.push_back(*Mc_point_list[verts[i*2]]);
+	}
+}
+
+void model_collide_parse_tmappoly(bsp_info *sm, void *model_ptr, int current_node)
+{
+	ubyte *p = (ubyte *)model_ptr;
+
+	int i;
+	int nv;
+	model_tmap_vert *verts;
+
+	nv = w(p+36);
+
+	if ( nv < 0 ) return;
+
+	if ( nv > TMAP_MAX_VERTS ) {
+		Int3();
+		return;
+	}
+
+	int tmap_num = w(p+40);
+
+	Assert(tmap_num >= 0 && tmap_num < MAX_MODEL_TEXTURES);
+
+	verts = (model_tmap_vert *)(p+44);
+
+	sm->collision_tree[current_node].op = OP_TMAPPOLY;
+	sm->collision_tree[current_node].tri_num = sm->collision_tris.size();
+
+	collision_tri new_tri;
+
+	new_tri.tmap_num = tmap_num;
+	new_tri.num_verts = nv;
+	new_tri.vert_start = sm->collision_point_list.size();
+	new_tri.uv_start = sm->collision_uv_list.size();
+
+	vec3d *plane_pnt = vp(p+20);
+	float face_rad = fl(p+32);
+	vec3d *plane_norm = vp(p+8);
+
+	new_tri.plane_pnt = *plane_pnt;
+	new_tri.face_rad = face_rad;
+	new_tri.plane_norm = *plane_norm;
+
+	sm->collision_tris.push_back(new_tri);
+
+	uv_pair new_uv_pair;
+
+	for ( i = 0; i < nv; ++i ) {
+		sm->collision_point_list.push_back(*Mc_point_list[verts[i].vertnum]);
+
+		new_uv_pair.u = verts[i].u;
+		new_uv_pair.v = verts[i].v;
+
+		sm->collision_uv_list.push_back(new_uv_pair);
+	}
+}
+
+void model_collide_parse_sortnorm(polymodel *pm, bsp_info *sm, void *model_ptr, int current_node)
+{
+	vec3d *min;
+	vec3d *max;
+
+	ubyte *p = (ubyte *)model_ptr;
+
+	collision_node new_node;
+
+	sm->collision_tree[current_node].op = OP_SORTNORM;
+
+	if ( pm->version >= 2000 ) {
+		min = vp(p+56);
+		max = vp(p+68);
+
+		sm->collision_tree[current_node].min = *min;
+		sm->collision_tree[current_node].max = *max;
+	}
+
+	int frontlist = w(p+36);
+	int backlist = w(p+40);
+	int prelist = w(p+44);
+	int postlist = w(p+48);
+	int onlist = w(p+52);
+
+	if ( prelist ) {
+		sm->collision_tree.push_back(new_node);
+		sm->collision_tree[current_node].pre = sm->collision_tree.size() - 1;
+		model_collide_parse(pm, sm, p+prelist, sm->collision_tree[current_node].pre);
+	}
+
+	if ( backlist ) {
+		sm->collision_tree.push_back(new_node);
+		sm->collision_tree[current_node].back = sm->collision_tree.size() - 1;
+		model_collide_parse(pm, sm, p+backlist, sm->collision_tree[current_node].back);
+	}
+
+	if ( onlist ) {
+		sm->collision_tree.push_back(new_node);
+		sm->collision_tree[current_node].on = sm->collision_tree.size() - 1;
+		model_collide_parse(pm, sm, p+onlist, sm->collision_tree[current_node].on);
+	}
+
+	if ( frontlist ) {
+		sm->collision_tree.push_back(new_node);
+		sm->collision_tree[current_node].front = sm->collision_tree.size() - 1;
+		model_collide_parse(pm, sm, p+frontlist, sm->collision_tree[current_node].front);
+	}
+
+	if ( postlist ) {
+		sm->collision_tree.push_back(new_node);
+		sm->collision_tree[current_node].post = sm->collision_tree.size() - 1;
+		model_collide_parse(pm, sm, p+postlist, sm->collision_tree[current_node].post);
+	}
+}
+
+int model_collide_new_node(bsp_info *sm, int current_node)
+{
+	collision_node new_node;
+
+	sm->collision_tree.push_back(new_node);
+	sm->collision_tree[current_node].next = (int)sm->collision_tree.size() - 1;
+
+	return sm->collision_tree[current_node].next;
+}
+
+void model_collide_parse(polymodel *pm, bsp_info *sm, void *model_ptr, int starting_node)
+{
+	ubyte *p = (ubyte *)model_ptr;
+
+	int chunk_type = w(p);
+	int chunk_size = w(p+4);
+
+	vec3d *min;
+	vec3d *max;
+
+	int current_node = starting_node;
+
+	while ( chunk_type != OP_EOF ) {
+		switch ( chunk_type ) {
+			case OP_EOF:
+				sm->collision_tree[current_node].op = OP_EOF;
+
+				sm->collision_tree[current_node].next = -1;
+				return;
+			case OP_DEFPOINTS:
+				model_collide_defpoints(p);
+				break;
+			case OP_FLATPOLY:
+				model_collide_parse_flatpoly(sm, p, current_node);
+
+				current_node = model_collide_new_node(sm, current_node);
+				break;
+			case OP_TMAPPOLY:
+				model_collide_parse_tmappoly(sm, p, current_node);
+
+				current_node = model_collide_new_node(sm, current_node);
+				break;
+			case OP_SORTNORM:
+				model_collide_parse_sortnorm(pm, sm, p, current_node);
+				
+				current_node = model_collide_new_node(sm, current_node);
+				break;
+			case OP_BOUNDBOX:
+				sm->collision_tree[current_node].op = OP_BOUNDBOX;
+
+				min = vp(p+8);
+				max = vp(p+20);
+				sm->collision_tree[current_node].min = *min;
+				sm->collision_tree[current_node].max = *max;
+
+				current_node = model_collide_new_node(sm, current_node);
+				break;
+			default:
+				mprintf( ("Bad chunk type %d, len=%d in model_collide_parse\n", chunk_type, chunk_size) );
+				Int3();
+				break;
+		}
+
+		p += chunk_size;
+		chunk_type = w(p);
+		chunk_size = w(p+4);
+	}
+}
+
 bool mc_shield_check_common(shield_tri	*tri)
 {
 	vec3d * points[3];
