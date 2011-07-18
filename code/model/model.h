@@ -254,7 +254,28 @@ struct collision_node {
 	ubyte op;
 	int next;
 
-	vec3d min;
+	union {
+		struct {
+			vec3d min;
+			vec3d max;
+
+			int pre;
+			int back;
+			int on;
+			int front;
+			int post;
+		} sortnorm;
+		struct {
+			vec3d plane_pnt;
+			float face_rad;
+			vec3d plane_norm;
+			ubyte tmap_num;
+			int vert_start;
+			int uv_start;
+			ubyte num_verts;
+		} tri;
+	};
+	/*vec3d min;
 	vec3d max;
 
 	int tri_num;
@@ -263,12 +284,10 @@ struct collision_node {
 	int back;
 	int on;
 	int front;
-	int post;
+	int post;*/
 
-	collision_node(): op(0), next(-1), tri_num(-1), pre(-1), back(-1), on(-1), front(-1), post(-1)
+	collision_node(): op(0), next(-1)
 	{
-		memset( &min, 0, sizeof( min ) );
-		memset( &max, 0, sizeof( max ) );
 	}
 };
 
@@ -276,10 +295,10 @@ struct collision_tri {
 	vec3d plane_pnt;
 	float face_rad;
 	vec3d plane_norm;
-	int tmap_num;
+	ubyte tmap_num;
 	int vert_start;
 	int uv_start;
-	int num_verts;
+	ubyte num_verts;
 
 	collision_tri(): face_rad(0.0f), tmap_num(0), vert_start(0), uv_start(0), num_verts(0)
 	{
@@ -290,7 +309,9 @@ struct collision_tri {
 
 struct collision_tree {
 	SCP_vector<collision_node> node_list;
-	SCP_vector<collision_tri> tri_list;
+	//SCP_vector<collision_tri> tri_list;
+	SCP_vector<int> point_indexes;
+	SCP_vector<int> uv_indexes;
 	SCP_vector<vec3d> point_list;
 	SCP_vector<uv_pair> uv_list;
 };
@@ -953,7 +974,7 @@ extern int submodel_get_points(int model_num, int submodel_num, int max_num, vec
 
 // Gets two random points on the surface of a submodel
 extern void submodel_get_two_random_points(int model_num, int submodel_num, vec3d *v1, vec3d *v2, vec3d *n1 = NULL, vec3d *n2 = NULL);
-
+extern void submodel_get_two_random_points_better(int model_num, int submodel_num, vec3d *v1, vec3d *v2);
 // gets the index into the docking_bays array of the specified type of docking point
 // Returns the index.  second functions returns the index of the docking bay with
 // the specified name

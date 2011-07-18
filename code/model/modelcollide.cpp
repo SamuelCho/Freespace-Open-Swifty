@@ -519,54 +519,58 @@ int model_collide_sub(void *model_ptr )
 void model_collide_node_flatpoly(collision_tree *tree, collision_node *node)
 {
 	int i;
-	collision_tri *tri;
 	vec3d *points[TMAP_MAX_VERTS];
 
-	tri = &tree->tri_list[node->tri_num];
+	int vert_start = node->tri.vert_start;
+	int nv = node->tri.num_verts;
 
-	int vert_start = tri->vert_start;
-	int nv = tri->num_verts;
+	int index;
 
 	for ( i = 0; i < nv; ++i ) {
-		points[i] = &tree->point_list[vert_start+i];
+		index = tree->point_indexes[vert_start+i];
+
+		points[i] = &tree->point_list[index];
 	}
 
 	if ( Mc->flags & MC_CHECK_SPHERELINE ) {
-		mc_check_sphereline_face(nv, points, &tri->plane_pnt, tri->face_rad, &tri->plane_norm, NULL, -1, NULL);
+		mc_check_sphereline_face(nv, points, &node->tri.plane_pnt, node->tri.face_rad, &node->tri.plane_norm, NULL, -1, NULL);
 	} else {
-		mc_check_face(nv, points, &tri->plane_pnt, tri->face_rad, &tri->plane_norm, NULL, -1, NULL);
+		mc_check_face(nv, points, &node->tri.plane_pnt, node->tri.face_rad, &node->tri.plane_norm, NULL, -1, NULL);
 	}
 }
 
 void model_collide_node_tmappoly(collision_tree *tree, collision_node *node)
 {
 	int i;
-	collision_tri *tri;
 	uv_pair uvlist[TMAP_MAX_VERTS];
 	vec3d *points[TMAP_MAX_VERTS];
 
-	tri = &tree->tri_list[node->tri_num];
+	int vert_start = node->tri.vert_start;
+	int nv = node->tri.num_verts;
+	int uv_start = node->tri.uv_start;
 
-	int vert_start = tri->vert_start;
-	int nv = tri->num_verts;
-	int uv_start = tri->uv_start;
-
-	if ( (!(Mc->flags & MC_CHECK_INVISIBLE_FACES)) && (Mc_pm->maps[tri->tmap_num].textures[TM_BASE_TYPE].GetTexture() < 0) )	{
+	if ( (!(Mc->flags & MC_CHECK_INVISIBLE_FACES)) && (Mc_pm->maps[node->tri.tmap_num].textures[TM_BASE_TYPE].GetTexture() < 0) )	{
 		// Don't check invisible polygons.
 		//SUSHI: Unless $collide_invisible is set.
 		if (!(Mc_pm->submodel[Mc_submodel].collide_invisible))
 			return;
 	}
 
+	int vert_index;
+	int uv_index;
+
 	for ( i = 0; i < nv; ++i ) {
-		points[i] = &tree->point_list[vert_start+i];
-		uvlist[i] = tree->uv_list[uv_start+i];
+		vert_index = tree->point_indexes[vert_start+i];
+		uv_index = tree->uv_indexes[uv_start+i];
+
+		points[i] = &tree->point_list[vert_index];
+		uvlist[i] = tree->uv_list[uv_index];
 	}
 
 	if ( Mc->flags & MC_CHECK_SPHERELINE ) {
-		mc_check_sphereline_face(nv, points, &tri->plane_pnt, tri->face_rad, &tri->plane_norm, uvlist, tri->tmap_num, NULL);
+		mc_check_sphereline_face(nv, points, &node->tri.plane_pnt, node->tri.face_rad, &node->tri.plane_norm, uvlist, node->tri.tmap_num, NULL);
 	} else {
-		mc_check_face(nv, points, &tri->plane_pnt, tri->face_rad, &tri->plane_norm, uvlist, tri->tmap_num, NULL);
+		mc_check_face(nv, points, &node->tri.plane_pnt, node->tri.face_rad, &node->tri.plane_norm, uvlist, node->tri.tmap_num, NULL);
 	}
 }
 
@@ -588,18 +592,18 @@ void model_collide_nodes(collision_tree *tree, int starting_node)
 				break;
 			case OP_SORTNORM:
 				if ( Mc_pm->version >= 2000 ) {
-					if ( !mc_ray_boundingbox(&node->min, &node->max, &Mc_p0, &Mc_direction, NULL) ) {
+					if ( !mc_ray_boundingbox(&node->sortnorm.min, &node->sortnorm.max, &Mc_p0, &Mc_direction, NULL) ) {
 						return;
 					}
 				}
 
-				if ( node->pre >= 0 )	model_collide_nodes(tree, node->pre);
-				if ( node->back >= 0 )	model_collide_nodes(tree, node->back);
-				if ( node->on >= 0 )	model_collide_nodes(tree, node->on);
-				if ( node->front >= 0 )	model_collide_nodes(tree, node->front);
-				if ( node->post >= 0 )	model_collide_nodes(tree, node->post);
+				if ( node->sortnorm.pre >= 0 )	model_collide_nodes(tree, node->sortnorm.pre);
+				if ( node->sortnorm.back >= 0 )	model_collide_nodes(tree, node->sortnorm.back);
+				if ( node->sortnorm.on >= 0 )	model_collide_nodes(tree, node->sortnorm.on);
+				if ( node->sortnorm.front >= 0 )	model_collide_nodes(tree, node->sortnorm.front);
+				if ( node->sortnorm.post >= 0 )	model_collide_nodes(tree, node->sortnorm.post);
 			case OP_BOUNDBOX:
-				if ( !mc_ray_boundingbox(&node->min, &node->max, &Mc_p0, &Mc_direction, NULL) ) {
+				if ( !mc_ray_boundingbox(&node->sortnorm.min, &node->sortnorm.max, &Mc_p0, &Mc_direction, NULL) ) {
 					return;
 				}
 				break;
@@ -611,6 +615,36 @@ void model_collide_nodes(collision_tree *tree, int starting_node)
 			return;
 		}
 	}
+}
+
+void model_collide_insert_point(collision_tree *tree, vec3d *pnt)
+{
+	int i;
+
+	for ( i = 0; i < (int)tree->point_list.size(); ++i) {
+		if ( tree->point_list[i] == *pnt ) {
+			tree->point_indexes.push_back(i);
+			return;
+		}
+	}
+
+	tree->point_list.push_back(*pnt);
+	tree->point_indexes.push_back(tree->point_list.size() - 1);
+}
+
+void model_collide_insert_uv(collision_tree *tree, uv_pair *uv)
+{
+	int i;
+
+	for ( i = 0; i < (int)tree->uv_list.size(); ++i ) {
+		if ( tree->uv_list[i].u == uv->u && tree->uv_list[i].v == uv->v ) {
+			tree->uv_indexes.push_back(i);
+			return;
+		}
+	}
+
+	tree->uv_list.push_back(*uv);
+	tree->uv_indexes.push_back(tree->uv_list.size() - 1);
 }
 
 void model_collide_parse_flatpoly(collision_tree *tree, void *model_ptr, int current_node)
@@ -632,28 +666,25 @@ void model_collide_parse_flatpoly(collision_tree *tree, void *model_ptr, int cur
 
 	verts = (short *)(p+44);
 
-	tree->node_list[current_node].op = OP_FLATPOLY;
-	tree->node_list[current_node].tri_num = tree->tri_list.size();
+	collision_node *node = &tree->node_list[current_node];
 
-	collision_tri new_tri;
+	node->op = OP_FLATPOLY;
 
-	new_tri.tmap_num = -1;
-	new_tri.num_verts = nv;
-	new_tri.vert_start = tree->point_list.size();
-	new_tri.uv_start = -1;
+	node->tri.tmap_num = -1;
+	node->tri.num_verts = nv;
+	node->tri.vert_start = tree->point_indexes.size();
+	node->tri.uv_start = -1;
 
 	vec3d *plane_pnt = vp(p+20);
 	float face_rad = fl(p+32);
 	vec3d *plane_norm = vp(p+8);
 
-	new_tri.plane_pnt = *plane_pnt;
-	new_tri.face_rad = face_rad;
-	new_tri.plane_norm = *plane_norm;
-
-	tree->tri_list.push_back(new_tri);
+	node->tri.plane_pnt = *plane_pnt;
+	node->tri.face_rad = face_rad;
+	node->tri.plane_norm = *plane_norm;
 
 	for ( i = 0; i < nv; ++i ) {
-		tree->point_list.push_back(*Mc_point_list[verts[i*2]]);
+		model_collide_insert_point(tree, Mc_point_list[verts[i*2]]);
 	}
 }
 
@@ -680,35 +711,32 @@ void model_collide_parse_tmappoly(collision_tree *tree, void *model_ptr, int cur
 
 	verts = (model_tmap_vert *)(p+44);
 
-	tree->node_list[current_node].op = OP_TMAPPOLY;
-	tree->node_list[current_node].tri_num = tree->tri_list.size();
+	collision_node *node = &tree->node_list[current_node];
 
-	collision_tri new_tri;
+	node->op = OP_TMAPPOLY;
 
-	new_tri.tmap_num = tmap_num;
-	new_tri.num_verts = nv;
-	new_tri.vert_start = tree->point_list.size();
-	new_tri.uv_start = tree->uv_list.size();
+	node->tri.tmap_num = tmap_num;
+	node->tri.num_verts = nv;
+	node->tri.vert_start = tree->point_indexes.size();
+	node->tri.uv_start = tree->uv_indexes.size();
 
 	vec3d *plane_pnt = vp(p+20);
 	float face_rad = fl(p+32);
 	vec3d *plane_norm = vp(p+8);
 
-	new_tri.plane_pnt = *plane_pnt;
-	new_tri.face_rad = face_rad;
-	new_tri.plane_norm = *plane_norm;
-
-	tree->tri_list.push_back(new_tri);
+	node->tri.plane_pnt = *plane_pnt;
+	node->tri.face_rad = face_rad;
+	node->tri.plane_norm = *plane_norm;
 
 	uv_pair new_uv_pair;
 
 	for ( i = 0; i < nv; ++i ) {
-		tree->point_list.push_back(*Mc_point_list[verts[i].vertnum]);
+		model_collide_insert_point(tree, Mc_point_list[verts[i].vertnum]);
 
 		new_uv_pair.u = verts[i].u;
 		new_uv_pair.v = verts[i].v;
 
-		tree->uv_list.push_back(new_uv_pair);
+		model_collide_insert_uv(tree, &new_uv_pair);
 	}
 }
 
@@ -727,8 +755,8 @@ void model_collide_parse_sortnorm(collision_tree *tree, void *model_ptr, int cur
 		min = vp(p+56);
 		max = vp(p+68);
 
-		tree->node_list[current_node].min = *min;
-		tree->node_list[current_node].max = *max;
+		tree->node_list[current_node].sortnorm.min = *min;
+		tree->node_list[current_node].sortnorm.max = *max;
 	}
 
 	int frontlist = w(p+36);
@@ -739,32 +767,32 @@ void model_collide_parse_sortnorm(collision_tree *tree, void *model_ptr, int cur
 
 	if ( prelist ) {
 		tree->node_list.push_back(new_node);
-		tree->node_list[current_node].pre = tree->node_list.size() - 1;
-		model_collide_parse(tree, p+prelist, tree->node_list[current_node].pre, version);
+		tree->node_list[current_node].sortnorm.pre = tree->node_list.size() - 1;
+		model_collide_parse(tree, p+prelist, tree->node_list[current_node].sortnorm.pre, version);
 	}
 
 	if ( backlist ) {
 		tree->node_list.push_back(new_node);
-		tree->node_list[current_node].back = tree->node_list.size() - 1;
-		model_collide_parse(tree, p+backlist, tree->node_list[current_node].back, version);
+		tree->node_list[current_node].sortnorm.back = tree->node_list.size() - 1;
+		model_collide_parse(tree, p+backlist, tree->node_list[current_node].sortnorm.back, version);
 	}
 
 	if ( onlist ) {
 		tree->node_list.push_back(new_node);
-		tree->node_list[current_node].on = tree->node_list.size() - 1;
-		model_collide_parse(tree, p+onlist, tree->node_list[current_node].on, version);
+		tree->node_list[current_node].sortnorm.on = tree->node_list.size() - 1;
+		model_collide_parse(tree, p+onlist, tree->node_list[current_node].sortnorm.on, version);
 	}
 
 	if ( frontlist ) {
 		tree->node_list.push_back(new_node);
-		tree->node_list[current_node].front = tree->node_list.size() - 1;
-		model_collide_parse(tree, p+frontlist, tree->node_list[current_node].front, version);
+		tree->node_list[current_node].sortnorm.front = tree->node_list.size() - 1;
+		model_collide_parse(tree, p+frontlist, tree->node_list[current_node].sortnorm.front, version);
 	}
 
 	if ( postlist ) {
 		tree->node_list.push_back(new_node);
-		tree->node_list[current_node].post = tree->node_list.size() - 1;
-		model_collide_parse(tree, p+postlist, tree->node_list[current_node].post, version);
+		tree->node_list[current_node].sortnorm.post = tree->node_list.size() - 1;
+		model_collide_parse(tree, p+postlist, tree->node_list[current_node].sortnorm.post, version);
 	}
 }
 
@@ -820,8 +848,8 @@ void model_collide_parse(collision_tree *tree, void *model_ptr, int starting_nod
 
 				min = vp(p+8);
 				max = vp(p+20);
-				tree->node_list[current_node].min = *min;
-				tree->node_list[current_node].max = *max;
+				tree->node_list[current_node].sortnorm.min = *min;
+				tree->node_list[current_node].sortnorm.max = *max;
 
 				current_node = model_collide_new_node(tree, current_node);
 				break;
@@ -1062,8 +1090,8 @@ void mc_check_subobj( int mn )
 			Mc->hit_bitmap = -1;
 			Mc->num_hits++;
 		} else {
-			//model_collide_sub(sm->bsp_data);
-			model_collide_nodes(model_get_collision_tree(sm->collision_tree_index), 0);
+			model_collide_sub(sm->bsp_data);
+			//model_collide_nodes(model_get_collision_tree(sm->collision_tree_index), 0);
 		}
 	} else {
 		//Int3();

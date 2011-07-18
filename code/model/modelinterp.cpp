@@ -3687,6 +3687,21 @@ void submodel_get_two_random_points(int model_num, int submodel_num, vec3d *v1, 
 	}
 }
 
+void submodel_get_two_random_points_better(int model_num, int submodel_num, vec3d *v1, vec3d *v2)
+{
+	polymodel *pm = model_get(model_num);
+	collision_tree *tree = model_get_collision_tree(pm->submodel[submodel_num].collision_tree_index);
+
+	int nv = tree->point_list.size();
+
+	Assert(nv > 0);	// Goober5000 - to avoid div-0 error
+	int vn1 = (myrand()>>5) % nv;
+	int vn2 = (myrand()>>5) % nv;
+
+	*v1 = tree->point_list[vn1];
+	*v2 = tree->point_list[vn2];
+}
+
 // If MR_FLAG_OUTLINE bit set this color will be used for outlines.
 // This defaults to black.
 void model_set_outline_color(int r, int g, int b )

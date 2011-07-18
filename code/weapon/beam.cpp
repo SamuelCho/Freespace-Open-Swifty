@@ -1976,7 +1976,7 @@ void beam_get_binfo(beam *b, float accuracy, int num_shots)
 		b->binfo.shot_count = 1;
 
 		// get random model points, this is useful for big ships, because we never miss when shooting at them
-		submodel_get_two_random_points(model_num, 0, &b->binfo.dir_a, &b->binfo.dir_b);
+		submodel_get_two_random_points_better(model_num, 0, &b->binfo.dir_a, &b->binfo.dir_b);
 		break;
 
 	// just 2 points in the "slash"
