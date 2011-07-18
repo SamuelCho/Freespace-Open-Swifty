@@ -972,7 +972,7 @@ extern int submodel_get_points(int model_num, int submodel_num, int max_num, vec
 
 // Gets two random points on the surface of a submodel
 extern void submodel_get_two_random_points(int model_num, int submodel_num, vec3d *v1, vec3d *v2, vec3d *n1 = NULL, vec3d *n2 = NULL);
-
+extern void submodel_get_two_random_points_better(int model_num, int submodel_num, vec3d *v1, vec3d *v2);
 // gets the index into the docking_bays array of the specified type of docking point
 // Returns the index.  second functions returns the index of the docking bay with
 // the specified name
