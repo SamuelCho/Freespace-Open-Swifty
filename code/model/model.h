@@ -310,6 +310,8 @@ struct collision_tri {
 struct collision_tree {
 	SCP_vector<collision_node> node_list;
 	//SCP_vector<collision_tri> tri_list;
+	SCP_vector<int> point_indexes;
+	SCP_vector<int> uv_indexes;
 	SCP_vector<vec3d> point_list;
 	SCP_vector<uv_pair> uv_list;
 };

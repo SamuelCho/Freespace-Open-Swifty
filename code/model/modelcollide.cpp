@@ -524,8 +524,12 @@ void model_collide_node_flatpoly(collision_tree *tree, collision_node *node)
 	int vert_start = node->tri.vert_start;
 	int nv = node->tri.num_verts;
 
+	int index;
+
 	for ( i = 0; i < nv; ++i ) {
-		points[i] = &tree->point_list[vert_start+i];
+		index = tree->point_indexes[vert_start+i];
+
+		points[i] = &tree->point_list[index];
 	}
 
 	if ( Mc->flags & MC_CHECK_SPHERELINE ) {
@@ -552,9 +556,15 @@ void model_collide_node_tmappoly(collision_tree *tree, collision_node *node)
 			return;
 	}
 
+	int vert_index;
+	int uv_index;
+
 	for ( i = 0; i < nv; ++i ) {
-		points[i] = &tree->point_list[node->tri.vert_start+i];
-		uvlist[i] = tree->uv_list[node->tri.uv_start+i];
+		vert_index = tree->point_indexes[vert_start+i];
+		uv_index = tree->uv_indexes[uv_start+i];
+
+		points[i] = &tree->point_list[vert_index];
+		uvlist[i] = tree->uv_list[uv_index];
 	}
 
 	if ( Mc->flags & MC_CHECK_SPHERELINE ) {
@@ -607,6 +617,36 @@ void model_collide_nodes(collision_tree *tree, int starting_node)
 	}
 }
 
+void model_collide_insert_point(collision_tree *tree, vec3d *pnt)
+{
+	int i;
+
+	for ( i = 0; i < (int)tree->point_list.size(); ++i) {
+		if ( tree->point_list[i] == *pnt ) {
+			tree->point_indexes.push_back(i);
+			return;
+		}
+	}
+
+	tree->point_list.push_back(*pnt);
+	tree->point_indexes.push_back(tree->point_list.size() - 1);
+}
+
+int model_collide_insert_uv(collision_tree *tree, uv_pair *uv)
+{
+	int i;
+
+	for ( i = 0; i < (int)tree->uv_list.size(); ++i ) {
+		if ( tree->uv_list[i].u == uv->u && tree->uv_list[i].v == uv->v ) {
+			tree->uv_indexes.push_back(i);
+			return;
+		}
+	}
+
+	tree->uv_list.push_back(*uv);
+	tree->uv_indexes.push_back(tree->uv_list.size() - 1);
+}
+
 void model_collide_parse_flatpoly(collision_tree *tree, void *model_ptr, int current_node)
 {
 	ubyte *p = (ubyte *)model_ptr;
@@ -632,7 +672,7 @@ void model_collide_parse_flatpoly(collision_tree *tree, void *model_ptr, int cur
 
 	node->tri.tmap_num = -1;
 	node->tri.num_verts = nv;
-	node->tri.vert_start = tree->point_list.size();
+	node->tri.vert_start = tree->point_indexes.size();
 	node->tri.uv_start = -1;
 
 	vec3d *plane_pnt = vp(p+20);
@@ -644,7 +684,7 @@ void model_collide_parse_flatpoly(collision_tree *tree, void *model_ptr, int cur
 	node->tri.plane_norm = *plane_norm;
 
 	for ( i = 0; i < nv; ++i ) {
-		tree->point_list.push_back(*Mc_point_list[verts[i*2]]);
+		model_collide_insert_point(tree, Mc_point_list[verts[i*2]]);
 	}
 }
 
@@ -677,8 +717,8 @@ void model_collide_parse_tmappoly(collision_tree *tree, void *model_ptr, int cur
 
 	node->tri.tmap_num = tmap_num;
 	node->tri.num_verts = nv;
-	node->tri.vert_start = tree->point_list.size();
-	node->tri.uv_start = tree->uv_list.size();
+	node->tri.vert_start = tree->point_indexes.size();
+	node->tri.uv_start = tree->uv_indexes.size();
 
 	vec3d *plane_pnt = vp(p+20);
 	float face_rad = fl(p+32);
@@ -691,12 +731,12 @@ void model_collide_parse_tmappoly(collision_tree *tree, void *model_ptr, int cur
 	uv_pair new_uv_pair;
 
 	for ( i = 0; i < nv; ++i ) {
-		tree->point_list.push_back(*Mc_point_list[verts[i].vertnum]);
+		model_collide_insert_point(tree, Mc_point_list[verts[i].vertnum]);
 
 		new_uv_pair.u = verts[i].u;
 		new_uv_pair.v = verts[i].v;
 
-		tree->uv_list.push_back(new_uv_pair);
+		model_collide_insert_uv(tree, &new_uv_pair);
 	}
 }
 
