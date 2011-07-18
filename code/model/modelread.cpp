@@ -2455,16 +2455,6 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 	// maybe generate vertex buffers
 	create_vertex_buffer(pm);
 
-	for ( i = 0; i < pm->n_models; ++i ) {
-		pm->submodel[i].collision_tree_index = model_create_collision_tree();
-		collision_tree *tree = model_get_collision_tree(pm->submodel[i].collision_tree_index);
-
-		collision_node node;
-		tree->node_list.push_back(node);
-
-		model_collide_parse(tree, pm->submodel[i].bsp_data, 0, pm->version);
-	}
-
 //==============================
 // Find all the lower detail versions of the hires model
 	for (i=0; i<pm->n_models; i++ )	{
@@ -2563,6 +2553,20 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 
 
 	model_octant_create( pm );
+
+	for ( i = 0; i < pm->n_models; ++i ) {
+		pm->submodel[i].collision_tree_index = model_create_collision_tree();
+		collision_tree *tree = model_get_collision_tree(pm->submodel[i].collision_tree_index);
+
+		collision_node node;
+		tree->node_list.push_back(node);
+
+		model_collide_parse(tree, pm->submodel[i].bsp_data, 0, pm->version);
+
+		vm_free(pm->submodel[i].bsp_data);
+
+		pm->submodel[i].bsp_data = NULL;
+	}
 
 	// Find the core_radius... the minimum of 
 	float rx, ry, rz;
