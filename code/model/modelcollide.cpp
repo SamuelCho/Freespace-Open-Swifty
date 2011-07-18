@@ -632,7 +632,7 @@ void model_collide_insert_point(collision_tree *tree, vec3d *pnt)
 	tree->point_indexes.push_back(tree->point_list.size() - 1);
 }
 
-int model_collide_insert_uv(collision_tree *tree, uv_pair *uv)
+void model_collide_insert_uv(collision_tree *tree, uv_pair *uv)
 {
 	int i;
 
