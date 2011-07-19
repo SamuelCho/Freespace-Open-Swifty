@@ -1351,6 +1351,7 @@ int shipfx_point_in_shadow( vec3d *p0, matrix *src_orient, vec3d *src_pos, float
 		for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) )	{
 			objp = &Objects[so->objnum];
 
+			mc.model_instance_num = -1;
 			mc.model_num = Ship_info[Ships[objp->instance].ship_info_index].model_num;
 			mc.orient = &objp->orient;
 			mc.pos = &objp->pos;
@@ -1397,6 +1398,7 @@ int shipfx_in_shadow( object * src_obj )
 			if ( src_obj != objp )	{
 				vm_vec_scale_add( &rp1, &rp0, &light_dir, objp->radius*10.0f );
 
+				mc.model_instance_num = -1;
 				mc.model_num = Ship_info[Ships[objp->instance].ship_info_index].model_num;
 				mc.orient = &objp->orient;
 				mc.pos = &objp->pos;
@@ -1442,8 +1444,7 @@ int shipfx_eye_in_shadow( vec3d *eye_pos, object * src_obj, int sun_n )
 		if ( src_obj != objp )	{
 			vm_vec_scale_add( &rp1, &rp0, &light_dir, objp->radius*10.0f );
 
-			ship_model_start(objp);
-
+			mc.model_instance_num = Ships[objp->instance].model_instance_num;
 			mc.model_num = Ship_info[Ships[objp->instance].ship_info_index].model_num;
 			mc.orient = &objp->orient;
 			mc.pos = &objp->pos;
@@ -1455,8 +1456,6 @@ int shipfx_eye_in_shadow( vec3d *eye_pos, object * src_obj, int sun_n )
 	//			mc.radius = src_obj->radius;
 
 			int hit = model_collide(&mc);
-
-			ship_model_stop(objp);
 
 			if (hit) {
 				return 1;
@@ -1477,6 +1476,7 @@ int shipfx_eye_in_shadow( vec3d *eye_pos, object * src_obj, int sun_n )
 
 		vm_vec_scale_add( &rp1, &rp0, &light_dir, objp->radius*10.0f );
 
+		mc.model_instance_num = -1;
 		mc.model_num = db->model_num;	// Fill in the model to check
 		mc.submodel_num = db->submodel_num;
 		model_clear_instance( mc.model_num );
@@ -1510,6 +1510,7 @@ int shipfx_eye_in_shadow( vec3d *eye_pos, object * src_obj, int sun_n )
 
         vm_vec_scale_add( &rp1, &rp0, &light_dir, objp->radius*10.0f );
 
+		mc.model_instance_num = -1;
 		mc.model_num = Asteroid_info[ast->asteroid_type].model_num[ast->asteroid_subtype];	// Fill in the model to check
 		mc.submodel_num = -1;
 		model_clear_instance( mc.model_num );
@@ -1745,10 +1746,10 @@ void shipfx_emit_spark( int n, int sn )
 	float ship_radius, spark_scale_factor;
 
 	ship_info *sip = &Ship_info[shipp->ship_info_index];
-	if(sn > -1 && sip->ispew_max_particles == 0)
+	if(sn > -1 && sip->impact_spew.n_high <= 0)
 		return;
 
-	if(sn < 0 && sip->dspew_max_particles == 0)
+	if(sn < 0 && sip->damage_spew.n_high <= 0)
 		return;
 	
 	if ( shipp->num_hits <= 0 )
@@ -1836,6 +1837,7 @@ void shipfx_emit_spark( int n, int sn )
 	if ( create_spark )	{
 
 		particle_emitter	pe;
+		particle_effect		pef;
 
 		pe.pos = outpnt;				// Where the particles emit from
 
@@ -1868,9 +1870,16 @@ void shipfx_emit_spark( int n, int sn )
 		}
 				
 		pe.normal = tmp_norm;			// What normal the particle emit around
-		pe.normal_variance = 0.3f;		//	How close they stick to that normal 0=good, 1=360 degree
-		pe.min_rad = 0.20f;				// Min radius
-		pe.max_rad = 0.50f;				// Max radius
+
+		if (sn > -1)
+			pef = sip->impact_spew;
+		else
+			pef = sip->damage_spew;
+
+		pe.min_rad = pef.min_rad;
+		pe.max_rad = pef.max_rad;
+		pe.min_vel = pef.min_vel;				// How fast the slowest particle can move
+		pe.max_vel = pef.max_vel;				// How fast the fastest particle can move
 
 		// first time through - set up end time and make heavier initially
 		if ( sn > -1 )	{
@@ -1885,35 +1894,35 @@ void shipfx_emit_spark( int n, int sn )
 					shipp->sparks[spark_num].end_time = timestamp( 100000000 );
 				}
 			}
-
-			pe.num_low  = 25;				// Lowest number of particles to create (hardware)
-			if(sip->ispew_max_particles > 0) {
-				pe.num_high = sip->ispew_max_particles;
-			} else {
-				pe.num_high = 30;				// Highest number of particles to create (hardware)
-			}
-			pe.normal_variance = 1.0f;	//	How close they stick to that normal 0=good, 1=360 degree
-			pe.min_vel = 2.0f;				// How fast the slowest particle can move
-			pe.max_vel = 12.0f;				// How fast the fastest particle can move
-			pe.min_life = 0.05f;				// How long the particles live
-			pe.max_life = 0.55f;				// How long the particles live
+			pe.num_low = pef.n_low;				// Lowest number of particles to create (hardware)
+			pe.num_high = pef.n_high;
+			pe.normal_variance = pef.variance;	//	How close they stick to that normal 0=good, 1=360 degree
+			pe.min_life = pef.min_life;				// How long the particles live
+			pe.max_life = pef.max_life;				// How long the particles live
 
 			particle_emit( &pe, PARTICLE_FIRE, 0 );
 		} else {
-
-			pe.min_rad = 0.7f;				// Min radius
-			pe.max_rad = 1.3f;				// Max radius
-			pe.num_low  = int (20 * spark_num_scale);		// Lowest number of particles to create (hardware)
-			if(sip->dspew_max_particles > 0) {
-				pe.num_high = sip->dspew_max_particles;
+			if (pef.n_high > 1) {
+				pe.num_low = pef.n_low;
+				pe.num_high = pef.n_high;
 			} else {
-				pe.num_high = int (50 * spark_num_scale);		// Highest number of particles to create (hardware)
+				pe.num_low  = (int) (20.0f * spark_num_scale);
+				pe.num_high = (int) (50.0f * spark_num_scale);
 			}
-			pe.normal_variance = 0.2f * spark_width_scale;		//	How close they stick to that normal 0=good, 1=360 degree
-			pe.min_vel = 3.0f;				// How fast the slowest particle can move
-			pe.max_vel = 12.0f;				// How fast the fastest particle can move
-			pe.min_life = 0.35f*2.0f * spark_time_scale;		// How long the particles live
-			pe.max_life = 0.75f*2.0f * spark_time_scale;		// How long the particles live
+			
+			if (pef.variance > 0.0f) {
+				pe.normal_variance = pef.variance;
+			} else {
+				pe.normal_variance = 0.2f * spark_width_scale;
+			}
+
+			if (pef.max_life > 0.0f) {
+				pe.min_life = pef.min_life;
+				pe.max_life = pef.max_life;
+			} else {
+				pe.min_life = 0.7f * spark_time_scale;
+				pe.max_life = 1.5f * spark_time_scale;
+			}
 			
 			particle_emit( &pe, PARTICLE_SMOKE, 0 );
 		}
@@ -2249,8 +2258,7 @@ void shipfx_large_blowup_level_init()
 	}
 }
 
-// Returns 0 if couldn't init
-int shipfx_large_blowup_init(ship *shipp)
+void shipfx_large_blowup_init(ship *shipp)
 {
 	int i;
 
@@ -2260,8 +2268,6 @@ int shipfx_large_blowup_init(ship *shipp)
 	shipp->large_ship_blowup_index = i;
 
 	split_ship_init(shipp, &Split_ships[i] );
-	
-	return 1;
 }
 
 void shipfx_debris_limit_speed(debris *db, ship *shipp)
@@ -2476,14 +2482,18 @@ static void maybe_fireball_wipe(clip_ship* half_ship, int* sound_handle)
 
 			float rad = get_model_cross_section_at_z(half_ship->cur_clip_plane_pt, pm);
 			if (rad < 1) {
-				rad = half_ship->parent_obj->radius * frand_range(0.4f, 0.6f);
+				// changed from 0.4 & 0.6 to 0.6 & 0.9 as later 1.5 multiplier was removed
+				rad = half_ship->parent_obj->radius * frand_range(0.6f, 0.9f);
 			} else {
 				// make fireball radius (1.5 +/- .1) * model_cross_section value
-				rad *= frand_range(1.4f, 1.6f);
+				// changed from 1.4 & 1.6 to 2.1 & 2.4 as later 1.5 multiplier was removed
+				rad *= frand_range(2.1f, 2.4f);
 			}
 
-			rad *= 1.5f;
 			rad = MIN(rad, half_ship->parent_obj->radius);
+
+			//defaults to 1.0 now that multiplier was applied to the static values above
+			rad *= sip->prop_exp_rad_mult;
 
 			// mprintf(("xc %.1f model %.1f\n", rad, half_ship->parent_obj->radius*0.25));
 
@@ -2505,9 +2515,10 @@ static void maybe_fireball_wipe(clip_ship* half_ship, int* sound_handle)
 
 			// do particles
 			particle_emitter	pe;
+			particle_effect		pef = sip->split_particles;
 
-			pe.num_low = 40;					// Lowest number of particles to create
-			pe.num_high = 80;				// Highest number of particles to create
+			pe.num_low = pef.n_low;					// Lowest number of particles to create
+			pe.num_high = pef.n_high;				// Highest number of particles to create
 			pe.pos = model_clip_plane_pt;	// Where the particles emit from
 			pe.vel = half_ship->phys_info.vel;		// Initial velocity of all the particles
 
@@ -2521,23 +2532,42 @@ static void maybe_fireball_wipe(clip_ship* half_ship, int* sound_handle)
 			pe.min_life = 2.0f*range;				// How long the particles live
 			pe.max_life = 10.0f*range;				// How long the particles live
 #else
-			pe.min_life = 0.5f*range;				// How long the particles live
-			pe.max_life = 6.0f*range;				// How long the particles live
+			if (pef.max_life > 0.0f) {
+				pe.min_life = pef.min_life;
+				pe.max_life = pef.max_life;
+			} else {
+				pe.min_life = 0.5f*range;				// How long the particles live
+				pe.max_life = 6.0f*range;				// How long the particles live
+			}
 #endif
 			pe.normal = vmd_x_vector;		// What normal the particle emit around
-			pe.normal_variance = 2.0f;		//	How close they stick to that normal 0=on normal, 1=180, 2=360 degree
-			pe.min_vel = 0.0f;				// How fast the slowest particle can move
-			pe.max_vel = half_ship->explosion_vel;				// How fast the fastest particle can move
+			pe.normal_variance = pef.variance;		//	How close they stick to that normal 0=on normal, 1=180, 2=360 degree
+
+			if (pef.max_vel > 0.0f) {
+				pe.min_vel = pef.min_vel;
+				pe.max_vel = pef.max_vel;
+			} else {
+				pe.min_vel = 0.0f;									// How fast the slowest particle can move
+				pe.max_vel = half_ship->explosion_vel;				// How fast the fastest particle can move
+			}
+
 
 #ifdef FS2_DEMO
 			float scale = half_ship->parent_obj->radius * 0.02f;
 #else
 			float scale = half_ship->parent_obj->radius * 0.01f;
 #endif
-			pe.min_rad = 0.5f*scale;				// Min radius
-			pe.max_rad = 1.5f*scale;				// Max radius
+			if (pef.max_rad > 0.0f) {
+				pe.min_rad = pef.min_rad;
+				pe.max_rad = pef.max_rad;
+			} else {
+				pe.min_rad = 0.5f*scale;				// Min radius
+				pe.max_rad = 1.5f*scale;				// Max radius
+			}
 
-			particle_emit( &pe, PARTICLE_SMOKE2, 0, range );
+			if (pe.num_high > 0) {
+				particle_emit( &pe, PARTICLE_SMOKE2, 0, range );
+			}
 
 		} else {
 			// time out forever
@@ -4160,10 +4190,13 @@ WE_BSG::WE_BSG(object *n_objp, int n_direction)
 	}
 	//Set radius
 	tube_radius = 0.0f;
+	shockwave_radius = 0.0f;
+
+	//Use the warp radius for shockwave radius, not tube radius
 	if(direction == WD_WARP_IN)
-		tube_radius = sip->warpin_radius;
+		shockwave_radius = sip->warpin_radius;
 	else
-		tube_radius = sip->warpout_radius;
+		shockwave_radius = sip->warpout_radius;
 
 	polymodel *pm = model_get(sip->model_num);
 	if(pm == NULL)
@@ -4174,6 +4207,9 @@ WE_BSG::WE_BSG(object *n_objp, int n_direction)
 
 		if(tube_radius <= 0.0f)
 			tube_radius = objp->radius;
+
+		if(shockwave_radius <= 0.0f)
+			shockwave_radius = objp->radius;	
 	}
 	else
 	{
@@ -4183,6 +4219,9 @@ WE_BSG::WE_BSG(object *n_objp, int n_direction)
 		autocenter = pm->autocenter;
 		z_offset_max = pm->maxs.xyz.z - pm->autocenter.xyz.z;
 		z_offset_min = pm->mins.xyz.z - pm->autocenter.xyz.z;
+
+		if (shockwave_radius <= 0.0f)
+			shockwave_radius = z_offset_max - z_offset_min;
 	}
 
 	//*****Timing
@@ -4250,6 +4289,8 @@ int WE_BSG::warpStart()
 			float y_radius = dock_calc_max_semilatus_rectum_parallel_to_axis(objp, Y_AXIS);
 			tube_radius = MAX(x_radius, y_radius);
 		}
+
+		shockwave_radius = z_offset_max - z_offset_min;
 
 		vec3d dock_center;
 		dock_calc_docked_center(&dock_center, objp);
@@ -4379,9 +4420,11 @@ int WE_BSG::warpShipRender()
 	if(anim < 0 && shockwave < 0)
 		return 0;
 
-	// turn off zbuffering	
-	int saved_zbuffer_mode = gr_zbuffer_get();
-	gr_zbuffer_set(GR_ZBUFF_NONE);
+	// SUSHI: Turning off Zbuffering results in the FTL effect showing up through ship hulls. 
+	// The effect is slightly degraded by leaving it on, but ATM it's worth the tradeoff.
+	//// turn off zbuffering	
+	//int saved_zbuffer_mode = gr_zbuffer_get();
+	//gr_zbuffer_set(GR_ZBUFF_NONE);
 
 	if(anim > -1)
 	{
@@ -4425,12 +4468,12 @@ int WE_BSG::warpShipRender()
 				g3_transfer_vertex(&p, &pos);
 			}
 			gr_set_bitmap(shockwave + shockwave_frame, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 1.0f );
-			g3_draw_bitmap(&p, 0, tube_radius, TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT );
+			g3_draw_bitmap(&p, 0, shockwave_radius, TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT );
 		}
 	}
 
 	// restore zbuffer mode
-	gr_zbuffer_set(saved_zbuffer_mode);
+	//gr_zbuffer_set(saved_zbuffer_mode);
 	return 1;
 }
 

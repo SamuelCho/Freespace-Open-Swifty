@@ -810,6 +810,7 @@
 #define IDC_VELOCITY                    1347
 #define IDC_ABBREV_DEBRIEFING           1347
 #define IDC_TVT_WING_NAME_2             1347
+#define IDC_SPECIAL_DEATHROLL_TIME      1347
 #define IDC_SHIELDS                     1348
 #define IDC_ABBREV_MISSION              1348
 #define IDC_SQUADRON_WING_NAME_5        1348
@@ -989,6 +990,7 @@
 #define IDC_SPECIAL_BLAST               1509
 #define IDC_CARGO_NAME                  1509
 #define IDC_RESPAWN_PRIORITY            1510
+#define IDC_ENABLE_DEATHROLL_TIME       1510
 #define IDC_SQUAD_NAME                  1511
 #define IDC_ASTEROID_DEBRIS_FIELD       1512
 #define IDC_PASSIVE_SPECIES_TERRAN      1513
@@ -1009,9 +1011,12 @@
 #define IDC_SBITMAP_B_SPIN              1527
 #define IDC_BEAM_PROTECT_SHIP           1527
 #define IDC_SBITMAP_P_SPIN              1528
+#define IDC_FLAK_PROTECT_SHIP           1528
 #define IDC_SBITMAP_SCALE_SPIN          1529
 #define IDC_SBITMAP_SCALE_Y             1529
+#define IDC_LASER_PROTECT_SHIP          1529
 #define IDC_POOF0                       1530
+#define IDC_MISSILE_PROTECT_SHIP        1530
 #define IDC_POOF1                       1531
 #define IDC_POOF2                       1532
 #define IDC_POOF3                       1533
@@ -1141,6 +1146,8 @@
 #define IDC_SOUND_ENVIRONMENT_TEST      1627
 #define IDC_GROUP_MESSAGES              1628
 #define IDC_INCLUDE_SENDER              1629
+#define IDC_DISABLE_ETS                 1630
+#define IDC_IMMOBILE                    1631
 #define ID_FILE_MISSIONNOTES            32771
 #define ID_DUPLICATE                    32774
 #define ID_VIEW_ROTATE                  32775
@@ -1434,7 +1441,7 @@
 #define _APS_3D_CONTROLS                     1
 #define _APS_NEXT_RESOURCE_VALUE        320
 #define _APS_NEXT_COMMAND_VALUE         33098
-#define _APS_NEXT_CONTROL_VALUE         1629
+#define _APS_NEXT_CONTROL_VALUE         1632
 #define _APS_NEXT_SYMED_VALUE           105
 #endif
 #endif

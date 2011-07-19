@@ -2390,6 +2390,7 @@ void hud_target_in_reticle_new()
 	//	Get 3d vector through center of reticle
 	vm_vec_scale_add(&terminus, &Eye_position, &Player_obj->orient.vec.fvec, TARGET_IN_RETICLE_DISTANCE);
 
+	mc.model_instance_num = -1;
 	mc.model_num = 0;
 	for ( A = GET_FIRST(&obj_used_list); A !=END_OF_LIST(&obj_used_list); A = GET_NEXT(A) ) {
 		if ( !object_targetable_in_reticle(A) ) {
@@ -4819,7 +4820,9 @@ void hud_maybe_flash_weapon(int index)
 	}
 }
 
-// check if targeting is possible based on sensors strength
+/**
+ * @brief Check if targeting is possible based on sensors strength
+ */
 int hud_sensors_ok(ship *sp, int show_msg)
 {
 	float	sensors_str;
@@ -6298,7 +6301,6 @@ void HudGaugeWeapons::render(float frametime)
 	if(ns==0)
 	{
 		renderString(position[0] + Weapon_pname_offset_x, name_y, EG_WEAPON_S1, XSTR( "<none>", 329));	
-		y += secondary_text_h;		// bump the bottom of the gauge down so it fits "<none>" without any overlap.
 	}
 
 	y -= 0;
@@ -6367,9 +6369,9 @@ void hud_target_add_display_list(object *objp, vertex *target_point, vec3d *targ
 	}
 
 	if(name) {
-		strcpy(element.name, name);
+		strcpy_s(element.name, name);
 	} else {
-		strcpy(element.name, "");
+		strcpy_s(element.name, "");
 	}
 
 	target_display_list.push_back(element);
@@ -6381,7 +6383,7 @@ void hud_target_clear_display_list()
 }
 
 HudGaugeOffscreen::HudGaugeOffscreen():
-HudGauge(HUD_OBJECT_OFFSCREEN, HUD_OFFSCREEN_INDICATOR, true, false, true, VM_DEAD_VIEW, 255, 255, 255)
+HudGauge(HUD_OBJECT_OFFSCREEN, HUD_OFFSCREEN_INDICATOR, true, false, true, VM_DEAD_VIEW | VM_OTHER_SHIP, 255, 255, 255)
 {
 }
 

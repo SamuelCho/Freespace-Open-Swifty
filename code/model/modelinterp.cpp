@@ -797,7 +797,7 @@ void model_interp_flatpoly(ubyte * p,polymodel * pm)
 
 	model_allocate_interp_data(max_n_verts, max_n_norms, nv);
 
-	for (i=0;i<nv;i++)	{
+	for (i = 0; i < nv; i++) {
 		Interp_list[i] = &Interp_points[verts[i*2]];
 
 		if ( Interp_flags & MR_NO_LIGHTING )	{
@@ -838,13 +838,13 @@ void model_interp_flatpoly(ubyte * p,polymodel * pm)
 	}
 
 	if (Interp_flags & (MR_SHOW_OUTLINE|MR_SHOW_OUTLINE_PRESET))	{
-		int i, j;
+		int j;
 
 		if ( Interp_flags & MR_SHOW_OUTLINE )	{
 			gr_set_color_fast( &Interp_outline_color );
 		}
 
-		for (i=0; i<nv; i++ )	{
+		for (i = 0; i < nv; i++) {
 			j = (i + 1) % nv;
 			g3_draw_line(Interp_list[i], Interp_list[j]);
 		}
@@ -3137,18 +3137,19 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 			switch( Detail.detail_distance )	{
 			case 0:		// lowest
-				depth *= 8.0f;
+				depth /= The_mission.ai_profile->detail_distance_mult[0];
 				break;
 			case 1:		// lower than normal
-				depth *= 4.0f; 
+				depth /= The_mission.ai_profile->detail_distance_mult[1];
 				break;
-			case 2:		// default  (leave the same)
+			case 2:		// default
+				depth /= The_mission.ai_profile->detail_distance_mult[2];
 				break;
 			case 3:		// above normal
-				depth /= 4.0f;
+				depth /= The_mission.ai_profile->detail_distance_mult[3];
 				break;
 			case 4:		// even more normal
-				depth /= 8.0f;
+				depth /= The_mission.ai_profile->detail_distance_mult[4];
 				break;
 			}
 

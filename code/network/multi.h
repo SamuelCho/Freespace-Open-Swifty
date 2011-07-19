@@ -523,11 +523,6 @@ typedef struct netgame_info {
 	ubyte		debug_flags;						// special debug flags (see NETD_FLAG_* defines)
 } netgame_info;
 
-// netgame debug flags
-// #define NETD_FLAG_CLIENT_FIRING				(1<<0)		// client side firing of primaries and countermeasures
-// #define NETD_FLAG_CLIENT_NODAMAGE			(1<<1)		// client never applies damage himself. he simply waits for blanket updates
-#define NETD_FLAG_OBJ_NEW						(1<<2)		// new style of object updating
-
 // structure for active games -- kind of like Descent, but using the linked list thing, we will
 // be able to support many more games in the list.
 #define AG_FLAG_COOP								(1<<0)			// is a coop game
@@ -597,7 +592,7 @@ typedef struct join_request {
 // network buffer for sending and receiving packets
 typedef struct network_buffer {
 	int	size;										// size of the buffer
-	ubyte	data[MAX_PACKET_SIZE];				// MAX_PACKET_SIZE from psnet.h
+	ubyte	data[MAX_PACKET_SIZE];				// MAX_PACKET_SIZE from psnet2.h
 } network_buffer;
 // -------------------------------------------------------------------------------------
 

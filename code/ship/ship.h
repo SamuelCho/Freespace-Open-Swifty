@@ -21,7 +21,7 @@
 #include "palman/palman.h"
 #include "weapon/trails.h"
 #include "ai/ai.h"
-#include "network/multi_oo.h"
+#include "network/multi_obj.h"
 #include "hud/hudparse.h"
 #include "render/3d.h"
 #include "weapon/shockwave.h"
@@ -54,7 +54,7 @@ extern vec3d	Original_vec_to_deader;
 #define	HP_SCALE						1.2			//	1.2 means die when 20% of hits remaining
 #define	MAX_SHIP_HITS				8				// hits to kill a ship
 #define	MAX_SHIP_DETAIL_LEVELS	5				// maximum detail levels that a ship can render at
-#define	MAX_REINFORCEMENTS		10
+#define	MAX_REINFORCEMENTS		32
 
 
 // defines for 'direction' parameter of ship_select_next_primary()
@@ -114,6 +114,7 @@ typedef struct ship_weapon {
 	int next_secondary_fire_stamp[MAX_SHIP_SECONDARY_BANKS];		// next time this secondary bank can fire
 	int last_secondary_fire_stamp[MAX_SHIP_SECONDARY_BANKS];		// last time this secondary bank fired (mostly used by SEXPs)
 	int next_tertiary_fire_stamp;
+	int last_primary_fire_sound_stamp[MAX_SHIP_PRIMARY_BANKS];		// trailing end of the last time this primary bank was fired, for purposes of timing the pre-launch sound
 
 	// ballistic primary support - by Goober5000
 	int primary_bank_ammo[MAX_SHIP_PRIMARY_BANKS];			// Number of missiles left in primary bank
@@ -146,6 +147,9 @@ typedef struct ship_weapon {
 
 	int	burst_counter[MAX_SHIP_PRIMARY_BANKS + MAX_SHIP_SECONDARY_BANKS];
 	int external_model_fp_counter[MAX_SHIP_PRIMARY_BANKS + MAX_SHIP_SECONDARY_BANKS];
+
+	size_t primary_bank_pattern_index[MAX_SHIP_PRIMARY_BANKS];
+	size_t secondary_bank_pattern_index[MAX_SHIP_SECONDARY_BANKS];
 } ship_weapon;
 
 //**************************************************************
@@ -199,6 +203,16 @@ public:
 
 extern SCP_vector<ArmorType> Armor_types;
 
+//**************************************************************
+//WMC - Damage type handling code
+
+typedef struct DamageTypeStruct
+{
+	char name[NAME_LENGTH];
+} DamageTypeStruct;
+
+extern SCP_vector<DamageTypeStruct>	Damage_types;
+
 #define SAF_IGNORE_SS_ARMOR			(1 << 0)		// hull armor is applied regardless of the subsystem armor for hull damage
 
 #define SADTF_PIERCING_NONE			0				// no piercing effects, no beam tooling
@@ -247,6 +261,10 @@ typedef struct cockpit_display_info {
 #define SSF_VANISHED			(1 << 8)		// allows subsystem to be made to disappear without a trace (for swapping it for a true model for example.
 #define SSF_MISSILES_IGNORE_IF_DEAD	(1 << 9)	// forces homing missiles to target hull if subsystem is dead before missile hits it.
 #define SSF_ROTATES				(1 << 10)
+#define SSF_DAMAGE_AS_HULL		(1 << 11)		// Applies armor damage instead of subsystem damge. - FUBAR
+#define SSF_NO_AGGREGATE		(1 << 12)		// exclude this subsystem from the aggregate subsystem-info tracking - Goober5000
+
+
 // Wanderer 
 #define SSSF_ALIVE					(1 << 0)		// subsystem has active alive sound
 #define SSSF_DEAD					(1 << 1)		// subsystem has active dead sound
@@ -351,9 +369,9 @@ typedef	struct ship_subsys {
 // we might have 3 engines), and the relative strength of the subsystem.  The #defines in model.h
 // for SUBSYSTEM_xxx will be used as indices into this array.
 typedef struct ship_subsys_info {
-	int	num;				// number of subsystems of type on this ship;
-	float total_hits;		// total number of hits between all subsystems of this type.
-	float current_hits;		// current count of hits for all subsystems of this type.	
+	int	type_count;					// number of subsystems of type on this ship;
+	float aggregate_max_hits;		// maximum number of hits for all subsystems of this type.
+	float aggregate_current_hits;	// current count of hits for all subsystems of this type.	
 } ship_subsys_info;
 
 
@@ -428,6 +446,7 @@ typedef struct ship_subsys_info {
 #define SF2_SET_CLASS_DYNAMICALLY			(1<<18)		// Karajorma - This ship should have its class assigned rather than simply read from the mission file 
 #define SF2_LOCK_ALL_TURRETS_INITIALLY		(1<<19)		// Karajorma - Lock all turrets on this ship at mission start or on arrival
 #define SF2_FORCE_SHIELDS_ON				(1<<20)
+#define SF2_NO_ETS							(1<<21)		// The E - This ship does not have an ETS
 
 // If any of these bits in the ship->flags are set, ignore this ship when targetting
 extern int TARGET_SHIP_IGNORE_FLAGS;
@@ -436,7 +455,7 @@ extern int TARGET_SHIP_IGNORE_FLAGS;
 #define MAX_SHIP_ARCS		2		// How many "arcs" can be active at once... Must be less than MAX_ARC_EFFECTS in model.h. 
 #define NUM_SUB_EXPL_HANDLES	2	// How many different big ship sub explosion sounds can be played.
 
-#define MAX_SHIP_CONTRAILS		12
+#define MAX_SHIP_CONTRAILS		24
 #define MAX_MAN_THRUSTERS	128
 
 typedef struct ship_spark {
@@ -517,6 +536,8 @@ typedef struct ship {
 	float special_exp_outer;
 	bool use_shockwave;
 	float special_exp_shockwave_speed;
+	int special_exp_deathroll_time;
+
 	int	special_hitpoints;
 	int	special_shield;
 
@@ -732,6 +753,10 @@ typedef struct ship {
 	int ammo_low_complaint_count;				// number of times this ship has complained about low ammo
 	int armor_type_idx;
 	int shield_armor_type_idx;
+	int collision_damage_type_idx;
+	int debris_damage_type_idx;
+
+	int model_instance_num;
 } ship;
 
 struct ai_target_priority {
@@ -852,8 +877,9 @@ extern int ship_find_exited_ship_by_signature( int signature);
 #define SIF2_NO_PRIMARY_LINKING				(1 << 10)	// Chief - slated for 3.7 originally, but this looks pretty simple to implement.
 #define SIF2_NO_PAIN_FLASH					(1 << 11)	// The E - disable red pain flash
 #define SIF2_ALLOW_LANDINGS					(1 << 12)	// SUSHI: Automatically set if any subsystems allow landings (as a shortcut)
+#define SIF2_NO_ETS							(1 << 13)	// The E - No ETS on this ship class
 // !!! IF YOU ADD A FLAG HERE BUMP MAX_SHIP_FLAGS !!!
-#define	MAX_SHIP_FLAGS	13		//	Number of distinct flags for flags field in ship_info struct
+#define	MAX_SHIP_FLAGS	14		//	Number of distinct flags for flags field in ship_info struct
 #define	SIF_DEFAULT_VALUE		0
 #define SIF2_DEFAULT_VALUE		0
 
@@ -887,6 +913,17 @@ typedef struct thruster_particles {
 	float		variance;
 } thruster_particles;
 
+typedef struct particle_effect {
+	int				n_low;
+	int				n_high;
+	float			min_rad;
+	float			max_rad;
+	float			min_life;
+	float			max_life;
+	float			min_vel;
+	float			max_vel;
+	float			variance;
+} particle_effect;
 
 #define STI_MSG_COUNTS_FOR_ALONE		(1<<0)
 #define STI_MSG_PRAISE_DESTRUCTION		(1<<1)
@@ -1062,6 +1099,10 @@ typedef struct ship_collision_physics {
 
 } ship_collision_physics;
 
+typedef struct path_metadata {
+	vec3d departure_rvec;
+} path_metadata;
+
 // The real FreeSpace ship_info struct.
 typedef struct ship_info {
 	char		name[NAME_LENGTH];				// name for the ship
@@ -1139,12 +1180,21 @@ typedef struct ship_info {
 	shockwave_create_info shockwave;
 	int	explosion_propagates;				// If true, then the explosion propagates
 	float big_exp_visual_rad;				//SUSHI: The visual size of the main explosion
+	float prop_exp_rad_mult;				// propagating explosions radius multiplier
+	float death_roll_r_mult;
+	float death_fx_r_mult;
+	float death_roll_time_mult;
+	int death_roll_base_time;
+	int death_fx_count;
 	int	shockwave_count;					// the # of total shockwaves
 	SCP_vector<int> explosion_bitmap_anims;
 	float vaporize_chance;					
 
-	int ispew_max_particles;						//Temp field until someone works on particles -C
-	int dspew_max_particles;						//Temp field until someone works on particles -C
+	particle_effect		impact_spew;
+	particle_effect		damage_spew;
+	particle_effect		split_particles;
+	particle_effect		knossos_end_particles;
+	particle_effect		regular_end_particles;
 
 	//Debris stuff
 	float			debris_min_lifetime;
@@ -1202,6 +1252,8 @@ typedef struct ship_info {
 	float	sup_subsys_repair_rate;
 
 	int engine_snd;							// handle to engine sound for ship (-1 if no engine sound)
+	int glide_start_snd;					// handle to sound to play at the beginning of a glide maneuver (default is 0 for regular throttle down sound)
+	int glide_end_snd;						// handle to sound to play at the end of a glide maneuver (default is 0 for regular throttle up sound)
 
 	vec3d	closeup_pos;					// position for camera when using ship in closeup view (eg briefing and hud target monitor)
 	float		closeup_zoom;					// zoom when using ship in closeup view (eg briefing and hud target monitor)
@@ -1302,6 +1354,8 @@ typedef struct ship_info {
 	bool hud_retail;
 
 	SCP_vector<cockpit_display_info> displays;
+
+	SCP_map<SCP_string, path_metadata> pathMetadata;
 } ship_info;
 
 extern int Num_wings;
@@ -1491,6 +1545,7 @@ extern int get_subsystem_pos(vec3d *pos, object *objp, ship_subsys *subsysp);
 //Template stuff, here's as good a place as any.
 int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool replace);
 extern int ship_template_lookup(char *name = NULL);
+void parse_ship_particle_effect(ship_info* sip, particle_effect* pe, char *id_string);
 
 extern int ship_info_lookup(char *name = NULL);
 extern int ship_name_lookup(char *name, int inc_players = 0);	// returns the index into Ship array of name
@@ -1548,6 +1603,7 @@ int ship_is_shield_up( object *obj, int quadrant );
 // the actual functions in ship.cpp for more details.
 extern void ship_model_start(object *objp);
 extern void ship_model_stop(object *objp);
+void ship_model_update_instance(object *objp);
 
 //============================================
 extern int ship_find_num_crewpoints(object *objp);
@@ -1646,7 +1702,6 @@ int ship_lock_threat(ship *sp);
 int	bitmask_2_bitnum(int num);
 char	*ship_return_orders(char *outbuf, ship *sp);
 char	*ship_return_time_to_goal(char *outbuf, ship *sp);
-void	ship_check_cargo_all();	// called from game_simulation_frame
 
 void	ship_maybe_warn_player(ship *enemy_sp, float dist);
 void	ship_maybe_praise_player(ship *deader_sp);
@@ -1806,7 +1861,7 @@ extern int ship_has_energy_weapons(ship *shipp);
 extern int ship_has_engine_power(ship *shipp);
 
 // Swifty - Cockpit displays
-void ship_init_cockpit_displays(ship *shipp, int cockpit_model_num);
+void ship_init_cockpit_displays(ship *shipp);
 void ship_add_cockpit_display(ship *shipp, cockpit_display_info *display, int cockpit_model_num);
 void ship_clear_cockpit_displays(ship *shipp);
 void ship_set_hud_cockpit_targets(ship *shipp);
@@ -1830,5 +1885,8 @@ int armor_type_get_idx(char* name);
 void armor_init();
 
 int thruster_glow_anim_load(generic_anim *ga);
+
+// Sushi - Path metadata
+void init_path_metadata(path_metadata& metadata);
 
 #endif

@@ -46,12 +46,32 @@ void set_flag(ai_profile_t *profile, char *name, int flag, int type)
 	}
 }
 
+char *AI_path_types[] = {
+	"normal",
+	"alt1",
+};
+
+int Num_ai_path_types = sizeof(AI_path_types)/sizeof(char*);
+
+int ai_path_type_match(char *p)
+{
+	int i;
+	for(i = 0; i < Num_ai_path_types; i++)
+	{
+		if(!stricmp(AI_path_types[i], p))
+			return i;
+	}
+
+	return -1;
+}
+
 void parse_ai_profiles_tbl(char *filename)
 {
 	int i, rval;
 	char profile_name[NAME_LENGTH];
 	ai_profile_t dummy_profile;
 	char *saved_Mp = NULL;
+	char buf[NAME_LENGTH];
 
 	// open localization
 	lcl_ext_open();
@@ -325,6 +345,9 @@ void parse_ai_profiles_tbl(char *filename)
 			if (optional_string("$Turret Max Aim Update Delay:"))
 				parse_float_list(profile->turret_max_aim_update_delay, NUM_SKILL_LEVELS);
 
+			if (optional_string("$Detail Distance Multiplier:"))
+				parse_float_list(profile->detail_distance_mult, NUM_SKILL_LEVELS);
+
 			set_flag(profile, "$big ships can attack beam turrets on untargeted ships:", AIPF_BIG_SHIPS_CAN_ATTACK_BEAM_TURRETS_ON_UNTARGETED_SHIPS, AIP_FLAG);
 
 			set_flag(profile, "$smart primary weapon selection:", AIPF_SMART_PRIMARY_WEAPON_SELECTION, AIP_FLAG);
@@ -398,6 +421,26 @@ void parse_ai_profiles_tbl(char *filename)
 			set_flag(profile, "$require turrets to have target in fov:", AIPF2_REQUIRE_TURRET_TO_HAVE_TARGET_IN_FOV, AIP_FLAG2);
 
 			set_flag(profile, "$all ships manage shields:", AIPF2_ALL_SHIPS_MANAGE_SHIELDS, AIP_FLAG2);
+
+			set_flag(profile, "$ai aims from ship center:", AIPF2_AI_AIMS_FROM_SHIP_CENTER, AIP_FLAG2);
+
+			set_flag(profile, "$allow primary link delay:", AIPF2_ALLOW_PRIMARY_LINK_DELAY, AIP_FLAG2);
+
+			set_flag(profile, "$allow beams to damage bombs:", AIPF2_BEAMS_DAMAGE_WEAPONS, AIP_FLAG2);
+
+			set_flag(profile, "$disable weapon damage scaling for player:", AIPF2_PLAYER_WEAPON_SCALE_FIX, AIP_FLAG2);
+
+			profile->ai_path_mode = AI_PATH_MODE_NORMAL;
+			if(optional_string("$ai path mode:"))
+			{
+				stuff_string(buf, F_NAME, NAME_LENGTH);
+				int j = ai_path_type_match(buf);
+				if(j >= 0) {
+					profile->ai_path_mode = j;
+				} else {
+					Warning(LOCATION, "Invalid ai path mode '%s' specified", buf);
+				}
+			}
 
 			// if we've been through once already and are at the same place, force a move
 			if ( saved_Mp && (saved_Mp == Mp) )

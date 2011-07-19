@@ -123,6 +123,7 @@ Flag exe_params[] =
 	{ "-normal",			"Enable normal maps",						true,	EASY_MEM_ALL_ON,	EASY_DEFAULT_MEM,	"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-normal" },
 	{ "-3dshockwave",		"Enable 3D shockwaves",					true,	EASY_MEM_ALL_ON,	EASY_DEFAULT_MEM,	"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-3dshockwave" },
 	{ "-post_process",		"Enable post processing",					true,	0,					EASY_DEFAULT,		"Graphics",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-post_process" },
+	{ "-fxaa",				"Enable FXAA antialiasing",					true,	0,					EASY_DEFAULT,		"Graphics",	"" },
 
 	{ "-img2dds",			"Compress non-compressed images",			true,	0,					EASY_DEFAULT,		"Game Speed",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-img2dds", },
 	{ "-no_vsync",			"Disable vertical sync",					true,	0,					EASY_DEFAULT,		"Game Speed",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-no_vsync", },
@@ -168,6 +169,7 @@ Flag exe_params[] =
 	{ "-ati_swap",			"Fix Color issues on some ATI cards",		true,	0,					EASY_DEFAULT,		"Troubleshoot", "http://scp.indiegames.us/mantis/view.php?id=1669", },
 	{ "-no_3d_sound",		"Use only 2D/stereo for sound effects",	true,	0,					EASY_DEFAULT,		"Troubleshoot", "", },
 	{ "-disable_glsl_model","Don't use shaders for model rendering", true, 0,		EASY_DEFAULT,		"Troubleshoot", "", },
+	{ "-disable_di_mouse",  "Don't use DirectInput for mouse control", true, 0,		EASY_DEFAULT,		"Troubleshoot", "", },
 
 	{ "-ingame_join",		"Allows ingame joining",					true,	0,					EASY_DEFAULT,		"Experimental",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-ingame_join", },
 	{ "-voicer",			"Voice recognition",						true,	0,					EASY_DEFAULT,		"Experimental",	"", },
@@ -266,6 +268,8 @@ cmdline_parm height_arg("-height", NULL);			// Cmdline_height  -- enable support
 cmdline_parm enable_3d_shockwave_arg("-3dshockwave", NULL);
 cmdline_parm postprocess_arg("-post_process", NULL);
 cmdline_parm bloom_intensity_arg("-bloom_intensity", NULL);
+cmdline_parm fxaa_arg("-fxaa", NULL);
+cmdline_parm fxaa_preset_arg("-fxaa_preset", NULL);
 
 float Cmdline_clip_dist = Default_min_draw_distance;
 float Cmdline_fov = 0.75f;
@@ -285,6 +289,8 @@ int Cmdline_height = 0;
 int Cmdline_enable_3d_shockwave = 0;
 int Cmdline_postprocess = 0;
 int Cmdline_bloom_intensity = 75;
+bool Cmdline_fxaa = false;
+int Cmdline_fxaa_preset = 3;
 
 // Game Speed related
 cmdline_parm cache_bitmaps_arg("-cache_bitmaps", NULL);	// Cmdline_cache_bitmaps
@@ -366,6 +372,7 @@ cmdline_parm noglsl_arg("-no_glsl", NULL);			// Cmdline_noglsl  -- disable GLSL 
 cmdline_parm atiswap_arg("-ati_swap", NULL);        // Cmdline_atiswap - Fix ATI color swap issue for screenshots.
 cmdline_parm no3dsound_arg("-no_3d_sound", NULL);		// Cmdline_no_3d_sound - Disable use of full 3D sounds
 cmdline_parm no_glsl_models_arg("-disable_glsl_model", NULL); // Cmdline_no_glsl_model_rendering -- switches model rendering to fixed pipeline
+cmdline_parm no_di_mouse_arg("-disable_di_mouse", NULL); // Cmdline_no_di_mouse -- Disables directinput use for mouse control
 
 int Cmdline_d3d_lesstmem = 0;
 int Cmdline_load_all_weapons = 0;
@@ -380,6 +387,7 @@ int Cmdline_noglsl = 0;
 int Cmdline_ati_color_swap = 0;
 int Cmdline_no_3d_sound = 0;
 int Cmdline_no_glsl_model_rendering = 0;
+int Cmdline_no_di_mouse = 0;
 
 // Developer/Testing related
 cmdline_parm start_mission_arg("-start_mission", NULL);	// Cmdline_start_mission
@@ -1266,6 +1274,18 @@ bool SetCmdlineParams()
 
 	if (no_glsl_models_arg.found() ) {
 		Cmdline_no_glsl_model_rendering = 1;
+	}
+
+	if (fxaa_arg.found() ) {
+		Cmdline_fxaa = true;
+
+		if (fxaa_preset_arg.found()) {
+			Cmdline_fxaa_preset = fxaa_preset_arg.get_int();
+		}
+	}
+
+	if (no_di_mouse_arg.found() ) {
+		Cmdline_no_di_mouse = 1;
 	}
 
 	if ( img2dds_arg.found() )

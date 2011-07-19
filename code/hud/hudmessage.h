@@ -109,6 +109,7 @@ public:
 	void processMessageBuffer();
 	void addPending(char *text, int source, int x = 0);
 	void scrollMessages();
+	void preprocess();
 	void render(float frametime);
 	void initialize();
 	void pageIn();
@@ -133,6 +134,7 @@ public:
 	void pageIn();
 	void render(float frametime);
 	void initialize();
+	bool canRender();
 	anim_instance* createAnim(int anim_start_frame, anim* anim_data);
 };
 

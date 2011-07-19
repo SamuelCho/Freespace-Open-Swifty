@@ -153,8 +153,6 @@ int ship_weapon_check_collision(object *ship_objp, object *weapon_objp, float ti
 	if (dist < weapon_objp->phys_info.speed) {
 		update_danger_weapon(ship_objp, weapon_objp);
 	}
-	
-	ship_model_start(ship_objp);
 
 	int	valid_hit_occurred = 0;				// If this is set, then hitpos is set
 	int	quadrant_num = -1;
@@ -168,6 +166,7 @@ int ship_weapon_check_collision(object *ship_objp, object *weapon_objp, float ti
 	// Goober5000 - I tried to make collision code here much saner... here begin the (major) changes
 
 	// set up collision structs
+	mc.model_instance_num = shipp->model_instance_num;
 	mc.model_num = sip->model_num;
 	mc.submodel_num = -1;
 	mc.orient = &ship_objp->orient;
@@ -253,7 +252,6 @@ int ship_weapon_check_collision(object *ship_objp, object *weapon_objp, float ti
 
 
 	//nprintf(("AI", "Frame %i, Hit tri = %i\n", Framecount, mc.shield_hit_tri));
-	ship_model_stop(ship_objp);
 
     // check if the hit point is beyond the clip plane when warping out.
     if ((shipp->flags & SF_DEPART_WARP) &&

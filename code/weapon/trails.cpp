@@ -79,10 +79,12 @@ void trail_calc_facing_pts( vec3d *top, vec3d *bot, vec3d *fvec, vec3d *pos, flo
 	vec3d uvec, rvec;
 
 	vm_vec_sub( &rvec, &Eye_position, pos );
-	vm_vec_normalize( &rvec );
+	if (!IS_VEC_NULL(&rvec))
+		vm_vec_normalize( &rvec );
 
 	vm_vec_crossprod(&uvec,fvec,&rvec);
-	vm_vec_normalize(&uvec);
+	if (!IS_VEC_NULL(&uvec))
+		vm_vec_normalize(&uvec);
 
 	vm_vec_scale_add( top, pos, &uvec, w * 0.5f );
 	vm_vec_scale_add( bot, pos, &uvec, -w * 0.5f );
@@ -200,7 +202,7 @@ void trail_render( trail * trailp )
 	if (num_sections <= 0)
 		return;
 
-	Assert(ti->texture.bitmap_id != -1);
+	Assertion(ti->texture.bitmap_id != -1, "Weapon trail %s could not be loaded", ti->texture.filename); // We can leave this as an assert, but tell them how to fix it. --Chief
 
 	memset( &top, 0, sizeof(vertex) );
 	memset( &bot, 0, sizeof(vertex) );

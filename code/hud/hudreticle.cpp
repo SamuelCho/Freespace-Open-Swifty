@@ -244,7 +244,7 @@ static int Zero_speed_coords[GR_NUM_RESOLUTIONS][2] = {
 };
 
 HudGaugeReticle::HudGaugeReticle():
-HudGauge(HUD_OBJECT_CENTER_RETICLE, HUD_CENTER_RETICLE, true, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_TOPDOWN), 255, 255, 255)
+HudGauge(HUD_OBJECT_CENTER_RETICLE, HUD_CENTER_RETICLE, true, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_TOPDOWN | VM_OTHER_SHIP), 255, 255, 255)
 {
 }
 
@@ -323,9 +323,7 @@ void HudGaugeReticle::getFirepointStatus() {
 					isactive = 2;
 
 				for (int j = 0; j < pm->gun_banks[i].num_slots; j++) {
-					vec2d coords = {ep.x - pm->gun_banks[i].pnt[j].xyz.x, ep.y - pm->gun_banks[i].pnt[j].xyz.y};
-
-					firepoint tmp = {coords, isactive};
+					firepoint tmp = { {ep.x - pm->gun_banks[i].pnt[j].xyz.x, ep.y - pm->gun_banks[i].pnt[j].xyz.y}, isactive};
 					fp.push_back(tmp);
 				}
 			}
@@ -339,7 +337,7 @@ void HudGaugeReticle::pageIn()
 }
 
 HudGaugeThrottle::HudGaugeThrottle():
-HudGauge(HUD_OBJECT_THROTTLE, HUD_THROTTLE_GAUGE, true, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY), 255, 255, 255)
+HudGauge(HUD_OBJECT_THROTTLE, HUD_THROTTLE_GAUGE, true, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
 {
 
 }
@@ -432,8 +430,11 @@ void HudGaugeThrottle::render(float frametime)
 
 	desired_y_pos = position[1] + Bottom_offset_y - fl2i(throttle_h*desired_speed/max_speed+0.5f) - 1;
 
-	Assert(max_speed != 0);
-	percent_max = current_speed / max_speed;
+	if (max_speed <= 0) {
+		percent_max = 0.0f;
+	} else {
+		percent_max = current_speed / max_speed;
+	}
 
 	percent_aburn_max = 0.0f;
 	if ( percent_max > 1 ) {

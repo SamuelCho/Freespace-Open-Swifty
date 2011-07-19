@@ -57,8 +57,15 @@
 #define AIPF2_ALL_SHIPS_MANAGE_SHIELDS								(1 << 3)
 #define AIPF2_ADVANCED_TURRET_FOV_EDGE_CHECKS						(1 << 4)
 #define AIPF2_REQUIRE_TURRET_TO_HAVE_TARGET_IN_FOV					(1 << 5)
+#define AIPF2_AI_AIMS_FROM_SHIP_CENTER								(1 << 6)
+#define AIPF2_ALLOW_PRIMARY_LINK_DELAY								(1 << 7)
+#define	AIPF2_BEAMS_DAMAGE_WEAPONS									(1 << 8)
+#define AIPF2_PLAYER_WEAPON_SCALE_FIX								(1 << 9)
 
-
+// AI Path types
+#define	AI_PATH_MODE_NORMAL 0
+#define	AI_PATH_MODE_ALT1	1
+	
 #define MAX_AI_PROFILES	5
 
 typedef struct ai_profile_t {
@@ -132,6 +139,9 @@ typedef struct ai_profile_t {
 	// the chance (x/7) that ship is allowed to fire missiles at player ship.
 	int chance_to_use_missiles_on_plr[NUM_SKILL_LEVELS];
 
+	float detail_distance_mult[MAX_DETAIL_LEVEL + 1];	//MAX_DETAIL_LEVEL really needs to be 4
+
+	int ai_path_mode;
 
 } ai_profile_t;
 

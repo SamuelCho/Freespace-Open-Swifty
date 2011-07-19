@@ -937,6 +937,12 @@ void ai_add_goal_sub_sexp( int sexp, int type, ai_goal *aigp, char *actor_name )
 		aigp->ai_mode = AI_GOAL_KEEP_SAFE_DISTANCE;
 		break;
 
+	case OP_AI_FORM_ON_WING:
+		aigp->priority = 99;
+		aigp->ship_name = ai_get_goal_ship_name(CTEXT(CDR(node)), &aigp->ship_name_index);
+		aigp->ai_mode = AI_GOAL_FORM_ON_WING;
+		break;
+
 	case OP_AI_CHASE:
 	case OP_AI_GUARD:
 	case OP_AI_GUARD_WING:
@@ -1605,7 +1611,7 @@ int ai_mission_goal_achievable( int objnum, ai_goal *aigp )
 	if ((status == SHIP_STATUS_ARRIVED) && (aigp->ai_mode == AI_GOAL_DISARM_SHIP))
 	{
 		// if the ship has no turrets, we can't disarm it!
-		if (Ships[ship_name_lookup(aigp->ship_name)].subsys_info[SUBSYSTEM_TURRET].num == 0)
+		if (Ships[ship_name_lookup(aigp->ship_name)].subsys_info[SUBSYSTEM_TURRET].type_count == 0)
 			return AI_GOAL_NOT_ACHIEVABLE;
 	}
 

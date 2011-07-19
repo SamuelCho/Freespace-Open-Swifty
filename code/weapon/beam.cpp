@@ -2267,7 +2267,6 @@ int beam_collide_ship(obj_pair *pair)
 	sip = &Ship_info[shipp->ship_info_index];
 	bwi = &Weapon_info[b->weapon_info_index];
 
-	ship_model_start(ship_objp);
 	polymodel *pm = model_get(model_num);
 
 	// get the widest portion of the beam
@@ -2277,6 +2276,7 @@ int beam_collide_ship(obj_pair *pair)
 	// Goober5000 - I tried to make collision code much saner... here begin the (major) changes
 
 	// set up collision structs, part 1
+	mc.model_instance_num = shipp->model_instance_num;
 	mc.model_num = model_num;
 	mc.submodel_num = -1;
 	mc.orient = &ship_objp->orient;
@@ -2357,8 +2357,6 @@ int beam_collide_ship(obj_pair *pair)
 		valid_hit_occurred = 1;
 	}
 
-	ship_model_stop(ship_objp);
-
 	// if we got a hit
 	if (valid_hit_occurred) {
 		// add to the collision_list
@@ -2425,6 +2423,7 @@ int beam_collide_asteroid(obj_pair *pair)
 #endif
 
 	// do the collision		
+	test_collide.model_instance_num = -1;
 	test_collide.model_num = model_num;
 	test_collide.submodel_num = -1;
 	test_collide.orient = &pair->b->orient;
@@ -2494,6 +2493,7 @@ int beam_collide_missile(obj_pair *pair)
 #endif
 
 	// do the collision		
+	test_collide.model_instance_num = -1;
 	test_collide.model_num = model_num;
 	test_collide.submodel_num = -1;
 	test_collide.orient = &pair->b->orient;
@@ -2559,7 +2559,8 @@ int beam_collide_debris(obj_pair *pair)
 	Beam_test_ints++;
 #endif
 
-	// do the collision		
+	// do the collision	
+	test_collide.model_instance_num = -1;
 	test_collide.model_num = model_num;
 	test_collide.submodel_num = -1;
 	test_collide.orient = &pair->b->orient;
@@ -2646,9 +2647,15 @@ int beam_collide_early_out(object *a, object *b)
 /*		if(bwi->b_info.beam_type == BEAM_TYPE_C){
 			return 1;
 		}*/
-		// don't ever collide against laser weapons - duh
-		if(Weapon_info[Weapons[b->instance].weapon_info_index].subtype == WP_LASER){
-			return 1;
+		if(The_mission.ai_profile->flags2 & AIPF2_BEAMS_DAMAGE_WEAPONS) {
+			if((Weapon_info[Weapons[b->instance].weapon_info_index].weapon_hitpoints <= 0) && (Weapon_info[Weapons[b->instance].weapon_info_index].subtype == WP_LASER)) {
+				return 1;
+			}
+		} else {
+			// don't ever collide against laser weapons - duh
+			if(Weapon_info[Weapons[b->instance].weapon_info_index].subtype == WP_LASER){
+				return 1;
+			}
 		}
 		break;
 	}
@@ -2957,11 +2964,43 @@ void beam_handle_collisions(beam *b)
 				break;
 
 			case OBJ_WEAPON:
-				// detonate the missile
-				Assert(Weapon_info[Weapons[Objects[target].instance].weapon_info_index].subtype == WP_MISSILE);
+				if (The_mission.ai_profile->flags2 & AIPF2_BEAMS_DAMAGE_WEAPONS) {
+					if (!(Game_mode & GM_MULTIPLAYER) || MULTIPLAYER_MASTER) {
+						object *trgt = &Objects[target];
 
-				if (!(Game_mode & GM_MULTIPLAYER) || MULTIPLAYER_MASTER) {
-					weapon_hit(&Objects[target], NULL, &Objects[target].pos);
+						if (trgt->hull_strength > 0) {
+							float attenuation = 1.0f;
+							if ((b->damage_threshold >= 0.0f) && (b->damage_threshold < 1.0f)) {
+								float dist = vm_vec_dist(&b->last_shot, &b->last_start);
+								float range = b->range;
+								float atten_dist = range * b->damage_threshold;
+								if ((range > dist) && (atten_dist < dist)) {
+									attenuation = (dist - atten_dist) / (range - atten_dist);
+								}
+							}
+
+							float damage = Weapon_info[b->weapon_info_index].damage * attenuation;
+
+							trgt->hull_strength -= damage;
+
+							if (trgt->hull_strength < 0) {
+								weapon_hit(trgt, NULL, &trgt->pos);
+							}
+						} else {
+							if (!(Game_mode & GM_MULTIPLAYER) || MULTIPLAYER_MASTER) {
+								weapon_hit(&Objects[target], NULL, &Objects[target].pos);
+							}
+						}
+						
+
+					}
+				} else {
+					// detonate the missile
+					Assert(Weapon_info[Weapons[Objects[target].instance].weapon_info_index].subtype == WP_MISSILE);
+
+					if (!(Game_mode & GM_MULTIPLAYER) || MULTIPLAYER_MASTER) {
+						weapon_hit(&Objects[target], NULL, &Objects[target].pos);
+					}
 				}
 				break;
 
@@ -3067,7 +3106,7 @@ float beam_get_cone_dot(beam *b)
 	case BEAM_TYPE_D:
 	case BEAM_TYPE_E:
 		// even though these beams don't move, return a _very_ small value
-		return (float)cos(fl_radian(50.5f));	
+		return (float)cos(fl_radians(50.5f));
 		
 	case BEAM_TYPE_B:
 		return vm_vec_dotprod(&b->binfo.dir_a, &b->binfo.dir_b);

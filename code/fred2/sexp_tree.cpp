@@ -579,12 +579,31 @@ int get_sexp_id(char *sexp_name)
 }
 
 // Goober5000
-int category_of_subcategory(int subcategory_id)
+int get_category(int sexp_id)
 {
-	return (subcategory_id & OP_CATEGORY_MASK);
+	int category = (sexp_id & OP_CATEGORY_MASK);
+
+	// hack so that CHANGE and CHANGE2 show up in the same menu
+	if (category == OP_CATEGORY_CHANGE2)
+		category = OP_CATEGORY_CHANGE;
+
+	return category;
 }
 
 // Goober5000
+int category_of_subcategory(int subcategory_id)
+{
+	int category = (subcategory_id & OP_CATEGORY_MASK);
+
+	// hack so that CHANGE and CHANGE2 show up in the same menu
+	if (category == OP_CATEGORY_CHANGE2)
+		category = OP_CATEGORY_CHANGE;
+
+	return category;
+}
+
+// Goober5000
+// this seems not to be used anywhere?
 int get_category_id(char *category_name)
 {
 	for (int i = 0; i < Num_op_menus; i++)
@@ -598,6 +617,7 @@ int get_category_id(char *category_name)
 }
 
 // Goober5000
+// this seems not to be used anywhere?
 int has_submenu(char *category_name)
 {
 	int category_id = get_category_id(category_name);
@@ -853,7 +873,7 @@ void sexp_tree::right_clicked(int mode)
 				// put it in the appropriate menu
 				for (j=0; j<Num_op_menus; j++)
 				{
-					if (op_menu[j].id == (Operators[i].value & OP_CATEGORY_MASK))
+					if (op_menu[j].id == get_category(Operators[i].value))
 					{
 						switch (Operators[i].value) {
 // Commented out by Goober5000 to allow these operators to be selectable
@@ -2230,7 +2250,10 @@ int sexp_tree::add_default_operator(int op, int argnum)
 		{
 			if ((argnum == 0 && Operators[op].value == OP_MODIFY_VARIABLE) ||
 				(argnum == 8 && Operators[op].value == OP_ADD_BACKGROUND_BITMAP) ||
-				(argnum == 5 && Operators[op].value == OP_ADD_SUN_BITMAP))
+				(argnum == 5 && Operators[op].value == OP_ADD_SUN_BITMAP) ||
+				(argnum == 2 && Operators[op].value == OP_STRING_CONCATENATE) ||
+				(argnum == 0 && Operators[op].value == OP_DIRECTIVE_IS_VARIABLE) ||
+				(argnum == 1 && Operators[op].value == OP_INT_TO_STRING))
 			{
 
 				int sexp_var_index = get_index_sexp_variable_name(item.text);
@@ -2669,6 +2692,7 @@ int sexp_tree::query_default_argument_available(int op, int i)
 		case OPF_POST_EFFECT:
 		case OPF_TARGET_PRIORITIES:
 		case OPF_ARMOR_TYPES:
+		case OPF_DAMAGE_TYPES:
 		case OPF_FONT:
 		case OPF_HUD_ELEMENT:
 		case OPF_SOUND_ENVIRONMENT:
@@ -3267,7 +3291,10 @@ void sexp_tree::verify_and_fix_arguments(int node)
 					// special case for SEXPs which can modify a variable 
 					if ((arg_num == 0 && Operators[op].value == OP_MODIFY_VARIABLE) ||
 						(arg_num == 8 && Operators[op].value == OP_ADD_BACKGROUND_BITMAP) ||
-						(arg_num == 5 && Operators[op].value == OP_ADD_SUN_BITMAP))
+						(arg_num == 5 && Operators[op].value == OP_ADD_SUN_BITMAP) ||
+						(arg_num == 2 && Operators[op].value == OP_STRING_CONCATENATE) ||
+						(arg_num == 0 && Operators[op].value == OP_DIRECTIVE_IS_VARIABLE) ||
+						(arg_num == 1 && Operators[op].value == OP_INT_TO_STRING))
 					{
 						// make text_ptr to start - before '('
 						get_variable_name_from_sexp_tree_node_text(tree_nodes[item_index].text, default_variable_text);
@@ -3885,14 +3912,16 @@ void sexp_tree::update_help(HTREEITEM h)
 	int i, j, z, c, code, index, sibling_place;
 	CString text;
 
-/* Goober5000 - this is just annoying
-	for (i=0; i<Num_operators; i++)
-		for (j=0; j<Num_op_menus; j++)
-			if ((Operators[i].value & OP_CATEGORY_MASK) == op_menu[j].id) {
-				if (!help(Operators[i].value))
-					Int3();  // Allender!  If you add new sexp operators, add help for them too! :)
+	for (i=0; i<Num_operators; i++) {
+		for (j=0; j<Num_op_menus; j++) {
+			if (get_category(Operators[i].value) == op_menu[j].id) {
+				if (!help(Operators[i].value)) {
+					mprintf(("Allender!  If you add new sexp operators, add help for them too! :)\n"));
+				}
 			}
-*/
+		}
+	}
+
 	help_box = (CEdit *) GetParent()->GetDlgItem(IDC_HELP_BOX);
 	if (!help_box || !::IsWindow(help_box->m_hWnd))
 		return;
@@ -4361,6 +4390,10 @@ sexp_list_item *sexp_tree::get_listing_opf(int opf, int parent_node, int arg_ind
 
 		case OPF_ARMOR_TYPES:
 			list = get_listing_opf_armor_types();
+			break;
+
+		case OPF_DAMAGE_TYPES:
+			list = get_listing_opf_damage_types();
 			break;
 
 		case OPF_PERSONA:
@@ -5721,11 +5754,10 @@ sexp_list_item *sexp_tree::get_listing_opf_sun_bitmap()
 sexp_list_item *sexp_tree::get_listing_opf_nebula_storm_type()
 {
 	sexp_list_item head;
-	int i;
 
 	head.add_data(SEXP_NONE_STRING);
 
-	for (i=0; i < Num_storm_types; i++)
+	for (size_t i=0; i < Storm_types.size(); i++)
 	{
 		head.add_data(Storm_types[i].name);
 	}
@@ -5791,6 +5823,16 @@ sexp_list_item *sexp_tree::get_listing_opf_armor_types()
 	head.add_data(SEXP_NONE_STRING);
 	for (t=0; t<Armor_types.size(); t++)
 		head.add_data(Armor_types[t].GetNamePtr());
+	return head.next;
+}
+
+sexp_list_item *sexp_tree::get_listing_opf_damage_types()
+{
+	size_t t;
+	sexp_list_item head;
+	head.add_data(SEXP_NONE_STRING);
+	for (t=0; t<Damage_types.size(); t++)
+		head.add_data(Damage_types[t].name);
 
 	return head.next;
 }

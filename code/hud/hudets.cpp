@@ -68,7 +68,11 @@ void ets_init_ship(object* obj)
 	sp = &Ships[obj->instance];
 	
 	sp->weapon_energy = Ship_info[sp->ship_info_index].max_weapon_reserve;
-	sp->next_manage_ets = timestamp(AI_MODIFY_ETS_INTERVAL);
+	if ((sp->flags2 & SF2_NO_ETS) == 0) {
+		sp->next_manage_ets = timestamp(AI_MODIFY_ETS_INTERVAL);
+	} else {
+		sp->next_manage_ets = -1;
+	}
 	set_default_recharge_rates(obj);
 }
 
@@ -359,6 +363,9 @@ void increase_recharge_rate(object* obj, SYSTEM_TYPE ship_system)
 	int	count=0;
 	ship	*ship_p = &Ships[obj->instance];
 
+	if (ship_p->flags2 & SF2_NO_ETS)
+		return;
+
 	switch ( ship_system ) {
 		case WEAPONS:
 			if ( !ship_has_energy_weapons(ship_p) )
@@ -479,6 +486,9 @@ void decrease_recharge_rate(object* obj, SYSTEM_TYPE ship_system)
 	int	*lose_index=NULL, *gain_index1=NULL, *gain_index2=NULL, *tmp=NULL;
 	int	count;
 	ship	*ship_p = &Ships[obj->instance];
+
+	if (ship_p->flags2 & SF2_NO_ETS)
+		return;
 
 	switch ( ship_system ) {
 		case WEAPONS:

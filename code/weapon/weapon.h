@@ -18,6 +18,7 @@
 #include "weapon/trails.h"
 #include "weapon/shockwave.h"
 #include "graphics/generic.h"
+#include "model/model.h"
 
 struct object;
 struct ship_subsys;
@@ -106,6 +107,7 @@ extern int Num_weapon_subtypes;
 #define WIF2_EXTERNAL_WEAPON_LNCH		(1 << 25)	// render external secondary as a launcher
 #define WIF2_TAKES_BLAST_DAMAGE			(1 << 26)	// This weapon can take blast damage
 #define WIF2_TAKES_SHOCKWAVE_DAMAGE		(1 << 27)	// This weapon can take shockwave damage
+#define WIF2_DONT_SHOW_ON_RADAR			(1 << 28)   // Force a weapon to not show on radar
 
 #define	WIF_HOMING					(WIF_HOMING_HEAT | WIF_HOMING_ASPECT | WIF_HOMING_JAVELIN)
 #define WIF_LOCKED_HOMING           (WIF_HOMING_ASPECT | WIF_HOMING_JAVELIN)
@@ -128,6 +130,16 @@ extern int Num_weapon_subtypes;
 // flags for setting burst fire 
 #define WBF_FAST_FIRING				(1<<0)		// burst is to use only the firewait to determine firing delays
 #define WBF_RANDOM_LENGTH			(1<<1)		// burst is to fire random length bursts
+
+//particle names go here -nuke
+#define PSPEW_NONE		-1			//used to disable a spew, useful for xmts
+#define PSPEW_DEFAULT	0			//std fs2 pspew
+#define PSPEW_HELIX		1			//q2 style railgun trail
+#define PSPEW_SPARKLER	2			//random particles in every direction, can be sperical or ovoid
+#define PSPEW_RING		3			//outward expanding ring
+#define PSPEW_PLUME		4			//spewers arrayed within a radius for thruster style effects, may converge or scatter
+
+#define MAX_PARTICLE_SPEWERS	4	//i figure 4 spewers should be enough for now -nuke
 
 typedef struct weapon {
 	int		weapon_info_index;			// index into weapon_info array
@@ -173,7 +185,8 @@ typedef struct weapon {
 	short	cscrew_index;						// corkscrew info index
 
 	// particle spew info
-	int		particle_spew_time;			// time to spew next bunch of particles	
+	int		particle_spew_time[MAX_PARTICLE_SPEWERS];			// time to spew next bunch of particles	
+	float	particle_spew_rand;				// per weapon randomness value used by some particle spew types -nuke
 
 	// flak info
 	short flak_index;							// flak info index
@@ -234,6 +247,22 @@ typedef struct beam_weapon_info {
 	float beam_width;					// width of the beam (for certain collision checks)
 } beam_weapon_info;
 
+typedef struct particle_spew_info {	//this will be used for multi spews
+	// particle spew stuff
+	int particle_spew_type;			//added pspew type field -nuke
+	int particle_spew_count;
+	int particle_spew_time;
+	float particle_spew_vel;
+	float particle_spew_radius;
+	float particle_spew_lifetime;
+	float particle_spew_scale;
+	float particle_spew_z_scale;	//length value for some effects -nuke
+	float particle_spew_rotation_rate;	//rotation rate for some particle effects -nuke
+	vec3d particle_spew_offset;			//offsets and normals, yay!
+	vec3d particle_spew_velocity;
+	generic_anim particle_spew_anim;
+} particle_spew_info;
+
 typedef struct spawn_weapon_info 
 {
 	short	spawn_type;							//	Type of weapon to spawn when detonated.
@@ -263,7 +292,8 @@ typedef struct weapon_info {
 	char external_model_name[MAX_FILENAME_LEN];					//the model rendered on the weapon points of a ship
 	int external_model_num;					//the model rendered on the weapon points of a ship
 	int hud_target_lod;						// LOD to use when rendering weapon model to the hud targetbox
-
+	int num_detail_levels;					// number of LODs defined in table (optional)
+	int		detail_distance[MAX_MODEL_DETAIL_LEVELS]; // LOD distances define in table (optional)
 	char	*tech_desc;								// weapon's description (in tech database)
 	char	tech_anim_filename[MAX_FILENAME_LEN];	// weapon's tech room animation
 	char	tech_title[NAME_LENGTH];			// weapon's name (in tech database)
@@ -336,6 +366,8 @@ typedef struct weapon_info {
 	// Seeker strength - for countermeasures overhaul.
 	float seeker_strength;
 
+	int pre_launch_snd;
+	int	pre_launch_snd_min_interval;	//Minimum interval in ms between the last time the pre-launch sound was played and the next time it can play, as a limiter in case the player is pumping the trigger
 	int	launch_snd;
 	int	impact_snd;
 	int disarmed_impact_snd;
@@ -385,14 +417,8 @@ typedef struct weapon_info {
 	// SSM
 	int SSM_index;							// wich entry in the SSM,tbl it uses -Bobboau
 
-	// particle spew stuff
-	int particle_spew_count;
-	int particle_spew_time;
-	float particle_spew_vel;
-	float particle_spew_radius;
-	float particle_spew_lifetime;
-	float particle_spew_scale;
-	generic_anim particle_spew_anim;
+	// now using new particle spew struct -nuke
+	particle_spew_info particle_spewers[MAX_PARTICLE_SPEWERS];
 
 	// Corkscrew info - phreak 11/9/02
 	int cs_num_fired;
@@ -438,6 +464,7 @@ typedef struct weapon_info {
 	float weapon_submodel_rotate_vel;
 	
 	int damage_type_idx;
+	int damage_type_idx_sav;	// stored value from table used to reset damage_type_idx
 
 	// transparency/alpha info
 	float alpha_max;			// maximum alpha value to use
@@ -462,6 +489,10 @@ typedef struct weapon_info {
 	float			target_lead_scaler;
 	int				targeting_priorities[32];
 	int				num_targeting_priorities;
+
+	// the optional pattern of weapons that this weapon will fire
+	SCP_vector<int> weapon_substitution_pattern; //weapon_indexs
+	SCP_vector<SCP_string> weapon_substitution_pattern_names; // weapon names so that we can generate the indexs after sort
 
 } weapon_info;
 

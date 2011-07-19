@@ -2214,10 +2214,10 @@ BEGIN
     LTEXT           "Wave Filename",IDC_STATIC,7,139,50,8
 END
 
-IDD_SHIP_FLAGS DIALOGEX 0, 0, 286, 250
+IDD_SHIP_FLAGS DIALOG DISCARDABLE  0, 0, 286, 295
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Additional Ship Properties"
-FONT 8, "MS Sans Serif", 0, 0, 0x1
+FONT 8, "MS Sans Serif"
 BEGIN
     CONTROL         "Destroy Before Mission",IDC_DESTROY_CHECK,"Button",
                     BS_3STATE | WS_TABSTOP,7,7,87,10
@@ -2238,34 +2238,34 @@ BEGIN
     CONTROL         "Protect Ship",IDC_PROTECT_SHIP,"Button",BS_3STATE | 
                     WS_TABSTOP,7,72,59,10
     CONTROL         "Beam Protect Ship",IDC_BEAM_PROTECT_SHIP,"Button",
-                    BS_3STATE | WS_TABSTOP,7,82,80,8
+                    BS_3STATE | WS_TABSTOP,12,93,80,8
     CONTROL         "Ignore for Counting Goals",IDC_IGNORE_COUNT,"Button",
-                    BS_3STATE | WS_TABSTOP,7,91,93,10
+                    BS_3STATE | WS_TABSTOP,7,136,93,10
     CONTROL         "Escort Ship",IDC_ESCORT,"Button",BS_3STATE | WS_TABSTOP,
-                    7,101,52,10
-    EDITTEXT        IDC_ESCORT_PRIORITY,43,112,26,12,ES_AUTOHSCROLL
-    LTEXT           "Priority",IDC_STATIC,19,114,22,8
+                    7,146,52,10
+    EDITTEXT        IDC_ESCORT_PRIORITY,43,157,26,12,ES_AUTOHSCROLL
+    LTEXT           "Priority",IDC_STATIC,19,159,22,8
     CONTROL         "No Arrival Music",IDC_NO_ARRIVAL_MUSIC,"Button",
-                    BS_3STATE | WS_TABSTOP,7,126,67,10
+                    BS_3STATE | WS_TABSTOP,7,172,67,10
     CONTROL         "Invulnerable",IDC_INVULNERABLE,"Button",BS_3STATE | 
-                    WS_TABSTOP,7,136,55,10
+                    WS_TABSTOP,7,182,55,10
     CONTROL         "Guardianed",IDC_GUARDIAN,"Button",BS_3STATE | 
-                    WS_TABSTOP,7,146,55,10
+                    WS_TABSTOP,7,192,55,10
     CONTROL         "Primitive Sensors",IDC_PRIMITIVE_SENSORS,"Button",
-                    BS_3STATE | WS_TABSTOP,7,156,69,10
+                    BS_3STATE | WS_TABSTOP,7,202,69,10
     CONTROL         "No Subspace Drive",IDC_NO_SUBSPACE_DRIVE,"Button",
-                    BS_3STATE | WS_TABSTOP,7,165,78,10
+                    BS_3STATE | WS_TABSTOP,7,211,78,10
     CONTROL         "Hidden from Sensors",IDC_HIDDEN_FROM_SENSORS,"Button",
-                    BS_3STATE | WS_TABSTOP,7,174,81,10
+                    BS_3STATE | WS_TABSTOP,7,220,81,10
     CONTROL         "Stealth",IDC_STEALTH,"Button",BS_3STATE | WS_TABSTOP,7,
-                    183,55,10
+                    229,55,10
     CONTROL         "Invisible to Friendlies When Stealthed",
                     IDC_FRIENDLY_STEALTH_INVISIBLE,"Button",BS_3STATE | 
-                    WS_TABSTOP,7,192,132,10
+                    WS_TABSTOP,7,238,132,10
     CONTROL         "Kamikaze",IDC_KAMIKAZE,"Button",BS_3STATE | WS_TABSTOP,
-                    7,204,42,10
-    EDITTEXT        IDC_KDAMAGE,51,213,57,12,ES_AUTOHSCROLL
-    LTEXT           "Damage",IDC_STATIC,19,215,28,8
+                    7,247,45,10
+    EDITTEXT        IDC_KDAMAGE,50,258,57,12,ES_AUTOHSCROLL
+    LTEXT           "Damage",IDC_STATIC,19,259,28,8
     CONTROL         "No Dynamic Goals",IDC_NO_DYNAMIC,"Button",BS_3STATE | 
                     WS_TABSTOP,165,7,75,10
     CONTROL         "Red Alert Carry Status",IDC_REDALERTCARRY,"Button",
@@ -2284,10 +2284,10 @@ BEGIN
                     BS_3STATE | WS_TABSTOP,165,77,98,10
     CONTROL         "Vaporize on Death",IDC_VAPORIZE,"Button",BS_3STATE | 
                     WS_TABSTOP,165,87,97,10
-    EDITTEXT        IDC_RESPAWN_PRIORITY,221,97,49,14,ES_AUTOHSCROLL
-    LTEXT           "Respawn Priority",IDC_STATIC,161,98,54,8
-    DEFPUSHBUTTON   "OK",IDOK,7,229,65,14
-    PUSHBUTTON      "Cancel",IDCANCEL,214,229,65,14
+    EDITTEXT        IDC_RESPAWN_PRIORITY,226,97,49,14,ES_AUTOHSCROLL
+    LTEXT           "Respawn Priority",IDC_STATIC,166,100,54,8
+    DEFPUSHBUTTON   "OK",IDOK,145,274,65,14
+    PUSHBUTTON      "Cancel",IDCANCEL,214,274,65,14
     CONTROL         "AutoNav Carry Status",IDC_NAV_CARRY,"Button",BS_3STATE | 
                     WS_TABSTOP,165,114,97,10
     CONTROL         "AutoNav Needs Link",IDC_NAV_NEEDSLINK,"Button",
@@ -2296,6 +2296,17 @@ BEGIN
                     WS_TABSTOP,165,135,99,10
     CONTROL         "Set Class Dynamically",IDC_SET_CLASS_DYNAMICALLY,"Button",
                     BS_3STATE | WS_TABSTOP,165,145,104,10
+    CONTROL         "Disable ETS",IDC_DISABLE_ETS,"Button",BS_3STATE | 
+                    WS_TABSTOP,165,156,55,10
+    CONTROL         "Flak Protect Ship",IDC_FLAK_PROTECT_SHIP,"Button",
+                    BS_3STATE | WS_TABSTOP,12,102,80,8
+    CONTROL         "Laser Protect Ship",IDC_LASER_PROTECT_SHIP,"Button",
+                    BS_3STATE | WS_TABSTOP,12,110,80,8
+    CONTROL         "Missile Protect Ship",IDC_MISSILE_PROTECT_SHIP,"Button",
+                    BS_3STATE | WS_TABSTOP,12,118,80,8
+    GROUPBOX        "Turret Threats",IDC_STATIC,7,83,102,48
+    CONTROL         "Does Not Move",IDC_IMMOBILE,"Button",BS_3STATE | 
+                    WS_TABSTOP,7,274,66,10
 END
 
 IDD_ADD_VARIABLE DIALOG DISCARDABLE  0, 0, 422, 102
@@ -2350,7 +2361,7 @@ BEGIN
                     BS_AUTOCHECKBOX | WS_TABSTOP,138,72,84,11
 END
 
-IDD_SPECIAL_DAMAGE DIALOG DISCARDABLE  0, 0, 234, 103
+IDD_SPECIAL_DAMAGE DIALOG DISCARDABLE  0, 0, 234, 129
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Special Explosion"
 FONT 8, "MS Sans Serif"
@@ -2370,8 +2381,13 @@ BEGIN
     LTEXT           "Outer Damage Radius:",IDC_STATIC,14,62,73,8
     LTEXT           "Damage:",IDC_STATIC,57,23,30,8
     LTEXT           "Create Shockwave:",IDC_STATIC,23,75,64,8
-    LTEXT           "Shockwave Speed:",IDC_STATIC,23,88,64,8
+    LTEXT           "Shockwave Speed:",IDC_STATIC,23,86,64,8
     LTEXT           "Blast:",IDC_STATIC,69,36,18,8
+    CONTROL         "",IDC_ENABLE_DEATHROLL_TIME,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,91,100,16,8
+    EDITTEXT        IDC_SPECIAL_DEATHROLL_TIME,91,110,62,12,ES_AUTOHSCROLL
+    LTEXT           "Custom Death Roll Time:",IDC_STATIC,8,100,79,8
+    LTEXT           "Duration (msecs):",IDC_STATIC,30,111,56,8
 END
 
 IDD_DUMP_STATS DIALOG DISCARDABLE  0, 0, 577, 375
@@ -2461,7 +2477,8 @@ BEGIN
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,14,175,112,10
     CONTROL         "Don't replace existing file names",IDC_NO_REPLACE,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,14,186,112,10
-    PUSHBUTTON      "Generate File Names",IDC_GENERATE_FILE_NAMES,12,198,120,14
+    PUSHBUTTON      "Generate File Names",IDC_GENERATE_FILE_NAMES,12,198,120,
+                    14
     GROUPBOX        "Script Options",IDC_SCRIPT_OPTIONS,143,7,257,204
     GROUPBOX        "Script Entry Format",IDC_ENTRY,149,17,246,76
     EDITTEXT        IDC_ENTRY_FORMAT,154,28,109,56,ES_MULTILINE | 
@@ -2901,7 +2918,7 @@ BEGIN
         LEFTMARGIN, 7
         RIGHTMARGIN, 279
         TOPMARGIN, 7
-        BOTTOMMARGIN, 243
+        BOTTOMMARGIN, 288
     END
 
     IDD_ADD_VARIABLE, DIALOG
@@ -2925,7 +2942,7 @@ BEGIN
         LEFTMARGIN, 7
         RIGHTMARGIN, 227
         TOPMARGIN, 7
-        BOTTOMMARGIN, 96
+        BOTTOMMARGIN, 122
     END
 
     IDD_DUMP_STATS, DIALOG
