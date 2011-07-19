@@ -1394,7 +1394,9 @@ void obj_move_all(float frametime)
 #endif
 
 		// pre-move
+		profile_begin("Pre Move");
 		obj_move_all_pre(objp, frametime);
+		profile_end("Pre Move");
 
 		// store last pos and orient
 		objp->last_pos = cur_pos;
@@ -1407,12 +1409,16 @@ void obj_move_all(float frametime)
 				multi_oo_interp(objp);
 			} else {
 				// physics
+				profile_begin("Physics");
 				obj_move_call_physics(objp, frametime);
+				profile_end("Physics");
 			}
 		}
 
 		// move post
+		profile_begin("Post Move");
 		obj_move_all_post(objp, frametime);
+		profile_end("Post Move");
 
 		// Equipment script processing
 		if (objp->type == OBJ_SHIP) {
@@ -1449,8 +1455,10 @@ void obj_move_all(float frametime)
 	// do pre-collision stuff for beam weapons
 	beam_move_all_pre();
 
-	if ( Collisions_enabled ) {
-		obj_check_all_collisions();		
+	if ( Collisions_enabled )	{
+		profile_begin("Collision Detection");
+		obj_check_all_collisions();
+		profile_end("Collision Detection");
 	}
 
 	if (!(Game_mode & GM_DEMO_PLAYBACK)) {

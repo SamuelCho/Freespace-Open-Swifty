@@ -1938,6 +1938,7 @@ void game_init()
 	strcat_s(whee, DIR_SEPARATOR_STR);
 	strcat_s(whee, EXE_FNAME);
 
+	profile_init();
 	//Initialize the libraries
 	s1 = timer_get_milliseconds();
 
@@ -2347,6 +2348,8 @@ void game_show_framerate()
 
 	if (Show_framerate /* && HUD_draw*/ )	{
 		gr_set_color_fast(&HUD_color_debug);
+
+		gr_string(20, 110, profile_output);
 
 		if (frametotal != 0.0f)
 			gr_printf( 20, 100, "FPS: %0.1f", Framerate );
@@ -3859,13 +3862,18 @@ void game_render_frame( camid cid )
 	game_sunspot_process(flFrametime);
 
 	bool draw_viewer_last = false;
+	//profile_begin("Render All");
 	obj_render_all(obj_render, &draw_viewer_last);
+	//profile_end("Render All");
 	
 	//	Why do we not show the shield effect in these modes?  Seems ok.
 	//if (!(Viewer_mode & (VM_EXTERNAL | VM_SLEWED | VM_CHASE | VM_DEAD_VIEW))) {
 	render_shields();
 	//}
+
+	profile_begin("Particles");
 	particle_render_all();					// render particles after everything else.
+	profile_end("Particles");
 #ifdef DYN_CLIP_DIST
 	if(!Cmdline_nohtl)
 	{
@@ -3877,7 +3885,9 @@ void game_render_frame( camid cid )
 #endif
 
 	beam_render_all();						// render all beam weapons
+	profile_begin("Trails");
 	trail_render_all();						// render missilie trails after everything else.	
+	profile_end("Trails");
 
 	// render nebula lightning
 	nebl_render_all();
@@ -4237,7 +4247,9 @@ void game_simulation_frame()
 		}
 
 		// move all objects - does interpolation now as well
+		profile_begin("Move All Objects");
 		obj_move_all(flFrametime);
+		profile_end("Move All Objects");
 
 
 	}
@@ -4262,10 +4274,14 @@ void game_simulation_frame()
 
 		if (!physics_paused)	{
 			// Move particle system
+			profile_begin("Move Particles");
 			particle_move_all(flFrametime);	
+			profile_end("Move Particles");
 
 			// Move missile trails
-			trail_move_all(flFrametime);		
+			profile_begin("Move Trails");
+			trail_move_all(flFrametime);
+			profile_end("Move Trails");
 
 			// Flash the gun flashes
 			shipfx_flash_do_frame(flFrametime);			
@@ -4581,6 +4597,7 @@ void game_frame(int paused)
 	
 		// start timing frame
 		timing_frame_start();
+		profile_begin("Main Frame");
 	
 		DEBUG_GET_TIME( total_time1 )
 
@@ -4644,7 +4661,9 @@ void game_frame(int paused)
 			return;
 		}
 		
+		profile_begin("Simulation");
 		game_simulation_frame(); 
+		profile_end("Simulation");
 		
 		// if not actually in a game play state, then return.  This condition could only be true in 
 		// a multiplayer game.
@@ -4673,7 +4692,11 @@ void game_frame(int paused)
 			DEBUG_GET_TIME( render3_time1 )
 			camid cid = game_render_frame_setup();
 
+			clip_frame_view();
+
+			profile_begin("Render");
 			game_render_frame( cid );
+			profile_end("Render");
 
 			// save the eye position and orientation
 			if ( Game_mode & GM_MULTIPLAYER ) {
@@ -4752,7 +4775,9 @@ void game_frame(int paused)
 			// If a regular popup is active, don't flip (popup code flips)
 			if( !popup_running_state() ){
 				DEBUG_GET_TIME( flip_time1 )
+				profile_begin("Page Flip");
 				game_flip_page_and_time_it();
+				profile_end("Page Flip");
 				DEBUG_GET_TIME( flip_time2 )
 			}
 
@@ -4769,6 +4794,9 @@ void game_frame(int paused)
 
 	// process lightning (nebula only)
 	nebl_process();
+
+	profile_end("Main Frame");
+	profile_dump_output();
 
 	DEBUG_GET_TIME( total_time2 )
 

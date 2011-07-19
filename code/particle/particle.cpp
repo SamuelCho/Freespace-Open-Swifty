@@ -452,9 +452,11 @@ void particle_render_all()
 		}
 	}
 
+	profile_begin("Batch Render");
 	if (render_batch) {
 		batch_render_bitmaps();
 	}
+	profile_end("Batch Render");
 }
 
 

@@ -320,9 +320,10 @@ void trail_render( trail * trailp )
 	if ( (nv % 2) != 1 )
 		Warning( LOCATION, "even number of verts in trail render\n" );
 
-
+	profile_begin("Batch Render Trails");
 	gr_set_bitmap( ti->texture.bitmap_id, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 1.0f );
 	g3_draw_poly( nv, Trail_vlist, TMAP_FLAG_TEXTURED | TMAP_FLAG_ALPHA | TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_HTL_3D_UNLIT | TMAP_FLAG_TRISTRIP );
+	profile_end("Batch Render Trails");
 }
 
 
