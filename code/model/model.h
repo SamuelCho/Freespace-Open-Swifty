@@ -291,29 +291,12 @@ struct collision_node {
 	}
 };
 
-struct collision_tri {
-	vec3d plane_pnt;
-	float face_rad;
-	vec3d plane_norm;
-	ubyte tmap_num;
-	int vert_start;
-	int uv_start;
-	ubyte num_verts;
-
-	collision_tri(): face_rad(0.0f), tmap_num(0), vert_start(0), uv_start(0), num_verts(0)
-	{
-		memset( &plane_pnt, 0, sizeof( plane_pnt ) );
-		memset( &plane_norm, 0, sizeof( plane_norm ) );
-	}
-};
-
 struct collision_tree {
 	SCP_vector<collision_node> node_list;
-	//SCP_vector<collision_tri> tri_list;
-	SCP_vector<int> point_indexes;
-	SCP_vector<int> uv_indexes;
 	SCP_vector<vec3d> point_list;
 	SCP_vector<uv_pair> uv_list;
+
+	bool used;
 };
 
 typedef struct bsp_info {
@@ -1108,6 +1091,7 @@ int model_collide(mc_info * mc_info);
 void model_collide_parse(collision_tree *tree, void *model_ptr, int starting_node, int version);
 
 int model_create_collision_tree();
+void model_remove_collision_tree(int tree_index);
 collision_tree *model_get_collision_tree(int tree_index);
 
 // Sets the submodel instance data in a submodel
