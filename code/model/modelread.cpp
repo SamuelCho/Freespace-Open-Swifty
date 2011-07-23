@@ -2567,9 +2567,10 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 
 		model_collide_parse(tree, pm->submodel[i].bsp_data, 0, pm->version);
 
-		vm_free(pm->submodel[i].bsp_data);
-
-		pm->submodel[i].bsp_data = NULL;
+		if ( i != pm->detail[0] ) {
+			vm_free(pm->submodel[i].bsp_data);
+			pm->submodel[i].bsp_data = NULL;
+		}
 	}
 
 	// Find the core_radius... the minimum of 
