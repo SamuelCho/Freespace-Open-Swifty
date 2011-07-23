@@ -4569,7 +4569,7 @@ ADE_FUNC(getBreedName, l_Object, NULL, "Gets object type", "string", "Object typ
 	return ade_set_args(L, "s", Object_type_names[objh->objp->type]);
 }
 
-ADE_VIRTVAR(CollisionGroups, l_Object, "number", "Collision group data", "number", "Current collision group signature")
+ADE_VIRTVAR(CollisionGroups, l_Object, "number", "Collision group data", "number", "Current collision group signature. NOTE: This is a bitfield, NOT a normal number.")
 {
 	object_h *objh = NULL;
 	int id = 0;
@@ -5349,6 +5349,28 @@ ADE_VIRTVAR(OriginClass, l_Debris, "shipclass", "The shipclass of the ship this 
 	}
 
 	return ade_set_error(L, "o", l_Shipclass.Set(db->ship_info_index));
+}
+
+ADE_FUNC(getDebrisRadius, l_Debris, NULL, "The radius of this debris piece", "number", "The radius of this debris piece or -1 if invalid")
+{
+	object_h *oh;
+	if(!ade_get_args(L, "o", l_Debris.GetPtr(&oh)))
+		return ade_set_error(L, "f", -1.0f);
+
+	if(!oh->IsValid())
+		return ade_set_error(L, "f", -1.0f);
+
+	debris *db = &Debris[oh->objp->instance];
+
+	polymodel *pm = model_get(db->model_num);
+
+	if (pm == NULL)
+		return ade_set_error(L, "f", -1.0f);
+
+	if (db->submodel_num < 0 || pm->n_models <= db->submodel_num)
+		return ade_set_error(L, "f", -1.0f);
+
+	return ade_set_error(L, "f", pm->submodel[db->submodel_num].rad);
 }
 
 ADE_FUNC(isValid, l_Debris, NULL, "Return if this debris handle is valid", "boolean", "true if valid false otherwise")
@@ -12250,6 +12272,11 @@ ADE_FUNC(createParticle, l_Testing, "vector Position, vector Velocity, number Li
 				pi.type = PARTICLE_SMOKE2;
 				break;
 			case LE_PARTICLE_BITMAP:
+				if (pi.optional_data < 0)
+				{
+					LuaError(L, "Invalid texture specified for createParticle()!");
+				}
+
 				pi.type = PARTICLE_BITMAP;
 				break;
 		}
@@ -13130,6 +13157,7 @@ static int ade_index_handler(lua_State *L)
 	char *type_name = NULL;
 	uint ade_id = UINT_MAX;
 	int mtb_ldx = INT_MAX;
+	ade_table_entry* entry = 0;
 
 	//*****STEP 1: Check for user-defined objects
 	if(lua_istable(L, obj_ldx) && !ADE_SETTING_VAR)
@@ -13149,7 +13177,7 @@ static int ade_index_handler(lua_State *L)
 		lua_pushcfunction(L, ade_friendly_error);
 		int err_ldx = lua_gettop(L);
 		int i;
-
+		
 		//*****WMC - go for the type name
 		lua_pushstring(L, "__adeid");
 		lua_rawget(L, mtb_ldx);
@@ -13157,7 +13185,10 @@ static int ade_index_handler(lua_State *L)
 		{
 			ade_id = (uint) lua_tonumber(L, -1);
 			if(ade_id < Ade_table_entries.size())
-				type_name = Ade_table_entries[ade_id].Name;
+			{
+				entry = &Ade_table_entries[ade_id];
+				type_name = entry->Name;
+			}
 		}
 		lua_pop(L, 1);
 
@@ -13169,7 +13200,7 @@ static int ade_index_handler(lua_State *L)
 
 			//Get userdata sig
 			char *ud = (char *)lua_touserdata(L, obj_ldx);
-			ODATA_SIG_TYPE sig = *(ODATA_SIG_TYPE*)(ud + Ade_table_entries[ade_id].Value.Object.size);
+			ODATA_SIG_TYPE sig = *(ODATA_SIG_TYPE*)(ud + entry->Value.Object.size);
 
 			//Now use it to index the table with that #
 			lua_pushnumber(L, sig);
@@ -13292,7 +13323,7 @@ static int ade_index_handler(lua_State *L)
 
 		//Get userdata sig
 		char *ud = (char *)lua_touserdata(L, obj_ldx);
-		ODATA_SIG_TYPE sig = *(ODATA_SIG_TYPE*)(ud + Ade_table_entries[ade_id].Value.Object.size);
+		ODATA_SIG_TYPE sig = *(ODATA_SIG_TYPE*)(ud + entry->Value.Object.size);
 
 		//Now use it to index the table with that #
 		lua_pushnumber(L, sig);
