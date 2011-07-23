@@ -305,6 +305,7 @@ void obj_init()
 	for (i=0; i<MAX_OBJECTS; i++)	{
 		objp->type = OBJ_NONE;
 		objp->signature = i + 100;
+		objp->collision_group_id = 0;
 
 		// zero all object sounds
 		for(idx=0; idx<MAX_OBJECT_SOUNDS; idx++){
@@ -465,6 +466,8 @@ int obj_create(ubyte type,int parent_obj,int instance, matrix * orient,
 	}
 	obj->num_pairs = 0;
 	obj->net_signature = 0;			// be sure to reset this value so new objects don't take on old signatures.	
+
+	obj->collision_group_id = 0;
 
 	//WMC
 	/*
@@ -1258,11 +1261,17 @@ void obj_move_all_post(object *objp, float frametime)
 						p = 1.0f - p;
 
 					p *= 2.0f;
-
-					// P goes from 0 to 1 to 0 over the life of the explosion
 					float rad = p * (1.0f + frand() * 0.05f) * objp->radius;
-
-					light_add_point( &objp->pos, rad * 2.0f, rad * 5.0f, 1.0f, r, g, b, -1 );
+					
+					float intensity = 1.0f;
+					if(fireball_is_warp(objp))
+					{
+						intensity = fireball_wormhole_intensity(objp); // Valathil: Get wormhole radius for lighting
+						rad = objp->radius;
+					}
+					// P goes from 0 to 1 to 0 over the life of the explosion
+					
+					light_add_point( &objp->pos, rad * 2.0f, rad * 5.0f, intensity, r, g, b, -1 );
 				}
 			}
 
