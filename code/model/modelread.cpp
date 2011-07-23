@@ -233,6 +233,10 @@ void model_unload(int modelnum, int force)
 			if ( pm->submodel[i].bsp_data )	{
 				vm_free(pm->submodel[i].bsp_data);
 			}
+
+			if ( pm->submodel[i].collision_tree_index >= 0 ) {
+				model_remove_collision_tree(pm->submodel[i].collision_tree_index);
+			}
 		}
 
 		vm_free(pm->submodel);
@@ -2563,7 +2567,7 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 
 
 	model_octant_create( pm );
-
+	
 	for ( i = 0; i < pm->n_models; ++i ) {
 		pm->submodel[i].collision_tree_index = model_create_collision_tree();
 		collision_tree *tree = model_get_collision_tree(pm->submodel[i].collision_tree_index);
@@ -2573,9 +2577,10 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 
 		model_collide_parse(tree, pm->submodel[i].bsp_data, 0, pm->version);
 
-		vm_free(pm->submodel[i].bsp_data);
-
-		pm->submodel[i].bsp_data = NULL;
+		if ( i != pm->detail[0] ) {
+			vm_free(pm->submodel[i].bsp_data);
+			pm->submodel[i].bsp_data = NULL;
+		}
 	}
 
 	// Find the core_radius... the minimum of 
@@ -4561,8 +4566,26 @@ int model_find_bay_path(int modelnum, char *bay_path_name)
 
 int model_create_collision_tree()
 {
+	// first find an open slot
+	size_t i;
+	bool slot_found = false;
+
+	for ( i = 0; i < Collision_tree_list.size(); ++i ) {
+		if ( !Collision_tree_list[i].used ) {
+			slot_found = true;
+			break;
+		}
+	}
+
+	if ( slot_found ) {
+		Collision_tree_list[i].used = true;
+
+		return (int)i;
+	}
+
 	collision_tree tree;
 
+	tree.used = true;
 	Collision_tree_list.push_back(tree);
 
 	return Collision_tree_list.size() - 1;
@@ -4574,6 +4597,15 @@ collision_tree *model_get_collision_tree(int tree_index)
 	Assert(tree_index < Collision_tree_list.size());
 
 	return &Collision_tree_list[tree_index];
+}
+
+void model_remove_collision_tree(int tree_index)
+{
+	Collision_tree_list[tree_index].used = false;
+
+	Collision_tree_list[tree_index].node_list.clear();
+	Collision_tree_list[tree_index].point_list.clear();
+	Collision_tree_list[tree_index].uv_list.clear();
 }
 
 #if BYTE_ORDER == BIG_ENDIAN
