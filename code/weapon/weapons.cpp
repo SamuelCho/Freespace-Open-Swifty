@@ -487,6 +487,9 @@ void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2)
 		weaponp->wi_flags = wi_flags;
 		weaponp->wi_flags2 = wi_flags2;
 	}
+
+	bool set_pierce = false;
+	bool set_nopierce = false;
 	
 	for (int i=0; i<num_strings; i++) {
 		if (!strnicmp(NOX("Spawn"), weapon_strings[i], 5))
@@ -576,9 +579,9 @@ void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2)
 		else if (!stricmp(NOX("ballistic"), weapon_strings[i]))
 			weaponp->wi_flags2 |= WIF2_BALLISTIC;
 		else if (!stricmp(NOX("pierce shields"), weapon_strings[i]))
-			weaponp->wi_flags2 |= WIF2_PIERCE_SHIELDS;
+			set_pierce = true;
 		else if (!stricmp(NOX("no pierce shields"), weapon_strings[i]))	// only for beams
-			weaponp->wi_flags2 &= ~WIF2_PIERCE_SHIELDS;
+			set_nopierce = true;
 		else if (!stricmp(NOX("local ssm"), weapon_strings[i]))
 			weaponp->wi_flags2 |= WIF2_LOCAL_SSM;
 		else if (!stricmp(NOX("tagged only"), weapon_strings[i]))
@@ -638,7 +641,13 @@ void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2)
 			weaponp->wi_flags2 |= WIF2_DONT_SHOW_ON_RADAR;
 		else
 			Warning(LOCATION, "Bogus string in weapon flags: %s\n", weapon_strings[i]);
-	}	
+	}
+
+	// Goober5000 - fix up pierce/nopierce flags, per Mantis #2442
+	if (set_pierce)
+		weaponp->wi_flags2 |= WIF2_PIERCE_SHIELDS;
+	if (set_nopierce)
+		weaponp->wi_flags2 &= ~WIF2_PIERCE_SHIELDS;
 
 	// set default tech room status - Goober5000
 	if (weaponp->wi_flags & WIF_IN_TECH_DATABASE)
@@ -1586,6 +1595,14 @@ int parse_weapon(int subtype, bool replace)
 			wip->free_flight_speed = 0.25f;
 		}
 	}
+	//Optional one-shot sound to play at the beginning of firing
+	parse_sound("$PreLaunchSnd:", &wip->pre_launch_snd, wip->name);
+
+	//Optional delay for Pre-Launch sound
+	if(optional_string("+PreLaunchSnd Min Interval:"))
+	{
+		stuff_int(&wip->pre_launch_snd_min_interval);
+	}
 
 	//Launch sound
 	parse_sound("$LaunchSnd:", &wip->launch_snd, wip->name);
@@ -2403,8 +2420,7 @@ int parse_weapon(int subtype, bool replace)
 
 	//Left in for compatibility
 	if ( optional_string("$decal:") ) {
-		WarningEx(LOCATION, "The decal system has been deactivated in FSO builds. Entries will be discarded.\n");
-		mprintf(("WARNING: The decal system has been deactivated in FSO builds. Entries will be discarded.\n"));
+		mprintf(("WARNING: The decal system has been deactivated in FSO builds. Entries for weapon %s will be discarded.\n", wip->name));
 		required_string("+texture:");
 		stuff_string(fname, F_NAME, NAME_LENGTH);
 
@@ -2412,9 +2428,14 @@ int parse_weapon(int subtype, bool replace)
 			stuff_string(fname, F_NAME, NAME_LENGTH);
 		}
 
+		float bogus;
+		
 		required_string("+radius:");
-
-		if ( optional_string("+burn time:") ) {}
+		stuff_float(&bogus);
+		
+		if ( optional_string("+burn time:") ) {
+			stuff_float(&bogus);
+		}
 	}
 
 
@@ -3287,6 +3308,7 @@ void weapon_do_post_parse()
 	weapon_info *wip;
 	int first_cmeasure_index = -1;
 	int i;
+	char *weakp;
 
 	weapon_sort_by_type();	// NOTE: This has to be first thing!
 	weapon_create_names();
@@ -3311,16 +3333,17 @@ void weapon_do_post_parse()
 			first_cmeasure_index = i;
 
 		// if we are a "#weak" weapon then popup a warning if we don't have the "player allowed" flag set
-		if ( !(wip->wi_flags & WIF_PLAYER_ALLOWED) && stristr(wip->name, "#weak") ) {
+		if ( !(wip->wi_flags & WIF_PLAYER_ALLOWED) && ((weakp = stristr(wip->name, "#weak")) != NULL) ) {
 			int idx = -1;
 			char non_weak[NAME_LENGTH];
+			memset(non_weak, 0, NAME_LENGTH);	// Valathil
 
-			strncpy(non_weak, wip->name, strlen(wip->name) - 5);
+			strncpy(non_weak, wip->name, weakp - wip->name);	// Valathil taking into account the possibility of another suffix after #weak
 			idx = weapon_info_lookup(non_weak);
 
 			// only add the flag if the non-weak version is also player-allowed
 			if ( (idx >= 0) && (Weapon_info[idx].wi_flags & WIF_PLAYER_ALLOWED) ) {
-				Warning(LOCATION, "Weapon '%s' requires the \"player allowed\" flag, but it's not listed!  Adding it by default.\n", wip->name);
+				mprintf(("Weapon '%s' requires the \"player allowed\" flag, but it's not listed!  Adding it by default.\n", wip->name));
 				wip->wi_flags |= WIF_PLAYER_ALLOWED;
 			}
 		}
@@ -6750,7 +6773,7 @@ float weapon_get_damage_scale(weapon_info *wip, object *wep, object *target)
 		if( is_big_damage_ship && !(wip->wi_flags & (WIF_HURTS_BIG_SHIPS)) ){
 
 			// if the player is firing it
-			if ( from_player ) {
+			if ( from_player && !(The_mission.ai_profile->flags2 & AIPF2_PLAYER_WEAPON_SCALE_FIX)) {
 				// if it's a laser weapon
 				if(wip->subtype == WP_LASER){
 					total_scale *= 0.01f;

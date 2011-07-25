@@ -248,6 +248,7 @@ flag_def_list Subsystem_flags[] = {
 	{ "damage as hull",			MSS_FLAG_DAMAGE_AS_HULL,	0 },
 	{ "starts locked",          MSS_FLAG_TURRET_LOCKED,     0 },
 	{ "no aggregate",			MSS_FLAG_NO_AGGREGATE,		0 },
+	{ "wait for animation",     MSS_FLAG_TURRET_ANIM_WAIT,  0 },
 };
 
 int Num_subsystem_flags = sizeof(Subsystem_flags)/sizeof(flag_def_list);
@@ -964,6 +965,7 @@ void init_ship_entry(ship_info *sip)
 	sip->hud_retail = false;
 	sip->piercing_damage_draw_limit = 0.10f;
 	sip->damage_lightning_type = SLT_DEFAULT;
+	sip->pathMetadata.clear();
 }
 
 // function to parse the information for a specific ship type.	
@@ -2631,6 +2633,12 @@ strcpy_s(parse_error_text, temp_error);
 	//Parse the engine sound
 	parse_sound("$EngineSnd:", &sip->engine_snd, sip->name);
 
+	//Parse optional sound to be used for beginning of a glide
+	parse_sound("$GlideStartSnd:", &sip->glide_start_snd, sip->name);
+
+	//Parse optional sound to be used for end of a glide
+	parse_sound("$GlideEndSnd:", &sip->glide_end_snd, sip->name);
+
 	if(optional_string("$Closeup_pos:"))
 	{
 		stuff_vector(&sip->closeup_pos);
@@ -3033,6 +3041,25 @@ strcpy_s(parse_error_text, temp_error);
 		sip->piercing_damage_draw_limit = tempf / 100.0f;
 	}
 
+	while(optional_string("$Path Metadata:")) 
+	{
+		char path_name[64];
+		stuff_string(path_name, F_NAME, sizeof(path_name));
+
+		path_metadata metadata;
+		init_path_metadata(metadata);
+
+		//Get +departure rvec and store on the path_metadata object
+		if (optional_string("+departure rvec:"))
+		{
+			stuff_vector(&metadata.departure_rvec);
+		}
+
+		//Add the new path_metadata to sip->pathMetadata keyed by path name
+		SCP_string pathName(path_name);
+		sip->pathMetadata[pathName] = metadata;
+	}
+
 	int n_subsystems = 0;
 	int cont_flag = 1;
 	model_subsystem subsystems[MAX_MODEL_SUBSYSTEMS];		// see model.h for max_model_subsystems
@@ -3352,12 +3379,6 @@ strcpy_s(parse_error_text, temp_error);
 			}
 
 			if (old_flags) {
-			/*	Warning(LOCATION, "Use of deprecated subsystem syntax.  Please use the $Flags: field for subsystem flags.\n\n" \
-				"At least one of the following tags was used on ship %s, subsystem %s:\n" \
-				"\t+untargetable\n" \
-				"\t+carry-no-damage\n" \
-				"\t+use-multiple-guns\n" \
-				"\t+fire-down-normals\n", sip->name, sp->name); */
 				mprintf(("Use of deprecated subsystem syntax.  Please use the $Flags: field for subsystem flags.\n\n" \
 				"At least one of the following tags was used on ship %s, subsystem %s:\n" \
 				"\t+untargetable\n" \
@@ -3516,6 +3537,7 @@ strcpy_s(parse_error_text, temp_error);
 					mprintf(("TODO: set up linked animation\n"));
 				}
 			}
+
 		}
 		break;
 		case 2:
@@ -4764,6 +4786,7 @@ void ship_set(int ship_index, int objnum, int ship_type)
 		swp->next_primary_fire_stamp[i] = timestamp(0);	
 		swp->last_primary_fire_stamp[i] = -1;	
 		swp->primary_bank_rearm_time[i] = timestamp(0);		// added by Goober5000
+		swp->last_primary_fire_sound_stamp[i] = timestamp(0); // added by Halleck
 
 		swp->primary_animation_position[i] = MA_POS_NOT_SET;
 		swp->secondary_animation_position[i] = MA_POS_NOT_SET;
@@ -5818,35 +5841,24 @@ void ship_render(object * obj)
 					render_amount = fl_abs(pi->desired_rotvel.xyz.z) / pi->max_rotvel.xyz.z;
 				}
 				
-				if( (pi->flags & PF_GLIDING) || (pi->flags & PF_FORCE_GLIDE) ) {	//Backslash - show thrusters according to thrust amount, not speed
-					if(pi->side_thrust > 0 && (mtp->use_flags & MT_SLIDE_RIGHT)) {
-						render_amount = pi->side_thrust;
-					} else if(pi->side_thrust < 0 && (mtp->use_flags & MT_SLIDE_LEFT)) {
-						render_amount = -pi->side_thrust;
-					} else if(pi->vert_thrust > 0 && (mtp->use_flags & MT_SLIDE_UP)) {
-						render_amount = pi->vert_thrust;
-					} else if(pi->vert_thrust < 0 && (mtp->use_flags & MT_SLIDE_DOWN)) {
-						render_amount = -pi->vert_thrust;
-					} else if(pi->forward_thrust > 0 && (mtp->use_flags & MT_FORWARD)) {
-						render_amount = pi->forward_thrust;
-					} else if(pi->forward_thrust < 0 && (mtp->use_flags & MT_REVERSE)) {
-						render_amount = -pi->forward_thrust;
-					}		// I'd almost advocate applying the above method to these all the time even without gliding,
-				} else {	// because it looks more realistic, but I don't think the AI uses side_thrust or vert_thrust
-					if(des_vel.xyz.x > 0 && (mtp->use_flags & MT_SLIDE_RIGHT)) {
-						render_amount = fl_abs(des_vel.xyz.x) / pi->max_vel.xyz.x;
-					} else if(des_vel.xyz.x < 0 && (mtp->use_flags & MT_SLIDE_LEFT)) {
-						render_amount = fl_abs(des_vel.xyz.x) / pi->max_vel.xyz.x;
-					} else if(des_vel.xyz.y > 0 && (mtp->use_flags & MT_SLIDE_UP)) {
-						render_amount = fl_abs(des_vel.xyz.y) / pi->max_vel.xyz.y;
-					} else if(des_vel.xyz.y < 0 && (mtp->use_flags & MT_SLIDE_DOWN)) {
-						render_amount = fl_abs(des_vel.xyz.y) / pi->max_vel.xyz.y;
-					} else if(des_vel.xyz.z > 0 && (mtp->use_flags & MT_FORWARD)) {
-						render_amount = fl_abs(des_vel.xyz.z) / pi->max_vel.xyz.z;
-					} else if(des_vel.xyz.z < 0 && (mtp->use_flags & MT_REVERSE)) {
-						render_amount = fl_abs(des_vel.xyz.z) / pi->max_vel.xyz.z;
-					}
+				//Backslash - show thrusters according to thrust amount, not speed
+				if(pi->side_thrust > 0 && (mtp->use_flags & MT_SLIDE_RIGHT)) {
+					render_amount = pi->side_thrust;
+				} else if(pi->side_thrust < 0 && (mtp->use_flags & MT_SLIDE_LEFT)) {
+					render_amount = -pi->side_thrust;
+				} else if(pi->vert_thrust > 0 && (mtp->use_flags & MT_SLIDE_UP)) {
+					render_amount = pi->vert_thrust;
+				} else if(pi->vert_thrust < 0 && (mtp->use_flags & MT_SLIDE_DOWN)) {
+					render_amount = -pi->vert_thrust;
+				} else if(pi->forward_thrust > 0 && (mtp->use_flags & MT_FORWARD)) {
+					render_amount = pi->forward_thrust;
+				} else if(pi->forward_thrust < 0 && (mtp->use_flags & MT_REVERSE)) {
+					render_amount = -pi->forward_thrust;
 				}
+
+				//Don't render small faraway thrusters (more than 10k * radius away)
+				if (vm_vec_dist(&Eye_position, &obj->pos) > (10000.0f * mtp->radius))
+					render_amount = 0.0f;
 
 				if(render_amount > 0.0f)
 				{
@@ -8445,6 +8457,7 @@ void ship_set_default_weapons(ship *shipp, ship_info *sip)
 		swp->next_primary_fire_stamp[i] = timestamp(0);
 		swp->last_primary_fire_stamp[i] = -1;
 		swp->burst_counter[i] = 0;
+		swp->last_primary_fire_sound_stamp[i] = timestamp(0);
 	}
 
 	for ( i = 0; i < MAX_SHIP_SECONDARY_BANKS; i++ ){
@@ -9221,6 +9234,9 @@ void change_ship_type(int n, int ship_type, int by_sexp)
 
 	//Reassign sound stuff
 	ship_assign_sound(sp);
+	
+	// create new model instance data
+	sp->model_instance_num = model_create_instance(sip->model_num);
 }
 
 #ifndef NDEBUG
@@ -10280,13 +10296,26 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 						weapon_info *wip;
 						ship_weapon *sw_pl;
 
-						// HACK
-						if(winfo_p->launch_snd == SND_AUTOCANNON_SHOT){
-							snd_play( &Snds[winfo_p->launch_snd], 0.0f, 1.0f, SND_PRIORITY_TRIPLE_INSTANCE );
-						} else {
-							snd_play( &Snds[winfo_p->launch_snd], 0.0f, 1.0f, SND_PRIORITY_MUST_PLAY );
+						//Update the last timestamp until continous fire is over, so we have the timestamp of the cease-fire.
+						if (shipp->was_firing_last_frame[bank_to_fire] == 1) {
+							swp->last_primary_fire_sound_stamp[bank_to_fire] = timestamp();
 						}
-		//				snd_play( &Snds[winfo_p->launch_snd] );
+
+						//Check for pre-launch sound and play if relevant
+						if( (winfo_p->pre_launch_snd != NULL)									//If this weapon type has a pre-fire sound
+							&& ((timestamp() - swp->last_primary_fire_sound_stamp[bank_to_fire]) >= winfo_p->pre_launch_snd_min_interval)	//and if we're past our minimum delay from the last cease-fire
+							&& (shipp->was_firing_last_frame[bank_to_fire] == 0)				//and if we are at the beginning of a firing stream
+						){ 
+							snd_play( &Snds[winfo_p->pre_launch_snd], 0.0f, 1.0f, SND_PRIORITY_MUST_PLAY); //play it 
+						} else { //Otherwise, play normal firing sounds
+							// HACK
+							if(winfo_p->launch_snd == SND_AUTOCANNON_SHOT){
+								snd_play( &Snds[winfo_p->launch_snd], 0.0f, 1.0f, SND_PRIORITY_TRIPLE_INSTANCE );
+							} else {
+								snd_play( &Snds[winfo_p->launch_snd], 0.0f, 1.0f, SND_PRIORITY_MUST_PLAY );
+							}
+			//				snd_play( &Snds[winfo_p->launch_snd] );
+						}
 	
 						sw_pl = &Player_ship->weapons;
 						if (sw_pl->current_primary_bank >= 0)
@@ -11847,7 +11876,11 @@ void ship_model_update_instance(object *objp)
 			model_update_instance(model_instance_num, psub->turret_gun_sobj, &pss->submodel_info_2 );
 		}
 	}
+
 	model_instance_dumb_rotation(model_instance_num);
+
+	// preprocess subobject orientations for collision detection
+	model_collide_preprocess(&objp->orient, model_instance_num);
 }
 
 //==========================================================
@@ -17210,4 +17243,9 @@ int ship_get_subobj_model_num(ship_info* sip, char* subobj_name)
 	}
 
 	return -1;
+}
+
+void init_path_metadata(path_metadata& metadata)
+{
+	vm_vec_zero(&metadata.departure_rvec);
 }

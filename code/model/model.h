@@ -88,6 +88,9 @@ typedef struct submodel_instance {
 	//int num_arcs;
 	bool collision_checked;
 	//submodel_instance_info *sii;
+
+	vec3d mc_base;
+	matrix mc_orient;
 } submodel_instance;
 
 typedef struct polymodel_instance {
@@ -132,6 +135,7 @@ typedef struct polymodel_instance {
 #define MSS_FLAG_DAMAGE_AS_HULL		(1 << 28)		// applies armor damage to subsystem instead of subsystem damage - FUBAR
 #define MSS_FLAG_TURRET_LOCKED      (1 << 29)       // Turret starts locked by default - Sushi
 #define MSS_FLAG_NO_AGGREGATE		(1 << 30)		// Don't include with aggregate subsystem types - Goober5000
+#define MSS_FLAG_TURRET_ANIM_WAIT   (1 << 31)		// Turret won't fire until animation is complete - Sushi
 
 // definition of stepped rotation struct
 typedef struct stepped_rotation {
@@ -212,7 +216,7 @@ typedef struct model_subsystem {					/* contains rotation rate info */
 	int		path_num;								// path index into polymodel .paths array.  -2 if none exists, -1 if not defined
 
 	int n_triggers;
-	queued_animation *triggers;		//all the triggered animations assosiated with this object
+	queued_animation *triggers;		//all the triggered animations associated with this object
 
 	int		turret_reset_delay;
 
@@ -876,6 +880,7 @@ void model_init_submodel_axis_pt(submodel_instance_info *sii, int model_num, int
 // reference, and given the object's orient and position, 
 // return the point in 3-space in outpnt.
 extern void model_find_world_dir(vec3d * out_dir, vec3d *in_dir,int model_num, int sub_model_num, matrix * objorient, vec3d * objpos);
+extern void model_instance_find_world_dir(vec3d * out_dir, vec3d *in_dir,int model_num, int model_instance_num, int sub_model_num, matrix * objorient, vec3d * objpos);
 
 // Clears all the submodel instances stored in a model to their defaults.
 extern void model_clear_instance(int model_num);
@@ -1037,6 +1042,8 @@ typedef struct mc_info {
 */
 
 int model_collide(mc_info * mc_info);
+
+void model_collide_preprocess(matrix *orient, int model_instance_num);
 
 // Sets the submodel instance data in a submodel
 // If show_damaged is true it shows only damaged submodels.

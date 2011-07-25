@@ -1174,7 +1174,7 @@ void ship_get_global_turret_gun_info(object *objp, ship_subsys *ssp, vec3d *gpos
 	model_instance_find_world_point(gpos, gun_pos, tp->model_num, Ships[objp->instance].model_instance_num, tp->turret_gun_sobj, &objp->orient, &objp->pos);
 
 	if (use_angles)
-		model_find_world_dir(gvec, &tp->turret_norm, tp->model_num, tp->turret_gun_sobj, &objp->orient, &objp->pos );
+		model_instance_find_world_dir(gvec, &tp->turret_norm, tp->model_num, Ships[objp->instance].model_instance_num, tp->turret_gun_sobj, &objp->orient, &objp->pos );
 	else {
 		//vector	gun_pos2;
 		//vm_vec_add(&gun_pos2, gpos, gun_pos);
@@ -1566,9 +1566,9 @@ void turret_set_next_fire_timestamp(int weapon_num, weapon_info *wip, ship_subsy
 }
 
 // Decide  if a turret should launch an aspect seeking missile
-int turret_should_fire_aspect(ship_subsys *turret, float dot, weapon_info *wip)
+int turret_should_fire_aspect(ship_subsys *turret, weapon_info *wip, bool in_sight)
 {
-	if ( (dot > AICODE_TURRET_DUMBFIRE_ANGLE) && (turret->turret_time_enemy_in_range >= MIN(wip->min_lock_time,AICODE_TURRET_MAX_TIME_IN_RANGE)) ) {
+	if ( in_sight && (turret->turret_time_enemy_in_range >= MIN(wip->min_lock_time,AICODE_TURRET_MAX_TIME_IN_RANGE)) ) {
 		return 1;
 	}
 
@@ -2311,7 +2311,7 @@ void ai_fire_from_turret(ship *shipp, ship_subsys *ss, int parent_objnum)
 				{
 					turret_update_enemy_in_range(ss, 2*wip->fire_wait);
 				}
-				if ( turret_should_fire_aspect(ss, dot, wip) )
+				if ( turret_should_fire_aspect(ss, wip, in_sight) )
 				{
 					ok_to_fire = true;
 				}
@@ -2324,7 +2324,7 @@ void ai_fire_from_turret(ship *shipp, ship_subsys *ss, int parent_objnum)
 				}
 				// Check if turret should fire and enemy's engines are
 				// in line of sight
-				if (turret_should_fire_aspect(ss, dot, wip) &&
+				if (turret_should_fire_aspect(ss, wip, in_sight) &&
 					ship_get_closest_subsys_in_sight(&Ships[lep->signature], SUBSYSTEM_ENGINE, &gpos))
 				{
 					ok_to_fire = true;
@@ -2338,7 +2338,7 @@ void ai_fire_from_turret(ship *shipp, ship_subsys *ss, int parent_objnum)
 
 				vm_vec_scale_add(&end, &gpos, &gvec, model_get_radius(model_num));
 
-				hull_check.model_instance_num = -1;
+				hull_check.model_instance_num = shipp->model_instance_num;
 				hull_check.model_num = model_num;
 				hull_check.orient = &objp->orient;
 				hull_check.pos = &objp->pos;
@@ -2353,9 +2353,6 @@ void ai_fire_from_turret(ship *shipp, ship_subsys *ss, int parent_objnum)
 
 			if ( ok_to_fire )
 			{
-				something_was_ok_to_fire = true;
-				Num_turrets_fired++;
-
 				// starting animation checks
 				if (ss->turret_animation_position == MA_POS_NOT_SET) {
 					if ( model_anim_start_type(shipp, TRIGGER_TYPE_TURRET_FIRING, ss->system_info->subobj_num, 1) ) {
@@ -2363,7 +2360,19 @@ void ai_fire_from_turret(ship *shipp, ship_subsys *ss, int parent_objnum)
 						ss->turret_animation_position = MA_POS_SET;
 					}
 				}
-				
+
+				//Wait until the animation is done to actually fire
+				if (tp->flags & MSS_FLAG_TURRET_ANIM_WAIT && (ss->turret_animation_position != MA_POS_READY))
+				{
+					ok_to_fire = false;
+				}
+			}
+
+			if ( ok_to_fire )
+			{
+				something_was_ok_to_fire = true;
+				Num_turrets_fired++;
+
 				//Pass along which gun we are using
 				if (tp->flags & MSS_FLAG_TURRET_SALVO)
 					turret_fire_weapon(valid_weapons[0], ss, parent_objnum, &gpos, &tv2e, &predicted_enemy_pos);

@@ -496,7 +496,10 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 }
 
 #define DO_RENDER()	\
-	vglDrawRangeElements(GL_TRIANGLES, start, end, count, element_type, ibuffer + (datap->index_offset + start))
+	if (Cmdline_drawelements) \
+		glDrawElements(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start)); \
+	else \
+		vglDrawRangeElements(GL_TRIANGLES, start, end, count, element_type, ibuffer + (datap->index_offset + start));
 
 int GL_last_shader_flags = -1;
 int GL_last_shader_index = -1;
@@ -521,9 +524,6 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	Assert( vbp );
 
 	int textured = ((flags & TMAP_FLAG_TEXTURED) && (bufferp->flags & VB_FLAG_UV1));
-
-	// init lights
-	opengl_change_active_lights(0);
 
 	// setup shader flags for the things that we want/need
 	if (lighting_is_enabled) {
@@ -794,8 +794,6 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 
 	render_pass = 0;
 
-	// init lights
-	opengl_change_active_lights(0);
 	opengl_default_light_settings( !GL_center_alpha, (Interp_light > 0.25f), (using_spec) ? 0 : 1 );
 	gr_opengl_set_center_alpha(GL_center_alpha);
 

@@ -9,10 +9,17 @@
 #include "nebula/neb.h"
 #include "parse/parselo.h"
 #include "cmdline/cmdline.h"
+#include "globalincs/def_files.h"
 
 
 extern bool PostProcessing_override;
 extern int opengl_check_framebuffer();
+
+//Needed to track where the FXAA shaders are
+size_t fxaa_shader_id;
+//In case we don't find the shaders at all, this override is needed
+bool fxaa_unavailable = false;
+int Fxaa_preset_last_frame;
 
 
 #define SDR_POST_FLAG_MAIN		(1<<0)
@@ -24,7 +31,7 @@ extern int opengl_check_framebuffer();
 static SCP_vector<opengl_shader_t> GL_post_shader;
 
 // NOTE: The order of this list *must* be preserved!  Additional shaders can be
-//       added, but the first 4 are used with magic numbers so their position
+//       added, but the first 5 are used with magic numbers so their position
 //       is assumed to never change.
 static opengl_shader_file_t GL_post_shader_files[] = {
 	// NOTE: the main post-processing shader has any number of uniforms, but
@@ -39,7 +46,13 @@ static opengl_shader_file_t GL_post_shader_files[] = {
 		2, { "tex", "bsize" } },
 
 	{ "post-v.sdr", "brightpass-f.sdr", SDR_POST_FLAG_BRIGHT,
-		1, { "tex" } }
+		1, { "tex" } },
+
+	{ "fxaa-v.sdr", "fxaa-f.sdr", NULL, 
+		3, { "tex0", "rt_w", "rt_h"} },
+
+	{ "post-v.sdr", "fxaapre-f.sdr", NULL,
+		1, { "tex"} }
 };
 
 static const unsigned int Num_post_shader_files = sizeof(GL_post_shader_files) / sizeof(opengl_shader_file_t);
@@ -215,15 +228,117 @@ void gr_opengl_post_process_begin()
 	Post_in_frame = true;
 }
 
+void recompile_fxaa_shader() {
+	char *vert = NULL, *frag = NULL;
+	opengl_shader_t *new_shader = &GL_post_shader[fxaa_shader_id];
+	opengl_shader_file_t *shader_file = &GL_post_shader_files[4];
+
+	// choose appropriate files
+	char *vert_name = shader_file->vert;
+	char *frag_name = shader_file->frag;
+
+	mprintf(("Recompiling FXAA shader with preset %d\n", Cmdline_fxaa_preset));
+
+	// read vertex shader
+	vert = opengl_post_load_shader(vert_name, shader_file->flags, NULL);
+
+	// read fragment shader
+	frag = opengl_post_load_shader(frag_name, shader_file->flags, NULL);
+
+
+	Verify( vert != NULL );
+	Verify( frag != NULL );
+
+	new_shader->program_id = opengl_shader_create(vert, frag);
+
+	if ( !new_shader->program_id ) {
+	}
+
+
+	new_shader->flags = shader_file->flags;
+	new_shader->flags2 = NULL;
+
+	opengl_shader_set_current( new_shader );
+
+	new_shader->uniforms.reserve(shader_file->num_uniforms);
+
+	for (int i = 0; i < shader_file->num_uniforms; i++) {
+		opengl_shader_init_uniform( shader_file->uniforms[i] );
+	}
+
+	opengl_shader_set_current();
+	Fxaa_preset_last_frame = Cmdline_fxaa_preset;
+}
+
+void opengl_post_pass_fxaa() {
+
+	//If the preset changed, recompile the shader
+	if (Fxaa_preset_last_frame != Cmdline_fxaa_preset) {
+		recompile_fxaa_shader();
+	}
+
+	// Do a prepass to convert the main shaders' RGBA output into RGBL
+	opengl_shader_set_current( &GL_post_shader[fxaa_shader_id + 1] );
+
+	// basic/default uniforms
+	vglUniform1iARB( opengl_shader_get_uniform("tex"), 0 );
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Post_screen_texture_id);
+
+	glBegin(GL_QUADS);
+		glTexCoord2f(0.0f, 0.0f);
+		glVertex2f(-1.0f, -1.0f);
+
+		glTexCoord2f(1.0f, 0.0f);
+		glVertex2f(1.0f, -1.0f);
+
+		glTexCoord2f(1.0f, 1.0f);
+		glVertex2f(1.0f, 1.0f);
+
+		glTexCoord2f(0.0f, 1.0f);
+		glVertex2f(-1.0f, 1.0f);
+	glEnd();
+
+	GL_state.Texture.Disable();
+
+	// set and configure post shader ..
+	opengl_shader_set_current( &GL_post_shader[fxaa_shader_id] );
+
+	// basic/default uniforms
+	vglUniform1iARB( opengl_shader_get_uniform("tex0"), 0 );
+	vglUniform1fARB( opengl_shader_get_uniform("rt_w"), static_cast<float>(Post_texture_width));
+	vglUniform1fARB( opengl_shader_get_uniform("rt_h"), static_cast<float>(Post_texture_height));
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Post_screen_texture_id);
+
+	glBegin(GL_QUADS);
+		glTexCoord2f(0.0f, 0.0f);
+		glVertex2f(-1.0f, -1.0f);
+
+		glTexCoord2f(1.0f, 0.0f);
+		glVertex2f(1.0f, -1.0f);
+
+		glTexCoord2f(1.0f, 1.0f);
+		glVertex2f(1.0f, 1.0f);
+
+		glTexCoord2f(0.0f, 1.0f);
+		glVertex2f(-1.0f, 1.0f);
+	glEnd();
+
+	GL_state.Texture.Disable();
+
+	opengl_shader_set_current();
+}
+
 void gr_opengl_post_process_end()
 {
 	if ( !Post_in_frame ) {
 		return;
 	}
-
-	// done with screen render framebuffer
-	vglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 
 	// state switch just the once (for bloom pass and final render-to-screen)
 	GLboolean depth = GL_state.DepthTest(GL_FALSE);
@@ -233,6 +348,15 @@ void gr_opengl_post_process_end()
 	GLboolean cull = GL_state.CullFace(GL_FALSE);
 
 	GL_state.Texture.SetShaderMode(GL_TRUE);
+
+	// Do FXAA
+	if (Cmdline_fxaa && !fxaa_unavailable) {
+		opengl_post_pass_fxaa();
+	}
+
+	// done with screen render framebuffer
+	vglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 
 	// do bloom, hopefully ;)
 	bool bloomed = opengl_post_pass_bloom();
@@ -515,7 +639,11 @@ static bool opengl_post_init_table()
 		return false;
 	}
 
-	read_file_text("post_processing.tbl", CF_TYPE_TABLES);
+	if (cf_exists_full("post_processing.tbl", CF_TYPE_TABLES))
+		read_file_text("post_processing.tbl", CF_TYPE_TABLES);
+	else
+		read_file_text_from_array(defaults_get_file("post_processing.tbl"));
+
 	reset_parse();
 
 	required_string("#Effects");
@@ -588,6 +716,70 @@ static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 	} else if (flags & SDR_POST_FLAG_PASS2) {
 		sflags += "#define PASS_1\n";
 	}
+	
+	switch (Cmdline_fxaa_preset) {
+		case 0:
+			sflags += "#define FXAA_QUALITY__PRESET 10\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/6.0)\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/12.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX (3.0/4.0)\n";
+			break;
+		case 1:
+			sflags += "#define FXAA_QUALITY__PRESET 11\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/7.0)\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/14.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX (4.0/5.0)\n";
+			break;
+		case 2:
+			sflags += "#define FXAA_QUALITY__PRESET 12\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/8.0)\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/16.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX (5.0/6.0)\n";
+			break;
+		case 3:
+			sflags += "#define FXAA_QUALITY__PRESET 13\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/9.0)\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/18.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX (6.0/7.0)\n";
+			break;
+		case 4:
+			sflags += "#define FXAA_QUALITY__PRESET 14\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/10.0)\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/20.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX (7.0/8.0)\n";
+			break;
+		case 5:
+			sflags += "#define FXAA_QUALITY__PRESET 25\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/11.0)\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/22.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX (8.0/9.0)\n";
+			break;
+		case 6:
+			sflags += "#define FXAA_QUALITY__PRESET 26\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/12.0)\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/24.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX (9.0/10.0)\n";
+			break;
+		case 7:
+			sflags += "#define FXAA_PC 1\n";
+			sflags += "#define FXAA_QUALITY__PRESET 27\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/13.0)\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/26.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX (10.0/11.0)\n";
+			break;
+		case 8:
+			sflags += "#define FXAA_QUALITY__PRESET 28\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/14.0)\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/28.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX (11.0/12.0)\n";
+			break;
+		case 9:
+			sflags += "#define FXAA_QUALITY__PRESET 39\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/15.0)\n";
+			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/32.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX (12.0/13.0)\n";
+			break;
+	}
 
 	const char *shader_flags = sflags.c_str();
 	int flags_len = strlen(shader_flags);
@@ -604,9 +796,19 @@ static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 		cfclose(cf_shader);
 
 		return shader;
+	} else {
+		mprintf(("Loading built-in default shader for: %s\n", filename));
+		char* def_shader = defaults_get_file(filename);
+		size_t len = strlen(def_shader);
+		char *shader = (char*) vm_malloc(len + flags_len + 1);
+
+		strcpy(shader, shader_flags);
+		strcat(shader, def_shader);
+		//memset(shader + flags_len, 0, len + 1);
+
+		return shader;
 	}
 
-	return NULL;
 }
 
 static bool opengl_post_init_shader()
@@ -634,11 +836,6 @@ static bool opengl_post_init_shader()
 		char *frag_name = shader_file->frag;
 
 		mprintf(("  Compiling post-processing shader %d ... \n", idx+1));
-
-		// if we aren't using bloom then don't bother with the shaders for it
-		if ( (Cmdline_bloom_intensity <= 0) && (shader_file->flags & (SDR_POST_FLAG_BRIGHT|SDR_POST_FLAG_BLUR)) ) {
-			continue;
-		}
 
 		// read vertex shader
 		if ( (vert = opengl_post_load_shader(vert_name, shader_file->flags, flags2)) == NULL ) {
@@ -702,11 +899,18 @@ static bool opengl_post_init_shader()
 			frag = NULL;
 		}
 
+		if (idx == 4)
+			fxaa_shader_id = GL_post_shader.size() - 1;
+
 		if (in_error) {
 			if (idx == 0) {
 				// only the main/first shader is actually required for post-processing
 				rval = false;
 				break;
+			} else if (idx == 4) {
+				Cmdline_fxaa = false;
+				fxaa_unavailable = true;
+				mprintf(("Error while compiling FXAA shaders. FXAA will be unavailable.\n"));
 			} else if ( shader_file->flags & (SDR_POST_FLAG_BLUR|SDR_POST_FLAG_BRIGHT) ) {
 				// disable bloom if we don't have those shaders available
 				Cmdline_bloom_intensity = 0;

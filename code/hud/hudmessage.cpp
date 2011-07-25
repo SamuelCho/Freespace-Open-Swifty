@@ -322,8 +322,7 @@ void HudGaugeMessages::processMessageBuffer()
 
 		while ((ptr = split_str_once(split_str, Max_width - x - 7)) != NULL) {		// the 7 is a fudge hack
 			// make sure that split went ok, if not then bail
-			if (ptr == msg) {
-				Int3();
+			if (ptr == split_str) {
 				break;
 			}
 
@@ -414,15 +413,18 @@ void HudGaugeMessages::scrollMessages()
 	}
 }
 
+void HudGaugeMessages::preprocess()
+{
+	processMessageBuffer();
+	scrollMessages();
+}
+
 // ---------------------------------------------------------------------------------------
 // HudGaugeMessages::render() will display the active HUD messages on the HUD.  It will scroll
 // the messages up when a new message arrives.  
 //
 void HudGaugeMessages::render(float frametime)
 {
-	processMessageBuffer();
-	scrollMessages();
-
 	hud_set_default_color();
 
 	// dependant on max_width, max_lines, and line_height
@@ -1291,7 +1293,7 @@ bool HudGaugeTalkingHead::canRender()
 }
 
 HudGaugeFixedMessages::HudGaugeFixedMessages():
-HudGauge(HUD_OBJECT_FIXED_MESSAGES, HUD_MESSAGE_LINES, true, false, true, (VM_WARP_CHASE | VM_PADLOCK_ANY), 255, 255, 255)
+HudGauge(HUD_OBJECT_FIXED_MESSAGES, HUD_MESSAGE_LINES, true, false, true, (VM_WARP_CHASE), 255, 255, 255)
 {
 }
 
