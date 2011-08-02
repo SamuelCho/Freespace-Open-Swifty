@@ -34,8 +34,7 @@
 #define SDR_FLAG_NORMAL_MAP		(1<<13)
 #define SDR_FLAG_HEIGHT_MAP		(1<<14)
 #define SDR_FLAG_ENV_MAP		(1<<15)
-
-#define SDR_FLAG_EFFECT_PARTICLE	(1<<16)
+#define SDR_FLAG_QUAD_SPHERE	(1<<16)
 
 #define MAX_SHADER_UNIFORMS		15
 
@@ -78,7 +77,6 @@ int opengl_shader_get_index(int flags);
 void opengl_shader_set_current(opengl_shader_t *shader_obj = NULL);
 
 void opengl_shader_init();
-void opengl_effect_shader_init();
 void opengl_shader_shutdown();
 
 GLhandleARB opengl_shader_create(const char *vs, const char *fs);

@@ -4,6 +4,7 @@
 #include "graphics/gropenglpostprocessing.h"
 #include "graphics/gropenglshader.h"
 #include "graphics/gropenglstate.h"
+#include "graphics/gropengldraw.h"
 
 #include "io/timer.h"
 #include "nebula/neb.h"
@@ -84,7 +85,7 @@ static bool Post_in_frame = false;
 
 static int Post_active_shader_index = 0;
 
-static GLuint Post_framebuffer_id[3] = { 0 };
+static GLuint Post_framebuffer_id[2] = { 0 };
 static GLuint Post_renderbuffer_id = 0;
 static GLuint Post_screen_texture_id = 0;
 static GLuint Post_depth_texture_id = 0;
@@ -108,7 +109,7 @@ static bool opengl_post_pass_bloom()
 
 	// ------  begin bright pass ------
 
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[1]);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[0]);
 
 	// width and height are 1/2 for the bright pass
 	int width = Post_texture_width >> 1;
@@ -125,7 +126,7 @@ static bool opengl_post_pass_bloom()
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Post_screen_texture_id);
+	GL_state.Texture.Enable(Scene_color_texture);
 
 	glBegin(GL_QUADS);
 		glTexCoord2f(0.0f, 0.0f);
@@ -157,7 +158,7 @@ static bool opengl_post_pass_bloom()
 
 	glViewport(0, 0, width, height);
 
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[2]);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[1]);
 
 	for (int pass = 0; pass < 2; pass++) {
 		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[1+pass], 0);
@@ -285,7 +286,7 @@ void opengl_post_pass_fxaa() {
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Post_screen_texture_id);
+	GL_state.Texture.Enable(Scene_color_texture);
 
 	glBegin(GL_QUADS);
 		glTexCoord2f(0.0f, 0.0f);
@@ -313,7 +314,7 @@ void opengl_post_pass_fxaa() {
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Post_screen_texture_id);
+	GL_state.Texture.Enable(Scene_color_texture);
 
 	glBegin(GL_QUADS);
 		glTexCoord2f(0.0f, 0.0f);
@@ -336,10 +337,6 @@ void opengl_post_pass_fxaa() {
 
 void gr_opengl_post_process_end()
 {
-	if ( !Post_in_frame ) {
-		return;
-	}
-
 	// state switch just the once (for bloom pass and final render-to-screen)
 	GLboolean depth = GL_state.DepthTest(GL_FALSE);
 	GLboolean depth_mask = GL_state.DepthMask(GL_FALSE);
@@ -405,7 +402,7 @@ void gr_opengl_post_process_end()
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Post_screen_texture_id);
+	GL_state.Texture.Enable(Scene_color_texture);
 
 	glBegin(GL_QUADS);
 		glTexCoord2f(0.0f, 0.0f);
@@ -942,152 +939,88 @@ static bool opengl_post_init_framebuffer()
 		Post_texture_height = GL_max_renderbuffer_size;
 	}
 
-	// create framebuffer
-	vglGenFramebuffersEXT(1, &Post_framebuffer_id[0]);
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[0]);
+	if (Cmdline_bloom_intensity > 0) {
+		// two more framebuffers, one each for the two different sized bloom textures
+		vglGenFramebuffersEXT(1, &Post_framebuffer_id[0]);
+		vglGenFramebuffersEXT(1, &Post_framebuffer_id[1]);
 
-	// setup main render texture
-	glGenTextures(1, &Post_screen_texture_id);
+		// need to generate textures for bloom too
+		glGenTextures(3, Post_bloom_texture_id);
 
-	GL_state.Texture.SetActiveUnit(0);
-	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Post_screen_texture_id);
+		// half size
+		int width = Post_texture_width >> 1;
+		int height = Post_texture_height >> 1;
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		for (int tex = 0; tex < 3; tex++) {
+			GL_state.Texture.SetActiveUnit(0);
+			GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+			GL_state.Texture.Enable(Post_bloom_texture_id[tex]);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Post_texture_width, Post_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_screen_texture_id, 0);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 
-	// setup main depth texture
-	glGenTextures(1, &Post_depth_texture_id);
+			if (tex == 0) {
+				// attach to our bright pass framebuffer and make sure it's ok
+				vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[0]);
+				vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[tex], 0);
 
-	GL_state.Texture.SetActiveUnit(0);
-	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Post_depth_texture_id);
+				// if not then clean up and disable bloom
+				if ( opengl_check_framebuffer() ) {
+					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
+					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
+					Post_framebuffer_id[1] = 0;
+					Post_framebuffer_id[2] = 0;
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+					glDeleteTextures(3, Post_bloom_texture_id);
+					memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, Post_texture_width, Post_texture_height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+					Cmdline_bloom_intensity = 0;
 
-	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, Post_depth_texture_id, 0);
+					break;
+				}
 
-	if ( opengl_check_framebuffer() ) {
-	//	nprintf(("OpenGL", "Unable to validate FBO!  Disabling post-processing...\n"));
+				// width and height are 1/2 for the bright pass, 1/4 for the blur, so drop down
+				width >>= 1;
+				height >>= 1;
+			} else {
+				// attach to our blur pass framebuffer and make sure it's ok
+				vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[1]);
+				vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[tex], 0);
 
-		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-		vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
-		Post_framebuffer_id[0] = 0;
+				// if not then clean up and disable bloom
+				if ( opengl_check_framebuffer() ) {
+					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
+					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
+					Post_framebuffer_id[1] = 0;
+					Post_framebuffer_id[2] = 0;
 
-		//vglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);
-		//vglDeleteRenderbuffersEXT(1, &Post_renderbuffer_id);
-		//Post_renderbuffer_id = 0;
+					glDeleteTextures(3, Post_bloom_texture_id);
+					memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
 
-		GL_state.Texture.Disable();
-		glDeleteTextures(1, &Post_screen_texture_id);
-		Post_screen_texture_id = 0;
+					Cmdline_bloom_intensity = 0;
 
-		glDeleteTextures(1, &Post_depth_texture_id);
-		Post_depth_texture_id = 0;
-
-		rval = false;
-	} else {
-		vglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);
-
-		if (Cmdline_bloom_intensity > 0) {
-			// two more framebuffers, one each for the two different sized bloom textures
-			vglGenFramebuffersEXT(1, &Post_framebuffer_id[1]);
-			vglGenFramebuffersEXT(1, &Post_framebuffer_id[2]);
-
-			// need to generate textures for bloom too
-			glGenTextures(3, Post_bloom_texture_id);
-
-			// half size
-			int width = Post_texture_width >> 1;
-			int height = Post_texture_height >> 1;
-
-			for (int tex = 0; tex < 3; tex++) {
-				GL_state.Texture.SetActiveUnit(0);
-				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-				GL_state.Texture.Enable(Post_bloom_texture_id[tex]);
-
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
-
-				if (tex == 0) {
-					// attach to our bright pass framebuffer and make sure it's ok
-					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[1]);
-					vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[tex], 0);
-
-					// if not then clean up and disable bloom
-					if ( opengl_check_framebuffer() ) {
-						vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-						vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
-						vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[2]);
-						Post_framebuffer_id[1] = 0;
-						Post_framebuffer_id[2] = 0;
-
-						glDeleteTextures(3, Post_bloom_texture_id);
-						memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
-
-						Cmdline_bloom_intensity = 0;
-
-						break;
-					}
-
-					// width and height are 1/2 for the bright pass, 1/4 for the blur, so drop down
-					width >>= 1;
-					height >>= 1;
-				} else {
-					// attach to our blur pass framebuffer and make sure it's ok
-					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[2]);
-					vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[tex], 0);
-
-					// if not then clean up and disable bloom
-					if ( opengl_check_framebuffer() ) {
-						vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-						vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
-						vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[2]);
-						Post_framebuffer_id[1] = 0;
-						Post_framebuffer_id[2] = 0;
-
-						glDeleteTextures(3, Post_bloom_texture_id);
-						memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
-
-						Cmdline_bloom_intensity = 0;
-
-						break;
-					}
+					break;
 				}
 			}
 		}
-
-		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-
-		GL_state.Texture.Disable();
-
-		rval = true;
 	}
+
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+
+	GL_state.Texture.Disable();
+
+	rval = true;
 	
 	if ( opengl_check_for_errors("post_init_framebuffer()") ) {
 		rval = false;
 	}
-
-	Depth_scene_texture = Post_depth_texture_id;
 
 	return rval;
 }
@@ -1104,6 +1037,10 @@ void opengl_post_process_init()
 	}
 
 	if ( !Cmdline_postprocess ) {
+		return;
+	}
+
+	if ( !Scene_texture_initialized ) {
 		return;
 	}
 
@@ -1153,11 +1090,6 @@ void opengl_post_process_shutdown()
 
 	GL_post_shader.clear();
 
-	if (Post_screen_texture_id) {
-		glDeleteTextures(1, &Post_screen_texture_id);
-		Post_screen_texture_id = 0;
-	}
-
 	if (Post_bloom_texture_id[0]) {
 		glDeleteTextures(3, Post_bloom_texture_id);
 		memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
@@ -1174,9 +1106,7 @@ void opengl_post_process_shutdown()
 
 		if (Post_framebuffer_id[1]) {
 			vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
-			vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[2]);
 			Post_framebuffer_id[1] = 0;
-			Post_framebuffer_id[2] = 0;
 		}
 	}
 

@@ -46,18 +46,6 @@ struct opengl_shader_file_t {
 };
 */
 
-static opengl_shader_file_t GL_effect_shader_files[] = {
-	{ 
-		"effect-v.sdr",							// char *vert			
-		"effect-f.sdr",							// char *frag
-		(SDR_FLAG_EFFECT_PARTICLE),						// int flags
-		7,												// int num_uniforms
-		{"baseMap", "depthMap", "radius", "window_width", "window_height", "nearZ", "farZ"}				// char *uniforms[]
-	}
-};
-
-static const unsigned int Num_effect_shader_files = sizeof(GL_effect_shader_files) / sizeof(opengl_shader_file_t);
-
 static opengl_shader_file_t GL_shader_file[] = {
 	{ "null-v.sdr", "null-f.sdr", (0), 0, { NULL } },
 
@@ -227,7 +215,10 @@ static opengl_shader_file_t GL_shader_file[] = {
 		8, { "sGlowmap", "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
 
 	{ "lne-v.sdr", "lsnhe-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP | SDR_FLAG_ENV_MAP),
-		7, { "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } }
+		7, { "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
+
+	{ "qs-v.sdr", "qs-f.sdr", (SDR_FLAG_QUAD_SPHERE), 
+		7, {"baseMap", "depthMap", "radius", "window_width", "window_height", "nearZ", "farZ"} }
 };
 
 static const int Num_shader_files = sizeof(GL_shader_file) / sizeof(opengl_shader_file_t);
@@ -584,75 +575,6 @@ static char *opengl_load_effect_shader(char *filename)
 		return shader;
 	}
 
-}
-
-void opengl_effect_shader_init()
-{
-	char *vert = NULL, *frag = NULL;
-	int i, idx;
-
-	if ( !Use_GLSL ) {
-		return;
-	}
-
-	GL_effect_shader.reserve(Num_effect_shader_files);
-
-	for ( idx = 0; idx < Num_effect_shader_files; idx++ ) {
-		bool in_error = false;
-		opengl_shader_t new_effect_shader;
-		opengl_shader_file_t *effect_shader_file = &GL_effect_shader_files[idx];
-
-		char *vert_name = effect_shader_file->vert;
-		char *frag_name = effect_shader_file->frag;
-
-		mprintf(("  Compiling shader: %s (%s), %s (%s)\n", vert_name, GL_effect_shader_files[idx].vert, frag_name, GL_effect_shader_files[idx].frag ));
-
-		// read vertex shader
-		if ( (vert = opengl_load_effect_shader(vert_name)) == NULL ) {
-			in_error = true;
-			goto Done;
-		}
-
-		if ( (frag = opengl_load_effect_shader(frag_name)) == NULL ) {
-			in_error = true;
-			goto Done;
-		}
-
-		Verify( vert != NULL );
-		Verify( frag != NULL );
-
-		new_effect_shader.program_id = opengl_shader_create(vert, frag);
-
-		if ( !new_effect_shader.program_id ) {
-			in_error = true;
-			goto Done;
-		}
-
-		new_effect_shader.flags = effect_shader_file->flags;
-
-		opengl_shader_set_current( &new_effect_shader );
-
-		new_effect_shader.uniforms.reserve(effect_shader_file->num_uniforms);
-
-		for ( i = 0; i < effect_shader_file->num_uniforms; i++ ) {
-			opengl_shader_init_uniform(effect_shader_file->uniforms[i]);
-		}
-
-		opengl_shader_set_current();
-
-		GL_effect_shader.push_back(new_effect_shader);
-	
-	Done:
-		if ( vert != NULL ) {
-			vm_free(vert);
-			vert = NULL;
-		}
-
-		if ( frag != NULL ) {
-			vm_free(frag);
-			frag = NULL;
-		}
-	}
 }
 
 void opengl_shader_check_info_log(GLhandleARB shader_object)

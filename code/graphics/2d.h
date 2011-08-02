@@ -481,6 +481,9 @@ typedef struct screen {
 	void (*gf_post_process_end)();
 	void (*gf_post_process_save_zbuffer)();
 
+	void (*gf_scene_texture_begin)();
+	void (*gf_scene_texture_end)();
+
 	void (*gf_lighting)(bool,bool);
 	void (*gf_center_alpha)(int);
 
@@ -770,6 +773,9 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define	gr_set_light					GR_CALL(*gr_screen.gf_set_light)
 #define gr_reset_lighting				GR_CALL(*gr_screen.gf_reset_lighting)
 #define gr_set_ambient_light			GR_CALL(*gr_screen.gf_set_ambient_light)
+
+#define gr_scene_texture_begin			GR_CALL(*gr_screen.gf_scene_texture_begin)
+#define gr_scene_texture_end			GR_CALL(*gr_screen.gf_scene_texture_end)
 
 #define gr_post_process_set_effect		GR_CALL(*gr_screen.gf_post_process_set_effect)
 #define gr_post_process_set_defaults	GR_CALL(*gr_screen.gf_post_process_set_defaults)

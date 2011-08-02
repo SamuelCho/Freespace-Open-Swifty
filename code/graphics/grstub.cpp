@@ -384,6 +384,14 @@ void gr_stub_post_process_end()
 {
 }
 
+void gr_stub_scene_texture_begin()
+{
+}
+
+void gr_stub_scene_texture_end()
+{
+}
+
 void gr_stub_set_ambient_light(int red, int green, int blue)
 {
 }
@@ -771,6 +779,9 @@ bool gr_stub_init()
 	gr_screen.gf_post_process_begin		= gr_stub_post_process_begin;
 	gr_screen.gf_post_process_end		= gr_stub_post_process_end;
 	gr_screen.gf_post_process_save_zbuffer	= gr_stub_post_process_save_zbuffer;
+
+	gr_screen.gf_scene_texture_begin = gr_stub_scene_texture_begin;
+	gr_screen.gf_scene_texture_end = gr_stub_scene_texture_end;
 
 	gr_screen.gf_start_clip_plane	= gr_stub_start_clip_plane;
 	gr_screen.gf_end_clip_plane		= gr_stub_end_clip_plane;

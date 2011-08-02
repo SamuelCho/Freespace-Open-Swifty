@@ -3834,7 +3834,7 @@ void game_render_frame( camid cid )
 	}
 	gr_zbuffer_clear(TRUE);
 
-	gr_post_process_begin();
+	gr_scene_texture_begin();
 
 	neb2_render_setup(cid);
 
@@ -3913,12 +3913,12 @@ void game_render_frame( camid cid )
 	if(Viewer_obj != NULL && Viewer_mode != VM_TOPDOWN)
 	{
 		gr_post_process_save_zbuffer();
-		//gr_zbuffer_clear(TRUE);
-		//ship_render_cockpit(Viewer_obj);
+		gr_zbuffer_clear(TRUE);
+		ship_render_cockpit(Viewer_obj);
 	}
 	//================ END OF 3D RENDERING STUFF ====================
 
-	gr_post_process_end();
+	gr_scene_texture_end();
 
 	extern int Multi_display_netinfo;
 	if(Multi_display_netinfo){

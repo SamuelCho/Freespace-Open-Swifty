@@ -42,4 +42,15 @@ void gr_opengl_sphere_htl(float rad);
 
 void gr_opengl_draw_line_list(colored_vector *lines, int num);
 
+void opengl_setup_scene_textures();
+void gr_opengl_scene_texture_begin();
+void gr_opengl_scene_texture_end();
+
+extern int Scene_texture_initialized;
+
+extern GLuint Scene_color_texture;
+
+extern int Scene_texture_width;
+extern int Scene_texture_height;
+
 #endif	// !GR_OPENGLDRAW_H

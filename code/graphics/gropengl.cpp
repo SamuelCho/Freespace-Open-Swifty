@@ -115,7 +115,6 @@ static int GL_minimized = 0;
 
 static GLenum GL_read_format = GL_BGRA;
 
-
 void opengl_go_fullscreen()
 {
 	if (Cmdline_fullscreen_window || Cmdline_window || GL_fullscreen || Fred_running)
@@ -1806,6 +1805,9 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_post_process_end		= gr_opengl_post_process_end;
 	gr_screen.gf_post_process_save_zbuffer	= gr_opengl_post_process_save_zbuffer;
 
+	gr_screen.gf_scene_texture_begin = gr_opengl_scene_texture_begin;
+	gr_screen.gf_scene_texture_end = gr_opengl_scene_texture_end;
+
 	gr_screen.gf_start_clip_plane	= gr_opengl_start_clip_plane;
 	gr_screen.gf_end_clip_plane		= gr_opengl_end_clip_plane;
 
@@ -1915,9 +1917,9 @@ bool gr_opengl_init()
 
 	// setup default shaders, and shader related items
 	opengl_shader_init();
-	opengl_effect_shader_init();
 
 	// post processing effects, after shaders are initialized
+	opengl_setup_scene_textures();
 	opengl_post_process_init();
 
 	// must be called after extensions are setup
