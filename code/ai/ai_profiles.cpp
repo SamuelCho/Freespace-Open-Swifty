@@ -12,6 +12,8 @@
 #include "ai/ai_profiles.h"
 #include "parse/parselo.h"
 #include "localization/localize.h"
+#include "weapon/weapon.h"
+#include "ship/ship.h"
 
 
 // global stuff
@@ -440,6 +442,24 @@ void parse_ai_profiles_tbl(char *filename)
 				} else {
 					Warning(LOCATION, "Invalid ai path mode '%s' specified", buf);
 				}
+			}
+
+			if (optional_string("$Default weapon select effect:")) {
+				char effect[NAME_LENGTH];
+				stuff_string(effect, F_NAME, NAME_LENGTH);
+				if (!stricmp(effect, "FS1"))
+					Default_weapon_select_effect = 1;
+				if (!stricmp(effect, "off"))
+					Default_weapon_select_effect = 0;
+			}
+
+			if (optional_string("$Default ship select effect:")) {
+				char effect[NAME_LENGTH];
+				stuff_string(effect, F_NAME, NAME_LENGTH);
+				if (!stricmp(effect, "FS1"))
+					Default_ship_select_effect = 1;
+				if (!stricmp(effect, "off"))
+					Default_ship_select_effect = 0;
 			}
 
 			// if we've been through once already and are at the same place, force a move
