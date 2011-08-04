@@ -11,6 +11,7 @@
 #include "parse/parselo.h"
 #include "cmdline/cmdline.h"
 #include "globalincs/def_files.h"
+#include "ship/ship.h"
 
 
 extern bool PostProcessing_override;
@@ -81,14 +82,11 @@ SCP_vector<post_effect_t> Post_effects;
 
 static int Post_initialized = 0;
 
-static bool Post_in_frame = false;
+bool Post_in_frame = false;
 
 static int Post_active_shader_index = 0;
 
 static GLuint Post_framebuffer_id[2] = { 0 };
-static GLuint Post_renderbuffer_id = 0;
-static GLuint Post_screen_texture_id = 0;
-static GLuint Post_depth_texture_id = 0;
 static GLuint Post_bloom_texture_id[3] = { 0 };
 
 static int Post_texture_width = 0;
@@ -222,6 +220,9 @@ void gr_opengl_post_process_begin()
 //	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_screen_texture_id, 0);
 
 //	Assert( !opengl_check_framebuffer() );
+
+	GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
+	vglDrawBuffers(2, buffers);
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -644,43 +645,78 @@ static bool opengl_post_init_table()
 
 	reset_parse();
 
-	required_string("#Effects");
 
-	while ( required_string_either("#End", "$Name:") ) {
-		char tbuf[NAME_LENGTH+1] = { 0 };
-		post_effect_t eff;
+	if (optional_string("#Effects")) {
+		while ( !required_string_3("$Name:", "#Ship Effects", "#End") ) {
+			char tbuf[NAME_LENGTH+1] = { 0 };
+			post_effect_t eff;
 
-		required_string("$Name:");
-		stuff_string(tbuf, F_NAME, NAME_LENGTH);
-		eff.name = tbuf;
+			required_string("$Name:");
+			stuff_string(tbuf, F_NAME, NAME_LENGTH);
+			eff.name = tbuf;
 
-		required_string("$Uniform:");
-		stuff_string(tbuf, F_NAME, NAME_LENGTH);
-		eff.uniform_name = tbuf;
+			required_string("$Uniform:");
+			stuff_string(tbuf, F_NAME, NAME_LENGTH);
+			eff.uniform_name = tbuf;
 
-		required_string("$Define:");
-		stuff_string(tbuf, F_NAME, NAME_LENGTH);
-		eff.define_name = tbuf;
+			required_string("$Define:");
+			stuff_string(tbuf, F_NAME, NAME_LENGTH);
+			eff.define_name = tbuf;
 
-		required_string("$AlwaysOn:");
-		stuff_boolean(&eff.always_on);
+			required_string("$AlwaysOn:");
+			stuff_boolean(&eff.always_on);
 
-		required_string("$Default:");
-		stuff_float(&eff.default_intensity);
-		eff.intensity = eff.default_intensity;
+			required_string("$Default:");
+			stuff_float(&eff.default_intensity);
+			eff.intensity = eff.default_intensity;
 
-		required_string("$Div:");
-		stuff_float(&eff.div);
+			required_string("$Div:");
+			stuff_float(&eff.div);
 
-		required_string("$Add:");
-		stuff_float(&eff.add);
+			required_string("$Add:");
+			stuff_float(&eff.add);
 
-		// Post_effects index is used for flag checks, so we can't have more than 32
-		if (Post_effects.size() < 32) {
-			Post_effects.push_back( eff );
-		} else if ( !warned ) {
-			mprintf(("WARNING: post_processing.tbl can only have a max of 32 effects! Ignoring extra...\n"));
-			warned = true;
+			// Post_effects index is used for flag checks, so we can't have more than 32
+			if (Post_effects.size() < 32) {
+				Post_effects.push_back( eff );
+			} else if ( !warned ) {
+				mprintf(("WARNING: post_processing.tbl can only have a max of 32 effects! Ignoring extra...\n"));
+				warned = true;
+			}
+		}
+	}
+
+	//Built-in per-ship effects
+	ship_effect se1;
+	strcpy_s(se1.name, "FS1 Ship select");
+	se1.shader_effect = 0;
+	se1.disables_rendering = false;
+	se1.invert_timer = false;
+	Ship_effects.push_back(se1);
+
+	if (optional_string("#Ship Effects")) {
+		while ( required_string_either("#End", "$Name:") ) {
+			ship_effect se;
+			char tbuf[NAME_LENGTH] = { 0 };
+
+			required_string("$Name:");
+			stuff_string(tbuf, F_NAME, NAME_LENGTH);
+			strcpy_s(se.name, tbuf);
+
+			required_string("$Shader Effect:");
+			stuff_int(&se.shader_effect);
+			if (se.shader_effect == 0 || se.shader_effect == 1) {
+				WarningEx(LOCATION, "Invalid shader effect specified for effect %s. 0 and 1 are reserved for internal use.\n", se.name);
+				skip_to_start_of_string_either("$Name:", "#End");
+			}
+
+			required_string("$Disables Rendering:");
+			stuff_boolean(&se.disables_rendering);
+
+			required_string("$Invert timer:");
+			stuff_boolean(&se.invert_timer);
+
+			Ship_effects.push_back(se);
 		}
 	}
 

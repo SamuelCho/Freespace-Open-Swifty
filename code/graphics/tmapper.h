@@ -71,7 +71,12 @@ extern void grx_tmapper( int nv, vertex * verts[], uint flags );
 
 // use greyscale texture
 #define TMAP_FLAG_BW_TEXTURE		(1<<18)
-#define TMAP_FLAG_VOLUME_SPHERE		(1<<19)
+
+// use animated Shader - Valathil
+#define TMAP_ANIMATED_SHADER		(1<<19)
+
+// use soft particle shader - Swifty
+#define TMAP_FLAG_VOLUME_SPHERE		(1<<20)
 
 #define TMAP_ADDRESS_WRAP			1
 #define TMAP_ADDRESS_MIRROR			2

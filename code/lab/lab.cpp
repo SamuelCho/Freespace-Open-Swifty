@@ -26,6 +26,9 @@
 #include "species_defs/species_defs.h"
 #include "playerman/managepilot.h"
 #include "object/objectsnd.h"
+#include "globalincs/pstypes.h"
+#include "graphics/gropenglshader.h"
+#include "graphics/gropengldraw.h"
 
 // flags
 #define LAB_FLAG_NORMAL				(0)		// default
@@ -83,6 +86,8 @@ static ship_subsys *Lab_ship_subsys = NULL;
 static SCP_vector<model_subsystem> Lab_ship_model_subsys;
 
 static int Lab_detail_texture_save = 0;
+
+static int anim_timer_start = 0;
 
 // damage lightning stuff
 static vec3d Lab_arc_pts[MAX_SHIP_ARCS][2];
@@ -184,6 +189,8 @@ void labviewer_change_bitmap(int ship_index = -1, int weapon_index = -1)
 void labviewer_change_model(char *model_fname, int lod = 0, int sel_index = -1)
 {
 	bool change_model = true;
+
+	anim_timer_start = timer_get_milliseconds();
 
 	if ( (model_fname != NULL) && (Lab_mode == LAB_MODE_SHIP) ) {
 		if ( (Lab_selected_index >= 0) && (Lab_selected_index == sel_index) ) {
@@ -805,7 +812,8 @@ void labviewer_render_model(float frametime)
 				}
 			}
 		}
-
+		opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS1);
+		opengl_shader_set_animated_timer(MIN((timer_get_milliseconds()-anim_timer_start)/1500.0f,2.0f));
 		model_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, /*Lab_model_flags*/flagggs, -1, -1);
 	}
 
@@ -1006,11 +1014,14 @@ void labviewer_do_render(float frametime)
 
 	// render our particular thing
 	if (Lab_model_num >= 0) {
-		gr_post_process_begin();
+		
+		if ( !PostProcessing_override ) {
+			gr_scene_texture_begin();
+		}
 
 		labviewer_render_model(frametime);
-
-		gr_post_process_end();
+		
+		gr_scene_texture_end();
 
 		// print out the current pof filename, to help with... something
 		if ( strlen(Lab_model_filename) ) {
@@ -1019,11 +1030,13 @@ void labviewer_do_render(float frametime)
 			gr_string(gr_screen.clip_right - w, gr_screen.clip_bottom - h, Lab_model_filename, false);
 		}
 	} else if (Lab_bitmap_id >= 0) {
-		gr_post_process_begin();
+		if ( !PostProcessing_override ) {
+			gr_scene_texture_begin();
+		}
 
 		labviewer_render_bitmap(frametime);
 
-		gr_post_process_end();
+		gr_scene_texture_end();
 
 		// print out the current bitmap filename, to help with... something
 		if ( strlen(Lab_bitmap_filename) ) {
@@ -1692,6 +1705,7 @@ void labviewer_make_render_options_window(Button *caller)
 	ADD_RENDER_FLAG("Show Radius", Lab_model_flags, MR_SHOW_RADIUS);
 	ADD_RENDER_FLAG("Show Shields", Lab_model_flags, MR_SHOW_SHIELDS);
 	ADD_RENDER_FLAG("Show Thrusters", Lab_model_flags, MR_SHOW_THRUSTERS);
+	ADD_RENDER_FLAG("Animated Shader", Lab_model_flags, MR_ANIMATED_SHADER);
 
 
 	// start tree

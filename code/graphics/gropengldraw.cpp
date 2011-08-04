@@ -35,6 +35,7 @@
 
 GLuint Scene_framebuffer;
 GLuint Scene_color_texture;
+GLuint Scene_effect_texture;
 GLuint Scene_depth_texture;
 
 int Scene_texture_initialized;
@@ -1916,6 +1917,7 @@ void opengl_setup_scene_textures()
 
 	if ( !Cmdline_postprocess && !Cmdline_softparticles ) {
 		Scene_color_texture = 0;
+		Scene_effect_texture = 0;
 		Scene_depth_texture = 0;
 		return;
 	}
@@ -1925,6 +1927,7 @@ void opengl_setup_scene_textures()
 		Cmdline_softparticles = 0;
 
 		Scene_color_texture = 0;
+		Scene_effect_texture = 0;
 		Scene_depth_texture = 0;
 		return;
 	}
@@ -1938,6 +1941,7 @@ void opengl_setup_scene_textures()
 		Cmdline_softparticles = 0;
 
 		Scene_color_texture = 0;
+		Scene_effect_texture = 0;
 		Scene_depth_texture = 0;
 		return;
 	}
@@ -1974,6 +1978,24 @@ void opengl_setup_scene_textures()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Scene_texture_width, Scene_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
+
+	// setup effect texture
+
+	glGenTextures(1, &Scene_effect_texture);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_effect_texture);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Scene_texture_width, Scene_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT1_EXT, GL_TEXTURE_2D, Scene_effect_texture, 0);
 
 	// setup main depth texture
 	glGenTextures(1, &Scene_depth_texture);
@@ -2023,6 +2045,37 @@ void opengl_setup_scene_textures()
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 
 	Scene_texture_initialized = 1;
+	Scene_framebuffer_in_frame = false;
+}
+
+void opengl_scene_texture_shutdown()
+{
+	if ( !Scene_texture_initialized ) {
+		return;
+	}
+
+	if ( Scene_color_texture ) {
+		glDeleteTextures(1, &Scene_color_texture);
+		Scene_color_texture = 0;
+	}
+
+	if ( Scene_effect_texture ) {
+		glDeleteTextures(1, &Scene_effect_texture);
+		Scene_effect_texture = 0;
+	}
+
+	if ( Scene_depth_texture ) {
+		glDeleteTextures(1, &Scene_depth_texture);
+		Scene_depth_texture = 0;
+	}
+
+	if ( Scene_framebuffer ) {
+		vglDeleteFramebuffersEXT(1, &Scene_framebuffer);
+		Scene_framebuffer = 0;
+	}
+
+	Scene_texture_initialized = 0;
+	Scene_framebuffer_in_frame = false;
 }
 
 void gr_opengl_scene_texture_begin()
@@ -2036,6 +2089,9 @@ void gr_opengl_scene_texture_begin()
 	}
 
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Scene_framebuffer);
+
+	GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
+	vglDrawBuffers(2, buffers);
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
