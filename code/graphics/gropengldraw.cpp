@@ -1276,8 +1276,8 @@ void gr_opengl_render_effect(int nverts, vertex *verts, uint flags, float radius
 	opengl_setup_render_states(r, g, b, alpha, tmap_type, flags);
 
 	if ( flags & TMAP_FLAG_TEXTURED ) {
-		if ( flags & TMAP_FLAG_VOLUME_SPHERE ) {
-			int sdr_index = opengl_shader_get_index(SDR_FLAG_QUAD_SPHERE);
+		if ( flags & TMAP_FLAG_SOFT_QUAD ) {
+			int sdr_index = opengl_shader_get_index(SDR_FLAG_SOFT_QUAD);
 			opengl_shader_set_current(&GL_shader[sdr_index]);
 
 			vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);

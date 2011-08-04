@@ -306,7 +306,7 @@ static opengl_shader_file_t GL_shader_file[] = {
 	{ "ln-v.sdr", "lsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
 		4, { "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" } }*/
 
-	{ "qs-v.sdr", "qs-f.sdr", (SDR_FLAG_QUAD_SPHERE), 
+	{ "soft-v.sdr", "soft-f.sdr", (SDR_FLAG_SOFT_QUAD), 
 		7, {"baseMap", "depthMap", "radius", "window_width", "window_height", "nearZ", "farZ"} }
 };
 

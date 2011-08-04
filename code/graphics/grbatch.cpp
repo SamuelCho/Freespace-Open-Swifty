@@ -517,7 +517,7 @@ float geometry_batcher::draw_laser(vec3d *p0, float width1, vec3d *p1, float wid
 void geometry_batcher::render(int flags, float radius)
 {
 	if (n_to_render) {
-		if ( (flags & TMAP_FLAG_VOLUME_SPHERE) && Cmdline_softparticles ) {
+		if ( (flags & TMAP_FLAG_SOFT_QUAD) && Cmdline_softparticles ) {
 			int zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
 			gr_render_effect(n_to_render * 3, vert, flags | TMAP_FLAG_TRILIST, radius);
 			gr_zbuffer_set(zbuff);
