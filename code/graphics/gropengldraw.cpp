@@ -2025,6 +2025,9 @@ void opengl_setup_scene_textures()
 		glDeleteTextures(1, &Scene_color_texture);
 		Scene_color_texture = 0;
 
+		glDeleteTextures(1, &Scene_effect_texture);
+		Scene_color_texture = 0;
+
 		glDeleteTextures(1, &Scene_depth_texture);
 		Scene_depth_texture = 0;
 
@@ -2119,6 +2122,10 @@ void gr_opengl_scene_texture_end()
 		GL_state.Texture.SetActiveUnit(0);
 		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 		GL_state.Texture.Enable(Scene_color_texture);
+
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
+		glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 
 		glBegin(GL_QUADS);
 		glTexCoord2f(0.0f, 0.0f);

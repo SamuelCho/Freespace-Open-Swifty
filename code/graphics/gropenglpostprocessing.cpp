@@ -1010,8 +1010,8 @@ static bool opengl_post_init_framebuffer()
 					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
 					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
+					Post_framebuffer_id[0] = 0;
 					Post_framebuffer_id[1] = 0;
-					Post_framebuffer_id[2] = 0;
 
 					glDeleteTextures(3, Post_bloom_texture_id);
 					memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
@@ -1034,8 +1034,8 @@ static bool opengl_post_init_framebuffer()
 					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
 					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
+					Post_framebuffer_id[0] = 0;
 					Post_framebuffer_id[1] = 0;
-					Post_framebuffer_id[2] = 0;
 
 					glDeleteTextures(3, Post_bloom_texture_id);
 					memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
