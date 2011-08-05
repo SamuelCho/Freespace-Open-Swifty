@@ -212,7 +212,7 @@ void gr_opengl_post_process_begin()
 	if (PostProcessing_override) {
 		return;
 	}
-	
+
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[0]);
 
 //	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, Post_renderbuffer_id);
@@ -420,13 +420,14 @@ void gr_opengl_post_process_end()
 	glEnd();
 
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-
 	// Done!
-	GL_state.Texture.SetActiveUnit(0);
-	GL_state.Texture.Disable();
 
 	GL_state.Texture.SetActiveUnit(1);
 	GL_state.Texture.Disable();
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.Disable();
+
+	GL_state.Texture.SetShaderMode(GL_FALSE);
 
 	// reset state
 	GL_state.DepthTest(depth);
@@ -435,7 +436,6 @@ void gr_opengl_post_process_end()
 	GL_state.Blend(blend);
 	GL_state.CullFace(cull);
 
-	GL_state.Texture.SetShaderMode(GL_FALSE);
 	opengl_shader_set_current();
 
 	Post_in_frame = false;
@@ -957,7 +957,6 @@ static bool opengl_post_init_shader()
 	return rval;
 }
 
-extern GLuint Depth_scene_texture;
 // generate and test the framebuffer and textures that we are going to use
 static bool opengl_post_init_framebuffer()
 {
@@ -1130,11 +1129,6 @@ void opengl_post_process_shutdown()
 		glDeleteTextures(3, Post_bloom_texture_id);
 		memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
 	}
-
-	//if (Post_renderbuffer_id) {
-	//	vglDeleteRenderbuffersEXT(1, &Post_renderbuffer_id);
-	//	Post_renderbuffer_id = 0;
-	//}
 
 	if (Post_framebuffer_id[0]) {
 		vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);

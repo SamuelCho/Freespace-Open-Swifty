@@ -115,6 +115,7 @@ static int GL_minimized = 0;
 
 static GLenum GL_read_format = GL_BGRA;
 
+
 void opengl_go_fullscreen()
 {
 	if (Cmdline_fullscreen_window || Cmdline_window || GL_fullscreen || Fred_running)

@@ -30,7 +30,6 @@
 
 
 SCP_vector<opengl_shader_t> GL_shader;
-SCP_vector<opengl_shader_t> GL_effect_shader;
 
 static char *GLshader_info_log = NULL;
 static const int GLshader_info_log_size = 8192;
@@ -49,7 +48,6 @@ struct opengl_shader_file_t {
 	char *uniforms[MAX_SHADER_UNIFORMS];
 };
 */
-
 static opengl_shader_file_t GL_shader_file[] = {
 	{ "null-v.sdr", "null-f.sdr", (0), 0, { NULL }, },
 

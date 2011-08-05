@@ -3858,6 +3858,7 @@ void game_render_frame( camid cid )
 
 	bool draw_viewer_last = false;
 	obj_render_all(obj_render, &draw_viewer_last);
+	
 	//	Why do we not show the shield effect in these modes?  Seems ok.
 	//if (!(Viewer_mode & (VM_EXTERNAL | VM_SLEWED | VM_CHASE | VM_DEAD_VIEW))) {
 	render_shields();
@@ -3909,7 +3910,7 @@ void game_render_frame( camid cid )
 	extern void snd_spew_debug_info();
 	snd_spew_debug_info();
 #endif
-	
+
 	if(!Cmdline_nohtl)
 	{
 		gr_end_proj_matrix();
