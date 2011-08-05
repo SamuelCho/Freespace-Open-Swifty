@@ -51,7 +51,7 @@ struct opengl_shader_file_t {
 */
 
 static opengl_shader_file_t GL_shader_file[] = {
-	{ "null-v.sdr", "null-f.sdr", (0), 0, { NULL } },
+	{ "null-v.sdr", "null-f.sdr", (0), 0, { NULL }, },
 
 	// with diffuse Textures
 	{ "l-v.sdr", "lb-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP),
@@ -644,50 +644,6 @@ void opengl_shader_init()
 	}
 
 	mprintf(("\n"));
-}
-
-static char *opengl_load_effect_shader(char *filename)
-{
-	std::string sflags;
-
-	//sflags += "#version 120\n";
-
-	if (Use_GLSL >= 4) {
-		sflags += "#define SHADER_MODEL 4\n";
-	} else if (Use_GLSL == 3) {
-		sflags += "#define SHADER_MODEL 3\n";
-	} else {
-		sflags += "#define SHADER_MODEL 2\n";
-	}
-
-	const char *shader_flags = sflags.c_str();
-	int flags_len = strlen(shader_flags);
-
-	CFILE *cf_shader = cfopen(filename, "rt", CFILE_NORMAL, CF_TYPE_EFFECTS);
-
-	if (cf_shader != NULL) {
-		int len = cfilelength(cf_shader);
-		char *shader = (char*) vm_malloc(len + flags_len + 1);
-
-		strcpy(shader, shader_flags);
-		memset(shader + flags_len, 0, len + 1);
-		cfread(shader + flags_len, len + 1, 1, cf_shader);
-		cfclose(cf_shader);
-
-		return shader;	
-	} else {
-		mprintf(("Loading built-in default shader for: %s\n", filename));
-		char* def_shader = defaults_get_file(filename);
-		size_t len = strlen(def_shader);
-		char *shader = (char*) vm_malloc(len + flags_len + 1);
-
-		strcpy(shader, shader_flags);
-		strcat(shader, def_shader);
-		//memset(shader + flags_len, 0, len + 1);
-
-		return shader;
-	}
-
 }
 
 void opengl_shader_check_info_log(GLhandleARB shader_object)

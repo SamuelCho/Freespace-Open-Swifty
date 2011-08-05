@@ -70,7 +70,6 @@ typedef struct opengl_shader_t {
 } opengl_shader_t;
 
 extern SCP_vector<opengl_shader_t> GL_shader;
-extern SCP_vector<opengl_shader_t> GL_effect_shader;
 
 extern opengl_shader_t *Current_shader;
 

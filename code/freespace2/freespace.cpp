@@ -3892,7 +3892,7 @@ void game_render_frame( camid cid )
 	if(draw_viewer_last && Viewer_obj)
 	{
 		gr_post_process_save_zbuffer();
-		//gr_zbuffer_clear(TRUE);
+		gr_zbuffer_clear(TRUE);
 		ship_render(Viewer_obj);
 	}
 
