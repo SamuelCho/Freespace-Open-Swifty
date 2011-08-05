@@ -2195,7 +2195,7 @@ char* Default_particle_vertex_shader = "\
 void main()												\n\
 {														\n\
 	gl_TexCoord[0] = gl_MultiTexCoord0;					\n\
-														\n\
+	gl_Position = ftransform();							\n\
 	gl_FrontColor = gl_Color;							\n\
 	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);	\n\
 														\n\

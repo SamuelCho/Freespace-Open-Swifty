@@ -544,6 +544,13 @@ void opengl_shader_init()
 				frag_name = "main-f.sdr";
 			}
 
+			if ( shader_file->flags & SDR_FLAG_SOFT_QUAD ) {
+				// soft particles use their own shader files
+				vert_name = shader_file->vert;
+				frag_name = shader_file->frag;
+			}
+
+
 			mprintf(("  Compiling shader: %s (%s), %s (%s)\n", vert_name, GL_shader_file[idx].vert, frag_name, GL_shader_file[idx].frag ));
 
 			// read vertex shader
