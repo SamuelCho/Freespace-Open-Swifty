@@ -17,6 +17,9 @@ private:
 	int n_allocated;		// the number of verts allocated
 	vertex *vert;
 
+	bool use_radius;
+	float *radius_list;		// radiuses associated with the vertices in vert
+
 	// makes sure we have enough space in the memory buffer for the geometry we are about to put into it
 	// you need to figure out how many verts are going to be required
 	void allocate_internal(int n_verts);
@@ -24,7 +27,7 @@ private:
 	void clone(const geometry_batcher &geo);
 
 public:
-	geometry_batcher(): n_to_render(0), n_allocated(0), vert(NULL) {};
+	geometry_batcher(): n_to_render(0), n_allocated(0), vert(NULL), radius_list(NULL), use_radius(true) {};
 	~geometry_batcher();
 
     geometry_batcher(const geometry_batcher &geo) { clone(geo); }

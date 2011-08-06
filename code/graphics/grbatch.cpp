@@ -19,6 +19,11 @@ geometry_batcher::~geometry_batcher()
 		vm_free(vert);
 		vert = NULL;
 	}
+
+	if (radius_list != NULL) {
+		vm_free(radius_list);
+		radius_list = NULL;
+	}
 }
 
 void geometry_batcher::allocate_internal(int n_verts)
@@ -32,15 +37,25 @@ void geometry_batcher::allocate_internal(int n_verts)
 			vert = NULL;
 		}
 
+		if (radius_list != NULL) {
+			vm_free(radius_list);
+			radius_list = NULL;
+		}
+
 		vert = (vertex *) vm_malloc( sizeof(vertex) * n_verts );
+		radius_list = (float *) vm_malloc( sizeof(float) * n_verts );
 
 		Verify( (vert != NULL) );
+		Verify( (radius_list != NULL) );
 
 		memset( vert, 0, sizeof(vertex) * n_verts );
+		memset( radius_list, 0, sizeof(float) * n_verts );
+
 		n_allocated = n_verts;
 	}
 
 	n_to_render = 0;
+	use_radius = true;
 }
 
 void geometry_batcher::allocate(int quad, int n_tri)
@@ -75,17 +90,26 @@ void geometry_batcher::add_allocate(int quad, int n_tri)
 	}
 
 	vertex *old_vert = vert;
+	float *old_radius_list = radius_list;
 
 	if (to_alloc > n_allocated) {
 		vert = (vertex *) vm_malloc( sizeof(vertex) * to_alloc );
+		radius_list = (float *) vm_malloc( sizeof(float) * to_alloc );
 
 		Verify( (vert != NULL) );
+		Verify( (radius_list != NULL) );
 
 		memset( vert, 0, sizeof(vertex) * to_alloc );
+		memset( radius_list, 0, sizeof(float) * to_alloc );
 
 		if (old_vert != NULL) {
 			memcpy( vert, old_vert, sizeof(vertex) * n_to_render * 3 );
 			vm_free(old_vert);
+		}
+
+		if (old_radius_list != NULL) {
+			memcpy( radius_list, old_radius_list, sizeof(float) * n_to_render * 3 );
+			vm_free(old_radius_list);
 		}
 
 		n_allocated = to_alloc;
@@ -96,13 +120,17 @@ void geometry_batcher::clone(const geometry_batcher &geo)
 {
 	n_to_render = geo.n_to_render;
 	n_allocated = geo.n_allocated;
+	use_radius = geo.use_radius;
 
 	if (n_allocated > 0) {
 		vert = (vertex *) vm_malloc( sizeof(vertex) * n_allocated );
+		radius_list = (float *) vm_malloc( sizeof(float) * n_allocated );
 
 		memcpy( vert, geo.vert, sizeof(vertex) * n_allocated );
+		memcpy( radius_list, geo.radius_list, sizeof(float) * n_allocated);
 	} else {
 		vert = NULL;
+		radius_list = NULL;
 	}
 }
 
@@ -128,6 +156,7 @@ void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float dep
 	vec3d PNT, p[4];
 	vec3d fvec, rvec, uvec;
 	vertex *P = &vert[n_to_render * 3];
+	float *R = &radius_list[n_to_render * 3];
 
 	vm_vert2vec(pnt, &PNT);
 
@@ -220,6 +249,8 @@ void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float dep
 		P[i].g = pnt->g;
 		P[i].b = pnt->b;
 		P[i].a = pnt->a;
+
+		R[i] = rad;
 	}
 
 	n_to_render += 2;
@@ -240,6 +271,7 @@ void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float ang
 	vec3d PNT, p[4];
 	vec3d fvec, rvec, uvec;
 	vertex *P = &vert[n_to_render * 3];
+	float *R = &radius_list[n_to_render * 3];
 
 	vm_vert2vec(pnt, &PNT);
 
@@ -330,6 +362,8 @@ void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float ang
 		P[i].g = pnt->g;
 		P[i].b = pnt->b;
 		P[i].a = pnt->a;
+
+		R[i] = rad;
 	}
 
 	n_to_render += 2;
@@ -343,6 +377,7 @@ void geometry_batcher::draw_tri(vertex* verts)
 		P[i] = verts[i];
 
 	n_to_render += 1;
+	use_radius = false;
 }
 
 void geometry_batcher::draw_quad(vertex* verts)
@@ -358,6 +393,7 @@ void geometry_batcher::draw_quad(vertex* verts)
 	P[3] = verts[3];
 
 	n_to_render += 2;
+	use_radius = false;
 }
 
 
@@ -419,6 +455,7 @@ void geometry_batcher::draw_beam(vec3d *start, vec3d *end, float width, float in
 	}
 
 	n_to_render += 2;
+	use_radius = false;
 }
 
 float geometry_batcher::draw_laser(vec3d *p0, float width1, vec3d *p1, float width2, int r, int g, int b)
@@ -510,6 +547,7 @@ float geometry_batcher::draw_laser(vec3d *p0, float width1, vec3d *p1, float wid
 
 
 	n_to_render += 2;
+	use_radius = false;
 
 	return center.xyz.z;
 }
@@ -517,13 +555,15 @@ float geometry_batcher::draw_laser(vec3d *p0, float width1, vec3d *p1, float wid
 void geometry_batcher::render(int flags, float radius)
 {
 	if (n_to_render) {
-		if ( (flags & TMAP_FLAG_SOFT_QUAD) && Cmdline_softparticles ) {
+		if ( (flags & TMAP_FLAG_SOFT_QUAD) && Cmdline_softparticles && use_radius ) {
 			int zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
-			gr_render_effect(n_to_render * 3, vert, flags | TMAP_FLAG_TRILIST, radius);
+			gr_render_effect(n_to_render * 3, vert, radius_list, flags | TMAP_FLAG_TRILIST);
 			gr_zbuffer_set(zbuff);
 		} else {
 			gr_render(n_to_render * 3, vert, flags | TMAP_FLAG_TRILIST);
 		}
+
+		use_radius = true;
 		n_to_render = 0;
 	}
 }
@@ -540,7 +580,6 @@ struct batch_item {
 	int texture;
 	int tmap_flags;
 	float alpha;
-	float rad;
 
 	bool laser;
 };
@@ -600,7 +639,6 @@ int batch_add_bitmap(int texture, int tmap_flags, vertex *pnt, int orient, float
 
 	geometry_map[index].tmap_flags = tmap_flags;
 	geometry_map[index].alpha = alpha;
-	geometry_map[index].rad = rad;
 
 	item = &geometry_map[index].batch;
 
@@ -647,7 +685,7 @@ void batch_render_bitmaps()
 
 		Assert( bi->texture >= 0 );
 		gr_set_bitmap(bi->texture, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, bi->alpha);
-		bi->batch.render( bi->tmap_flags, bi->rad );
+		bi->batch.render( bi->tmap_flags);
 	}
 }
 

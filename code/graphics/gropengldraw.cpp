@@ -1263,11 +1263,12 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 }
 
 
-void gr_opengl_render_effect(int nverts, vertex *verts, uint flags, float radius)
+void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint flags)
 {
 	int alpha, tmap_type, r, g, b;
 	float u_scale = 1.0f, v_scale = 1.0f;
 	GLenum gl_mode = GL_TRIANGLE_FAN;
+	int attrib_index = -1;
 
 	GL_CHECK_FOR_ERRORS("start of render3d()");
 
@@ -1282,11 +1283,14 @@ void gr_opengl_render_effect(int nverts, vertex *verts, uint flags, float radius
 
 			vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);
 			vglUniform1iARB(opengl_shader_get_uniform("depthMap"), 1);
-			vglUniform1fARB(opengl_shader_get_uniform("radius"), radius);
 			vglUniform1fARB(opengl_shader_get_uniform("window_width"), (float)gr_screen.max_w);
 			vglUniform1fARB(opengl_shader_get_uniform("window_height"), (float)gr_screen.max_h);
 			vglUniform1fARB(opengl_shader_get_uniform("nearZ"), Min_draw_distance);
 			vglUniform1fARB(opengl_shader_get_uniform("farZ"), Max_draw_distance);
+
+			attrib_index = opengl_shader_get_attribute("radius");
+			vglEnableVertexAttribArrayARB(attrib_index);
+			vglVertexAttribPointerARB(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
 
 			GL_state.Texture.SetActiveUnit(1);
 			GL_state.Texture.SetTarget(GL_TEXTURE_2D);
@@ -1336,6 +1340,10 @@ void gr_opengl_render_effect(int nverts, vertex *verts, uint flags, float radius
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glDisableClientState(GL_COLOR_ARRAY);
+
+	if ( attrib_index >= 0 ) {
+		vglDisableVertexAttribArrayARB(attrib_index);
+	}
 
 	GL_state.CullFace(cull_face);
 	GL_state.Lighting(lighting);

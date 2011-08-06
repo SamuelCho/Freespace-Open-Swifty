@@ -2191,8 +2191,13 @@ void main() {													\n\
 ";
 
 char* Default_particle_vertex_shader = "\
+in float radius;										\n\
+														\n\
+varying float radius_out;								\n\
+														\n\
 void main()												\n\
 {														\n\
+	radius_out = radius;								\n\
 	gl_TexCoord[0] = gl_MultiTexCoord0;					\n\
 	gl_Position = ftransform();							\n\
 	gl_FrontColor = gl_Color;							\n\
@@ -2208,12 +2213,13 @@ void main()												\n\
 char* Default_particle_fragment_shader = "\
 uniform sampler2D baseMap;		\n\
 uniform sampler2D depthMap;		\n\
-uniform float radius;			\n\
 uniform float window_width;		\n\
 uniform float window_height;	\n\
 uniform float nearZ;			\n\
 uniform float farZ;				\n\
 								\n\
+varying float radius_out;		\n\
+																			\n\
 void main()																	\n\
 {																			\n\
 	vec2 depthCoord = vec2(gl_FragCoord.x / window_width, gl_FragCoord.y / window_height);	\n\
@@ -2225,9 +2231,9 @@ void main()																	\n\
 																			\n\
 	// assume UV of 0.5, 0.5 is the centroid of this sphere volume			\n\
 	float depthOffset = sqrt(												\n\
-		pow(radius, 2) -													\n\
-		pow( radius * ( abs(0.5 - gl_TexCoord[0].x) * 2 ), 2 ) -			\n\
-		pow( radius * ( abs(0.5 - gl_TexCoord[0].y) * 2 ), 2 )				\n\
+		pow(radius_out, 2) -												\n\
+		pow( radius_out * ( abs(0.5 - gl_TexCoord[0].x) * 2 ), 2 ) -		\n\
+		pow( radius_out * ( abs(0.5 - gl_TexCoord[0].y) * 2 ), 2 )			\n\
 		);																	\n\
 																			\n\
 	float frontDepth = fragDepthLinear - depthOffset;						\n\
@@ -2236,7 +2242,7 @@ void main()																	\n\
 	float ds = min(sceneDepthLinear, backDepth) - max(nearZ, frontDepth);	\n\
 																			\n\
 	vec4 fragmentColor = texture2D(baseMap, gl_TexCoord[0].xy);				\n\
-	fragmentColor = fragmentColor * ( ds / (radius*2) );					\n\
+	fragmentColor = fragmentColor * ( ds / (radius_out*2) );				\n\
 																			\n\
 	gl_FragColor = fragmentColor;											\n\
 }																			\n\
