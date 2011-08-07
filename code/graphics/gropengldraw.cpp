@@ -1288,9 +1288,10 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 			vglUniform1fARB(opengl_shader_get_uniform("nearZ"), Min_draw_distance);
 			vglUniform1fARB(opengl_shader_get_uniform("farZ"), Max_draw_distance);
 
-			attrib_index = opengl_shader_get_attribute("radius");
-			vglEnableVertexAttribArrayARB(attrib_index);
+			attrib_index = opengl_shader_get_attribute("radius_in");
 			vglVertexAttribPointerARB(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
+
+			vglEnableVertexAttribArrayARB(attrib_index);
 
 			GL_state.Texture.SetActiveUnit(1);
 			GL_state.Texture.SetTarget(GL_TEXTURE_2D);

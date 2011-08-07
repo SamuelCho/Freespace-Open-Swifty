@@ -305,7 +305,7 @@ static opengl_shader_file_t GL_shader_file[] = {
 		4, { "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } }*/
 
 	{ "soft-v.sdr", "soft-f.sdr", (SDR_FLAG_SOFT_QUAD), 
-		6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, { "radius" } }
+		6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, { "radius_in" } }
 };
 
 static const int Num_shader_files = sizeof(GL_shader_file) / sizeof(opengl_shader_file_t);
