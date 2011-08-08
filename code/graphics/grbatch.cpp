@@ -626,7 +626,7 @@ float batch_add_laser(int texture, vec3d *p0, float width1, vec3d *p1, float wid
 	return item->draw_laser(p0, width1, p1, width2, r, g, b);
 }
 
-int batch_add_bitmap(int texture, int tmap_flags, vertex *pnt, int orient, float rad, float alpha, float depth, float angle)
+int batch_add_bitmap(int texture, int tmap_flags, vertex *pnt, int orient, float rad, float alpha, float depth)
 {
 	if (texture < 0) {
 		Int3();
