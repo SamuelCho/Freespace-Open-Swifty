@@ -256,12 +256,12 @@ void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float dep
 	n_to_render += 2;
 }
 
-void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float angle, float depth)
+void geometry_batcher::draw_bitmap(vertex *pnt, float rad, float angle, float depth)
 {
 	rad *= 1.41421356f;//1/0.707, becase these are the points of a square or width and height rad
 
 	extern float Physics_viewer_bank;
-	angle += Physics_viewer_bank;
+	angle -= Physics_viewer_bank;
 
 	if ( angle < 0.0f )
 		angle += PI2;
@@ -307,6 +307,7 @@ void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float ang
 	g3_transfer_vertex(&P[0], &p[0]);
 
 	// set up the UV coords
+	/*
 	if ( orient & 1 ) {
 		// tri 1
 		P[5].u = 1.0f;
@@ -346,8 +347,9 @@ void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float ang
 		P[1].v = 1.0f;
 		P[0].v = 1.0f;
 	}
+	*/
 
-/*	//tri 1
+	//tri 1
 	P[5].u = 0.0f;	P[5].v = 0.0f;
 	P[4].u = 1.0f;	P[4].v = 0.0f;
 	P[3].u = 1.0f;	P[3].v = 1.0f;
@@ -355,7 +357,7 @@ void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float ang
 	//tri 2
 	P[2].u = 0.0f;	P[2].v = 0.0f;
 	P[1].u = 1.0f;	P[1].v = 1.0f;
-	P[0].u = 0.0f;	P[0].v = 1.0f;*/
+	P[0].u = 0.0f;	P[0].v = 1.0f;
 
 	for (int i = 0; i < 6 ; i++) {
 		P[i].r = pnt->r;
@@ -624,7 +626,7 @@ float batch_add_laser(int texture, vec3d *p0, float width1, vec3d *p1, float wid
 	return item->draw_laser(p0, width1, p1, width2, r, g, b);
 }
 
-int batch_add_bitmap(int texture, int tmap_flags, vertex *pnt, int orient, float rad, float alpha, float depth)
+int batch_add_bitmap(int texture, int tmap_flags, vertex *pnt, int orient, float rad, float alpha, float depth, float angle)
 {
 	if (texture < 0) {
 		Int3();
@@ -645,6 +647,32 @@ int batch_add_bitmap(int texture, int tmap_flags, vertex *pnt, int orient, float
 	item->add_allocate(1);
 
 	item->draw_bitmap(pnt, orient, rad, depth);
+	//void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float angle, float depth)
+
+	return 0;
+}
+
+int batch_add_bitmap_rotated(int texture, int tmap_flags, vertex *pnt, float angle, float rad, float alpha, float depth)
+{
+	if (texture < 0) {
+		Int3();
+		return 1;
+	}
+
+	geometry_batcher *item = NULL;
+	int index = find_good_batch_item(texture);
+	Assert( index >= 0 );
+
+	Assertion( (geometry_map[index].laser == false), "Particle effect %s used as laser glow or laser bitmap\n", bm_get_filename(texture) );
+
+	geometry_map[index].tmap_flags = tmap_flags;
+	geometry_map[index].alpha = alpha;
+
+	item = &geometry_map[index].batch;
+
+	item->add_allocate(1);
+
+	item->draw_bitmap(pnt, rad, angle, depth);
 
 	return 0;
 }
