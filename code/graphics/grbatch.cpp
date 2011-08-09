@@ -151,6 +151,7 @@ const geometry_batcher &geometry_batcher::operator=(const geometry_batcher &geo)
 */
 void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float depth)
 {
+	float radius = rad;
 	rad *= 1.41421356f;//1/0.707, becase these are the points of a square or width and height rad
 
 	vec3d PNT, p[4];
@@ -250,7 +251,7 @@ void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float dep
 		P[i].b = pnt->b;
 		P[i].a = pnt->a;
 
-		R[i] = rad;
+		R[i] = radius;
 	}
 
 	n_to_render += 2;
@@ -258,6 +259,7 @@ void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float dep
 
 void geometry_batcher::draw_bitmap(vertex *pnt, float rad, float angle, float depth)
 {
+	float radius = rad;
 	rad *= 1.41421356f;//1/0.707, becase these are the points of a square or width and height rad
 
 	extern float Physics_viewer_bank;
@@ -365,7 +367,7 @@ void geometry_batcher::draw_bitmap(vertex *pnt, float rad, float angle, float de
 		P[i].b = pnt->b;
 		P[i].a = pnt->a;
 
-		R[i] = rad;
+		R[i] = radius;
 	}
 
 	n_to_render += 2;
