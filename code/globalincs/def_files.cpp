@@ -2222,7 +2222,23 @@ varying float radius;				\n\
 																			\n\
 void main()																	\n\
 {																			\n\
-	vec2 depthCoord = vec2(gl_FragCoord.x / window_width, gl_FragCoord.y / window_height);	\n\
+	vec2 offset = vec2(														\n\
+		radius * abs(0.5 - gl_TexCoord[0].x) * 2.0,							\n\
+		radius * abs(0.5 - gl_TexCoord[0].y) * 2.0							\n\
+	);																		\n\
+																			\n\
+	float offset_len = length(offset);										\n\
+																			\n\
+	if(offset_len > radius)													\n\
+	{																		\n\
+		gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);							\n\
+		return;																\n\
+	}																		\n\
+																			\n\
+	vec2 depthCoord = vec2(													\n\
+		gl_FragCoord.x / window_width,										\n\
+		gl_FragCoord.y / window_height										\n\
+	);																		\n\
 																			\n\
 	vec4 sceneDepth = texture2D(depthMap, depthCoord);						\n\
 																			\n\
@@ -2232,17 +2248,16 @@ void main()																	\n\
 	// assume UV of 0.5, 0.5 is the centroid of this sphere volume			\n\
 	float depthOffset = sqrt(												\n\
 		pow(radius, 2.0) -													\n\
-		pow( radius * ( abs(0.5 - gl_TexCoord[0].x) * 2 ), 2.0 ) -			\n\
-		pow( radius * ( abs(0.5 - gl_TexCoord[0].y) * 2 ), 2.0 )			\n\
-		);																	\n\
+		pow(offset_len, 2.0)												\n\
+	);																		\n\
 																			\n\
 	float frontDepth = fragDepthLinear - depthOffset;						\n\
 	float backDepth = fragDepthLinear + depthOffset;						\n\
 																			\n\
 	float ds = min(sceneDepthLinear, backDepth) - max(nearZ, frontDepth);	\n\
 																			\n\
-	vec4 fragmentColor = texture2D(baseMap, gl_TexCoord[0].xy);				\n\
-	fragmentColor = fragmentColor * ( ds / (radius*2.0) );				\n\
+	vec4 fragmentColor = texture2D(baseMap, gl_TexCoord[0].xy)*gl_Color.a;	\n\
+	fragmentColor = fragmentColor * ( ds / (depthOffset*2.0) );				\n\
 																			\n\
 	gl_FragColor = fragmentColor;											\n\
 }																			\n\
