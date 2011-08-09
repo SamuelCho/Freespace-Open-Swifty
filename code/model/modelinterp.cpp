@@ -2730,7 +2730,7 @@ void model_render_thrusters(polymodel *pm, int objnum, ship *shipp, matrix *orie
 				// ok, how's this there suposed to look cool! hows that, 
 				// it that scientific enough for you!! you anti-asthetic basturds!!!
 				// AAAHHhhhh!!!!
-				pnt = gpt->pnt;
+				pnt = world_pnt;
 
 				scale = magnitude * (MAX_SCALE - (MIN_SCALE / 2)) + (MIN_SCALE / 2);
 
