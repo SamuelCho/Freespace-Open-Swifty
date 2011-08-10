@@ -2734,7 +2734,9 @@ void model_render_thrusters(polymodel *pm, int objnum, ship *shipp, matrix *orie
 
 				scale = magnitude * (MAX_SCALE - (MIN_SCALE / 2)) + (MIN_SCALE / 2);
 
-				d = vm_vec_dot(&tempv, &norm);
+				vm_vec_unrotate(&world_norm, &norm, orient);
+
+				d = vm_vec_dot(&tempv, &world_norm);
 				d += 0.75f;
 				d *= 3.0f;
 
@@ -2742,7 +2744,7 @@ void model_render_thrusters(polymodel *pm, int objnum, ship *shipp, matrix *orie
 					d = 1.0f;
 
 				if (d > 0.0f) {
-					vm_vec_add(&norm2, &norm, &pnt);
+					vm_vec_add(&norm2, &world_norm, &pnt);
 					vm_vec_sub(&fvec, &norm2, &pnt);
 					vm_vec_normalize(&fvec);
 
