@@ -766,6 +766,109 @@ int model_collide_new_node(collision_tree *tree, int current_node)
 	return tree->node_list[current_node].next;
 }
 
+void model_collide_parse_breadth(collision_tree *tree, void *model_ptr, int version)
+{
+	ubyte *p = (ubyte *)model_ptr;
+
+	size_t i = 0;	// keeping track of the current node to process
+
+	int chunk_type;
+	int chunk_size;
+
+	vec3d *min;
+	vec3d *max;
+
+	collision_node new_node;
+	collision_node *node;
+
+	new_node.p = p;
+
+	tree->node_list.push_back(new_node);
+
+	while ( i < tree->node_list.size() ) {
+		node = &tree->node_list[i];
+		p = node->p;
+
+		chunk_type = w(p);
+		chunk_size = w(p+4);
+
+		switch ( chunk_type ) {
+			case OP_EOF:
+				node->op = OP_EOF;
+				node->next = -1;
+			case OP_DEFPOINTS:
+				node->op = OP_DEFPOINTS;
+
+				model_collide_defpoints(p);
+				break;
+			case OP_FLATPOLY:
+				node->op = OP_FLATPOLY;
+
+				model_collide_parse_flatpoly(tree, p, i);
+				break;
+			case OP_TMAPPOLY:
+				node->op = OP_TMAPPOLY;
+
+				model_collide_parse_tmappoly(tree, p, i);
+				break;
+			case OP_SORTNORM:
+				node->op = OP_SORTNORM;
+
+				if ( version >= 2000 ) {
+					min = vp(p+56);
+					max = vp(p+68);
+
+					node->sortnorm.min = *min;
+					node->sortnorm.max = *max;
+				}
+
+				new_node.p = p+w(p+36);
+				tree->node_list.push_back(new_node);
+				node->sortnorm.front = tree->node_list.size() - 1;
+
+				new_node.p = p+w(p+40);
+				tree->node_list.push_back(new_node);
+				node->sortnorm.back = tree->node_list.size() - 1;
+
+				new_node.p = p+w(p+44);
+				tree->node_list.push_back(new_node);
+				node->sortnorm.pre = tree->node_list.size() - 1;
+
+				new_node.p = p+w(p+48);
+				tree->node_list.push_back(new_node);
+				node->sortnorm.post = tree->node_list.size() - 1;
+
+				new_node.p = p+ w(p+52);
+				tree->node_list.push_back(new_node);
+				node->sortnorm.on = tree->node_list.size() - 1;
+				break;
+			case OP_BOUNDBOX:
+				node->op = OP_BOUNDBOX;
+
+				min = vp(p+8);
+				max = vp(p+20);
+				node->sortnorm.min = *min;
+				node->sortnorm.max = *max;
+				break;
+			default:
+				mprintf( ("Bad chunk type %d, len=%d in model_collide_parse\n", chunk_type, chunk_size) );
+				Int3();
+				break;
+		}
+
+		if ( node->op != OP_EOF ) {
+			p += chunk_size;
+
+			new_node.p = p;
+
+			tree->node_list.push_back(new_node);
+			node->next = tree->node_list.size() - 1;
+		}
+
+		++i;
+	}
+}
+
 void model_collide_parse(collision_tree *tree, void *model_ptr, int starting_node, int version)
 {
 	ubyte *p = (ubyte *)model_ptr;

@@ -253,6 +253,7 @@ typedef struct IBX {
 struct collision_node {
 	ubyte op;
 	int next;
+	ubyte* p;
 
 	union {
 		struct {
@@ -1089,6 +1090,7 @@ typedef struct mc_info {
 
 int model_collide(mc_info * mc_info);
 void model_collide_parse(collision_tree *tree, void *model_ptr, int starting_node, int version);
+void model_collide_parse_breadth(collision_tree *tree, void *model_ptr, int version);
 
 int model_create_collision_tree();
 void model_remove_collision_tree(int tree_index);

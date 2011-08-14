@@ -2565,7 +2565,8 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 		collision_node node;
 		tree->node_list.push_back(node);
 
-		model_collide_parse(tree, pm->submodel[i].bsp_data, 0, pm->version);
+		//model_collide_parse(tree, pm->submodel[i].bsp_data, 0, pm->version);
+		model_collide_parse_breadth(tree, pm->submodel[i].bsp_data, pm->version);
 
 		if ( i != pm->detail[0] ) {
 			vm_free(pm->submodel[i].bsp_data);
