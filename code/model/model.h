@@ -88,6 +88,9 @@ typedef struct submodel_instance {
 	//int num_arcs;
 	bool collision_checked;
 	//submodel_instance_info *sii;
+
+	vec3d mc_base;
+	matrix mc_orient;
 } submodel_instance;
 
 typedef struct polymodel_instance {
@@ -826,6 +829,7 @@ void model_set_detail_level(int n);
 #define MR_NO_GLOWMAPS				(1<<27)		// disable rendering of glowmaps - taylor
 #define MR_FULL_DETAIL				(1<<28)		// render all valid objects, particularly ones that are otherwise in/out of render boxes - taylor
 #define MR_FORCE_CLAMP				(1<<29)		// force clamp - Hery
+#define MR_ANIMATED_SHADER			(1<<30)		// Use a animated Shader - Valathil
 
 // old/obsolete flags
 //#define MR_SHOW_DAMAGE			(1<<4)		// Show the "destroyed" subobjects
@@ -1020,6 +1024,35 @@ typedef struct mc_info {
 	ubyte		*t_poly;				// pointer to tmap poly where we intersected
 		
 										// flags can be changed for the case of sphere check finds an edge hit
+	mc_info()
+	{
+		memset(this, 0, sizeof(this));
+	}
+
+	mc_info(const mc_info& other)
+	{
+		this->model_instance_num = other.model_instance_num;
+		this->model_num = other.model_num;
+		this->submodel_num = other.submodel_num;
+		this->orient = other.orient;
+		this->pos = other.pos;
+		this->p0 = other.p0;
+		this->p1 = other.p1;
+		this->flags = other.flags;
+		this->radius = other.radius;
+
+		this->num_hits = other.num_hits;
+		this->hit_dist = other.hit_dist;
+		this->hit_point = other.hit_point;
+		this->hit_point_world = other.hit_point_world;
+		this->hit_u = other.hit_u;
+		this->hit_v = other.hit_v;
+		this->shield_hit_tri = other.shield_hit_tri;
+		this->hit_normal = other.hit_normal;
+		this->edge_hit = other.edge_hit;
+		this->f_poly = other.f_poly;
+		this->t_poly = other.t_poly;
+	}
 } mc_info;
 
 
@@ -1095,6 +1128,8 @@ void model_collide_parse_breadth(collision_tree *tree, void *model_ptr, int vers
 int model_create_collision_tree();
 void model_remove_collision_tree(int tree_index);
 collision_tree *model_get_collision_tree(int tree_index);
+
+void model_collide_preprocess(matrix *orient, int model_instance_num);
 
 // Sets the submodel instance data in a submodel
 // If show_damaged is true it shows only damaged submodels.

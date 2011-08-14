@@ -352,9 +352,6 @@ void gr_opengl_flip()
 		}
 	}
 
-	TIMERBAR_END_FRAME();
-	TIMERBAR_START_FRAME();
-
 #ifdef _WIN32
 	SwapBuffers(GL_device_context);
 #else
@@ -1663,6 +1660,9 @@ int opengl_init_display_device()
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, (fsaa_samples == 0) ? 0 : 1);
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, fsaa_samples);
 
+	// Slight hack to make Mesa advertise S3TC support without libtxc_dxtn
+	setenv("force_s3tc_enable", "true", 1);
+
 	mprintf(("  Requested SDL Video values = R: %d, G: %d, B: %d, depth: %d, double-buffer: %d, FSAA: %d\n", Gr_red.bits, Gr_green.bits, Gr_blue.bits, (bpp == 32) ? 24 : 16, db, fsaa_samples));
 
 	if (SDL_SetVideoMode(gr_screen.max_w, gr_screen.max_h, bpp, flags) == NULL) {
@@ -1981,8 +1981,6 @@ bool gr_opengl_init()
 
 	// This stops fred crashing if no textures are set
 	gr_screen.current_bitmap = -1;
-
-	TIMERBAR_SET_DRAW_FUNC(opengl_render_timer_bar);
 
 	mprintf(("... OpenGL init is complete!\n"));
 

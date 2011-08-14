@@ -496,13 +496,20 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 }
 
 #define DO_RENDER()	\
-	vglDrawRangeElements(GL_TRIANGLES, start, end, count, element_type, ibuffer + (datap->index_offset + start))
+	if (Cmdline_drawelements) \
+		glDrawElements(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start)); \
+	else \
+		vglDrawRangeElements(GL_TRIANGLES, start, end, count, element_type, ibuffer + (datap->index_offset + start));
 
 int GL_last_shader_flags = -1;
 int GL_last_shader_index = -1;
 
 static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags);
 
+extern bool Post_in_frame;
+extern GLuint Post_screen_texture_id;
+extern GLuint Post_effect_texture_id;
+extern GLuint Framebuffer_fallback_texture_id;
 static void opengl_render_pipeline_program(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags)
 {
 	float u_scale, v_scale;
@@ -522,9 +529,6 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 
 	int textured = ((flags & TMAP_FLAG_TEXTURED) && (bufferp->flags & VB_FLAG_UV1));
 
-	// init lights
-	opengl_change_active_lights(0);
-
 	// setup shader flags for the things that we want/need
 	if (lighting_is_enabled) {
 		shader_flags |= SDR_FLAG_LIGHT;
@@ -533,6 +537,9 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	if ( GL_state.Fog() ) {
 		shader_flags |= SDR_FLAG_FOG;
 	}
+
+	if (flags & TMAP_ANIMATED_SHADER)
+		shader_flags |= SDR_FLAG_ANIMATED;
 
 	if (textured) {
 		if ( !Basemap_override ) {
@@ -616,6 +623,13 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		ibuffer = (GLubyte*)vbp->index_list;
 	}
 
+	if(flags & TMAP_ANIMATED_SHADER)
+	{
+		vglUniform1fARB( opengl_shader_get_uniform("anim_timer"), opengl_shader_get_animated_timer() );
+		vglUniform1iARB( opengl_shader_get_uniform("effect_num"), opengl_shader_get_animated_effect() );
+		vglUniform1fARB( opengl_shader_get_uniform("vpwidth"), 1.0f/gr_screen.max_w );
+		vglUniform1fARB( opengl_shader_get_uniform("vpheight"), 1.0f/gr_screen.max_h );
+	}
 	int n_lights = MIN(Num_active_gl_lights, GL_max_lights) - 1;
 	vglUniform1iARB( opengl_shader_get_uniform("n_lights"), n_lights );
 
@@ -673,6 +687,18 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		}
 	}
 
+	if ((shader_flags & SDR_FLAG_ANIMATED))
+	{
+		GL_state.Texture.SetActiveUnit(render_pass);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		if( Post_in_frame )
+			GL_state.Texture.Enable(Post_effect_texture_id);
+		else
+			GL_state.Texture.Enable(Framebuffer_fallback_texture_id);
+		vglUniform1iARB( opengl_shader_get_uniform("sFramebuffer"), render_pass );
+		glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+		render_pass++;
+	}
 	// DRAW IT!!
 	DO_RENDER();
 /*
@@ -794,8 +820,6 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 
 	render_pass = 0;
 
-	// init lights
-	opengl_change_active_lights(0);
 	opengl_default_light_settings( !GL_center_alpha, (Interp_light > 0.25f), (using_spec) ? 0 : 1 );
 	gr_opengl_set_center_alpha(GL_center_alpha);
 

@@ -114,65 +114,63 @@ typedef struct
 Flag exe_params[] = 
 {
 	{ "-spec",				"Enable specular",							true,	EASY_MEM_ALL_ON,	EASY_DEFAULT_MEM,	"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-spec", },
-	{ "-glow",				"Enable glowmaps",							true,	EASY_MEM_ALL_ON,	EASY_DEFAULT_MEM,	"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-glow", },
+	{ "-glow",				"Enable glow maps",							true,	EASY_MEM_ALL_ON,	EASY_DEFAULT_MEM,	"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-glow", },
 	{ "-env",				"Enable environment maps",					true,	EASY_MEM_ALL_ON,	EASY_DEFAULT_MEM,	"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-env", },
 	{ "-mipmap",			"Enable mipmapping",						true,	0,					EASY_DEFAULT_MEM,	"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-mipmap", },
 	{ "-nomotiondebris",	"Disable motion debris",					true,	EASY_ALL_ON,		EASY_DEFAULT,		"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-nomotiondebris",},
 	{ "-noscalevid",		"Disable scale-to-window for movies",		true,	0,					EASY_DEFAULT,		"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-noscalevid", },
-	{ "-missile_lighting",	"Apply Lighting to Missiles"	,			true,	EASY_ALL_ON,		EASY_DEFAULT,		"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-missile_lighting", },
+	{ "-missile_lighting",	"Apply lighting to missiles"	,			true,	EASY_ALL_ON,		EASY_DEFAULT,		"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-missile_lighting", },
 	{ "-normal",			"Enable normal maps",						true,	EASY_MEM_ALL_ON,	EASY_DEFAULT_MEM,	"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-normal" },
 	{ "-3dshockwave",		"Enable 3D shockwaves",					true,	EASY_MEM_ALL_ON,	EASY_DEFAULT_MEM,	"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-3dshockwave" },
 	{ "-post_process",		"Enable post processing",					true,	0,					EASY_DEFAULT,		"Graphics",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-post_process" },
-	{ "-fxaa",				"Enable FXAA antialiasing",					true,	0,					EASY_DEFAULT,		"Graphics",	"" },
+	{ "-fxaa",				"Enable FXAA anti-aliasing",					true,	0,					EASY_DEFAULT,		"Graphics",	"" },
 
 	{ "-img2dds",			"Compress non-compressed images",			true,	0,					EASY_DEFAULT,		"Game Speed",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-img2dds", },
 	{ "-no_vsync",			"Disable vertical sync",					true,	0,					EASY_DEFAULT,		"Game Speed",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-no_vsync", },
 	{ "-cache_bitmaps",		"Cache bitmaps between missions",			true,	0,					EASY_DEFAULT_MEM,	"Game Speed",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-cache_bitmaps", },
 
-	{ "-dualscanlines",		"Another pair of scanning lines",			true,	0,					EASY_DEFAULT,		"HUD",			"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-dualscanlines", },
+	{ "-dualscanlines",		"Add another pair of scanning lines",			true,	0,					EASY_DEFAULT,		"HUD",			"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-dualscanlines", },
 	{ "-targetinfo",		"Enable info next to target",				true,	0,					EASY_DEFAULT,		"HUD",			"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-targetinfo", },
-	{ "-orbradar",			"Enables 3d radar",							true,	0,					EASY_DEFAULT,		"HUD",			"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-orbradar", },
-	{ "-rearm_timer",		"Enable Rearm/Repair Completion Timer",	true,	0,					EASY_DEFAULT,		"HUD",			"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-rearm_timer", },
-	{ "-ballistic_gauge",	"Enable the analog ballistic ammo gauge",	true,	0,					EASY_DEFAULT,		"HUD",			"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-ballistic_gauge", },
+	{ "-orbradar",			"Enable 3D radar",							true,	0,					EASY_DEFAULT,		"HUD",			"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-orbradar", },
+	{ "-rearm_timer",		"Enable rearm/repair completion timer",	true,	0,					EASY_DEFAULT,		"HUD",			"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-rearm_timer", },
+	{ "-ballistic_gauge",	"Enable analog ballistic ammo gauge",	true,	0,					EASY_DEFAULT,		"HUD",			"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-ballistic_gauge", },
 
-	{ "-ship_choice_3d",	"Use models for ship selection",			true,	0,					EASY_DEFAULT,		"Gameplay",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-ship_choice_3d", },
-    { "-weapon_choice_3d",	"Use models for weapon selection",		true,	0,					EASY_DEFAULT,		"Gameplay",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-weapon_choice_3d", },
-	{ "-3dwarp",			"Enable 3d warp",							true,	0,					EASY_DEFAULT,		"Gameplay",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-3dwarp", },
+	{ "-ship_choice_3d",	"Use 3D models for ship selection",			true,	0,					EASY_DEFAULT,		"Gameplay",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-ship_choice_3d", },
+    { "-weapon_choice_3d",	"Use 3D models for weapon selection",		true,	0,					EASY_DEFAULT,		"Gameplay",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-weapon_choice_3d", },
+	{ "-3dwarp",			"Enable 3D warp",							true,	0,					EASY_DEFAULT,		"Gameplay",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-3dwarp", },
 	{ "-warp_flash",		"Enable flash upon warp",					true,	0,					EASY_DEFAULT,		"Gameplay",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-warp_flash", },
 	{ "-no_ap_interrupt",	"Disable interrupting autopilot",			true,	0,					EASY_DEFAULT,		"Gameplay",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-no_ap_interrupt", },
 
 	{ "-snd_preload",		"Preload mission game sounds",			true,	EASY_MEM_ALL_ON,	EASY_DEFAULT_MEM,	"Audio",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-snd_preload", },
-	{ "-nosound",			"Disable sound and music",					false,	0,					EASY_DEFAULT,		"Audio",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-nosound", },
+	{ "-nosound",			"Disable all sound",					false,	0,					EASY_DEFAULT,		"Audio",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-nosound", },
 	{ "-nomusic",			"Disable music",							false,	0,					EASY_DEFAULT,		"Audio",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-nomusic", },
 
-	{ "-standalone",		"Run as Stand Alone Server",				false,	0,					EASY_DEFAULT,		"Multiplayer",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-standalone", },
+	{ "-standalone",		"Run as standalone server",				false,	0,					EASY_DEFAULT,		"Multiplayer",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-standalone", },
 	{ "-startgame",			"Skip mainhall and start hosting",			false,	0,					EASY_DEFAULT,		"Multiplayer",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-startgame", },
 	{ "-closed",			"Start hosted server as closed",			false,	0,					EASY_DEFAULT,		"Multiplayer",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-closed", },
 	{ "-restricted",		"Host confirms join requests",				false,	0,					EASY_DEFAULT,		"Multiplayer",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-restricted", },
 	{ "-multilog",			"",											false,	0,					EASY_DEFAULT,		"Multiplayer",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-multilog", },
 	{ "-clientdamage",		"",											false,	0,					EASY_DEFAULT,		"Multiplayer",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-clientdamage", },
-	{ "-mpnoreturn",		"Disables flight deck option",				true,	0,					EASY_DEFAULT,		"Multiplayer",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-mpnoreturn", },
+	{ "-mpnoreturn",		"Disable flight deck option",				true,	0,					EASY_DEFAULT,		"Multiplayer",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-mpnoreturn", },
 
-	{ "-oldfire",			"",											false,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-oldfire", },
 	{ "-nohtl",				"Software mode (very slow)",				true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-nohtl", },
 	{ "-no_set_gamma",		"Disable setting of gamma",				true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-no_set_gamma", },
 	{ "-nomovies",			"Disable video playback",					true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-nomovies", },
 	{ "-noparseerrors",		"Disable parsing errors",					true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-noparseerrors", },
-	{ "-safeloading",		"",											true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-safeloading", },
-	{ "-query_speech",		"Does this build have speech?",			true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-query_speech", },
-	{ "-d3d_bad_tsys",		"Enable inefficient textures",				true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-d3d_bad_tsys", },
+	{ "-query_speech",		"Check if this build has speech",			true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-query_speech", },
 	{ "-novbo",				"Disable OpenGL VBO",						true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-novbo",	},
 	{ "-noibx",				"Don't use cached index buffers (IBX)",	true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-noibx",	},
 	{ "-loadallweps",		"Load all weapons, even those not used",	true,	0,					EASY_DEFAULT,		"Troubleshoot", "http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-loadallweps", },
 	{ "-disable_fbo",		"Disable OpenGL RenderTargets",			true,	0,					EASY_DEFAULT,		"Troubleshoot",	"", },
 	{ "-no_glsl",			"Disable GLSL (shader) support",			true,	0,					EASY_DEFAULT,		"Troubleshoot", "", },
-	{ "-ati_swap",			"Fix Color issues on some ATI cards",		true,	0,					EASY_DEFAULT,		"Troubleshoot", "http://scp.indiegames.us/mantis/view.php?id=1669", },
+	{ "-ati_swap",			"Fix colour issues on some ATI cards",		true,	0,					EASY_DEFAULT,		"Troubleshoot", "http://scp.indiegames.us/mantis/view.php?id=1669", },
 	{ "-no_3d_sound",		"Use only 2D/stereo for sound effects",	true,	0,					EASY_DEFAULT,		"Troubleshoot", "", },
 	{ "-disable_glsl_model","Don't use shaders for model rendering", true, 0,		EASY_DEFAULT,		"Troubleshoot", "", },
 	{ "-disable_di_mouse",  "Don't use DirectInput for mouse control", true, 0,		EASY_DEFAULT,		"Troubleshoot", "", },
+	{ "-use_gldrawelements","Don't use glDrawRangeElements",			true, 0,	EASY_DEFAULT,		"Troubleshoot", "", },
 
-	{ "-ingame_join",		"Allows ingame joining",					true,	0,					EASY_DEFAULT,		"Experimental",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-ingame_join", },
-	{ "-voicer",			"Voice recognition",						true,	0,					EASY_DEFAULT,		"Experimental",	"", },
+	{ "-ingame_join",		"Allow in-game joining",					true,	0,					EASY_DEFAULT,		"Experimental",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-ingame_join", },
+	{ "-voicer",			"Enable voice recognition",						true,	0,					EASY_DEFAULT,		"Experimental",	"", },
 
 	{ "-fps",				"Show frames per second on HUD",			false,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-fps", },
 	{ "-pos",				"Show position of camera",					false,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-pos", },
@@ -187,11 +185,11 @@ Flag exe_params[] =
 	{ "-missioncrcs",		"",											true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-missioncrcs", },
 	{ "-dis_collisions",	"Disable collisions",						true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-dis_collisions", },
 	{ "-dis_weapons",		"Disable weapon rendering",				true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-dis_weapons", },
-	{ "-output_sexps",		"Outputs SEXPs to sexps.html",				true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-output_sexps", },
-	{ "-output_scripting",	"Outputs scripting to scripting.html",		true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-output_scripting", },
+	{ "-output_sexps",		"Output SEXPs to sexps.html",				true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-output_sexps", },
+	{ "-output_scripting",	"Output scripting to scripting.html",		true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-output_scripting", },
 	{ "-save_render_target",	"Save render targets to file",			true,	0,					EASY_DEFAULT,		"Dev Tool",		"", },
 	{ "-debug_window",		"Display debug window",					true,	0,					EASY_DEFAULT,		"Dev Tool",		"", },
-	{ "-verify_vps",		"Spew VP crcs to vp_crcs.txt",				true,	0,					EASY_DEFAULT,		"Dev Tool",		"", },
+	{ "-verify_vps",		"Spew VP CRCs to vp_crcs.txt",				true,	0,					EASY_DEFAULT,		"Dev Tool",		"", },
 #ifdef SCP_UNIX
 	{ "-nograb",			"Don't grab mouse/keyboard in a window",	true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-nograb", },
 #endif
@@ -213,7 +211,6 @@ cmdline_parm gameclosed_arg("-closed", NULL);		// Cmdline_closed_game
 cmdline_parm gamerestricted_arg("-restricted", NULL);	// Cmdline_restricted_game
 cmdline_parm port_arg("-port", NULL);
 cmdline_parm multilog_arg("-multilog", NULL);		// Cmdline_multi_log
-cmdline_parm server_firing_arg("-oldfire", NULL);	// Cmdline_server_firing
 cmdline_parm client_dodamage("-clientdamage", NULL);	// Cmdline_client_dodamage
 cmdline_parm pof_spew("-pofspew", NULL);			// Cmdline_spew_pof_info
 cmdline_parm mouse_coords("-coords", NULL);			// Cmdline_mouse_coords
@@ -236,7 +233,6 @@ int Cmdline_multi_log = 0;
 int Cmdline_multi_stream_chat_to_file = 0;
 int Cmdline_network_port = -1;
 int Cmdline_restricted_game = 0;
-int Cmdline_server_firing = 0;
 int Cmdline_spew_pof_info = 0;
 int Cmdline_start_netgame = 0;
 int Cmdline_timeout = -1;
@@ -254,7 +250,6 @@ cmdline_parm spec_static_arg("-spec_static", NULL);
 cmdline_parm spec_point_arg("-spec_point", NULL);
 cmdline_parm spec_tube_arg("-spec_tube", NULL);
 cmdline_parm ambient_factor_arg("-ambient_factor", NULL);	// Cmdline_ambient_factor
-cmdline_parm cell_arg("-cell", NULL);				// Cmdline_cell
 cmdline_parm env("-env", NULL);						// Cmdline_env
 cmdline_parm mipmap_arg("-mipmap", NULL);			// Cmdline_mipmap
 cmdline_parm missile_lighting_arg("-missile_lighting", NULL);	// Cmdline_missile_lighting
@@ -275,7 +270,6 @@ float Cmdline_clip_dist = Default_min_draw_distance;
 float Cmdline_fov = 0.75f;
 float Cmdline_ogl_spec = 80.0f;
 int Cmdline_ambient_factor = 128;
-int Cmdline_cell = 0;
 int Cmdline_env = 0;
 int Cmdline_mipmap = 0;
 int Cmdline_missile_lighting = 0;
@@ -290,7 +284,8 @@ int Cmdline_enable_3d_shockwave = 0;
 int Cmdline_postprocess = 0;
 int Cmdline_bloom_intensity = 75;
 bool Cmdline_fxaa = false;
-int Cmdline_fxaa_preset = 3;
+int Cmdline_fxaa_preset = 6;
+extern int Fxaa_preset_last_frame;
 
 // Game Speed related
 cmdline_parm cache_bitmaps_arg("-cache_bitmaps", NULL);	// Cmdline_cache_bitmaps
@@ -359,35 +354,33 @@ char *Cmdline_spew_table_crcs = NULL;
 int Cmdline_objupd = 3;		// client object updates on LAN by default
 
 // Troubleshooting
-cmdline_parm d3d_lesstmem_arg("-d3d_bad_tsys", NULL);	// Cmdline_d3d_lesstmem
 cmdline_parm loadallweapons_arg("-loadallweps", NULL);	// Cmdline_load_all_weapons
 cmdline_parm htl_arg("-nohtl", NULL);				// Cmdline_nohtl  -- don't use HT&L
 cmdline_parm noibx_arg("-noibx", NULL);				// Cmdline_noibx
 cmdline_parm nomovies_arg("-nomovies", NULL);		// Cmdline_nomovies  -- Allows video streaming
 cmdline_parm no_set_gamma_arg("-no_set_gamma", NULL);	// Cmdline_no_set_gamma
 cmdline_parm no_vbo_arg("-novbo", NULL);			// Cmdline_novbo
-cmdline_parm safeloading_arg("-safeloading", NULL);	// Cmdline_safeloading  -- Uses old loading method -C
 cmdline_parm no_fbo_arg("-disable_fbo", NULL);		// Cmdline_no_fbo
 cmdline_parm noglsl_arg("-no_glsl", NULL);			// Cmdline_noglsl  -- disable GLSL support in OpenGL
 cmdline_parm atiswap_arg("-ati_swap", NULL);        // Cmdline_atiswap - Fix ATI color swap issue for screenshots.
 cmdline_parm no3dsound_arg("-no_3d_sound", NULL);		// Cmdline_no_3d_sound - Disable use of full 3D sounds
 cmdline_parm no_glsl_models_arg("-disable_glsl_model", NULL); // Cmdline_no_glsl_model_rendering -- switches model rendering to fixed pipeline
 cmdline_parm no_di_mouse_arg("-disable_di_mouse", NULL); // Cmdline_no_di_mouse -- Disables directinput use for mouse control
+cmdline_parm no_drawrangeelements("-use_gldrawelements", NULL); // Cmdline_drawelements -- Uses glDrawElements instead of glDrawRangeElements
 
-int Cmdline_d3d_lesstmem = 0;
 int Cmdline_load_all_weapons = 0;
 int Cmdline_nohtl = 0;
 int Cmdline_noibx = 0;
 int Cmdline_nomovies = 0;
 int Cmdline_no_set_gamma = 0;
 int Cmdline_novbo = 0; // turn off OGL VBO support, troubleshooting
-int Cmdline_safeloading = 0;
 int Cmdline_no_fbo = 0;
 int Cmdline_noglsl = 0;
 int Cmdline_ati_color_swap = 0;
 int Cmdline_no_3d_sound = 0;
 int Cmdline_no_glsl_model_rendering = 0;
 int Cmdline_no_di_mouse = 0;
+int Cmdline_drawelements = 0;
 
 // Developer/Testing related
 cmdline_parm start_mission_arg("-start_mission", NULL);	// Cmdline_start_mission
@@ -400,7 +393,6 @@ cmdline_parm fps_arg("-fps", NULL);					// Cmdline_show_fps
 cmdline_parm show_mem_usage_arg("-show_mem_usage", NULL);	// Cmdline_show_mem_usage
 cmdline_parm pos_arg("-pos", NULL);					// Cmdline_show_pos
 cmdline_parm stats_arg("-stats", NULL);				// Cmdline_show_stats
-cmdline_parm timerbar_arg("-timerbar", NULL);		// Cmdline_timerbar
 cmdline_parm save_render_targets_arg("-save_render_target", NULL);	// Cmdline_save_render_targets
 cmdline_parm debug_window_arg("-debug_window", NULL);	// Cmdline_debug_window
 cmdline_parm window_arg("-window", NULL);				// Cmdline_window
@@ -421,7 +413,6 @@ int Cmdline_extra_warn = 0;
 int Cmdline_show_mem_usage = 0;
 int Cmdline_show_pos = 0;
 int Cmdline_show_stats = 0;
-int Cmdline_timerbar = 0;
 int Cmdline_save_render_targets = 0;
 int Cmdline_debug_window = 0;
 int Cmdline_window = 0;
@@ -922,21 +913,10 @@ bool SetCmdlineParams()
 	{
 		Cmdline_nowarn = 1;
 	}
-	/* karajorma - let's just use -nohtl instead
-	if (fred2_htl_arg.found())
-	{
-		Cmdline_FRED2_htl = 1;
-	}*/
 
 	if (extra_warn_arg.found())
 	{
 		Cmdline_extra_warn = 1;
-	}
-
-	if (timerbar_arg.found()) {
-		#ifdef WIN32
-		MessageBox(NULL, "the timerbar has been disabled in builds after August 31, 2010.  Please remove the \"-timerbar\" command line from the launcher to prevent this message from appearing the the future.", "", MB_OK | MB_ICONINFORMATION);
-		#endif
 	}
 
 	if ( missioncrcspew_arg.found() ) {
@@ -1053,10 +1033,6 @@ bool SetCmdlineParams()
 		Cmdline_multi_log = 1;
 	}	
 
-	// maybe use old-school server-side firing
-	if (server_firing_arg.found() ){
-		Cmdline_server_firing = 1;
-	}
 
 	// maybe use old-school client damage
 	if(client_dodamage.found()){
@@ -1166,10 +1142,6 @@ bool SetCmdlineParams()
 		Cmdline_show_pos = 1;
 	}
 
-	if ( safeloading_arg.found() ) {
-		Cmdline_safeloading = 1;
-	}
-
 	if ( nomotiondebris_arg.found() ) {
 		Cmdline_nomotiondebris = 1;
 	}
@@ -1228,10 +1200,6 @@ bool SetCmdlineParams()
 		static_tube_factor = spec_tube_arg.get_float();
 	}
 
-	if ( cell_arg.found() ) {
-		Cmdline_cell = 1;
-	}
-
 	if ( spec_arg.found() )
 	{
 		Cmdline_spec = 1;
@@ -1282,6 +1250,8 @@ bool SetCmdlineParams()
 		if (fxaa_preset_arg.found()) {
 			Cmdline_fxaa_preset = fxaa_preset_arg.get_int();
 		}
+
+		Fxaa_preset_last_frame = Cmdline_fxaa_preset;
 	}
 
 	if (no_di_mouse_arg.found() ) {
@@ -1368,11 +1338,14 @@ bool SetCmdlineParams()
 		output_sexps("sexps.html");
 	}
 
-	Cmdline_d3d_lesstmem = !d3d_lesstmem_arg.found();
-
 	if ( no_vbo_arg.found() )
 	{
 		Cmdline_novbo = 1;
+	}
+
+	if ( no_drawrangeelements.found() )
+	{
+		Cmdline_drawelements = 1;
 	}
 
 	if ( snd_preload_arg.found() )

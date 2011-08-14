@@ -990,6 +990,7 @@ void game_level_close()
 		cam_close();
 		subtitles_close();
 		trail_level_close();
+		ship_clear_cockpit_displays();
 		hud_level_close();
 		model_instance_free_all();
 
@@ -2188,9 +2189,9 @@ void game_init()
 	obj_init();	
 	mflash_game_init();	
 	armor_init();
-	weapon_init();	
 	ai_init();
 	ai_profiles_init();		// Goober5000
+	weapon_init();	
 	ship_init();						// read in ships.tbl	
 
 	player_init();	
@@ -2222,10 +2223,6 @@ void game_init()
 
 	// initialize alpha colors
 	alpha_colors_init();	
-
-	if (Cmdline_cell) {
-		cell_shaded_lightmap = bm_load("cellmap");
-	}
 
 	if (Cmdline_env) {
 		ENVMAP = Default_env_map = bm_load("cubemap");
@@ -3784,6 +3781,7 @@ DCF_BOOL( subspace, Game_subspace_effect )
 void clip_frame_view();
 
 // Does everything needed to render a frame
+extern std::vector<object*> effect_ships; 
 void game_render_frame( camid cid )
 {
 
@@ -3885,6 +3883,11 @@ void game_render_frame( camid cid )
 	// render local player nebula
 	neb2_render_player();
 
+	// render all ships with shader effects on them
+	std::vector<object*>::iterator obji = effect_ships.begin();
+	for(;obji != effect_ships.end();obji++)
+		ship_render(*obji);
+	effect_ships.clear();
 	//Draw the viewer 'cause we didn't before.
 	//This is so we can change the minimum clipping distance without messing everything up.
 	if(draw_viewer_last && Viewer_obj)
