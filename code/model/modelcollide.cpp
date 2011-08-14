@@ -607,6 +607,70 @@ void model_collide_nodes(collision_tree *tree, int starting_node)
 	}
 }
 
+SCP_vector<int> chunk_stack; // using a vector as a makeshift stack
+
+void model_collide_nodes_iter(collision_tree *tree)
+{
+	chunk_stack.clear();
+
+	int current_node = 0;
+	collision_node *node;
+
+	chunk_stack.push_back( current_node );
+
+	while ( chunk_stack.size() > 0 ) {
+		current_node = chunk_stack.back();
+		chunk_stack.pop_back();
+
+		node = &tree->node_list[current_node];
+
+		if ( node->op != OP_EOF ) {
+			if ( node->next > 0 ) {
+				chunk_stack.push_back(node->next);
+			}
+
+			switch ( node->op ) {
+				case OP_EOF: 
+					chunk_stack.pop_back(); 
+					break;
+				case OP_FLATPOLY:
+					model_collide_node_flatpoly(tree, node);
+					break;
+				case OP_TMAPPOLY:
+					model_collide_node_tmappoly(tree, node);
+					break;
+				case OP_SORTNORM:
+
+					if ( Mc_pm->version >= 2000 ) {
+						if ( mc_ray_boundingbox( &node->sortnorm.min, &node->sortnorm.max, &Mc_p0, &Mc_direction, NULL) )	{
+							if ( node->sortnorm.post >= 0 ) chunk_stack.push_back(node->sortnorm.post);
+							if ( node->sortnorm.front >= 0 ) chunk_stack.push_back(node->sortnorm.front);
+							if ( node->sortnorm.on >= 0 ) chunk_stack.push_back(node->sortnorm.on);
+							if ( node->sortnorm.back >= 0 ) chunk_stack.push_back(node->sortnorm.back);
+							if ( node->sortnorm.pre >= 0 ) chunk_stack.push_back(node->sortnorm.pre);
+						}
+					} else {
+						if ( node->sortnorm.post >= 0 ) chunk_stack.push_back(node->sortnorm.post);
+						if ( node->sortnorm.front >= 0 ) chunk_stack.push_back(node->sortnorm.front);
+						if ( node->sortnorm.on >= 0 ) chunk_stack.push_back(node->sortnorm.on);
+						if ( node->sortnorm.back >= 0 ) chunk_stack.push_back(node->sortnorm.back);
+						if ( node->sortnorm.pre >= 0 ) chunk_stack.push_back(node->sortnorm.pre);
+					}
+					break;
+				case OP_BOUNDBOX:
+					if ( !mc_ray_boundingbox( &node->sortnorm.min, &node->sortnorm.max, &Mc_p0, &Mc_direction, NULL ) )	{
+						chunk_stack.pop_back();
+					}
+					break;
+				default:
+					mprintf(( "Bad chunk type %d, len=%d in model_collide_sub\n", node->op, node->next ));
+					Int3();		// Bad chunk type!
+					return;
+			}
+		}
+	}
+}
+
 void model_collide_parse_flatpoly(collision_tree *tree, void *model_ptr, int current_node)
 {
 	ubyte *p = (ubyte *)model_ptr;
