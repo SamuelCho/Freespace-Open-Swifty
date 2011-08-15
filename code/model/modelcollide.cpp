@@ -671,6 +671,71 @@ void model_collide_nodes_iter(collision_tree *tree)
 	}
 }
 
+void model_collide_nodes_iter_breadth(collision_tree *tree)
+{
+	SCP_queue<int> chunk_queue;
+
+	int current_node = 0;
+	collision_node *node;
+
+	chunk_queue.push(current_node);
+
+	while ( !chunk_queue.empty() ) {
+		current_node = chunk_queue.front();
+		chunk_queue.pop();
+
+		node = &tree->node_list[current_node];
+
+		if ( node->op != OP_EOF ) {
+
+			switch ( node->op ) {
+			case OP_EOF: 
+				break;
+			case OP_DEFPOINTS:
+				chunk_queue.push(node->next);
+				break;
+			case OP_FLATPOLY:
+				model_collide_node_flatpoly(tree, node);
+				chunk_queue.push(node->next);
+				break;
+			case OP_TMAPPOLY:
+				model_collide_node_tmappoly(tree, node);
+				chunk_queue.push(node->next);
+				break;
+			case OP_SORTNORM:
+
+				if ( Mc_pm->version >= 2000 ) {
+					if ( mc_ray_boundingbox( &node->sortnorm.min, &node->sortnorm.max, &Mc_p0, &Mc_direction, NULL) )	{
+						if ( node->sortnorm.pre >= 0 ) chunk_queue.push(node->sortnorm.pre);
+						if ( node->sortnorm.back >= 0 ) chunk_queue.push(node->sortnorm.back);
+						if ( node->sortnorm.on >= 0 ) chunk_queue.push(node->sortnorm.on);
+						if ( node->sortnorm.front >= 0 ) chunk_queue.push(node->sortnorm.front);
+						if ( node->sortnorm.post >= 0 ) chunk_queue.push(node->sortnorm.post);
+					}
+				} else {
+					if ( node->sortnorm.pre >= 0 ) chunk_queue.push(node->sortnorm.pre);
+					if ( node->sortnorm.back >= 0 ) chunk_queue.push(node->sortnorm.back);
+					if ( node->sortnorm.on >= 0 ) chunk_queue.push(node->sortnorm.on);
+					if ( node->sortnorm.front >= 0 ) chunk_queue.push(node->sortnorm.front);
+					if ( node->sortnorm.post >= 0 ) chunk_queue.push(node->sortnorm.post);
+				}
+
+				chunk_queue.push(node->next);
+				break;
+			case OP_BOUNDBOX:
+				if ( mc_ray_boundingbox( &node->sortnorm.min, &node->sortnorm.max, &Mc_p0, &Mc_direction, NULL ) )	{
+					chunk_queue.push(node->next);
+				}
+				break;
+			default:
+				mprintf(( "Bad chunk type %d, len=%d in model_collide_sub\n", node->op, node->next ));
+				Int3();		// Bad chunk type!
+				return;
+			}
+		}
+	}
+}
+
 void model_collide_parse_flatpoly(collision_tree *tree, void *model_ptr, int current_node)
 {
 	ubyte *p = (ubyte *)model_ptr;
@@ -850,83 +915,83 @@ void model_collide_parse_breadth(collision_tree *tree, void *model_ptr, int vers
 	tree->node_list.push_back(new_node);
 
 	while ( i < tree->node_list.size() ) {
-		node = &tree->node_list[i];
-		p = node->p;
+		p = tree->node_list[i].p;
 
 		chunk_type = w(p);
 		chunk_size = w(p+4);
 
 		switch ( chunk_type ) {
-			case OP_EOF:
-				node->op = OP_EOF;
-				node->next = -1;
-			case OP_DEFPOINTS:
-				node->op = OP_DEFPOINTS;
+		case OP_EOF:
+			tree->node_list[i].op = OP_EOF;
+			tree->node_list[i].next = -1;
+			break;
+		case OP_DEFPOINTS:
+			tree->node_list[i].op = OP_DEFPOINTS;
 
-				model_collide_defpoints(p);
-				break;
-			case OP_FLATPOLY:
-				node->op = OP_FLATPOLY;
+			model_collide_defpoints(p);
+			break;
+		case OP_FLATPOLY:
+			tree->node_list[i].op = OP_FLATPOLY;
 
-				model_collide_parse_flatpoly(tree, p, i);
-				break;
-			case OP_TMAPPOLY:
-				node->op = OP_TMAPPOLY;
+			model_collide_parse_flatpoly(tree, p, i);
+			break;
+		case OP_TMAPPOLY:
+			tree->node_list[i].op = OP_TMAPPOLY;
 
-				model_collide_parse_tmappoly(tree, p, i);
-				break;
-			case OP_SORTNORM:
-				node->op = OP_SORTNORM;
+			model_collide_parse_tmappoly(tree, p, i);
+			break;
+		case OP_SORTNORM:
+			tree->node_list[i].op = OP_SORTNORM;
 
-				if ( version >= 2000 ) {
-					min = vp(p+56);
-					max = vp(p+68);
+			if ( version >= 2000 ) {
+				min = vp(p+56);
+				max = vp(p+68);
 
-					node->sortnorm.min = *min;
-					node->sortnorm.max = *max;
-				}
+				tree->node_list[i].sortnorm.min = *min;
+				tree->node_list[i].sortnorm.max = *max;
+			}
 
-				new_node.p = p+w(p+36);
-				tree->node_list.push_back(new_node);
-				node->sortnorm.front = tree->node_list.size() - 1;
+			new_node.p = p+w(p+36);
+			tree->node_list.push_back(new_node);
+			tree->node_list[i].sortnorm.front = tree->node_list.size() - 1;
 
-				new_node.p = p+w(p+40);
-				tree->node_list.push_back(new_node);
-				node->sortnorm.back = tree->node_list.size() - 1;
+			new_node.p = p+w(p+40);
+			tree->node_list.push_back(new_node);
+			tree->node_list[i].sortnorm.back = tree->node_list.size() - 1;
 
-				new_node.p = p+w(p+44);
-				tree->node_list.push_back(new_node);
-				node->sortnorm.pre = tree->node_list.size() - 1;
+			new_node.p = p+w(p+44);
+			tree->node_list.push_back(new_node);
+			tree->node_list[i].sortnorm.pre = tree->node_list.size() - 1;
 
-				new_node.p = p+w(p+48);
-				tree->node_list.push_back(new_node);
-				node->sortnorm.post = tree->node_list.size() - 1;
+			new_node.p = p+w(p+48);
+			tree->node_list.push_back(new_node);
+			tree->node_list[i].sortnorm.post = tree->node_list.size() - 1;
 
-				new_node.p = p+ w(p+52);
-				tree->node_list.push_back(new_node);
-				node->sortnorm.on = tree->node_list.size() - 1;
-				break;
-			case OP_BOUNDBOX:
-				node->op = OP_BOUNDBOX;
+			new_node.p = p+ w(p+52);
+			tree->node_list.push_back(new_node);
+			tree->node_list[i].sortnorm.on = tree->node_list.size() - 1;
+			break;
+		case OP_BOUNDBOX:
+			tree->node_list[i].op = OP_BOUNDBOX;
 
-				min = vp(p+8);
-				max = vp(p+20);
-				node->sortnorm.min = *min;
-				node->sortnorm.max = *max;
-				break;
-			default:
-				mprintf( ("Bad chunk type %d, len=%d in model_collide_parse\n", chunk_type, chunk_size) );
-				Int3();
-				break;
+			min = vp(p+8);
+			max = vp(p+20);
+			tree->node_list[i].sortnorm.min = *min;
+			tree->node_list[i].sortnorm.max = *max;
+			break;
+		default:
+			mprintf( ("Bad chunk type %d, len=%d in model_collide_parse\n", chunk_type, chunk_size) );
+			Int3();
+			break;
 		}
 
-		if ( node->op != OP_EOF ) {
+		if ( tree->node_list[i].op != OP_EOF ) {
 			p += chunk_size;
 
 			new_node.p = p;
 
 			tree->node_list.push_back(new_node);
-			node->next = tree->node_list.size() - 1;
+			tree->node_list[i].next = tree->node_list.size() - 1;
 		}
 
 		++i;
@@ -1210,7 +1275,7 @@ void mc_check_subobj( int mn )
 			Mc->num_hits++;
 		} else {
 			//model_collide_sub(sm->bsp_data);
-			model_collide_nodes(model_get_collision_tree(sm->collision_tree_index), 0);
+			model_collide_nodes_iter_breadth(model_get_collision_tree(sm->collision_tree_index));
 		}
 	} else {
 		//Int3();

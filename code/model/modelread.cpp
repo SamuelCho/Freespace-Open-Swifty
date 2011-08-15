@@ -2562,9 +2562,6 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 		pm->submodel[i].collision_tree_index = model_create_collision_tree();
 		collision_tree *tree = model_get_collision_tree(pm->submodel[i].collision_tree_index);
 
-		collision_node node;
-		tree->node_list.push_back(node);
-
 		//model_collide_parse(tree, pm->submodel[i].bsp_data, 0, pm->version);
 		model_collide_parse_breadth(tree, pm->submodel[i].bsp_data, pm->version);
 
