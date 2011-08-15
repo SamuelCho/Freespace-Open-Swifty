@@ -633,6 +633,8 @@ void model_collide_nodes_iter(collision_tree *tree)
 				case OP_EOF: 
 					chunk_stack.pop_back(); 
 					break;
+				case OP_DEFPOINTS:
+					break;
 				case OP_FLATPOLY:
 					model_collide_node_flatpoly(tree, node);
 					break;
