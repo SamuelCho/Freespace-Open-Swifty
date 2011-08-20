@@ -817,6 +817,8 @@ void labviewer_render_model(float frametime)
 		model_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, /*Lab_model_flags*/flagggs, -1, -1);
 	}
 
+	batch_render_bitmaps();
+
 	if ( !Cmdline_nohtl ) {
 		gr_end_view_matrix();
 		gr_end_proj_matrix();
@@ -1015,12 +1017,10 @@ void labviewer_do_render(float frametime)
 	// render our particular thing
 	if (Lab_model_num >= 0) {
 		
-		if ( !PostProcessing_override ) {
-			gr_scene_texture_begin();
-		}
+		gr_scene_texture_begin();
 
 		labviewer_render_model(frametime);
-		
+
 		gr_scene_texture_end();
 
 		// print out the current pof filename, to help with... something
@@ -1030,9 +1030,7 @@ void labviewer_do_render(float frametime)
 			gr_string(gr_screen.clip_right - w, gr_screen.clip_bottom - h, Lab_model_filename, false);
 		}
 	} else if (Lab_bitmap_id >= 0) {
-		if ( !PostProcessing_override ) {
-			gr_scene_texture_begin();
-		}
+		gr_scene_texture_begin();
 
 		labviewer_render_bitmap(frametime);
 

@@ -2117,7 +2117,7 @@ void gr_opengl_scene_texture_end()
 		return;
 	}
 
-	if ( Cmdline_postprocess ) {
+	if ( Cmdline_postprocess && !PostProcessing_override ) {
 		gr_post_process_end();
 	} else {
 		GLboolean depth = GL_state.DepthTest(GL_FALSE);
