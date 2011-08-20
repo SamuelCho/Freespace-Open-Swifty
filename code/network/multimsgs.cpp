@@ -2966,8 +2966,6 @@ void send_secondary_fired_packet( ship *shipp, ushort starting_sig, int starting
 	ADD_USHORT( starting_sig );
 	
 	// add a couple of bits for swarm missiles and dual fire secondary weapons
-	sinfo = 0;
-
 	sinfo = current_bank;
 
 	if ( allow_swarm ){
@@ -8097,7 +8095,7 @@ void process_event_update_packet(ubyte *data, header *hinfo)
 		mission_event_set_directive_special(u_event);
 	}
 	// if we went directive special to non directive special
-	else if((store_flags & MEF_DIRECTIVE_SPECIAL) & !(Mission_events[u_event].flags & MEF_DIRECTIVE_SPECIAL)){
+	else if((store_flags & MEF_DIRECTIVE_SPECIAL) && !(Mission_events[u_event].flags & MEF_DIRECTIVE_SPECIAL)){
 		mission_event_unset_directive_special(u_event);
 	}	
 }
