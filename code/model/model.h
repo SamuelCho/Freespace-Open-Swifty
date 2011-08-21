@@ -263,11 +263,11 @@ struct collision_node {
 			vec3d min;
 			vec3d max;
 
-			int pre;
-			int back;
-			int on;
-			int front;
-			int post;
+			ushort pre;
+			ushort back;
+			ushort on;
+			ushort front;
+			ushort post;
 		} sortnorm;
 		struct {
 			vec3d plane_pnt;
