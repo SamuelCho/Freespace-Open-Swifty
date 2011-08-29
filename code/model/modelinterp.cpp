@@ -31,6 +31,7 @@
 #include "weapon/shockwave.h"
 #include "parse/parselo.h"	//strextcmp
 #include "graphics/gropengllight.h"
+#include "ship/shipfx.h"
 
 #include <limits.h>
 
