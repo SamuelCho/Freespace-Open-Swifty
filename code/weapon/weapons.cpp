@@ -697,6 +697,11 @@ void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2)
 	{
 		Warning(LOCATION,"Weapon %s has the \"inherit parent target\" flag, but not the \"child\" flag.  No changes in behavior will occur.", weaponp->name);
 	}
+
+	if (!(weaponp->wi_flags & WIF_HOMING_HEAT) && (weaponp->wi_flags2 & WIF2_UNTARGETED_HEAT_SEEKER))
+	{
+		Warning(LOCATION,"Weapon '%s' has the \"untargeted heat seeker\" flag, but Homing Type is not set to \"HEAT\".", weaponp->name);
+	}
 }
 
 void parse_shockwave_info(shockwave_create_info *sci, char *pre_char)
@@ -3263,7 +3268,7 @@ void weapon_load_bitmaps(int weapon_index)
 			if (wip->particle_spewers[s].particle_spew_type != PSPEW_NONE){
 
 				if ((wip->particle_spewers[s].particle_spew_anim.first_frame < 0) 
-					&& (strlen(wip->particle_spewers[s].particle_spew_anim.filename) > 0) ) {
+					&& (wip->particle_spewers[s].particle_spew_anim.filename[0] != '\0') ) {
 
 					wip->particle_spewers[s].particle_spew_anim.first_frame = bm_load(wip->particle_spewers[s].particle_spew_anim.filename);
 
@@ -3876,7 +3881,9 @@ void find_homing_object(object *weapon_objp, int num)
 			}*/
 
 			//WMC - Spawn weapons shouldn't go for protected ships
-			if((objp->flags & OF_PROTECTED) && (wp->weapon_flags & WF_SPAWNED))
+			// ditto for untargeted heat seekers - niffiwan
+			if ( (objp->flags & OF_PROTECTED) &&
+				((wp->weapon_flags & WF_SPAWNED) || (wip->wi_flags2 & WIF2_UNTARGETED_HEAT_SEEKER)) )
 				continue;
 
 			// Spawned weapons should never home in on their parent - even in multiplayer dogfights where they would pass the iff test below

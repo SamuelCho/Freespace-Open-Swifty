@@ -818,7 +818,7 @@ void labviewer_render_model(float frametime)
 	}
 
 	batch_render_bitmaps();
-
+	distortion_render_bitmaps();
 	if ( !Cmdline_nohtl ) {
 		gr_end_view_matrix();
 		gr_end_proj_matrix();
@@ -2038,7 +2038,7 @@ void labviewer_make_weap_window(Button* caller)
 
 		cwip = cmp->AddItem(stip, Weapon_info[i].name, i, false, labviewer_change_weapon);
 
-		if ( strlen(Weapon_info[i].tech_model) > 0 ) {
+		if (Weapon_info[i].tech_model[0] != '\0') {
 			cmp->AddItem(cwip, "Tech Model", 0, false, labviewer_show_tech_model);
 		}
 	}

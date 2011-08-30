@@ -530,8 +530,6 @@ void techroom_ships_render(float frametime)
 	model_set_detail_level(0);
 	model_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER);
 
-	batch_render_bitmaps();
-
 	if (!Cmdline_nohtl)
 	{
 		gr_end_view_matrix();
@@ -611,11 +609,7 @@ void tech_scroll_info_down()
 {
 	int h;
 
-	if (Tab == SHIPS_DATA_TAB){
-		h = Tech_desc_coords[gr_screen.res][SHIP_H_COORD];
-	} else {
-		h = Tech_desc_coords[gr_screen.res][3];
-	}
+	h = Tech_desc_coords[gr_screen.res][SHIP_H_COORD];
 
 	if (Text_offset + h / gr_get_font_height() < Text_size) {
 		Text_offset++;

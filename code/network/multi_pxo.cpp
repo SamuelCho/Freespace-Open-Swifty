@@ -2292,8 +2292,7 @@ void multi_pxo_make_channels(char *chan_str)
 			return;
 		}
 
-		// get the # of users
-		num_users = 0;		
+		// get the # of users	
 		num_users = (ubyte)atoi(user_tok);		
 
 		// if the # of users is > 0, or its not an autojoin, place it on the display list
@@ -3472,7 +3471,7 @@ void multi_pxo_chat_process()
 		} else {
 			Multi_pxo_chat_input.set_text("");
 		}
-	} else if((Multi_pxo_chat_input.pressed() && (strlen(msg) > 0)) || (strlen(msg) >= MAX_CHAT_LINE_LEN)) { 
+	} else if((Multi_pxo_chat_input.pressed() && (msg[0] != '\0')) || (strlen(msg) >= MAX_CHAT_LINE_LEN)) { 
 		// tack on the null terminator in the boundary case
 		int x = strlen(msg);
 		if(x >= MAX_CHAT_LINE_LEN){
@@ -3828,15 +3827,15 @@ void multi_pxo_com_close()
 void multi_pxo_com_blit_text()
 {
 	// blit top, middle and bottom text if possible
-	if(strlen(Multi_pxo_com_top_text) > 0){
+	if(Multi_pxo_com_top_text[0] != '\0'){
 		gr_set_color_fast(&Color_bright);
 		gr_string(Multi_pxo_com_top_text_coords[gr_screen.res][0], Multi_pxo_com_top_text_coords[gr_screen.res][1], Multi_pxo_com_top_text);
 	}
-	if(strlen(Multi_pxo_com_middle_text) > 0){
+	if(Multi_pxo_com_middle_text[0] != '\0'){
 		gr_set_color_fast(&Color_bright);
 		gr_string(Multi_pxo_com_top_text_coords[gr_screen.res][0], Multi_pxo_com_middle_text_y[gr_screen.res], Multi_pxo_com_middle_text);
 	}
-	if(strlen(Multi_pxo_com_bottom_text) > 0){
+	if(Multi_pxo_com_bottom_text[0] != '\0'){
 		gr_set_color_fast(&Color_bright);
 		gr_string(Multi_pxo_com_top_text_coords[gr_screen.res][0], Multi_pxo_com_bottom_text_y[gr_screen.res], Multi_pxo_com_bottom_text);
 	}
@@ -4158,7 +4157,7 @@ int multi_pxo_find_popup()
 		multi_pxo_find_close();
 
 		// if we have a channel, join it now if possible
-		if(strlen(Multi_pxo_find_channel) > 0){
+		if(Multi_pxo_find_channel[0] != '\0'){
 			pxo_channel *lookup;
 			lookup = multi_pxo_find_channel(Multi_pxo_find_channel,Multi_pxo_channels);
 			
@@ -4222,7 +4221,7 @@ void multi_pxo_find_process_input()
 			multi_pxo_strip_space(name_lookup,name_lookup);
 
 			// never search with a zero length string
-			if(strlen(name_lookup) > 0){
+			if(name_lookup[0] != '\0'){
 				char search_text[512];
 
 				// put us in search mode
@@ -4556,7 +4555,7 @@ void multi_pxo_pinfo_build_vals()
 
 	// primary friendly hits
 	memset(Multi_pxo_pinfo_vals[14], 0, 50);
-	sprintf(Multi_pxo_pinfo_vals[14], "%d", fs->stats.p_bonehead_hits);
+	sprintf(Multi_pxo_pinfo_vals[14], "%u", fs->stats.p_bonehead_hits);
 
 	// primary friendly hit %
 	memset(Multi_pxo_pinfo_vals[15], 0, 50);
@@ -4568,7 +4567,7 @@ void multi_pxo_pinfo_build_vals()
 
 	// secondary friendly hits
 	memset(Multi_pxo_pinfo_vals[16], 0, 50);
-	sprintf(Multi_pxo_pinfo_vals[16], "%d", fs->stats.s_bonehead_hits);
+	sprintf(Multi_pxo_pinfo_vals[16], "%u", fs->stats.s_bonehead_hits);
 
 	// secondary friendly hit %
 	memset(Multi_pxo_pinfo_vals[17], 0, 50);
@@ -5191,7 +5190,7 @@ void multi_pxo_ban_process()
 	// done downloading - maybe load an image
 	case PXO_BAN_MODE_IMAGES_DONE:
 		// make sure we have a valid filename
-		if ( strlen(Multi_pxo_banner.ban_file) > 0 )
+		if (Multi_pxo_banner.ban_file[0] != '\0')
 			Multi_pxo_banner.ban_bitmap = bm_load(Multi_pxo_banner.ban_file);
 
 		// now we're idle
@@ -5400,7 +5399,7 @@ void multi_pxo_ban_draw()
 void multi_pxo_ban_clicked()
 {
 	// if we have a valid bitmap and URL, launch the URL
-	if((Multi_pxo_banner.ban_bitmap >= 0) && (strlen(Multi_pxo_banner.ban_url) > 0)){
+	if((Multi_pxo_banner.ban_bitmap >= 0) && (Multi_pxo_banner.ban_url[0] != '\0')){
 		multi_pxo_url(Multi_pxo_banner.ban_url);
 	}
 }
