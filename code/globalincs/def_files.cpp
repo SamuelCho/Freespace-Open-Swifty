@@ -37,6 +37,8 @@ extern char* Default_brightpass_fragment_shader;
 extern char* Default_post_fragment_shader;
 extern char* Default_post_vertex_shader;
 extern char* Default_fxaa_prepass_shader;
+extern char* Default_particle_vertex_shader;
+extern char* Default_particle_fragment_shader;
 //**********
 
 //:PART 2:
@@ -59,7 +61,9 @@ def_file Default_files[] =
 	{ "brightpass-f.sdr",		Default_brightpass_fragment_shader},
 	{ "post-f.sdr",				Default_post_fragment_shader},
 	{ "post-v.sdr",				Default_post_vertex_shader},
-	{ "fxaapre-f.sdr",			Default_fxaa_prepass_shader}
+	{ "fxaapre-f.sdr",			Default_fxaa_prepass_shader},
+	{ "soft-v.sdr",				Default_particle_vertex_shader},
+	{ "soft-f.sdr",				Default_particle_fragment_shader}
 };
 
 static int Num_default_files = sizeof(Default_files) / sizeof(def_file);
@@ -999,11 +1003,6 @@ $use only single fov for turrets:		NO								\n\
 ;; allow AI ships to dodge weapons vertically as well as horizontally	\n\
 $allow vertical dodge:	NO												\n\
 																		\n""\
-;; a disam or disable goal will protect a ship globally and purge		\n\
-;; standing attack orders globally. If set to NO, only the ship/wing	\n\
-;; given the order to disarm or disable will be affected.				\n\
-$disarm or disable cause global ai goal effects:	YES					\n\
-																		\n\
 ;; Fixes a bug where AI class is not properly set if set in the mission	\n\
 ;; This should be YES if you want anything in AI.tbl to mean anything	\n\
 $fix AI class bug:	NO													\n\
@@ -1281,6 +1280,9 @@ char *Default_main_fragment_shader =
 "	vec4 lightAmbient = vec4(0.0, 0.0, 0.0, 1.0);\n"
 "	vec4 lightSpecular = vec4(0.0, 0.0, 0.0, 1.0);\n"
 "	vec2 texCoord = gl_TexCoord[0].xy;\n"
+" #ifdef FLAG_SPEC_MAP\n"
+"	vec4 specColour = texture2D(sSpecmap, texCoord);\n"
+" #endif\n"
 " #ifdef FLAG_LIGHT\n"
 "  #ifdef FLAG_NORMAL_MAP\n"
 "	// Normal map - convert from DXT5nm\n"
@@ -1289,6 +1291,8 @@ char *Default_main_fragment_shader =
 "   #ifdef FLAG_ENV_MAP\n"
 "	vec3 envOffset = vec3(0.0);\n"
 "	envOffset.xy = normal.xy;\n"
+"	vec3 envReflectNM = envReflect + envOffset;\n"
+"	vec4 envColour = textureCube(sEnvmap, envReflectNM);\n"
 "   #endif\n"
 "	normal.b = sqrt(1.0 - dot(normal.rg, normal.rg));\n"
 "	normal = tbnMatrix * normal;\n"
@@ -1300,6 +1304,9 @@ char *Default_main_fragment_shader =
 "		normal = tbnMatrix * vec3(0.0, 0.0, 1.0);\n"
 "  #else\n"
 "	vec3 normal = lNormal;\n"
+"   #ifdef FLAG_ENV_MAP\n"
+"	vec4 envColour = textureCube(sEnvmap, envReflect);\n"
+"   #endif\n"
 "  #endif\n"
 "	vec3 lightDir;\n"
 "	lightAmbient = gl_FrontMaterial.emission + (gl_LightModel.ambient * gl_FrontMaterial.ambient);\n"
@@ -1341,11 +1348,12 @@ char *Default_main_fragment_shader =
 "			lightDir = normalize(gl_LightSource[i].position.xyz);\n"
 "			specularIntensity = SPEC_INTENSITY_DIRECTIONAL;\n"
 "		}\n"
+"		vec3 half_vec = normalize(lightDir + eyeDir);\n"
 "		// Ambient and Diffuse\n"
 "		lightAmbient += (gl_FrontLightProduct[i].ambient * attenuation);\n"
 "		lightDiffuse += (gl_FrontLightProduct[i].diffuse * (max(dot(normal, lightDir), 0.0)) * attenuation);\n"
 "		// Specular\n"
-"		float NdotHV = clamp(dot(normal, normalize(eyeDir + lightDir)), 0.0, 1.0);\n"
+"		float NdotHV = clamp(dot(normal, half_vec), 0.0, 1.0);\n"
 "		lightSpecular += ((gl_FrontLightProduct[i].specular * pow(NdotHV, gl_FrontMaterial.shininess)) * attenuation) * specularIntensity;\n"
 "	}\n"
 "	lightAmbientDiffuse = lightAmbient + lightDiffuse;\n"
@@ -1356,8 +1364,8 @@ char *Default_main_fragment_shader =
 " #ifdef FLAG_ANIMATED\n"
 "	vec2 distort = vec2(cos(position.x*position.w*0.005+anim_timer*20.0)*sin(position.y*position.w*0.005),sin(position.x*position.w*0.005+anim_timer*20.0)*cos(position.y*position.w*0.005))*0.03;\n"
 " #endif\n"
-" #ifdef FLAG_DIFFUSE_MAP\n"
 " // Base color\n"
+" #ifdef FLAG_DIFFUSE_MAP\n"
 "  #ifdef FLAG_ANIMATED\n"
 "	vec4 baseColor;\n"
 "	if (effect_num == 2) {\n"
@@ -1374,27 +1382,21 @@ char *Default_main_fragment_shader =
 "	vec4 fragmentColor;\n"
 "	fragmentColor.rgb = baseColor.rgb * max(lightAmbientDiffuse.rgb * AMBIENT_LIGHT_BOOST, gl_LightModel.ambient.rgb - 0.425);\n"
 "	fragmentColor.a = baseColor.a;\n"
-" #ifdef FLAG_SPEC_MAP\n"
 " // Spec color\n"
-"	fragmentColor.rgb += lightSpecular.rgb * (texture2D(sSpecmap, texCoord).rgb * SPECULAR_FACTOR);\n"
+" #ifdef FLAG_SPEC_MAP\n"
+"	fragmentColor.rgb += lightSpecular.rgb * (specColour.rgb * SPECULAR_FACTOR);\n"
 "	fragmentColor.a += (dot(lightSpecular.a, lightSpecular.a) * SPECULAR_ALPHA);\n"
 " #else\n"
 "	fragmentColor.rgb += lightSpecular.rgb * (baseColor.rgb * SPEC_FACTOR_NO_SPEC_MAP);\n"
 " #endif\n"
-" #ifdef FLAG_ENV_MAP\n"
 " // Env color\n"
-"	vec3 envIntensity = (alpha_spec) ? vec3(texture2D(sSpecmap, texCoord).a) : texture2D(sSpecmap, texCoord).rgb;\n"
-"  #ifdef FLAG_NORMAL_MAP\n"
-"	vec3 envReflectNM = envReflect + envOffset;\n"
-"	fragmentColor.a += (dot(textureCube(sEnvmap, envReflectNM).rgb, textureCube(sEnvmap, envReflectNM).rgb) * ENV_ALPHA_FACTOR);\n"
-"	fragmentColor.rgb += textureCube(sEnvmap, envReflectNM).rgb * envIntensity;\n"
-"  #else\n"
-"	fragmentColor.a += (dot(textureCube(sEnvmap, envReflect).rgb, textureCube(sEnvmap, envReflect).rgb) * ENV_ALPHA_FACTOR);\n"
-"	fragmentColor.rgb += textureCube(sEnvmap, envReflect).rgb * envIntensity;\n"
-"  #endif\n"
+" #ifdef FLAG_ENV_MAP\n"
+"	vec3 envIntensity = (alpha_spec) ? vec3(specColour.a) : specColour.rgb;\n"
+"	fragmentColor.a += (dot(envColour.rgb, envColour.rgb) * ENV_ALPHA_FACTOR);\n"
+"	fragmentColor.rgb += envColour.rgb * envIntensity;\n"
 " #endif\n"
-" #ifdef FLAG_GLOW_MAP\n"
 " // Glow color\n"
+" #ifdef FLAG_GLOW_MAP\n"
 "	fragmentColor.rgb += texture2D(sGlowmap, texCoord).rgb * GLOW_MAP_INTENSITY;\n"
 " #endif\n"
 " #ifdef FLAG_FOG\n"
@@ -1655,19 +1657,10 @@ char* Default_fxaa_fragment_shader =
 "	#if (FXAA_GATHER4_ALPHA == 1)\n"
 "		#if (FXAA_DISCARD == 0)\n"
 "			FxaaFloat4 rgbyM = FxaaTexTop(tex, posM);\n"
-"			#if (FXAA_GREEN_AS_LUMA == 0)\n"
-"				#define lumaM rgbyM.w\n"
-"			#else\n"
-"				#define lumaM rgbyM.y\n"
-"			#endif\n"
+"			#define lumaM rgbyM.y\n"
 "		#endif\n"
-"		#if (FXAA_GREEN_AS_LUMA == 0)\n"
-"			FxaaFloat4 luma4A = FxaaTexAlpha4(tex, posM);\n"
-"			FxaaFloat4 luma4B = FxaaTexOffAlpha4(tex, posM, FxaaInt2(-1, -1));\n"
-"		#else\n"
-"			FxaaFloat4 luma4A = FxaaTexGreen4(tex, posM);\n"
-"			FxaaFloat4 luma4B = FxaaTexOffGreen4(tex, posM, FxaaInt2(-1, -1));\n"
-"		#endif\n"
+"		FxaaFloat4 luma4A = FxaaTexAlpha4(tex, posM);\n"
+"		FxaaFloat4 luma4B = FxaaTexOffAlpha4(tex, posM, FxaaInt2(-1, -1));\n"
 "		#if (FXAA_DISCARD == 1)\n"
 "			#define lumaM luma4A.w\n"
 "		#endif\n"
@@ -1679,11 +1672,7 @@ char* Default_fxaa_fragment_shader =
 "		#define lumaW luma4B.x\n"
 "	#else\n"
 "		FxaaFloat4 rgbyM = FxaaTexTop(tex, posM);\n"
-"		#if (FXAA_GREEN_AS_LUMA == 0)\n"
-"			#define lumaM rgbyM.w\n"
-"		#else\n"
-"			#define lumaM rgbyM.y\n"
-"		#endif\n"
+"		#define lumaM rgbyM.w\n"
 "		FxaaFloat lumaS = FxaaLuma(FxaaTexOff(tex, posM, FxaaInt2( 0, 1), fxaaQualityRcpFrame.xy));\n"
 "		FxaaFloat lumaE = FxaaLuma(FxaaTexOff(tex, posM, FxaaInt2( 1, 0), fxaaQualityRcpFrame.xy));\n"
 "		FxaaFloat lumaN = FxaaLuma(FxaaTexOff(tex, posM, FxaaInt2( 0,-1), fxaaQualityRcpFrame.xy));\n"
@@ -2161,3 +2150,94 @@ char* Default_fxaa_prepass_shader =
 "	vec4 color = texture2D(tex, gl_TexCoord[0].xy);\n"
 "	gl_FragColor = vec4(color.rgb, dot(color.rgb, vec3(0.299, 0.587, 0.114)) );\n"
 "}\n";
+
+char* Default_particle_vertex_shader = "\
+attribute float radius_in;								\n\
+														\n\
+varying float radius;									\n\
+														\n\
+void main()												\n\
+{														\n\
+	radius = radius_in;									\n\
+	gl_TexCoord[0] = gl_MultiTexCoord0;					\n\
+	gl_Position = ftransform();							\n\
+	gl_FrontColor = gl_Color;							\n\
+	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);	\n\
+														\n\
+#ifdef  __GLSL_CG_DATA_TYPES							\n\
+	// Check necessary for ATI specific behavior		\n\
+	gl_ClipVertex = (gl_ModelViewMatrix * gl_Vertex);	\n\
+#endif													\n\
+}														\n\
+";
+
+char* Default_particle_fragment_shader = "\
+uniform sampler2D baseMap;		\n\
+uniform sampler2D depthMap;		\n\
+uniform float window_width;		\n\
+uniform float window_height;	\n\
+uniform float nearZ;			\n\
+uniform float farZ;				\n\
+								\n\
+varying float radius;			\n\
+								\n\
+#ifdef FLAG_DISTORTION			\n\
+uniform sampler2D distMap;		\n\
+uniform sampler2D frameBuffer;	\n\
+#endif							\n\
+																			\n\
+void main()																	\n\
+{																			\n\
+	#ifndef FLAG_DISTORTION													\n\
+	vec2 offset = vec2(														\n\
+		radius * abs(0.5 - gl_TexCoord[0].x) * 2.0,							\n\
+		radius * abs(0.5 - gl_TexCoord[0].y) * 2.0							\n\
+	);																		\n\
+																			\n\
+	float offset_len = length(offset);										\n\
+																			\n\
+	if(offset_len > radius)													\n\
+	{																		\n\
+		gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);							\n\
+		return;																\n\
+	}																		\n\
+																			\n\
+	vec2 depthCoord = vec2(													\n\
+		gl_FragCoord.x / window_width,										\n\
+		gl_FragCoord.y / window_height										\n\
+	);																		\n\
+																			\n\
+	vec4 sceneDepth = texture2D(depthMap, depthCoord);						\n\
+																			\n\
+	float sceneDepthLinear = ( 2.0 * farZ * nearZ ) / ( farZ + nearZ - sceneDepth.x * (farZ-nearZ) );	\n\
+	float fragDepthLinear = ( 2.0 * farZ * nearZ ) / ( farZ + nearZ - gl_FragCoord.z * (farZ-nearZ) );	\n\
+																			\n\
+	// assume UV of 0.5, 0.5 is the centroid of this sphere volume			\n\
+	float depthOffset = sqrt(												\n\
+		pow(radius, 2.0) -													\n\
+		pow(offset_len, 2.0)												\n\
+	);																		\n\
+																			\n\
+	float frontDepth = fragDepthLinear - depthOffset;						\n\
+	float backDepth = fragDepthLinear + depthOffset;						\n\
+																			\n\
+	float ds = min(sceneDepthLinear, backDepth) - max(nearZ, frontDepth);	\n\
+																			\n""\
+	vec4 fragmentColor = texture2D(baseMap, gl_TexCoord[0].xy)*gl_Color.a;	\n\
+	fragmentColor = fragmentColor * ( ds / (depthOffset*2.0) );				\n\
+																			\n\
+	gl_FragColor = fragmentColor;											\n\
+	#else																	\n\
+	vec2 depthCoord = vec2(													\n\
+		gl_FragCoord.x / window_width,										\n\
+		gl_FragCoord.y / window_height										\n\
+	);																		\n\
+	vec4 fragmentColor = texture2D(baseMap, gl_TexCoord[0].xy)*gl_Color.a;	\n\
+	vec2 distortion = texture2D(distMap, gl_TexCoord[0].xy).rg;				\n\
+	float alpha = clamp(dot(fragmentColor.rgb,vec3(0.3333))*10.0,0.0,1.0);	\n\
+	distortion = ((distortion - 0.5) * 0.01) * alpha;						\n\
+	gl_FragColor = texture2D(frameBuffer,depthCoord+distortion);			\n\
+	gl_FragColor.a = alpha;													\n\
+	#endif																	\n\
+}																			\n\
+";

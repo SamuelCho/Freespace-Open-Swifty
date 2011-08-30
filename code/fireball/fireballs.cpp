@@ -252,7 +252,7 @@ void fireball_parse_tbl()
 
 	// we've got our list so pass it off for final checking and loading.
 	// we assume that entries in fireball.tbl are in the correct order
-	for (lod = LOD_checker.begin(); lod != LOD_checker.end(); lod++) {
+	for (lod = LOD_checker.begin(); lod != LOD_checker.end(); ++lod) {
 		if ( (i < MAX_FIREBALL_TYPES) && (lod->override < 0) ) {
 			strcpy_s( Fireball_info[i].lod[0].filename, lod->filename );
 			Fireball_info[i].lod_count = lod->num_lods;
@@ -272,7 +272,7 @@ void fireball_parse_tbl()
 	// having to do this twice is less than optimal, but less error prone too.
 	// this handles (and should only have to handle) TBM related entries
 	i = 0;
-	for (lod = LOD_checker.begin(); lod != LOD_checker.end(); lod++) {
+	for (lod = LOD_checker.begin(); lod != LOD_checker.end(); ++lod) {
 		// try entry replacement
 		if ( (lod->override >= 0) && (lod->override < Num_fireball_types) ) {
 			strcpy_s( Fireball_info[lod->override].lod[0].filename, lod->filename );
@@ -409,14 +409,24 @@ void fireball_render(object * obj)
 	switch( fb->fireball_render_type )	{
 
 		case FIREBALL_MEDIUM_EXPLOSION:
-			gr_set_bitmap(Fireballs[num].current_bitmap, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 1.3f );
-			g3_draw_bitmap(&p, fb->orient, obj->radius, TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT );
+			batch_add_bitmap (
+				Fireballs[num].current_bitmap, 
+				TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD, 
+				&p, 
+				fb->orient, 
+				obj->radius
+			);
 			break;
 
 		case FIREBALL_LARGE_EXPLOSION:
 			// Make the big explosions rotate with the viewer.
-			gr_set_bitmap(Fireballs[num].current_bitmap, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 1.3f );
-			g3_draw_rotated_bitmap(&p, (i2fl(fb->orient)*PI)/180.0f, obj->radius, TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT);
+			batch_add_bitmap_rotated ( 
+				Fireballs[num].current_bitmap, 
+				TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD, 
+				&p, 
+				(i2fl(fb->orient)*PI)/180.0f,
+				obj->radius
+			);
 			break;
 
 		case FIREBALL_WARP_EFFECT: {
@@ -958,20 +968,6 @@ int fireball_create( vec3d * pos, int fireball_type, int render_type, int parent
 //	Called at game shutdown to clean up the fireball system
 //
 void fireball_close()
-{
-	if ( !fireballs_inited )
-		return;
-
-	fireball_delete_all();
-}
-
-// -----------------------------------------------------------------
-//	fireball_level_close()
-//
-//	Called when a mission ends... frees up any animations that might
-// be partially played
-//
-void fireball_level_close()
 {
 	if ( !fireballs_inited )
 		return;
