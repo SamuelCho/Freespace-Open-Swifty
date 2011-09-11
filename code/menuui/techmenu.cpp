@@ -614,7 +614,7 @@ void tech_scroll_info_down()
 	if (Text_offset + h / gr_get_font_height() < Text_size) {
 		Text_offset++;
 		gamesnd_play_iface(SND_SCROLL);
-	} else {
+	} else { //-V523
 		gamesnd_play_iface(SND_GENERAL_FAIL);
 	}
 }
@@ -895,33 +895,21 @@ int techroom_button_pressed(int num)
 
 		case SIMULATOR_TAB:
 			fsspeech_stop();
-#if !defined(E3_BUILD) && !defined(PD_BUILD)
 			gamesnd_play_iface(SND_SWITCH_SCREENS);
 			gameseq_post_event(GS_EVENT_SIMULATOR_ROOM);
 			return 1;
-#else
-			return 0;
-#endif
 
 		case CUTSCENES_TAB:
 			fsspeech_stop();
-#if !defined(E3_BUILD) && !defined(PD_BUILD)
 			gamesnd_play_iface(SND_SWITCH_SCREENS);
 			gameseq_post_event(GS_EVENT_GOTO_VIEW_CUTSCENES_SCREEN);
 			return 1;
-#else
-			return 0;
-#endif
 
 		case CREDITS_TAB:
 			fsspeech_stop();
-#if !defined(E3_BUILD) && !defined(PD_BUILD)
 			gamesnd_play_iface(SND_SWITCH_SCREENS);
 			gameseq_post_event(GS_EVENT_CREDITS);
 			return 1;
-#else 
-			return 0;
-#endif
 
 		case PREV_ENTRY_BUTTON:
 			tech_prev_entry();

@@ -311,9 +311,9 @@ void get_join_request(ubyte *data, int *size, join_request *jr)
 
 	GET_DATA(*jr);
 
-	jr->tracker_id = INTEL_INT(jr->tracker_id);
-	jr->player_options.flags = INTEL_INT(jr->player_options.flags);
-	jr->player_options.obj_update_level = INTEL_INT(jr->player_options.obj_update_level);
+	jr->tracker_id = INTEL_INT(jr->tracker_id); //-V570
+	jr->player_options.flags = INTEL_INT(jr->player_options.flags); //-V570
+	jr->player_options.obj_update_level = INTEL_INT(jr->player_options.obj_update_level); //-V570
 
 	*size = offset;
 }
@@ -339,8 +339,8 @@ void get_net_addr(ubyte *data, int *size, net_addr *addr)
 
 	GET_DATA(*addr);
 
-	addr->type = INTEL_INT(addr->type);
-	addr->port = INTEL_SHORT(addr->port);
+	addr->type = INTEL_INT(addr->type); //-V570
+	addr->port = INTEL_SHORT(addr->port); //-V570
 
 	*size = offset;
 }
@@ -2780,7 +2780,7 @@ void send_ship_depart_packet( object *objp, int method )
 
 	BUILD_HEADER(SHIP_DEPART);
 	ADD_USHORT( signature );
-	ADD_SHORT( (short) method); 
+	ADD_INT( method ); 
 	
 	multi_io_send_to_all_reliable(data, packet_size);
 }
@@ -2791,11 +2791,11 @@ void process_ship_depart_packet( ubyte *data, header *hinfo )
 	int offset;
 	object *objp;
 	ushort signature;
-	short s_method; 
+	int s_method; 
 
 	offset = HEADER_LENGTH;
 	GET_USHORT( signature );
-	GET_SHORT(s_method); 
+	GET_INT(s_method); 
 	PACKET_SET_SIZE();
 
 	// find the object which is departing
@@ -4794,9 +4794,6 @@ void process_jump_into_mission_packet(ubyte *data, header *hinfo)
 			send_netplayer_update_packet();
 		}		
 	}
-
-	//extern int Player_multi_died_check;
-	//Player_multi_died_check = -1;
 
 	// recalc all object pairs now	
 	extern void obj_reset_all_collisions();

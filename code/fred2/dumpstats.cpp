@@ -281,7 +281,7 @@ void DumpStats::get_background_stats(CString &buffer)
 		}
 
 		// nebula texture
-		if (strlen(Neb2_texture_name) > 0) {
+		if (strlen(Neb2_texture_name) > 0) { //-V805
 			temp.Format("\tNebula texture: %s\r\n", Neb2_texture_name);
 			buffer += temp;
 		}
@@ -483,7 +483,7 @@ void DumpStats::get_objectives_and_goals(CString &buffer)
 
 	// goals
 	for (i=0; i<Num_goals; i++) {
-		temp.Format("\tGoal: %s, text: ", Mission_goals[i].name, Mission_goals[i].message);
+		temp.Format("\tGoal: %s, text: %s", Mission_goals[i].name, Mission_goals[i].message);
 		buffer += temp;
 
 		switch(Mission_goals[i].type & GOAL_TYPE_MASK) {

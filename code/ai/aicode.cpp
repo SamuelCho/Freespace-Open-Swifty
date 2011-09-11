@@ -1289,8 +1289,8 @@ matrix	objp_orient_copy;
 vel_in_copy = vel_in;
 objp_orient_copy = objp->orient;
 
-vel_in = vel_in_copy;	//	HERE
-objp->orient = objp_orient_copy;
+vel_in = vel_in_copy;	//	HERE //-V587
+objp->orient = objp_orient_copy; //-V587
 #endif
 	if (rvec != NULL) {
 		matrix	out_orient, goal_orient;
@@ -1303,8 +1303,7 @@ objp->orient = objp_orient_copy;
 	}
 #ifndef NDEBUG
 if (!((objp->type == OBJ_WEAPON) && (Weapon_info[Weapons[objp->instance].weapon_info_index].subtype == WP_MISSILE))) {
-	if (delta_time < 0.25f && vm_vec_dot(&objp->orient.vec.fvec, &tvec) < 0.1f)
-		Int3();	//	Get Andsager.  A ship has turned too far in one frame.
+	Assertion(!(delta_time < 0.25f && vm_vec_dot(&objp->orient.vec.fvec, &tvec) < 0.1f), "A ship rotated too far. Offending vessel is %s, please investigate.\n", Ships[objp->instance].ship_name);
 }
 #endif
 
@@ -7364,7 +7363,6 @@ void ai_chase_es(ai_info *aip, ship_info *sip)
 	vec3d	tvec;
 	fix		timeslice;
 	fix		scale;
-	float		bank_override = 0.0f;
 
 	tvec = Pl_objp->pos;
 
@@ -7385,7 +7383,7 @@ void ai_chase_es(ai_info *aip, ship_info *sip)
 		tvec.xyz.y += frand();
 	}
 
-	bank_override = Pl_objp->phys_info.speed;
+	float bank_override = Pl_objp->phys_info.speed;
 
 	ai_turn_towards_vector(&tvec, Pl_objp, flFrametime/2, sip->srotation_time, NULL, NULL, bank_override, 0);
 	accelerate_ship(aip, 1.0f);
@@ -8183,7 +8181,7 @@ void ai_cruiser_chase()
 						// get separation
 						ai_chase_big_get_separations(Pl_objp, En_objp, &temp, &desired_sep, &cur_sep);
 						// and the separation is > 0.9 desired
-						if (cur_sep > 0.9 * desired_sep) {
+						if (cur_sep > (0.9f * desired_sep)) {
 							aip->submode = SM_BIG_PARALLEL;
 							aip->submode_start_time = Missiontime;
 						}
@@ -8199,8 +8197,8 @@ void ai_cruiser_chase()
 					if (vm_vec_dotprod(&En_objp->orient.vec.fvec, &Pl_objp->orient.vec.fvec) > 0) {
 						// get separation
 						ai_chase_big_get_separations(Pl_objp, En_objp, &temp, &desired_sep, &cur_sep);
-						//and the separation is [0.9 to 1.1] desired
-						if ( (cur_sep > 0.9f * desired_sep) ) {
+						// and the separation is > 0.9 desired
+						if (cur_sep > (0.9f * desired_sep)) {
 							aip->submode = SM_BIG_PARALLEL;
 							aip->submode_start_time = Missiontime;
 						}
@@ -8212,8 +8210,8 @@ void ai_cruiser_chase()
 					if (vm_vec_dotprod(&En_objp->orient.vec.fvec, &Pl_objp->orient.vec.fvec) < 0) {
 						// get separation
 						ai_chase_big_get_separations(Pl_objp, En_objp, &temp, &desired_sep, &cur_sep);
-						//and the separation is [0.9 to 1.1] desired
-						if ( (cur_sep > 0.9f * desired_sep) ) {
+						// and the separation is > 0.9 desired
+						if (cur_sep > (0.9f * desired_sep)) {
 							aip->submode = SM_BIG_PARALLEL;
 							aip->submode_start_time = Missiontime;
 						}
@@ -11869,7 +11867,7 @@ int ai_formation()
 		aip->wp_index = laip->wp_index;
 		aip->wp_flags = laip->wp_flags;
 
-		if (aip->wp_index == aip->wp_list->get_waypoints().end())
+		if ((aip->wp_list != NULL) && (aip->wp_index == aip->wp_list->get_waypoints().end()))
 			--aip->wp_index;
 	}
 
@@ -14475,7 +14473,6 @@ void ai_process( object * obj, int ai_index, float frametime )
 	if (rfc == 1) {
 		// Wanderer - sexp based override goes here - only if rfc is valid though
 		ai_control_info_check(obj, aip);
-		
 		vec3d copy_desired_rotvel = obj->phys_info.rotvel;
 		physics_read_flying_controls( &obj->orient, &obj->phys_info, &AI_ci, frametime);
 		// if obj is in formation and not flight leader, don't update rotvel

@@ -118,10 +118,12 @@ int mission_campaign_get_info(char *filename, char *name, int *type, int *max_pl
 	Assert( type != NULL );
 
 	strncpy(fname, filename, MAX_FILENAME_LEN - 1);
-	if ((strlen(fname) < 4) || stricmp(fname + strlen(fname) - 4, FS_CAMPAIGN_FILE_EXT)){
+	int fname_len = strlen(fname);
+	if ((fname_len < 4) || stricmp(fname + fname_len - 4, FS_CAMPAIGN_FILE_EXT)){
 		strcat_s(fname, FS_CAMPAIGN_FILE_EXT);
+		fname_len += 4;
 	}
-	Assert(strlen(fname) < MAX_FILENAME_LEN);
+	Assert(fname_len < MAX_FILENAME_LEN);
 
 	// open localization
 	lcl_ext_open();
@@ -712,8 +714,8 @@ int mission_campaign_load_by_name( char *filename )
 	}
 
 	Num_campaigns = 0;
-	Campaign_file_names[Num_campaigns] = filename;
-	Campaign_names[Num_campaigns] = name;
+	Campaign_file_names[Num_campaigns] = vm_strdup(filename);
+	Campaign_names[Num_campaigns] = vm_strdup(name);
 	Num_campaigns++;
 	mission_campaign_load(filename);		
 	return 0;
@@ -740,7 +742,7 @@ void mission_campaign_savefile_generate_root(char *filename, player *pl)
 {
 	char base[_MAX_FNAME];
 
-	Assert ( strlen(Campaign.filename) != 0 );
+	Assert ( strlen(Campaign.filename) != 0 ); //-V805
 
 	if (pl == NULL) {
 		Assert((Player_num >= 0) && (Player_num < MAX_PLAYERS));
@@ -1107,7 +1109,7 @@ int mission_campaign_savefile_load( char *cfilename, player *pl )
 	int sid = -1, wid = -1;
 	int set_defaults = 1; // should we zero out tech values or not (yes by default)
 
-	Assert ( strlen(cfilename) != 0 );
+	Assert ( strlen(cfilename) != 0 ); //-V805
 
 	if ( !strlen(cfilename) )
 		return 0;
@@ -1332,21 +1334,21 @@ int mission_campaign_savefile_load( char *cfilename, player *pl )
 			}
 
 			// swap values
-			Campaign.missions[num].stats.score = INTEL_INT(Campaign.missions[num].stats.score);
-			Campaign.missions[num].stats.rank = INTEL_INT(Campaign.missions[num].stats.rank);
-			Campaign.missions[num].stats.assists = INTEL_INT(Campaign.missions[num].stats.assists);
-			Campaign.missions[num].stats.kill_count = INTEL_INT(Campaign.missions[num].stats.kill_count);
-			Campaign.missions[num].stats.kill_count_ok = INTEL_INT(Campaign.missions[num].stats.kill_count_ok);
-			Campaign.missions[num].stats.p_shots_fired = INTEL_INT(Campaign.missions[num].stats.p_shots_fired);
-			Campaign.missions[num].stats.s_shots_fired = INTEL_INT(Campaign.missions[num].stats.s_shots_fired);
-			Campaign.missions[num].stats.p_shots_hit = INTEL_INT(Campaign.missions[num].stats.p_shots_hit);
-			Campaign.missions[num].stats.s_shots_hit = INTEL_INT(Campaign.missions[num].stats.s_shots_hit);
-			Campaign.missions[num].stats.p_bonehead_hits = INTEL_INT(Campaign.missions[num].stats.p_bonehead_hits);
-			Campaign.missions[num].stats.s_bonehead_hits = INTEL_INT(Campaign.missions[num].stats.s_bonehead_hits);
-			Campaign.missions[num].stats.bonehead_kills = INTEL_INT(Campaign.missions[num].stats.bonehead_kills);
+			Campaign.missions[num].stats.score = INTEL_INT(Campaign.missions[num].stats.score); //-V570
+			Campaign.missions[num].stats.rank = INTEL_INT(Campaign.missions[num].stats.rank); //-V570
+			Campaign.missions[num].stats.assists = INTEL_INT(Campaign.missions[num].stats.assists); //-V570
+			Campaign.missions[num].stats.kill_count = INTEL_INT(Campaign.missions[num].stats.kill_count); //-V570
+			Campaign.missions[num].stats.kill_count_ok = INTEL_INT(Campaign.missions[num].stats.kill_count_ok); //-V570
+			Campaign.missions[num].stats.p_shots_fired = INTEL_INT(Campaign.missions[num].stats.p_shots_fired); //-V570
+			Campaign.missions[num].stats.s_shots_fired = INTEL_INT(Campaign.missions[num].stats.s_shots_fired); //-V570
+			Campaign.missions[num].stats.p_shots_hit = INTEL_INT(Campaign.missions[num].stats.p_shots_hit); //-V570
+			Campaign.missions[num].stats.s_shots_hit = INTEL_INT(Campaign.missions[num].stats.s_shots_hit); //-V570
+			Campaign.missions[num].stats.p_bonehead_hits = INTEL_INT(Campaign.missions[num].stats.p_bonehead_hits); //-V570
+			Campaign.missions[num].stats.s_bonehead_hits = INTEL_INT(Campaign.missions[num].stats.s_bonehead_hits); //-V570
+			Campaign.missions[num].stats.bonehead_kills = INTEL_INT(Campaign.missions[num].stats.bonehead_kills); //-V570
 
 			for (j=0; j < MAX_MEDALS; j++) {
-				Campaign.missions[num].stats.medals[j] = INTEL_INT(Campaign.missions[num].stats.medals[j]);
+				Campaign.missions[num].stats.medals[j] = INTEL_INT(Campaign.missions[num].stats.medals[j]); //-V570
 			}
 		}
 
@@ -1638,21 +1640,21 @@ int mission_campaign_savefile_load( char *cfilename, player *pl )
 			}
 
 			// swap values
-			Campaign.missions[num].stats.score = INTEL_INT(Campaign.missions[num].stats.score);
-			Campaign.missions[num].stats.rank = INTEL_INT(Campaign.missions[num].stats.rank);
-			Campaign.missions[num].stats.assists = INTEL_INT(Campaign.missions[num].stats.assists);
-			Campaign.missions[num].stats.kill_count = INTEL_INT(Campaign.missions[num].stats.kill_count);
-			Campaign.missions[num].stats.kill_count_ok = INTEL_INT(Campaign.missions[num].stats.kill_count_ok);
-			Campaign.missions[num].stats.p_shots_fired = INTEL_INT(Campaign.missions[num].stats.p_shots_fired);
-			Campaign.missions[num].stats.s_shots_fired = INTEL_INT(Campaign.missions[num].stats.s_shots_fired);
-			Campaign.missions[num].stats.p_shots_hit = INTEL_INT(Campaign.missions[num].stats.p_shots_hit);
-			Campaign.missions[num].stats.s_shots_hit = INTEL_INT(Campaign.missions[num].stats.s_shots_hit);
-			Campaign.missions[num].stats.p_bonehead_hits = INTEL_INT(Campaign.missions[num].stats.p_bonehead_hits);
-			Campaign.missions[num].stats.s_bonehead_hits = INTEL_INT(Campaign.missions[num].stats.s_bonehead_hits);
-			Campaign.missions[num].stats.bonehead_kills = INTEL_INT(Campaign.missions[num].stats.bonehead_kills);
+			Campaign.missions[num].stats.score = INTEL_INT(Campaign.missions[num].stats.score); //-V570
+			Campaign.missions[num].stats.rank = INTEL_INT(Campaign.missions[num].stats.rank); //-V570
+			Campaign.missions[num].stats.assists = INTEL_INT(Campaign.missions[num].stats.assists); //-V570
+			Campaign.missions[num].stats.kill_count = INTEL_INT(Campaign.missions[num].stats.kill_count); //-V570
+			Campaign.missions[num].stats.kill_count_ok = INTEL_INT(Campaign.missions[num].stats.kill_count_ok); //-V570
+			Campaign.missions[num].stats.p_shots_fired = INTEL_INT(Campaign.missions[num].stats.p_shots_fired); //-V570
+			Campaign.missions[num].stats.s_shots_fired = INTEL_INT(Campaign.missions[num].stats.s_shots_fired); //-V570
+			Campaign.missions[num].stats.p_shots_hit = INTEL_INT(Campaign.missions[num].stats.p_shots_hit); //-V570
+			Campaign.missions[num].stats.s_shots_hit = INTEL_INT(Campaign.missions[num].stats.s_shots_hit); //-V570
+			Campaign.missions[num].stats.p_bonehead_hits = INTEL_INT(Campaign.missions[num].stats.p_bonehead_hits); //-V570
+			Campaign.missions[num].stats.s_bonehead_hits = INTEL_INT(Campaign.missions[num].stats.s_bonehead_hits); //-V570
+			Campaign.missions[num].stats.bonehead_kills = INTEL_INT(Campaign.missions[num].stats.bonehead_kills); //-V570
 
 			for (j=0; j < MAX_MEDALS; j++) {
-				Campaign.missions[num].stats.medals[j] = INTEL_INT(Campaign.missions[num].stats.medals[j]);
+				Campaign.missions[num].stats.medals[j] = INTEL_INT(Campaign.missions[num].stats.medals[j]); //-V570
 			}
 		}
 
@@ -2523,11 +2525,7 @@ void mission_campaign_end_do()
 		common_maybe_play_cutscene(MOVIE_END_CAMPAIGN);
 	}
 
-#ifdef FS2_DEMO
-	gameseq_post_event( GS_EVENT_END_DEMO );
-#else	
 	gameseq_post_event( GS_EVENT_MAIN_MENU );
-#endif
 }
 
 void mission_campaign_end_close()

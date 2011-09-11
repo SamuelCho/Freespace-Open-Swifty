@@ -962,17 +962,14 @@ color HUD_color_homing_indicator;
 
 void hud_make_shader(shader *sh, ubyte r, ubyte g, ubyte b, float dimmer = 1000.0f)
 {
-//	float rf,gf,bf,cf;
-	ubyte R = 255, G = 255, B = 255, A = 255;
-
 	// The m matrix converts all colors to shades of green
 	//float tmp = 16.0f*(0.0015625f * i2fl(HUD_color_alpha+1.0f));
 	float tmp = 0.025f * i2fl(HUD_color_alpha+1.0f);
 
-	R = ubyte(r * tmp);
-	G = ubyte(r * tmp);
-	B = ubyte(r * tmp);
-	A = ubyte((float(r) / dimmer)*(i2fl(HUD_color_alpha) / 15.0f) * 255.0f);
+	ubyte R = ubyte(r * tmp);
+	ubyte G = ubyte(r * tmp);
+	ubyte B = ubyte(r * tmp);
+	ubyte A = ubyte((float(r) / dimmer)*(i2fl(HUD_color_alpha) / 15.0f) * 255.0f);
 
 	gr_create_shader( sh, R, G, B, A );
 }
@@ -1909,17 +1906,17 @@ void hud_target_auto_target_next()
 	}
 
 	// if none, try targeting closest hostile fighter/bomber
-	if ( Player_ai->target_objnum == -1 ) {
+	if ( Player_ai->target_objnum == -1 ) { //-V581
 		hud_target_closest(valid_team_mask, -1, FALSE, TRUE);
 	}
 
 	// No fighter/bombers exists, so go ahead an target the closest hostile
-	if ( Player_ai->target_objnum == -1 ) {
+	if ( Player_ai->target_objnum == -1 ) { //-V581
 		hud_target_closest(valid_team_mask, -1, FALSE);
 	}
 
 	// um, ok.  Try targeting asteroids that are on a collision course for an escort ship
-	if ( Player_ai->target_objnum == -1 ) {
+	if ( Player_ai->target_objnum == -1 ) { //-V581
 		asteroid_target_closest_danger();
 	}
 }
@@ -2574,7 +2571,7 @@ void hud_target_subsystem_in_reticle()
 		hud_target_in_reticle_old();
 	}
 
-	if ( Player_ai->target_objnum == -1) {
+	if ( Player_ai->target_objnum == -1) { //-V581
 		snd_play( &Snds[SND_TARGET_FAIL]);
 		return;
 	}
@@ -2722,10 +2719,11 @@ void hud_tri(float x1,float y1,float x2,float y2,float x3,float y3)
 	for (i=0; i<3; i++ )	
 		vertlist[i] = &verts[i];
 
-	verts[0].sx = x1;	verts[0].sy = y1;
-	verts[0].sw = 0.0f;
-	verts[0].u = 0.0f;
-	verts[0].v = 0.0f;
+	verts[0].screen.xyw.x = x1;
+	verts[0].screen.xyw.y = y1;
+	verts[0].screen.xyw.w = 0.0f;
+	verts[0].texture_position.u = 0.0f;
+	verts[0].texture_position.v = 0.0f;
 	verts[0].flags = PF_PROJECTED;
 	verts[0].codes = 0;
 	verts[0].r = (ubyte)gr_screen.current_color.red;
@@ -2733,10 +2731,11 @@ void hud_tri(float x1,float y1,float x2,float y2,float x3,float y3)
 	verts[0].b = (ubyte)gr_screen.current_color.blue;
 	verts[0].a = (ubyte)gr_screen.current_color.alpha;
 
-	verts[1].sx = x2;	verts[1].sy = y2;
-	verts[1].sw = 0.0f;
-	verts[1].u = 0.0f;
-	verts[1].v = 0.0f;
+	verts[1].screen.xyw.x = x2;	
+	verts[1].screen.xyw.y = y2;
+	verts[1].screen.xyw.w = 0.0f;
+	verts[1].texture_position.u = 0.0f;
+	verts[1].texture_position.v = 0.0f;
 	verts[1].flags = PF_PROJECTED;
 	verts[1].codes = 0;
 	verts[1].r = (ubyte)gr_screen.current_color.red;
@@ -2744,10 +2743,11 @@ void hud_tri(float x1,float y1,float x2,float y2,float x3,float y3)
 	verts[1].b = (ubyte)gr_screen.current_color.blue;
 	verts[1].a = (ubyte)gr_screen.current_color.alpha;
 
-	verts[2].sx = x3;	verts[2].sy = y3;
-	verts[2].sw = 0.0f;
-	verts[2].u = 0.0f;
-	verts[2].v = 0.0f;
+	verts[2].screen.xyw.x = x3;
+	verts[2].screen.xyw.y = y3;
+	verts[2].screen.xyw.w = 0.0f;
+	verts[2].texture_position.u = 0.0f;
+	verts[2].texture_position.v = 0.0f;
 	verts[2].flags = PF_PROJECTED;
 	verts[2].codes = 0;
 	verts[2].r = (ubyte)gr_screen.current_color.red;
@@ -2756,7 +2756,7 @@ void hud_tri(float x1,float y1,float x2,float y2,float x3,float y3)
 	verts[2].a = (ubyte)gr_screen.current_color.alpha;
 
 	for (i=0; i<3; i++)
-		gr_resize_screen_posf(&verts[i].sx, &verts[i].sy);
+		gr_resize_screen_posf(&verts[i].screen.xyw.x, &verts[i].screen.xyw.y);
 
 	uint saved_mode = gr_zbuffer_get();
 	int cull = gr_set_cull(0);
@@ -2902,8 +2902,8 @@ void HudGaugeReticleTriangle::renderTriangle(vec3d *hostile_pos, int aspect_flag
 		if (!(hostile_vertex.flags & PF_OVERFLOW)) {  // make sure point projected
 			float mag_squared;
 
-			projected_x = hostile_vertex.sx;
-			projected_y = hostile_vertex.sy;
+			projected_x = hostile_vertex.screen.xyw.x;
+			projected_y = hostile_vertex.screen.xyw.y;
 
 			gr_set_screen_scale(base_w, base_h);
 			gr_unsize_screen_posf( &projected_x, &projected_x );
@@ -2928,10 +2928,10 @@ void HudGaugeReticleTriangle::renderTriangle(vec3d *hostile_pos, int aspect_flag
 	gr_resize_screen_pos(&HUD_nose_scaled_x, &HUD_nose_scaled_y);
 
 	gr_set_screen_scale(base_w, base_h);
-	gr_unsize_screen_posf( &hostile_vertex.x, &hostile_vertex.y );
+	gr_unsize_screen_posf( &hostile_vertex.world.xyz.x, &hostile_vertex.world.xyz.y );
 	gr_reset_screen_scale();
 
-	ang = atan2_safe(hostile_vertex.y,hostile_vertex.x);
+	ang = atan2_safe(hostile_vertex.world.xyz.y,hostile_vertex.world.xyz.x);
 	sin_ang=(float)sin(ang);
 	cos_ang=(float)cos(ang);
 	
@@ -3382,8 +3382,8 @@ void hud_show_brackets(object *targetp, vertex *projected_v)
 				vertex vtx;
 				g3_rotate_vertex(&vtx,&targetp->pos);
 				g3_project_vertex(&vtx);
-				x1 = x2 = (int) vtx.sx;
-				y1 = y2 = (int) vtx.sy;
+				x1 = x2 = (int) vtx.screen.xyw.x;
+				y1 = y2 = (int) vtx.screen.xyw.y;
 			}
 
 			break;
@@ -3885,8 +3885,8 @@ void HudGaugeLeadIndicator::renderIndicator(int frame_offset, object *targetp, v
 			}
 
 			if ( Lead_indicator_gauge.first_frame + frame_offset >= 0 ) {
-				sx = fl2i(lead_target_vertex.sx);
-				sy = fl2i(lead_target_vertex.sy);
+				sx = fl2i(lead_target_vertex.screen.xyw.x);
+				sy = fl2i(lead_target_vertex.screen.xyw.y);
 
 				unsize(&sx, &sy);
 				renderBitmap(Lead_indicator_gauge.first_frame + frame_offset, fl2i(sx - Lead_indicator_half[0]),  fl2i(sy - Lead_indicator_half[1]));
@@ -4138,8 +4138,8 @@ void HudGaugeLeadSight::renderSight(int frame_offset, vec3d *target_pos, vec3d *
 	if (lead_target_vertex.flags & PF_OVERFLOW) 
 		return;
 
-	target_lead_sx = lead_target_vertex.sx;
-	target_lead_sy = lead_target_vertex.sy; 
+	target_lead_sx = lead_target_vertex.screen.xyw.x;
+	target_lead_sy = lead_target_vertex.screen.xyw.y; 
 
 	// now see if the target is on screen
 	g3_rotate_vertex(&target_vertex, target_pos);
@@ -4152,8 +4152,8 @@ void HudGaugeLeadSight::renderSight(int frame_offset, vec3d *target_pos, vec3d *
 	if (target_vertex.flags & PF_OVERFLOW) 
 		return;
 
-	target_sx = target_vertex.sx;
-	target_sy = target_vertex.sy;
+	target_sx = target_vertex.screen.xyw.x;
+	target_sy = target_vertex.screen.xyw.y;
 
 	// render the lead sight
 	if ( Lead_sight.first_frame >= 0 ) {
@@ -4548,8 +4548,8 @@ void hud_draw_offscreen_indicator(color* clr, vertex* target_point, vec3d *tpos,
 	half_triangle_sep = 0.5f * triangle_sep;
 	half_gauge_length = half_triangle_sep + Offscreen_tri_base[gr_screen.res];
 
-	target_x = target_point->x;
-	target_y = target_point->y;
+	target_x = target_point->world.xyz.x;
+	target_y = target_point->world.xyz.y;
 
 	// We need to find the screen (x,y) for where to draw the offscreen indicator
 	//
@@ -4589,8 +4589,8 @@ void hud_draw_offscreen_indicator(color* clr, vertex* target_point, vec3d *tpos,
 	if (eye_vertex->flags & PF_TEMP_POINT)
 		free_temp_point(eye_vertex);
 
-	xpos = eye_vertex->sx;
-	ypos = eye_vertex->sy;
+	xpos = eye_vertex->screen.xyw.x;
+	ypos = eye_vertex->screen.xyw.y;
 
 	// we need it unsized here and it will be fixed when things are acutally drawn
 	gr_unsize_screen_posf(&xpos, &ypos);
@@ -6517,8 +6517,8 @@ void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tp
 	half_triangle_sep = 0.5f * triangle_sep;
 	half_gauge_length = half_triangle_sep + Offscreen_tri_base;
 
-	target_x = target_point->x;
-	target_y = target_point->y;
+	target_x = target_point->world.xyz.x;
+	target_y = target_point->world.xyz.y;
 
 	// We need to find the screen (x,y) for where to draw the offscreen indicator
 	//
@@ -6558,8 +6558,8 @@ void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tp
 	if (eye_vertex->flags & PF_TEMP_POINT)
 		free_temp_point(eye_vertex);
 
-	xpos = eye_vertex->sx;
-	ypos = eye_vertex->sy;
+	xpos = eye_vertex->screen.xyw.x;
+	ypos = eye_vertex->screen.xyw.y;
 
 	// we need it unsized here and it will be fixed when things are acutally drawn
 	gr_unsize_screen_posf(&xpos, &ypos);

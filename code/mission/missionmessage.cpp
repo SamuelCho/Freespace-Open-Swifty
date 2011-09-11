@@ -25,7 +25,6 @@
 #include "ship/subsysdamage.h"
 #include "weapon/emp.h"
 #include "localization/localize.h"
-#include "demo/demo.h"
 #include "hud/hudconfig.h"
 #include "sound/fsspeech.h"
 #include "species_defs/species_defs.h"
@@ -104,13 +103,8 @@ SCP_vector<message_extra> Message_waves;
 
 #define MAX_PLAYING_MESSAGES		2
 
-#ifdef FS2_DEMO
-	#define MAX_WINGMAN_HEADS			1
-	#define MAX_COMMAND_HEADS			1
-#else
 #define MAX_WINGMAN_HEADS			2
 #define MAX_COMMAND_HEADS			3
-#endif
 
 //XSTR:OFF
 #define HEAD_PREFIX_STRING			"head-"
@@ -1046,7 +1040,7 @@ void message_play_anim( message_q *q )
 {
 	message_extra	*anim_info;
 	int				is_death_scream=0, persona_index=-1, rand_index=0;
-	char				ani_name[MAX_FILENAME_LEN], *p;
+	char				ani_name[MAX_FILENAME_LEN], temp[MAX_FILENAME_LEN], *p;
 	MissionMessage	*m;
 
 	// don't even bother with this stuff if the gauge is disabled - taylor
@@ -1099,7 +1093,8 @@ void message_play_anim( message_q *q )
 				} else {
 					rand_index = ((int) Missiontime % MAX_WINGMAN_HEADS);
 				}
-				sprintf(ani_name, "%s%c", ani_name, 'a'+rand_index);
+				strcpy_s(temp, ani_name);
+				sprintf(ani_name, "%s%c", temp, 'a'+rand_index);
 				subhead_selected = TRUE;
 			} else if ( Personas[persona_index].flags & (PERSONA_FLAG_COMMAND | PERSONA_FLAG_LARGE) ) {
 				// get a random head
@@ -1112,7 +1107,8 @@ void message_play_anim( message_q *q )
 					rand_index = ((int) Missiontime % MAX_COMMAND_HEADS);
 				}
 
-				sprintf(ani_name, "%s%c", ani_name, 'a'+rand_index);
+				strcpy_s(temp, ani_name);
+				sprintf(ani_name, "%s%c", temp, 'a'+rand_index);
 				subhead_selected = TRUE;
 			} else {
 				mprintf(("message '%s' uses an unrecognized persona type\n", m->name));
@@ -1122,7 +1118,8 @@ void message_play_anim( message_q *q )
 		if (!subhead_selected) {
 			// choose between a and b
 			rand_index = ((int) Missiontime % MAX_WINGMAN_HEADS);
-			sprintf(ani_name, "%s%c", ani_name, 'a'+rand_index);
+			strcpy_s(temp, ani_name);
+			sprintf(ani_name, "%s%c", temp, 'a'+rand_index);
 			mprintf(("message '%s' with invalid head.  Fix by assigning persona to the message.\n", m->name));
 		}
 		nprintf(("Messaging", "playing head %s for %s\n", ani_name, q->who_from));
@@ -1437,9 +1434,7 @@ void message_queue_process()
 	}
 
 	// play animation for head
-	#ifndef DEMO // do we want this for FS2_DEMO
-		message_play_anim(q);
-	#endif
+	message_play_anim(q);
 	
 	// distort the message if comms system is damaged
 	message_maybe_distort_text(buf);
@@ -1764,11 +1759,6 @@ void message_send_unique_to_player( char *id, void *data, int m_source, int prio
 				message_queue_message( i, priority, MESSAGE_TIME_ANYTIME, who_from, source, group, delay );
 			}
 
-			// record to the demo if necessary
-			if(Game_mode & GM_DEMO_RECORD){
-				demo_POST_unique_message(id, who_from, m_source, priority);
-			}
-
 			// send a message packet to a player if destined for everyone or only a specific person
 			if ( MULTIPLAYER_MASTER ){
 				send_mission_message_packet( i, who_from, priority, MESSAGE_TIME_SOON, source, -1, -1, -1, delay);
@@ -1950,11 +1940,6 @@ void message_send_builtin_to_player( int type, ship *shipp, int priority, int ti
 		// if this filter matches mine
 		if( (multi_team_filter < 0) || !(Netgame.type_flags & NG_TYPE_TEAM) || ((Net_player != NULL) && (Net_player->p_info.team == multi_team_filter)) ){
 			message_queue_message( message_index, priority, timing, who_from, source, group, delay, type );
-
-			// post a builtin message
-			if(Game_mode & GM_DEMO_RECORD){
-				demo_POST_builtin_message(type, shipp, priority, timing);
-			}
 		}
 	}
 
