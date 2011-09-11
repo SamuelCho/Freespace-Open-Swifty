@@ -172,7 +172,7 @@
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE|Win32'">$(Configuration)\$(ProjectName)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE|Win32'">true</LinkIncremental>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE2|Win32'">D:\Freespace2\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE2|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE2|Win32'">$(Configuration)\$(ProjectName)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE2|Win32'">true</LinkIncremental>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug SSE|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
