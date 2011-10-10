@@ -169,7 +169,7 @@ flag_def_list Armor_flags[] = {
 	{ "ignore subsystem armor",		SAF_IGNORE_SS_ARMOR,	0 }
 };
 
-int Num_armor_flags = sizeof(Armor_flags)/sizeof(flag_def_list);
+const int Num_armor_flags = sizeof(Armor_flags)/sizeof(flag_def_list);
 
 flag_def_list Man_types[] = {
 	{ "Bank right",		MT_BANK_RIGHT,	0 },
@@ -186,7 +186,7 @@ flag_def_list Man_types[] = {
 	{ "Reverse",		MT_REVERSE,		0 }
 };
 
-int Num_man_types = sizeof(Man_types)/sizeof(flag_def_list);
+const int Num_man_types = sizeof(Man_types)/sizeof(flag_def_list);
 
 // Goober5000 - I figured we should keep this separate
 // from Comm_orders, considering how I redid it :p
@@ -220,8 +220,9 @@ flag_def_list Player_orders[] = {
 	{ "keep safe dist",		KEEP_SAFE_DIST_ITEM,	0 }
 };
 
-int Num_player_orders = sizeof(Player_orders)/sizeof(flag_def_list);
+const int Num_player_orders = sizeof(Player_orders)/sizeof(flag_def_list);
 
+// Use the last parameter here to tell the parser whether to stuff the flag into flags or flags2
 flag_def_list Subsystem_flags[] = {
 	{ "untargetable",			MSS_FLAG_UNTARGETABLE,		0 },
 	{ "carry no damage",		MSS_FLAG_CARRY_NO_DAMAGE,	0 },
@@ -245,9 +246,10 @@ flag_def_list Subsystem_flags[] = {
 	{ "starts locked",          MSS_FLAG_TURRET_LOCKED,     0 },
 	{ "no aggregate",			MSS_FLAG_NO_AGGREGATE,		0 },
 	{ "wait for animation",     MSS_FLAG_TURRET_ANIM_WAIT,  0 },
+	{ "play fire sound for player", MSS_FLAG2_PLAYER_TURRET_SOUND, 1}
 };
 
-int Num_subsystem_flags = sizeof(Subsystem_flags)/sizeof(flag_def_list);
+const int Num_subsystem_flags = sizeof(Subsystem_flags)/sizeof(flag_def_list);
 
 
 // NOTE: a var of:
@@ -294,6 +296,7 @@ flag_def_list Ship_flags[] = {
 	{ "no primary linking",			SIF2_NO_PRIMARY_LINKING,	1 },
 	{ "no pain flash",				SIF2_NO_PAIN_FLASH,			1 },
 	{ "no ets",						SIF2_NO_ETS,				1 },
+	{ "no lighting",				SIF2_NO_LIGHTING,			1 },
 
 	// to keep things clean, obsolete options go last
 	{ "ballistic primaries",		-1,		255 }
@@ -314,14 +317,14 @@ flag_def_list ai_tgt_objects[] = {
 	{ "weapon",		OBJ_WEAPON,		0 }
 };
 
-int num_ai_tgt_objects = sizeof(ai_tgt_objects) / sizeof(flag_def_list);
+const int num_ai_tgt_objects = sizeof(ai_tgt_objects) / sizeof(flag_def_list);
 
 flag_def_list ai_tgt_obj_flags[] = {
 	{ "no shields",			OF_NO_SHIELDS,			0 },
 	{ "targetable as bomb",	OF_TARGETABLE_AS_BOMB,	0 }
 };
 
-int num_ai_tgt_obj_flags = sizeof(ai_tgt_obj_flags) / sizeof(flag_def_list);
+const int num_ai_tgt_obj_flags = sizeof(ai_tgt_obj_flags) / sizeof(flag_def_list);
 
 flag_def_list ai_tgt_ship_flags[] = {
 	{ "afterburners",	SIF_AFTERBURNER,	0 },
@@ -329,7 +332,7 @@ flag_def_list ai_tgt_ship_flags[] = {
 	{ "has awacs",		SIF_HAS_AWACS,		0 }
 };
 
-int num_ai_tgt_ship_flags = sizeof(ai_tgt_ship_flags) / sizeof(flag_def_list);
+const int num_ai_tgt_ship_flags = sizeof(ai_tgt_ship_flags) / sizeof(flag_def_list);
 
 flag_def_list ai_tgt_weapon_flags[] = {
 	{ "bomb",				WIF_BOMB,				0 },
@@ -347,7 +350,7 @@ flag_def_list ai_tgt_weapon_flags[] = {
 	{ "capital+",			WIF2_CAPITAL_PLUS,		1 }
 };
 
-int num_ai_tgt_weapon_flags = sizeof(ai_tgt_weapon_flags) / sizeof(flag_def_list);
+const int num_ai_tgt_weapon_flags = sizeof(ai_tgt_weapon_flags) / sizeof(flag_def_list);
 
 SCP_vector <ai_target_priority> Ai_tp_list;
 
@@ -814,10 +817,11 @@ void init_ship_entry(ship_info *sip)
 	
 	vm_vec_zero(&sip->afterburner_max_vel);
 	sip->afterburner_forward_accel = 0.0f;
+	sip->afterburner_max_reverse_vel = 0.0f;
+	sip->afterburner_reverse_accel = 0.0f;
 	sip->afterburner_fuel_capacity = 0.0f;
 	sip->afterburner_burn_rate = 0.0f;
 	sip->afterburner_recover_rate = 0.0f;
-	sip->afterburner_max_reverse_vel = 0.0f;
 
 	generic_bitmap_init(&sip->afterburner_trail, NULL);
 	sip->afterburner_trail_width_factor = 1.0f;
@@ -859,6 +863,10 @@ void init_ship_entry(ship_info *sip)
 	sip->thruster02_glow_rad_factor = 1.0f;
 	sip->thruster03_glow_rad_factor = 1.0f;
 	sip->thruster02_glow_len_factor = 1.0f;
+	sip->thruster_dist_len_factor = 2.0f;
+	sip->thruster_dist_rad_factor = 2.0f;
+
+	sip->draw_distortion = true;
 
 	sip->splodeing_texture = -1;
 	strcpy_s(sip->splodeing_texture_name, "boom");
@@ -952,6 +960,15 @@ void init_ship_entry(ship_info *sip)
 	sip->pathMetadata.clear();
 
 	sip->selection_effect = Default_ship_select_effect;
+	
+	sip->engine_snd_cockpit = SND_ENGINE;
+	sip->full_throttle_snd = SND_FULL_THROTTLE;
+	sip->zero_throttle_snd = SND_ZERO_THROTTLE;
+	sip->throttle_up_snd = SND_THROTTLE_UP;
+	sip->throttle_down_snd = SND_THROTTLE_DOWN;
+	sip->afterburner_engage_snd = SND_ABURN_ENGAGE;
+	sip->afterburner_loop_snd = SND_ABURN_LOOP;
+	sip->afterburner_fail_snd = SND_ABURN_FAIL;
 }
 
 /**
@@ -2623,6 +2640,31 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 
 	//Parse optional sound to be used for end of a glide
 	parse_sound("$GlideEndSnd:", &sip->glide_end_snd, sip->name);
+	
+	//Parse optional sound to be used for looping engine sound heard in the cockpit
+	parse_sound("$CockpitEngineSnd:", &sip->engine_snd_cockpit, sip->name);
+
+	//Parse optional sound to be used for the sound heard when setting throttle to full power
+	parse_sound("$FullThrottleSnd:", &sip->full_throttle_snd, sip->name);
+
+	//Parse optional sound to be used for the sound heard when setting throttle to zero power
+	parse_sound("$ZeroThrottleSnd:", &sip->full_throttle_snd, sip->name);
+
+	//Parse optional sound to be used for the sound heard when increasing throttle power by 1/3
+	parse_sound("$ThrottleUpSnd:", &sip->throttle_up_snd, sip->name);
+
+	//Parse optional sound to be used for the sound heard when decreasing throttle power by 1/3
+	parse_sound("$ThrottleDownSnd:", &sip->throttle_down_snd, sip->name);
+
+	//Parse optional sound to be used for the looping sound heard when the afterburner is active
+	parse_sound("$AfterburnerSnd:", &sip->afterburner_loop_snd, sip->name);
+
+	//Parse optional sound to be used for the sound heard when the afterburner is engaged
+	parse_sound("$AfterburnerEngageSnd:", &sip->afterburner_engage_snd, sip->name);
+
+	//Parse optional sound to be used for the sound heard when the activation of the afterburner failed
+	parse_sound("$AfterburnerFailedSnd:", &sip->afterburner_fail_snd, sip->name);
+
 
 	if(optional_string("$Closeup_pos:"))
 	{
@@ -2688,6 +2730,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		sip->thruster_glow_info = species->thruster_info.glow;
 		sip->thruster_secondary_glow_info = species->thruster_secondary_glow_info;
 		sip->thruster_tertiary_glow_info = species->thruster_tertiary_glow_info;
+		sip->thruster_distortion_info = species->thruster_distortion_info;
 	}
 
 	if ( optional_string("$Thruster Normal Flame:") ) {
@@ -2769,6 +2812,33 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 
 	if ( optional_string("$Thruster03 Radius factor:") ) {
 		stuff_float(&sip->thruster03_glow_rad_factor);
+	}
+
+	// Valathil - Custom Thruster Distortion
+	if ( optional_string("$Thruster Bitmap Distortion:") ) {
+		stuff_string( name_tmp, F_NAME, sizeof(name_tmp) );
+
+		if ( VALID_FNAME(name_tmp) )
+			generic_bitmap_init( &sip->thruster_distortion_info.normal, name_tmp );
+	}
+
+	if ( optional_string("$Thruster Bitmap Distortion a:") ) {
+		stuff_string( name_tmp, F_NAME, sizeof(name_tmp) );
+
+		if ( VALID_FNAME(name_tmp) )
+			generic_bitmap_init( &sip->thruster_distortion_info.afterburn, name_tmp );
+	}
+
+	if ( optional_string("$Thruster Distortion Radius factor:") ) {
+		stuff_float(&sip->thruster_dist_rad_factor);
+	}
+
+	if ( optional_string("$Thruster Distortion Length factor:") ) {
+		stuff_float(&sip->thruster_dist_len_factor);
+	}
+
+	if ( optional_string("$Thruster Distortion:") ) {
+		stuff_boolean(&sip->draw_distortion);
 	}
 
 	while ( optional_string("$Thruster Particles:") ) {
@@ -3069,6 +3139,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		{
 			float	turning_rate;
 			float	percentage_of_hits;
+			bool turret_has_base_fov = false;
 			model_subsystem *sp = NULL;			// to append on the ships list of subsystems
 			
 			int sfo_return;
@@ -3120,6 +3191,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 				sp->turret_base_rotation_snd_mult = 1.0f;
 				
 				sp->flags = 0;
+				sp->flags2 = 0;
 				
 				sp->n_triggers = 0;
 				sp->triggers = NULL;
@@ -3261,7 +3333,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 				CAP(value, 0, 359);
 				float angle = ANG_TO_RAD((float) value)/2.0f;
 				sp->turret_y_fov = (float)cos(angle);
-				sp->flags |= MSS_FLAG_TURRET_ALT_MATH;
+				turret_has_base_fov = true;
 			}
 
 			if (optional_string("$Turret Reset Delay:"))
@@ -3335,12 +3407,43 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 			}
 
 			if (optional_string("$Flags:")) {
-				parse_string_flag_list((int*)&sp->flags, Subsystem_flags, Num_subsystem_flags);
+				char flag_strings[Num_subsystem_flags][NAME_LENGTH];
+				int num_strings = stuff_string_list(flag_strings, NUM_SUBSYSTEM_FLAGS);
+
+				if (!optional_string("+noreplace")) {
+					// clear flags since we might have a modular table
+					// clear only those which are actually set in the flags
+					sp->flags = 0;
+					sp->flags2 = 0;
+				}
+
+				for (i = 0; i < num_strings; i++)
+				{
+
+					bool flag_found = false;
+					// check various subsystem flags
+					for (int idx = 0; idx < Num_subsystem_flags; idx++) {
+						if ( !stricmp(Subsystem_flags[idx].name, flag_strings[i]) ) {
+							flag_found = true;
+							
+							if (Subsystem_flags[idx].var == 0)
+								sp->flags |= Subsystem_flags[idx].def;
+							else if (Subsystem_flags[idx].var == 1)
+								sp->flags2 |= Subsystem_flags[idx].def;
+						}
+					}
+
+					if ( !flag_found )
+						Warning(LOCATION, "Bogus string in subsystem flags: %s\n", flag_strings[i]);
+				}
 
 				//If we've set any subsystem as landable, set a ship-info flag as a shortcut for later
 				if (sp->flags & MSS_FLAG_ALLOW_LANDING)
 					sip->flags2 |= SIF2_ALLOW_LANDINGS;
 			}
+
+			if (turret_has_base_fov)
+				sp->flags |= MSS_FLAG_TURRET_ALT_MATH;
 
 			if (optional_string("+non-targetable")) {
 				Warning(LOCATION, "Grammar error in table file.  Please change \"+non-targetable\" to \"+untargetable\".");
@@ -5134,6 +5237,8 @@ int subsys_set(int objnum, int ignore_subsys_info)
 			ship_system->flags |= SSF_NO_AGGREGATE;
 		if (model_system->flags & MSS_FLAG_ROTATES)
 			ship_system->flags |= SSF_ROTATES;
+		if (model_system->flags2 & MSS_FLAG2_PLAYER_TURRET_SOUND)
+			ship_system->flags |= SSF_PLAY_SOUND_FOR_PLAYER;
 
 		ship_system->turn_rate = model_system->turn_rate;
 
@@ -5777,6 +5882,7 @@ void ship_render(object * obj)
 				mst.primary_glow_bitmap = shipp->thruster_glow_bitmap;
 				mst.secondary_glow_bitmap = shipp->thruster_secondary_glow_bitmap;
 				mst.tertiary_glow_bitmap = shipp->thruster_tertiary_glow_bitmap;
+				mst.distortion_bitmap = shipp->thruster_distortion_bitmap;
 
 				mst.use_ab = (obj->phys_info.flags & PF_AFTERBURNER_ON) || (obj->phys_info.flags & PF_BOOSTER_ON);
 				mst.glow_noise = shipp->thruster_glow_noise;
@@ -5786,6 +5892,10 @@ void ship_render(object * obj)
 				mst.secondary_glow_rad_factor = sip->thruster02_glow_rad_factor;
 				mst.tertiary_glow_rad_factor = sip->thruster03_glow_rad_factor;
 				mst.glow_length_factor = sip->thruster02_glow_len_factor;
+				mst.distortion_length_factor = sip->thruster_dist_len_factor;
+				mst.distortion_rad_factor = sip->thruster_dist_rad_factor;
+
+				mst.draw_distortion = sip->draw_distortion;
 
 				model_set_thrust(sip->model_num, &mst);
 
@@ -5876,6 +5986,9 @@ void ship_render(object * obj)
 						shipp->shader_effect_active = false;
 				}
 			}
+
+			if(sip->flags2 & SIF2_NO_LIGHTING)
+				render_flags |= MR_NO_LIGHTING;
 
 			//draw weapon models
 			if (sip->draw_models && !(shipp->flags2 & SF2_CLOAKED)) {
@@ -6541,10 +6654,10 @@ void ship_cleanup(int shipnum, int cleanup_mode)
 		// see if this ship departed within the radius of a jump node -- if so, put the node name into
 		// the secondary mission log field
 		jump_node *jnp = jumpnode_get_which_in(&Objects[shipp->objnum]);
-		if(jnp)
-			mission_log_add_entry(LOG_SHIP_DEPARTED, shipp->ship_name, jnp->get_name_ptr(), shipp->wingnum);
-		else
+		if(jnp==NULL)
 			mission_log_add_entry(LOG_SHIP_DEPARTED, shipp->ship_name, NULL, shipp->wingnum);
+		else
+			mission_log_add_entry(LOG_SHIP_DEPARTED, shipp->ship_name, jnp->get_name_ptr(), shipp->wingnum);
 	}
 
 #ifndef NDEBUG
@@ -7232,6 +7345,8 @@ void ship_init_thrusters()
 			generic_bitmap_load(&species->thruster_secondary_glow_info.afterburn);
 			generic_bitmap_load(&species->thruster_tertiary_glow_info.normal);
 			generic_bitmap_load(&species->thruster_tertiary_glow_info.afterburn);
+			generic_bitmap_load(&species->thruster_distortion_info.normal);
+			generic_bitmap_load(&species->thruster_distortion_info.afterburn);
 		}
 
 		// glows are handled a bit strangely
@@ -7253,7 +7368,7 @@ void ship_do_thruster_frame( ship *shipp, object *objp, float frametime )
 {
 	float rate;
 	int framenum;
-	int secondary_glow_bitmap, tertiary_glow_bitmap;
+	int secondary_glow_bitmap, tertiary_glow_bitmap, distortion_bitmap;
 	generic_anim *flame_anim, *glow_anim;
 	ship_info	*sinfo = &Ship_info[shipp->ship_info_index];
 
@@ -7266,6 +7381,7 @@ void ship_do_thruster_frame( ship *shipp, object *objp, float frametime )
 		glow_anim = &sinfo->thruster_glow_info.afterburn;			// select afterburner glow
 		secondary_glow_bitmap = sinfo->thruster_secondary_glow_info.afterburn.bitmap_id;
 		tertiary_glow_bitmap = sinfo->thruster_tertiary_glow_info.afterburn.bitmap_id;
+		distortion_bitmap = sinfo->thruster_distortion_info.afterburn.bitmap_id;
 
 		rate = 1.5f;		// go at 1.5x faster when afterburners on
 	} else if (objp->phys_info.flags & PF_BOOSTER_ON) {
@@ -7273,6 +7389,7 @@ void ship_do_thruster_frame( ship *shipp, object *objp, float frametime )
 		glow_anim = &sinfo->thruster_glow_info.afterburn;			// select afterburner glow
 		secondary_glow_bitmap = sinfo->thruster_secondary_glow_info.afterburn.bitmap_id;
 		tertiary_glow_bitmap = sinfo->thruster_tertiary_glow_info.afterburn.bitmap_id;
+		distortion_bitmap = sinfo->thruster_distortion_info.afterburn.bitmap_id;
 
 		rate = 2.5f;		// go at 2.5x faster when boosters on
 	} else {
@@ -7280,6 +7397,7 @@ void ship_do_thruster_frame( ship *shipp, object *objp, float frametime )
 		glow_anim = &sinfo->thruster_glow_info.normal;				// select normal glow
 		secondary_glow_bitmap = sinfo->thruster_secondary_glow_info.normal.bitmap_id;
 		tertiary_glow_bitmap = sinfo->thruster_tertiary_glow_info.normal.bitmap_id;
+		distortion_bitmap = sinfo->thruster_distortion_info.normal.bitmap_id;
 
 		// If thrust at 0, go at half as fast, full thrust; full framerate
 		// so set rate from 0.67 to 1.67, depending on thrust from 0 to 1
@@ -7344,6 +7462,7 @@ void ship_do_thruster_frame( ship *shipp, object *objp, float frametime )
 	// add extra thruster effects
 	shipp->thruster_secondary_glow_bitmap = secondary_glow_bitmap;
 	shipp->thruster_tertiary_glow_bitmap = tertiary_glow_bitmap;
+	shipp->thruster_distortion_bitmap = distortion_bitmap;
 }
 
 
@@ -8579,6 +8698,7 @@ void change_ship_type(int n, int ship_type, int by_sexp)
 	ship_info	*sip;
 	ship_info	*sip_orig;
 	ship			*sp;
+	ship		sp_orig;
 	ship_weapon *swp;
 	ship_subsys *ss;
 	object		*objp;
@@ -8588,6 +8708,7 @@ void change_ship_type(int n, int ship_type, int by_sexp)
 
 	Assert( n >= 0 && n < MAX_SHIPS );
 	sp = &Ships[n];
+	sp_orig = Ships[n];
 	sip = &(Ship_info[ship_type]);
 	swp = &sp->weapons;
 	sip_orig = &Ship_info[sp->ship_info_index];
@@ -8712,6 +8833,12 @@ void change_ship_type(int n, int ship_type, int by_sexp)
 	// Goober5000: div-0 checks
 	Assert(sp->ship_max_hull_strength > 0.0f);
 	Assert(objp->hull_strength > 0.0f);
+
+	// niffiwan: set new armor types
+	sp->armor_type_idx = sip->armor_type_idx;
+	sp->shield_armor_type_idx = sip->shield_armor_type_idx;
+	sp->collision_damage_type_idx = sip->collision_damage_type_idx;
+	sp->debris_damage_type_idx = sip->debris_damage_type_idx;
 
 	// subsys stuff done only after hull stuff is set
 	// if the subsystem list is not currently empty, then we need to clear it out first.
@@ -8866,6 +8993,26 @@ void change_ship_type(int n, int ship_type, int by_sexp)
 	
 	// create new model instance data
 	sp->model_instance_num = model_create_instance(sip->model_num);
+
+	// Valathil - Reinitialize collision checks
+	obj_remove_pairs(objp);
+	obj_add_pairs(objp->instance);
+
+	// The E - If we're switching during gameplay, make sure we get valid primary/secondary selections
+	if ( by_sexp ) {
+		if (sip_orig->num_primary_banks > sip->num_primary_banks) {
+			sp->weapons.current_primary_bank = 0;
+		}
+
+		if (sip_orig->num_secondary_banks > sip->num_secondary_banks) {
+			sp->weapons.current_secondary_bank = 0;
+		}
+
+		// While we're at it, let's copy over the ETS settings too
+		sp->weapon_recharge_index = sp_orig.weapon_recharge_index;
+		sp->shield_recharge_index = sp_orig.shield_recharge_index;
+		sp->engine_recharge_index = sp_orig.engine_recharge_index;
+	}
 }
 
 #ifndef NDEBUG
@@ -9245,6 +9392,7 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 	int			banks_fired, have_timeout;				// used for multiplayer to help determine whether or not to send packet
 	have_timeout = 0;			// used to help tell us whether or not we need to send a packet
 	banks_fired = 0;			// used in multiplayer -- bitfield of banks that were fired
+	bool has_fired = false;		// used to determine whether we should fire the scripting hook
 
 	int			sound_played;	// used to track what sound is played.  If the player is firing two banks
 										// of the same laser, we only want to play one sound
@@ -9537,6 +9685,7 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 					fbfire_info.point = j;
 
 					beam_fire(&fbfire_info);
+					has_fired = true;
 					num_fired++;
 				}
 			}
@@ -9813,6 +9962,7 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 							// of weapon_create
 
 							weapon_objnum = weapon_create( &firing_pos, &firing_orient, weapon, OBJ_INDEX(obj), new_group_id );
+							has_fired = true;
 
 							weapon_set_tracking_info(weapon_objnum, OBJ_INDEX(obj), aip->target_objnum, aip->current_target_is_locked, aip->targeted_subsys);				
 
@@ -9962,16 +10112,18 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 		}
 	}
 
-	object *objp = &Objects[shipp->objnum];
-	object* target;
-	if (Ai_info[shipp->ai_index].target_objnum != -1)
-		target = &Objects[Ai_info[shipp->ai_index].target_objnum];
-	else
-		target = NULL;
-	if (objp == Player_obj && Player_ai->target_objnum != -1)
-		target = &Objects[Player_ai->target_objnum]; 
-	Script_system.SetHookObjects(2, "User", objp, "Target", target);
-	Script_system.RunCondition(CHA_ONWPFIRED, 0, NULL, objp);
+	if (has_fired) {
+		object *objp = &Objects[shipp->objnum];
+		object* target;
+		if (Ai_info[shipp->ai_index].target_objnum != -1)
+			target = &Objects[Ai_info[shipp->ai_index].target_objnum];
+		else
+			target = NULL;
+		if (objp == Player_obj && Player_ai->target_objnum != -1)
+			target = &Objects[Player_ai->target_objnum]; 
+		Script_system.SetHookObjects(2, "User", objp, "Target", target);
+		Script_system.RunCondition(CHA_ONWPFIRED, 0, NULL, objp);
+	}
 
 	return num_fired;
 }
@@ -10212,6 +10364,7 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 	ai_info		*aip;
 	polymodel	*pm;
 	vec3d		missile_point, pnt, firing_pos;
+	bool has_fired = false;		// Used to determine whether to fire the scripting hook
 
 	Assert( obj != NULL );
 
@@ -10530,6 +10683,7 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 			// of weapon_create
 			weapon_num = weapon_create( &firing_pos, &firing_orient, weapon, OBJ_INDEX(obj), -1, aip->current_target_is_locked);
 			weapon_set_tracking_info(weapon_num, OBJ_INDEX(obj), aip->target_objnum, aip->current_target_is_locked, aip->targeted_subsys);
+			has_fired = true;
 
 
 			// create the muzzle flash effect
@@ -10650,16 +10804,18 @@ done_secondary:
 
 	}	
 
-	object *objp = &Objects[shipp->objnum];
-	object* target;
-	if (Ai_info[shipp->ai_index].target_objnum != -1)
-		target = &Objects[Ai_info[shipp->ai_index].target_objnum];
-	else
-		target = NULL;
-	if (objp == Player_obj && Player_ai->target_objnum != -1)
-		target = &Objects[Player_ai->target_objnum]; 
-	Script_system.SetHookObjects(2, "User", objp, "Target", target);
-	Script_system.RunCondition(CHA_ONWPFIRED, 0, NULL, objp);
+	if (has_fired) {
+		object *objp = &Objects[shipp->objnum];
+		object* target;
+		if (Ai_info[shipp->ai_index].target_objnum != -1)
+			target = &Objects[Ai_info[shipp->ai_index].target_objnum];
+		else
+			target = NULL;
+		if (objp == Player_obj && Player_ai->target_objnum != -1)
+			target = &Objects[Player_ai->target_objnum]; 
+		Script_system.SetHookObjects(2, "User", objp, "Target", target);
+		Script_system.RunCondition(CHA_ONWPFIRED, 0, NULL, objp);
+	}
 
 	return num_fired;
 }

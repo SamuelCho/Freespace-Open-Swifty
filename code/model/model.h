@@ -133,6 +133,10 @@ typedef struct polymodel_instance {
 #define MSS_FLAG_NO_AGGREGATE		(1 << 30)		// Don't include with aggregate subsystem types - Goober5000
 #define MSS_FLAG_TURRET_ANIM_WAIT   (1 << 31)		// Turret won't fire until animation is complete - Sushi
 
+#define MSS_FLAG2_PLAYER_TURRET_SOUND (1 << 0)
+
+#define NUM_SUBSYSTEM_FLAGS			33
+
 // definition of stepped rotation struct
 typedef struct stepped_rotation {
 	int num_steps;				// number of steps in complete revolution
@@ -157,6 +161,7 @@ struct queued_animation;
 typedef struct model_subsystem {					/* contains rotation rate info */
 
 	uint		flags;									// See MSS_FLAG_* defines above
+	uint		flags2;
 	char		name[MAX_NAME_LEN];					// name of the subsystem.  Probably displayed on HUD
 	char		subobj_name[MAX_NAME_LEN];			// Temporary (hopefully) parameter used to match stuff in ships.tbl
 	char		alt_sub_name[NAME_LENGTH];					//Karajorma - Name that overrides name of original
@@ -707,9 +712,6 @@ typedef struct polymodel {
 // Call once to initialize the model system
 void model_init();
 
-// call at the beginning of a level. after the level has been loaded
-void model_level_post_init();
-
 // call to unload a model (works like bm_unload()), "force" SHOULD NEVER BE SET outside of modelread.cpp!!!!
 void model_unload(int modelnum, int force = 0);
 
@@ -725,9 +727,6 @@ void model_delete_instance(int model_instance_num);
 
 // Goober5000
 void model_load_texture(polymodel *pm, int i, char *file);
-
-// notify the model system that a ship has died
-void model_notify_dead_ship(int objnum);
 
 // Returns a pointer to the polymodel structure for model 'n'
 polymodel *model_get(int model_num);
@@ -1131,6 +1130,7 @@ typedef struct mst_info {
 	int primary_glow_bitmap;
 	int secondary_glow_bitmap;
 	int tertiary_glow_bitmap;
+	int distortion_bitmap;
 
 	bool use_ab;
 	float glow_noise;
@@ -1141,10 +1141,13 @@ typedef struct mst_info {
 	float secondary_glow_rad_factor;
 	float tertiary_glow_rad_factor;
 	float glow_length_factor;
+	float distortion_rad_factor;
+	float distortion_length_factor;
+	bool draw_distortion;
 
 	mst_info() : primary_bitmap(-1), primary_glow_bitmap(-1), secondary_glow_bitmap(-1), tertiary_glow_bitmap(-1),
 					use_ab(false), glow_noise(1.0f), rotvel(NULL), length(vmd_zero_vector), glow_rad_factor(1.0f),
-					secondary_glow_rad_factor(1.0f), tertiary_glow_rad_factor(1.0f), glow_length_factor(1.0f)
+					secondary_glow_rad_factor(1.0f), tertiary_glow_rad_factor(1.0f), glow_length_factor(1.0f), distortion_rad_factor(1.0f), distortion_length_factor(1.0f)
 				{}
 } mst_info;
 
@@ -1168,7 +1171,7 @@ typedef struct transparent_submodel {
 	bsp_info *model;
 	matrix orient;
 	bool is_submodel;
-	std::vector<transparent_object> transparent_objects;
+	SCP_vector<transparent_object> transparent_objects;
 } transparent_submodel;
 // scale the engines thrusters by this much
 // Only enabled if MR_SHOW_THRUSTERS is on

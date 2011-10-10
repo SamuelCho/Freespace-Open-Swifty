@@ -725,7 +725,7 @@ static bool opengl_post_init_table()
 
 static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 {
-	std::string sflags;
+	SCP_string sflags;
 
 	if (Use_GLSL >= 4) {
 		sflags += "#define SHADER_MODEL 4\n";
@@ -818,7 +818,7 @@ static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 
 	CFILE *cf_shader = cfopen(filename, "rt", CFILE_NORMAL, CF_TYPE_EFFECTS);
 
-	if (cf_shader != NULL && !(stricmp(filename, "fxaa-f.sdr") || stricmp(filename, "fxaa-v.sdr")) ) {
+	if (cf_shader != NULL && stricmp(filename, "fxaa-f.sdr") && stricmp(filename, "fxaa-v.sdr") ) {
 		int len = cfilelength(cf_shader);
 		char *shader = (char*) vm_malloc(len + flags_len + 1);
 

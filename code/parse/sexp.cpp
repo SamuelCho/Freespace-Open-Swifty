@@ -178,7 +178,7 @@ sexp_oper Operators[] = {
 	{ "has-departed",							OP_HAS_DEPARTED,						1, INT_MAX,	},
 	{ "has-departed-delay",					OP_HAS_DEPARTED_DELAY,				2, INT_MAX,	},
 	{ "are-waypoints-done",					OP_WAYPOINTS_DONE,					2, 2,			},
-	{ "are-waypoints-done-delay",			OP_WAYPOINTS_DONE_DELAY,			3, 3,			},
+	{ "are-waypoints-done-delay",			OP_WAYPOINTS_DONE_DELAY,			3, 4,			},
 	{ "is-nav-visited",					OP_NAV_IS_VISITED,				1, 1 }, // Kazan
 	{ "ship-type-destroyed",				OP_SHIP_TYPE_DESTROYED,				2, 2,			},
 	{ "percent-ships-destroyed",			OP_PERCENT_SHIPS_DESTROYED,		2, INT_MAX,	},
@@ -345,6 +345,7 @@ sexp_oper Operators[] = {
 	{ "exchange-cargo",				OP_EXCHANGE_CARGO,				2, 2,			},
 	{ "set-cargo",					OP_SET_CARGO,					2, 3,			},
 	{ "jettison-cargo-delay",		OP_JETTISON_CARGO,				2, INT_MAX,		},
+	{ "set-docked",					OP_SET_DOCKED,					4, 4 },				// Sushi
 	{ "cargo-no-deplete",			OP_CARGO_NO_DEPLETE,			1,	2			},
 	{ "set-scanned",				OP_SET_SCANNED,					1, 2 },
 	{ "set-unscanned",				OP_SET_UNSCANNED,				1, 2 },
@@ -1973,18 +1974,15 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 					return SEXP_CHECK_INVALID_SUBSYS;
 				}
 
-				// if we're checking for an AWACS subsystem and this is not an awacs subsystem
 				if(Fred_running)
 				{
+					// if we're checking for an AWACS subsystem and this is not an awacs subsystem
 					if((type == OPF_AWACS_SUBSYSTEM) && !(Ship_info[ship_class].subsystems[i].flags & MSS_FLAG_AWACS))
 					{
 						return SEXP_CHECK_INVALID_SUBSYS;
 					}
-				}
 
-				// rotating subsystem, like above - Goober5000
-				if (Fred_running)
-				{
+					// rotating subsystem, like above - Goober5000
 					if ((type == OPF_ROTATING_SUBSYSTEM) && !(Ship_info[ship_class].subsystems[i].flags & MSS_FLAG_ROTATES))
 					{
 						return SEXP_CHECK_INVALID_SUBSYS;
@@ -2177,14 +2175,13 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 					p_objp = mission_parse_get_arrival_ship(name);
 					if (p_objp == NULL)
 						return SEXP_CHECK_INVALID_SHIP;
+
+					// Goober5000 - since we can't check POFs for ships which have yet to arrive
+					// (not without a bit of work anyway), just assume they're okay
+					break;
 				}
 
 				// ship exists at this point
-
-				// Goober5000 - since we can't check POFs for ships which haven't arrived
-				// (not without a bit of work anyway), just assume they're okay
-				if (shipnum < 0)
-					break;
 
 				// now determine if this ship has a docking bay
 				if (!ship_has_dock_bay(shipnum))
@@ -2480,14 +2477,23 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 				if (type2 != SEXP_ATOM_STRING)
 					return SEXP_CHECK_TYPE_MISMATCH;
 
+				// This makes massive assumptions about the structure of the SEXP using it. If you add any 
+				// new SEXPs that use this OPF, you will probably need to edit this section to accommodate them.
 				if (Fred_running) {
 					int ship_num, model;
 
-					z = find_parent_operator(op_node);
+					// Look for the node containing the docker ship as its first argument. For set-docked, we want 
+					// the current SEXP. Otherwise (for ai-dock), we want its parent.
+					if (get_operator_const(Sexp_nodes[op_node].text) == OP_SET_DOCKED) {
+						z = op_node;
+					}
+					else {
+						z = find_parent_operator(op_node);
 					
-					// if it's the "goals" operator, this is part of initial orders, so just assume it's okay
-					if (get_operator_const(Sexp_nodes[z].text) == OP_GOALS_ID) {
-						break;
+						// if it's the "goals" operator, this is part of initial orders, so just assume it's okay
+						if (get_operator_const(Sexp_nodes[z].text) == OP_GOALS_ID) {
+							break;
+						}
 					}
 
 					// look for the ship this goal is being assigned to
@@ -2515,10 +2521,24 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 				if (type2 != SEXP_ATOM_STRING)
 					return SEXP_CHECK_TYPE_MISMATCH;
 
+				// This makes massive assumptions about the structure of the SEXP using it. If you add any 
+				// new SEXPs that use this OPF, you will probably need to edit this section to accommodate them.
 				if (Fred_running) {
 					int ship_num, model;
 
-					ship_num = ship_name_lookup(CTEXT(Sexp_nodes[op_node].rest), 1);
+					// If we're using set-docked, we want to look up the ship from the third SEXP argument.
+					if (get_operator_const(Sexp_nodes[op_node].text) == OP_SET_DOCKED) {
+						//Navigate to the third argument
+						z = op_node;
+						for (i = 0; i < 3; i++)
+							z = Sexp_nodes[z].rest;
+
+						ship_num = ship_name_lookup(Sexp_nodes[z].text, 1);
+					}
+					else {
+						ship_num = ship_name_lookup(CTEXT(Sexp_nodes[op_node].rest), 1);
+					}
+
 					if (ship_num < 0) {
 						if (bad_node)
 							*bad_node = Sexp_nodes[op_node].rest;
@@ -5001,8 +5021,12 @@ int sexp_has_docked_delay(int n)
 	int count = eval_num(CDR(CDR(n)));		// count of times that we should look for
 	fix delay = i2f(eval_num(CDR(CDR(CDR(n)))));
 	fix time;
+	if (count <= 0)
+	{
+		Warning(LOCATION, "Has-docked-delay count should be at least 1!  This has been automatically adjusted.");
+		count = 1;
+	}
 
-	Assert ( count > 0 );
 	if ( mission_log_get_time(LOG_SHIP_DESTROYED, docker, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, dockee, NULL, NULL) )
 		return SEXP_KNOWN_FALSE;
 
@@ -5028,6 +5052,11 @@ int sexp_has_undocked_delay(int n)
 	int count = eval_num(CDR(CDR(n)));
 	fix delay = i2f(eval_num(CDR(CDR(CDR(n)))));
 	fix time;
+	if (count <= 0)
+	{
+		Warning(LOCATION, "Has-undocked-delay count should be at least 1!  This has been automatically adjusted.");
+		count = 1;
+	}
 
 	if (sexp_query_has_yet_to_arrive(docker))
 		return SEXP_CANT_EVAL;
@@ -5035,7 +5064,6 @@ int sexp_has_undocked_delay(int n)
 	if (sexp_query_has_yet_to_arrive(dockee))
 		return SEXP_CANT_EVAL;
 
-	Assert ( count > 0 );
 	if ( !mission_log_get_time_indexed(LOG_SHIP_UNDOCKED, docker, dockee, count, &time) ) {
 		// if either ship destroyed before they dock, then sexp is known false
 		if ( mission_log_get_time(LOG_SHIP_DESTROYED, docker, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, dockee, NULL, NULL) )
@@ -5106,14 +5134,24 @@ int sexp_has_departed_delay(int n)
 /**
  * Determine if a ship is done flying waypoints after N seconds
  */
-int sexp_are_waypoints_done_delay(int n)
+int sexp_are_waypoints_done_delay(int node)
 {
 	char *ship_name, *waypoint_name;
+	int count, n = node;
 	fix time, delay;
 
 	ship_name = CTEXT(n);
-	waypoint_name = CTEXT(CDR(n));
-	delay = i2f(eval_num(CDR(CDR(n))));
+	n = CDR(n);
+	waypoint_name = CTEXT(n);
+	n = CDR(n);
+	delay = i2f(eval_num(n));
+	n = CDR(n);
+	count = (n >= 0) ? eval_num(n) : 1;
+	if (count <= 0)
+	{
+		Warning(LOCATION, "Are-waypoints-done-delay count should be at least 1!  This has been automatically adjusted.");
+		count = 1;
+	}
 
 	if (sexp_query_has_yet_to_arrive(ship_name))
 		return SEXP_CANT_EVAL;
@@ -5125,7 +5163,7 @@ int sexp_are_waypoints_done_delay(int n)
 	// marked false!!!!
 
 	// now check the log for the waypoints done entry
-	if ( mission_log_get_time(LOG_WAYPOINTS_DONE, ship_name, waypoint_name, &time) ) {
+	if ( mission_log_get_time_indexed(LOG_WAYPOINTS_DONE, ship_name, waypoint_name, count, &time) ) {
 		if ( (Missiontime - time) >= delay )
 			return SEXP_KNOWN_TRUE;
 	} else {
@@ -6327,9 +6365,34 @@ void sexp_set_object_speed(int n, int axis)
 		case OSWPT_TYPE_WING:
 		case OSWPT_TYPE_WAYPOINT:
 		case OSWPT_TYPE_TEAM:
+		{
 			sexp_set_object_speed(oswpt.objp, speed, axis, subjective);
+
+			//CommanderDJ - we put the multiplayer callback stuff in here to prevent doing unnecessary checks clientside
+			multi_start_callback();
+			multi_send_object(oswpt.objp);
+			multi_send_int(speed);
+			multi_send_int(axis);
+			multi_send_int(subjective);
+			multi_end_callback();
+
 			break;
+		}
 	}
+}
+
+//CommanderDJ
+void multi_sexp_set_object_speed()
+{
+	object *objp;
+	int speed = 0, axis = 0, subjective = 0;
+
+	multi_get_object(objp);
+	multi_get_int(speed);
+	multi_get_int(axis);
+	multi_get_int(subjective);
+
+	sexp_set_object_speed(objp, speed, axis, subjective);
 }
 
 int sexp_get_object_speed(object *objp, int axis, int subjective)
@@ -6554,6 +6617,17 @@ void sexp_set_object_position(int n)
 
 	// retime all collision checks so they're performed
 	obj_all_collisions_retime();
+
+	//CommanderDJ: if the thing being moved is a player and this is a nebula mission, regenerate the nebula
+	
+	//I also wanted to check if the player has moved further than his inner neb cube radius,
+	//but couldn't figure out a way to access neb2_detail::cube_inner.
+	//if it can be done, just put it in the second half of the comparison below and add the line to the if statement
+
+	//&& (vm_vec_dist(&oswpt.objp->pos, &target_vec) >= (inner cube radius here)
+
+	if((oswpt.objp == Player_obj) && (The_mission.flags & MISSION_FLAG_FULLNEB))
+		neb2_eye_changed();
 
 	switch (oswpt.type)
 	{
@@ -11183,6 +11257,48 @@ void sexp_jettison_cargo(int n)
 	}
 }
 
+void sexp_set_docked(int n)
+{
+	// get some data
+	char* docker_ship_name = CTEXT(n);
+	n = CDR(n);
+	char* docker_point_name = CTEXT(n);
+	n = CDR(n);
+	char* dockee_ship_name = CTEXT(n);
+	n = CDR(n);
+	char* dockee_point_name = CTEXT(n);
+	n = CDR(n);
+
+	// lookup the ships
+	int docker_ship_index = ship_name_lookup(docker_ship_name);
+	int dockee_ship_index = ship_name_lookup(dockee_ship_name);
+	if(docker_ship_index < 0 || dockee_ship_index < 0)
+		return;
+
+	ship* docker_ship = &Ships[docker_ship_index];
+	ship* dockee_ship = &Ships[dockee_ship_index];
+	object* docker_objp = &Objects[docker_ship->objnum];
+	object* dockee_objp = &Objects[dockee_ship->objnum];
+
+	//Get dockpoints by name
+	int docker_point_index = model_find_dock_name_index(Ship_info[docker_ship->ship_info_index].model_num, docker_point_name);
+	int dockee_point_index = model_find_dock_name_index(Ship_info[dockee_ship->ship_info_index].model_num, dockee_point_name);
+
+	Assertion(docker_point_index >= 0, "Docker point '%s' not found on docker ship '%s'", docker_point_name, docker_ship_name);
+	Assertion(dockee_point_index >= 0, "Dockee point '%s' not found on dockee ship '%s'", dockee_point_name, dockee_ship_name);
+
+	//Make sure that the specified dockpoints are all free (if not, do nothing)
+	if (dock_find_object_at_dockpoint(docker_objp, docker_point_index) != NULL || 
+		dock_find_object_at_dockpoint(dockee_objp, dockee_point_index) != NULL)
+	{
+		return;
+	}
+
+	//Set docked
+	dock_orient_and_approach(docker_objp, docker_point_index, dockee_objp, dockee_point_index, DOA_DOCK_STAY);
+	ai_do_objects_docked_stuff(docker_objp, docker_point_index, dockee_objp, dockee_point_index, true);
+}
+
 void sexp_cargo_no_deplete(int n)
 {
 	char *shipname;
@@ -11221,6 +11337,10 @@ void sexp_cargo_no_deplete(int n)
 // Goober5000
 void sexp_force_jump()
 {
+	// Shouldn't be gliding now....
+	Player_obj->phys_info.flags &= ~PF_GLIDING;
+	Player_obj->phys_info.flags &= ~PF_FORCE_GLIDE;
+
 	if (Game_mode & GM_MULTIPLAYER) {
 		multi_handle_end_mission_request(); 
 	}
@@ -13542,7 +13662,7 @@ void multi_sexp_ship_change_callsign()
 	ship *shipp = NULL;
 
 	multi_get_string(new_callsign);
-	if (!new_callsign || !stricmp(new_callsign, SEXP_ANY_STRING))
+	if (!new_callsign[0] || !stricmp(new_callsign, SEXP_ANY_STRING))
 	{
 		cindex = -1;
 	}
@@ -18853,8 +18973,10 @@ void multi_sexp_set_camera_target()
 void sexp_set_fov(int n)
 {
 	camera *cam = Main_camera.getCamera();
-	if(cam == NULL)
-		return;
+	if(cam == NULL) {
+		game_render_frame_setup();
+		cam = Main_camera.getCamera();
+	}
 
 	//Cap FOV to something reasonable.
 	float new_fov = (float)eval_num(n);
@@ -18872,8 +18994,10 @@ void multi_sexp_set_fov()
 	float new_fov;
 
 	camera *cam = Main_camera.getCamera();
-	if(cam == NULL)
-		return;
+	if(cam == NULL) {
+		game_render_frame_setup();
+		cam = Main_camera.getCamera();
+	}
 
 	multi_get_float(new_fov);
 	Sexp_fov = (new_fov * (PI/180.0f));
@@ -20824,6 +20948,11 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = SEXP_TRUE;
 				break;
 
+			case OP_SET_DOCKED:
+				sexp_set_docked(node);
+				sexp_val = SEXP_TRUE;
+				break;
+
 			case OP_CARGO_NO_DEPLETE:
 				sexp_cargo_no_deplete(node);
 				sexp_val = SEXP_TRUE;
@@ -22181,6 +22310,12 @@ void multi_sexp_eval()
 				multi_sexp_clear_subtitles();
 				break;
 
+			case OP_SET_OBJECT_SPEED_X:
+			case OP_SET_OBJECT_SPEED_Y:
+			case OP_SET_OBJECT_SPEED_Z:
+				multi_sexp_set_object_speed();
+				break;
+
 			// bad sexp in the packet
 			default: 
 				// probably just a version error where the host supports a SEXP but a client does not
@@ -22555,6 +22690,7 @@ int query_operator_return_type(int op)
 		case OP_EXCHANGE_CARGO:
 		case OP_SET_CARGO:
 		case OP_JETTISON_CARGO:
+		case OP_SET_DOCKED:
 		case OP_CARGO_NO_DEPLETE:
 		case OP_SET_SCANNED:
 		case OP_SET_UNSCANNED:
@@ -22742,7 +22878,7 @@ int query_operator_return_type(int op)
 		case OP_CUTSCENES_RESET_TIME_COMPRESSION:
 		case OP_CUTSCENES_FORCE_PERSPECTIVE:
 		case OP_SET_CAMERA_SHUDDER:
-		case OP_JUMP_NODE_SET_JUMPNODE_NAME: //CommanderDJ
+		case OP_JUMP_NODE_SET_JUMPNODE_NAME:
 		case OP_JUMP_NODE_SET_JUMPNODE_COLOR:
 		case OP_JUMP_NODE_SET_JUMPNODE_MODEL:
 		case OP_JUMP_NODE_SHOW_JUMPNODE:
@@ -23939,6 +24075,17 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_POSITIVE;
 			} else {
 				return OPF_SHIP;
+			}
+
+		case OP_SET_DOCKED:
+			if (argnum == 0) {
+				return OPF_SHIP;
+			} else if (argnum == 1) {
+				return OPF_DOCKER_POINT;
+			} else if (argnum == 2) {
+				return OPF_SHIP;
+			} else {
+				return OPF_DOCKEE_POINT;
 			}
 
 		case OP_CARGO_NO_DEPLETE:
@@ -25884,6 +26031,7 @@ int get_subcategory(int sexp_id)
 		case OP_EXCHANGE_CARGO:
 		case OP_SET_CARGO:
 		case OP_JETTISON_CARGO:
+		case OP_SET_DOCKED:
 		case OP_CARGO_NO_DEPLETE:
 		case OP_SET_SCANNED:
 		case OP_SET_UNSCANNED:
@@ -26759,10 +26907,11 @@ sexp_help_struct Sexp_help[] = {
 	{ OP_WAYPOINTS_DONE_DELAY, "Waypoints done delay (Boolean operator)\r\n"
 		"\tBecomes true <delay> seconds after the specified ship has completed flying the "
 		"specified waypoint path.\r\n\r\n"
-		"Returns a boolean value.  Takes 3 arguments...\r\n"
+		"Returns a boolean value.  Takes 3 or 4 arguments...\r\n"
 		"\t1:\tName of ship we are checking.\r\n"
 		"\t2:\tWaypoint path we want to check if ship has flown.\r\n"
-		"\t3:\tTime delay in seconds (see above)." },
+		"\t3:\tTime delay in seconds (see above).\r\n"
+		"\t4:\tHow many times the ship has completed the waypoint path (optional)." },
 
 	{ OP_SHIP_TYPE_DESTROYED, "Ship Type Destroyed (Boolean operator)\r\n"
 		"\tBecomes true when the specified percentage of ship types in this mission "
@@ -28313,6 +28462,14 @@ sexp_help_struct Sexp_help[] = {
 		"\t1: Ship to jettison cargo\r\n"
 		"\t2: Delay after which to jettison cargo (note that this isn't actually used)\r\n"
 		"\tRest (optional): Cargo to jettison.  If no optional arguments are specified, the ship jettisons all cargo.\r\n"
+	},
+
+	{ OP_SET_DOCKED, "set-docked\r\n"
+		"\tCauses one ship to become instantly docked to another at the specified docking ports.Takes 4 arguments...\r\n"
+		"\t1: Docker ship\r\n"
+		"\t1: Docker point\r\n"
+		"\t1: Dockee ship\r\n"
+		"\t1: Dockee point\r\n"
 	},
 
 	{ OP_BEAM_FIRE, "fire-beam\r\n"

@@ -1112,9 +1112,7 @@ void obj_move_all_pre(object *objp, float frametime)
 		// all shockwaves are moved via shockwave_move_all()
 		break;
 	case OBJ_DEBRIS:
-		if (!physics_paused){
-			debris_process_pre(objp,frametime);
-		}
+		// all debris are moved via debris_process_post()
 		break;
 	case OBJ_ASTEROID:
 		if (!physics_paused){
@@ -1269,8 +1267,9 @@ void obj_move_all_post(object *objp, float frametime)
 						rad = objp->radius;
 					}
 					// P goes from 0 to 1 to 0 over the life of the explosion
-					
-					light_add_point( &objp->pos, rad * 2.0f, rad * 5.0f, intensity, r, g, b, -1 );
+					// Only do this if rad is > 0.0000001f
+					if (rad > 0.0001f)
+						light_add_point( &objp->pos, rad * 2.0f, rad * 5.0f, intensity, r, g, b, -1 );
 				}
 			}
 

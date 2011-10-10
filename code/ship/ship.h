@@ -266,6 +266,7 @@ typedef struct cockpit_display_info {
 #define SSF_ROTATES				(1 << 10)
 #define SSF_DAMAGE_AS_HULL		(1 << 11)		// Applies armor damage instead of subsystem damge. - FUBAR
 #define SSF_NO_AGGREGATE		(1 << 12)		// exclude this subsystem from the aggregate subsystem-info tracking - Goober5000
+#define SSF_PLAY_SOUND_FOR_PLAYER	( 1 << 13)	// If this subsystem is a turret on a player ship, play firing sounds - The E 
 
 
 // Wanderer 
@@ -638,6 +639,7 @@ typedef struct ship {
 
 	int	thruster_secondary_glow_bitmap;		// Bobboau
 	int	thruster_tertiary_glow_bitmap;		// Bobboau
+	int	thruster_distortion_bitmap;			// Valathil
 
 	int	next_engine_stutter;				// timestamp to time the engine stuttering when a ship dies
 
@@ -881,8 +883,9 @@ extern int ship_find_exited_ship_by_signature( int signature);
 #define SIF2_NO_PAIN_FLASH					(1 << 11)	// The E - disable red pain flash
 #define SIF2_ALLOW_LANDINGS					(1 << 12)	// SUSHI: Automatically set if any subsystems allow landings (as a shortcut)
 #define SIF2_NO_ETS							(1 << 13)	// The E - No ETS on this ship class
+#define SIF2_NO_LIGHTING					(1 << 14)	// Valathil - No lighting for this ship
 // !!! IF YOU ADD A FLAG HERE BUMP MAX_SHIP_FLAGS !!!
-#define	MAX_SHIP_FLAGS	14		//	Number of distinct flags for flags field in ship_info struct
+#define	MAX_SHIP_FLAGS	15		//	Number of distinct flags for flags field in ship_info struct
 #define	SIF_DEFAULT_VALUE		0
 #define SIF2_DEFAULT_VALUE		0
 
@@ -1257,6 +1260,15 @@ typedef struct ship_info {
 	int engine_snd;							// handle to engine sound for ship (-1 if no engine sound)
 	int glide_start_snd;					// handle to sound to play at the beginning of a glide maneuver (default is 0 for regular throttle down sound)
 	int glide_end_snd;						// handle to sound to play at the end of a glide maneuver (default is 0 for regular throttle up sound)
+	
+	int engine_snd_cockpit;					// handle to engine sound heard in cockpit
+	int full_throttle_snd;					// handle to sound played when throttle is set to full power
+	int zero_throttle_snd;					// handle to sound played when throttle is set to zero power
+	int throttle_up_snd;					// handle to sound played when throttle power is increaded by 1/3
+	int throttle_down_snd;					// handle to sound played when throttle power is decreased by 1/3
+	int afterburner_engage_snd;				// handle to sound played when afterburner is engaged
+	int afterburner_loop_snd;				// handle to sound played when afterburner is active
+	int afterburner_fail_snd;				// handle to sound player when afterburner activation failed
 
 	vec3d	closeup_pos;					// position for camera when using ship in closeup view (eg briefing and hud target monitor)
 	float		closeup_zoom;					// zoom when using ship in closeup view (eg briefing and hud target monitor)
@@ -1305,10 +1317,16 @@ typedef struct ship_info {
 	thrust_pair			thruster_glow_info;
 	thrust_pair_bitmap	thruster_secondary_glow_info;
 	thrust_pair_bitmap	thruster_tertiary_glow_info;
+	thrust_pair_bitmap	thruster_distortion_info;
+
 	float		thruster01_glow_rad_factor;
 	float		thruster02_glow_rad_factor;
 	float		thruster03_glow_rad_factor;
+	float		thruster_dist_rad_factor;
 	float		thruster02_glow_len_factor;
+	float		thruster_dist_len_factor;
+
+	bool		draw_distortion;
 
 	int splodeing_texture;
 	char splodeing_texture_name[MAX_FILENAME_LEN];
