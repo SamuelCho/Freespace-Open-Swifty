@@ -150,9 +150,9 @@ int weapon_explosions::GetIndex(char *filename)
 		return -1;
 	}
 
-	for (uint i = 0; i < ExplosionInfo.size(); i++) {
+	for (size_t i = 0; i < ExplosionInfo.size(); i++) {
 		if ( !stricmp(ExplosionInfo[i].lod[0].filename, filename)) {
-			return i;
+			return (int)i;
 		}
 	}
 
@@ -833,6 +833,8 @@ void init_weapon_entry(int weap_info_index)
 	
 	wip->damage_type_idx = -1;
 	wip->damage_type_idx_sav = -1;
+
+	wip->armor_type_idx = -1;
 
 	wip->arm_time = 0;
 	wip->arm_dist = 0.0f;
@@ -2509,6 +2511,14 @@ int parse_weapon(int subtype, bool replace)
 		wip->weapon_hitpoints = 50;
 	}
 
+	if(optional_string("$Armor Type:")) {
+		stuff_string(buf, F_NAME, WEAPONS_MULTITEXT_LENGTH);
+		wip->armor_type_idx = armor_type_get_idx(buf);
+
+		if(wip->armor_type_idx == -1)
+			Warning(LOCATION,"Invalid armor name %s specified for weapon %s", buf, wip->name);
+	}
+
 	if (optional_string("$Burst Shots:")) {
 		stuff_int(&wip->burst_shots);
 		if (wip->burst_shots > 0)
@@ -3794,10 +3804,10 @@ void weapon_maybe_play_warning(weapon *wp)
 			// Possibly add an additional third sound later
 			if ( Weapon_info[wp->weapon_info_index].wi_flags & WIF_HOMING_HEAT ||
 				 Weapon_info[wp->weapon_info_index].wi_flags & WIF_HOMING_JAVELIN ) {
-				snd_play(&Snds[SND_HEATLOCK_WARN]);
+				snd_play(&Snds[ship_get_sound(Player_obj, SND_HEATLOCK_WARN)]);
 			} else {
 				Assert(Weapon_info[wp->weapon_info_index].wi_flags & WIF_HOMING_ASPECT);
-				snd_play(&Snds[SND_ASPECTLOCK_WARN]);
+				snd_play(&Snds[ship_get_sound(Player_obj, SND_ASPECTLOCK_WARN)]);
 			}
 		}
 	}
@@ -5840,6 +5850,8 @@ void weapon_do_area_effect(object *wobjp, shockwave_create_info *sci, vec3d *pos
 		// scale damage
 		damage *= weapon_get_damage_scale(wip, wobjp, other_obj);		
 
+		weapon_info* target_wip;
+
 		switch ( objp->type ) {
 		case OBJ_SHIP:
 			ship_apply_global_damage(objp, wobjp, pos, damage);
@@ -5849,6 +5861,10 @@ void weapon_do_area_effect(object *wobjp, shockwave_create_info *sci, vec3d *pos
 			asteroid_hit(objp, NULL, NULL, damage);
 			break;
 		case OBJ_WEAPON:
+			target_wip = &Weapon_info[Weapons[objp->instance].weapon_info_index];
+			if (target_wip->armor_type_idx >= 0)
+				damage = Armor_types[target_wip->armor_type_idx].GetDamage(damage, wip->damage_type_idx);
+
 			objp->hull_strength -= damage;
 			if (objp->hull_strength < 0.0f) {
 				Weapons[objp->instance].lifeleft = 0.01f;
