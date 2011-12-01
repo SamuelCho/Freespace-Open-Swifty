@@ -2911,7 +2911,6 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 
 			default:
 				Error(LOCATION, "Unhandled argument format");
-				//Int3();  // currently unhandled argument format (so add it now)
 		}
 
 		node = Sexp_nodes[node].rest;
@@ -6624,16 +6623,16 @@ void sexp_set_object_position(int n)
 	// retime all collision checks so they're performed
 	obj_all_collisions_retime();
 
-	//CommanderDJ: if the thing being moved is a player and this is a nebula mission, regenerate the nebula
-	
-	//I also wanted to check if the player has moved further than his inner neb cube radius,
-	//but couldn't figure out a way to access neb2_detail::cube_inner.
-	//if it can be done, just put it in the second half of the comparison below and add the line to the if statement
+	// if this is a nebula mission and a player is being moved far enough,
+	// regenerate the nebula
+	extern neb2_detail *Nd;
 
-	//&& (vm_vec_dist(&oswpt.objp->pos, &target_vec) >= (inner cube radius here)
-
-	if((oswpt.objp == Player_obj) && (The_mission.flags & MISSION_FLAG_FULLNEB))
+	if ( (oswpt.objp == Player_obj) 
+		&& (The_mission.flags & MISSION_FLAG_FULLNEB) 
+		&& (vm_vec_dist(&oswpt.objp->pos, &target_vec) >= Nd->cube_inner) )
+	{
 		neb2_eye_changed();
+	}
 
 	switch (oswpt.type)
 	{
@@ -11134,7 +11133,7 @@ void sexp_cap_waypoint_speed(int n)
 	shipnum = ship_name_lookup(shipname);
 
 	if (shipnum == -1) {
-	//	Int3();	// trying to set waypoint speed of ship not already in game
+		// trying to set waypoint speed of ship not already in game
 		return;
 	}
 

@@ -257,6 +257,7 @@ typedef struct bsp_info {
 	char		name[MAX_NAME_LEN];	// name of the subsystem.  Probably displayed on HUD
 	int		movement_type;			// -1 if no movement, otherwise rotational or positional movement -- subobjects only
 	int		movement_axis;			// which axis this subobject moves or rotates on.
+	bool	can_move;				// If true, the position and/or orientation of this submodel can change due to rotation of itself OR a parent
 
 	vec3d	offset;					// 3d offset from parent object
 	matrix	orientation;			// 3d orientation relative to parent object
@@ -322,6 +323,7 @@ typedef struct bsp_info {
 		name[ 0 ] = '\0';
 		movement_type = 0;
 		movement_axis = 0;
+		can_move = false;
 		
 		bsp_data_size = 0;
 		blown_off = 0;
@@ -856,7 +858,9 @@ void world_find_model_point(vec3d *out, vec3d *world_pt, polymodel *pm, int subm
 
 void world_find_model_instance_point(vec3d *out, vec3d *world_pt, polymodel *pm, polymodel_instance *pmi, int submodel_num, matrix *orient, vec3d *pos);
 
+extern void find_submodel_instance_point(vec3d *outpnt, object *ship_obj, int submodel_num);
 extern void find_submodel_instance_point_normal(vec3d *outpnt, vec3d *outnorm, object *ship_obj, int submodel_num, vec3d *submodel_pnt, vec3d *submodel_norm);
+extern void find_submodel_instance_world_point(vec3d *outpnt, object *ship_obj, int submodel_num);
 
 // Given a polygon model index, find a list of rotating submodels to be used for collision
 void model_get_rotating_submodel_list(SCP_vector<int> *submodel_vector, object *objp);

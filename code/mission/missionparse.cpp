@@ -4632,6 +4632,7 @@ void parse_waypoints(mission *pm)
 
 	jump_node *jnp;
 	char file_name[MAX_FILENAME_LEN] = { 0 };
+	char jump_name[NAME_LENGTH] = { 0 };
 
 	while (optional_string("$Jump Node:")) {
 		stuff_vector(&pos);
@@ -4639,7 +4640,8 @@ void parse_waypoints(mission *pm)
 		Assert(jnp != NULL);
 
 		if (optional_string("$Jump Node Name:") || optional_string("+Jump Node Name:")) {
-			stuff_string(jnp->get_name_ptr(), F_NAME, NAME_LENGTH);
+			stuff_string(jump_name, F_NAME, NAME_LENGTH);
+			jnp->set_name(jump_name);
 		}
 
 		if(optional_string("+Model File:")){
@@ -5660,6 +5662,7 @@ void mission_parse_close()
 /**
  * Sets the arrival location of the ships in wingp.  
  *
+ * @param wingp Pointer to wing
  * @param num_to_set The threshold value for wings may have us create more ships in the wing when there are still some remaining
  */
 void mission_set_wing_arrival_location( wing *wingp, int num_to_set )
@@ -6256,11 +6259,12 @@ int mission_did_ship_arrive(p_object *objp)
 			}
 
 			// Goober5000: aha - also don't create if fighterbay is destroyed
-			if (ship_fighterbays_all_destroyed(&Ships[shipnum]))
+			if (ship_fighterbays_all_destroyed(&Ships[shipnum])) {
 				WarningEx(LOCATION, "Warning: Ship %s cannot arrive from destroyed docking bay of %s.\n", objp->name, name);
 				return -1;
+			}
 		}
-		
+
 		if ( objp->flags & P_SF_CANNOT_ARRIVE ) {
 			WarningEx(LOCATION, "Warning: Ship %s cannot arrive. Ship not created.\n", objp->name);
 			return -1;
