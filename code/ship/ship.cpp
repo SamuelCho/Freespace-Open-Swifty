@@ -1301,7 +1301,7 @@ void parse_weapon_bank(ship_info *sip, bool is_primary, int *num_banks, int *ban
 	// we initialize to the previous parse, which presumably worked
 	int num_bank_capacities = num_banks != NULL ? *num_banks : 0;
 
-	if (optional_string(is_primary ? "$Default PBanks:" : "$Default SBanks:"))
+	if (optional_string(const_cast<char*>(is_primary ? "$Default PBanks:" : "$Default SBanks:")))
 	{
 		// get weapon list
 		if (num_banks != NULL)
@@ -1310,7 +1310,7 @@ void parse_weapon_bank(ship_info *sip, bool is_primary, int *num_banks, int *ban
 			stuff_int_list(bank_default_weapons, max_banks, WEAPON_LIST_TYPE);
 	}
 
-	if (optional_string(is_primary ? "$PBank Capacity:" : "$SBank Capacity:"))
+	if (optional_string(const_cast<char*>(is_primary ? "$PBank Capacity:" : "$SBank Capacity:")))
 	{
 		// get capacity list
 		num_bank_capacities = stuff_int_list(bank_capacities, max_banks, RAW_INTEGER_TYPE);
@@ -5636,6 +5636,7 @@ void ship_render(object * obj)
 	ship_info *sip = &Ship_info[Ships[num].ship_info_index];
 	bool reset_proj_when_done = false;
 	bool is_first_stage_arrival = false;
+	bool show_thrusters = (shipp->flags2 & SF2_NO_THRUSTERS) == 0;
 	dock_function_info dfi;
 
 
@@ -5751,7 +5752,7 @@ void ship_render(object * obj)
 
 		if ( shipp->large_ship_blowup_index >= 0 )	{
 			shipfx_large_blowup_render(shipp);
-		} else {
+		} else if (show_thrusters) {
 			//WMC - I suppose this is a bit hackish.
 			physics_info *pi = &Objects[shipp->objnum].phys_info;
 			float render_amount;
@@ -9526,7 +9527,7 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 		if (The_mission.ai_profile->flags & AIPF_USE_ADDITIVE_WEAPON_VELOCITY)
 			vm_vec_sub2(&target_velocity_vec, &obj->phys_info.vel);
 
-		dist_to_target = vm_vec_dist_quick(&target_position, &firing_pos);
+		dist_to_target = vm_vec_dist_quick(&target_position, &obj->pos);
 	}
 
 	for ( i = 0; i < num_primary_banks; i++ ) {		
