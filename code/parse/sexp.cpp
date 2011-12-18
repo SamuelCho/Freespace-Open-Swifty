@@ -21,7 +21,7 @@
 #include <assert.h>
 #include <limits.h>
 #ifdef _MSC_VER
-	#include "globalincs/stdint.h"
+	#include "globalincs/msvc/stdint.h"
 #else
 	#include <stdint.h>
 #endif
@@ -15411,10 +15411,10 @@ void sexp_beam_free(int node)
 
 void sexp_set_thrusters(int node) 
 {
-	bool activate = is_sexp_true(node);
+	bool activate = is_sexp_true(node) > 0;
 	node = CDR(node);
 
-	for(; node >= 0; CDR(node)) {
+	for(; node >= 0; node = CDR(node)) {
 		int sindex = ship_name_lookup(CTEXT(node));
 		
 		if (sindex < 0) {
@@ -19881,16 +19881,23 @@ void sexp_ship_effect(int n)
 		name = CTEXT(n);
 
 		// check to see if this ship/wing has arrived yet.
-		if (sexp_query_has_yet_to_arrive(name))
+		if (sexp_query_has_yet_to_arrive(name)) {
+			n = CDR(n);
 			continue;
+		}
 
 		// check to see if this ship/wing has departed.
-		if ( mission_log_get_time (LOG_SHIP_DEPARTED, name, NULL, NULL) || mission_log_get_time (LOG_WING_DEPARTED, name, NULL, NULL) )
+		if ( mission_log_get_time (LOG_SHIP_DEPARTED, name, NULL, NULL) || mission_log_get_time (LOG_WING_DEPARTED, name, NULL, NULL) ) {
+			n = CDR(n);
 			continue;
+		}
 
 		// check to see if this ship/wing has been destroyed.
-		if ( mission_log_get_time(LOG_SHIP_DESTROYED, name, NULL, NULL) || mission_log_get_time(LOG_WING_DESTROYED, name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, name, NULL, NULL))
+		if ( mission_log_get_time(LOG_SHIP_DESTROYED, name, NULL, NULL) || mission_log_get_time(LOG_WING_DESTROYED, name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, name, NULL, NULL)) {
+			n = CDR(n);
 			continue;
+		}
+
 		ship *sp;
 		if((wing_index = wing_name_lookup(name)) >= 0)
 		{
