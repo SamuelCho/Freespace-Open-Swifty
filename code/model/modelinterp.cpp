@@ -4082,7 +4082,6 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 
 	find_tri_counts(0, model->bsp_data);
 
-
 	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
 		total_verts += tri_count[i];
 
@@ -4125,6 +4124,7 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 
 		if (Cmdline_normal) {
 			memcpy( (model_list->tsb) + model_list->n_verts, polygon_list[i].tsb, sizeof(tsb_t) * polygon_list[i].n_verts );
+			memset( (model_list->submodels) + model_list->n_verts, mn, sizeof(int) * polygon_list[i].n_verts );
 		}
 
 		model_list->n_verts += polygon_list[i].n_verts;

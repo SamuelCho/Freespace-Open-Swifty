@@ -816,6 +816,42 @@ void create_vertex_buffer(polymodel *pm)
 		interp_configure_vertex_buffers(pm, i);
 	}
 
+	int j = 0;
+	int n_verts = 0;
+	int n_indexes[MAX_MODEL_TEXTURES] = {0};
+	bsp_info *model;
+
+	
+	for (i = 0; i < pm->n_models; i++) {
+		model = &pm->submodel[i];
+
+		// figure out the sizes of the master vertex buffer and it's texture index buffers
+		n_verts += model->buffer.model_list->n_verts;
+
+		for (j = 0; j < (int)model->buffer.tex_buf.size(); j++) {
+			n_indexes[model->buffer.tex_buf[i].texture] += model->buffer.tex_buf[i].n_verts;
+		}
+	}
+
+	// create the master vertex buffer
+	pm->main_buffer.model_list->allocate(n_verts);
+
+	// create the texture index buffers
+	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
+		if ( !n_indexes[i] ) {
+			continue;
+		}
+
+		buffer_data new_buffer;
+		new_buffer.texture = i;
+
+		pm->main_buffer.tex_buf.push_back(new_buffer);
+	}
+
+	for (i = 0; i < pm->n_models; i++) {
+
+	}
+
 	// these must be reset to NULL for the tests to work correctly later
 	if (ibuffer_info.read != NULL) {
 		cfclose( ibuffer_info.read );
@@ -834,6 +870,8 @@ void create_vertex_buffer(polymodel *pm)
 		// release temporary memory
 		pm->submodel[i].buffer.release();
 	}
+
+	// go through all index buffers and 
 
 	// ... and then finalize buffer
 	gr_pack_buffer(pm->vertex_buffer_id, NULL);

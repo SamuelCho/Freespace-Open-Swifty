@@ -699,6 +699,7 @@ typedef struct polymodel {
 	float gun_submodel_rotation;
 
 	int vertex_buffer_id;			// HTL vertex buffer id
+	vertex_buffer main_buffer;
 } polymodel;
 
 // Call once to initialize the model system

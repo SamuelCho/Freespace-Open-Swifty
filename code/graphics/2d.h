@@ -79,6 +79,7 @@ struct poly_list {
 	vertex *vert;
 	vec3d *norm;
 	tsb_t *tsb;
+	int *submodels;
 
 	int find_index(poly_list *plist, int idx);
 

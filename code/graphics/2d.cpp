@@ -1239,12 +1239,18 @@ void poly_list::allocate(int _verts)
 		tsb = NULL;
 	}
 
+	if ( submodels != NULL ) {
+		vm_free(submodels);
+		submodels = NULL;
+	}
+
 	if (_verts) {
 		vert = (vertex*)vm_malloc(sizeof(vertex) * _verts);
 		norm = (vec3d*)vm_malloc(sizeof(vec3d) * _verts);
 
 		if (Cmdline_normal) {
 			tsb = (tsb_t*)vm_malloc(sizeof(tsb_t) * _verts);
+			submodels = (int*)vm_malloc(sizeof(int) * _verts);
 		}
 	}
 

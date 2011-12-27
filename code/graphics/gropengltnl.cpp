@@ -247,6 +247,7 @@ bool gr_opengl_config_buffer(const int buffer_id, vertex_buffer *vb)
 
 		Verify( vb->model_list->tsb != NULL );
 		vb->stride += (4 * sizeof(GLfloat));
+		vb->stride += (1 * sizeof(GLint));
 	}
 
 	// offsets for this chunk
@@ -345,6 +346,9 @@ bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb)
 			array[arsize++] = tsb->tangent.xyz.y;
 			array[arsize++] = tsb->tangent.xyz.z;
 			array[arsize++] = tsb->scaler;
+
+			int submodel = vb->model_list->submodels[i];
+			array[arsize++] = (float)submodel;
 		}
 
 		// verts
@@ -354,25 +358,33 @@ bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb)
 	}
 
 	// generate the index array
-	for (j = 0; j < vb->tex_buf.size(); j++) {
-		n_verts = vb->tex_buf[j].n_verts;
-		uint offset = vb->tex_buf[j].index_offset;
-		uint *index = vb->tex_buf[j].index;
+	// don't generate the index array yet but add to the the master texture index buffers if we can use shaders
+	if (vb->flags & VB_FLAG_TANGENT) {
+	} else {
+		for (j = 0; j < vb->tex_buf.size(); j++) {
+			n_verts = vb->tex_buf[j].n_verts;
+			uint offset = vb->tex_buf[j].index_offset;
+			uint *index = vb->tex_buf[j].index;
 
-		// bump to our spot in the buffer
-		GLubyte *ibuf = m_vbp->index_list + offset;
+			// bump to our spot in the buffer
+			GLubyte *ibuf = m_vbp->index_list + offset;
 
-		if (vb->tex_buf[j].flags & VB_FLAG_LARGE_INDEX) {
-			memcpy(ibuf, index, n_verts * sizeof(uint));
-		} else {
-			ushort *mybuf = (ushort*)ibuf;
+			if (vb->tex_buf[j].flags & VB_FLAG_LARGE_INDEX) {
+				memcpy(ibuf, index, n_verts * sizeof(uint));
+			} else if ( vb->tex_buf[j].flags & VB_FLAG_TANGENT ) {
+				for (i = 0; i < n_verts; i++) {
+					ibuf[i] = index[i] + vb->vertex_offset/vb->stride;
+				}
+			} else {
+				ushort *mybuf = (ushort*)ibuf;
 
-			for (i = 0; i < n_verts; i++) {
-				mybuf[i] = (ushort)index[i];
+				for (i = 0; i < n_verts; i++) {
+					mybuf[i] = (ushort)index[i];
+				}
 			}
 		}
 	}
-
+	
 	return true;
 }
 
