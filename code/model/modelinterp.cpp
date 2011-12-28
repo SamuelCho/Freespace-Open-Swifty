@@ -3807,8 +3807,9 @@ int check_values(vec3d *N)
 }
 
 int Parse_normal_problem_count = 0;
+void parse_tmap(int offset, ubyte *bsp_data, int mn = -1);
 
-void parse_tmap(int offset, ubyte *bsp_data)
+void parse_tmap(int offset, ubyte *bsp_data, int mn)
 {
 	int pof_tex = w(bsp_data+offset+40);
 	int n_vert = w(bsp_data+offset+36);
@@ -3825,6 +3826,12 @@ void parse_tmap(int offset, ubyte *bsp_data)
 	int problem_count = 0;
 
 	for (int i = 1; i < (n_vert-1); i++) {
+		if ( polygon_list[pof_tex].submodels != NULL && mn >= 0 ) {
+			polygon_list[pof_tex].submodels[(polygon_list[pof_tex].n_verts)] = mn;
+			polygon_list[pof_tex].submodels[(polygon_list[pof_tex].n_verts)+1] = mn;
+			polygon_list[pof_tex].submodels[(polygon_list[pof_tex].n_verts)+2] = mn;
+		}
+
 		V = &polygon_list[pof_tex].vert[(polygon_list[pof_tex].n_verts)];
 		N = &polygon_list[pof_tex].norm[(polygon_list[pof_tex].n_verts)];
 		v = Interp_verts[(int)tverts[0].vertnum];
@@ -3883,8 +3890,9 @@ void parse_tmap(int offset, ubyte *bsp_data)
 }
 
 void parse_sortnorm(int offset, ubyte *bsp_data);
+void parse_bsp(int offset, ubyte *bsp_data, int mn = -1);
 
-void parse_bsp(int offset, ubyte *bsp_data)
+void parse_bsp(int offset, ubyte *bsp_data, int mn)
 {
 	int id = w(bsp_data+offset);
 	int size = w(bsp_data+offset+4);
@@ -3900,14 +3908,14 @@ void parse_bsp(int offset, ubyte *bsp_data)
 				break;
 
 			case OP_SORTNORM:
-				parse_sortnorm(offset, bsp_data);
+				parse_sortnorm(offset, bsp_data, mn);
 				break;
 
 			case OP_FLATPOLY:
 				break;
 
 			case OP_TMAPPOLY:
-				parse_tmap(offset, bsp_data);
+				parse_tmap(offset, bsp_data, mn);
 				break;
 
 			case OP_BOUNDBOX:
@@ -3926,7 +3934,9 @@ void parse_bsp(int offset, ubyte *bsp_data)
 	}
 }
 
-void parse_sortnorm(int offset, ubyte *bsp_data)
+void parse_sortnorm(int offset, ubyte *bsp_data, int mn = -1);
+
+void parse_sortnorm(int offset, ubyte *bsp_data, int mn)
 {
 	int frontlist, backlist, prelist, postlist, onlist;
 
@@ -3936,11 +3946,11 @@ void parse_sortnorm(int offset, ubyte *bsp_data)
 	postlist = w(bsp_data+offset+48);
 	onlist = w(bsp_data+offset+52);
 
-	if (prelist) parse_bsp(offset+prelist,bsp_data);
-	if (backlist) parse_bsp(offset+backlist, bsp_data);
-	if (onlist) parse_bsp(offset+onlist, bsp_data);
-	if (frontlist) parse_bsp(offset+frontlist, bsp_data);
-	if (postlist) parse_bsp(offset+postlist, bsp_data);
+	if (prelist) parse_bsp(offset+prelist,bsp_data, mn);
+	if (backlist) parse_bsp(offset+backlist, bsp_data, mn);
+	if (onlist) parse_bsp(offset+onlist, bsp_data, mn);
+	if (frontlist) parse_bsp(offset+frontlist, bsp_data, mn);
+	if (postlist) parse_bsp(offset+postlist, bsp_data, mn);
 }
 
 void find_tmap(int offset, ubyte *bsp_data)
@@ -4052,16 +4062,148 @@ void interp_pack_vertex_buffers(polymodel *pm, int mn)
 	Assert( pm->vertex_buffer_id >= 0 );
 	Assert( (mn >= 0) && (mn < pm->n_models) );
 
-	bsp_info *model = &pm->submodel[mn];
+	vertex_buffer *buffer;
 
-	if ( !model->buffer.model_list ) {
+	if ( mn >= 0 ) {
+		buffer = &pm->submodel[mn].buffer;
+	} else {
+		buffer = &pm->main_buffer;
+	}
+
+	if ( !buffer->model_list ) {
 		return;
 	}
 
-	bool rval = gr_pack_buffer(pm->vertex_buffer_id, &model->buffer);
+	bool rval = gr_pack_buffer(pm->vertex_buffer_id, buffer);
 
 	if ( !rval ) {
 		Error( LOCATION, "Unable to pack vertex buffer for '%s'\n", pm->filename );
+	}
+}
+
+void interp_configure_vertex_buffers(polymodel *pm)
+{
+	size_t i;
+	int first_index;
+	uint total_verts = 0;
+
+	for ( i = 0; i < MAX_MODEL_TEXTURES; ++i ) {
+		polygon_list[i].n_verts = 0;
+		tri_count[i] = 0;
+	}
+
+	// find tri counts for all vertices in all submodels based on texture
+	for ( i = 0; i < pm->n_models; ++i ) {
+		bsp_info *model = &pm->submodel[i];
+
+		find_tri_counts(0, model->bsp_data);
+	}
+
+	for ( i = 0; i < MAX_MODEL_TEXTURES; ++i ) {
+		total_verts += tri_count[i];
+
+		// for the moment we can only support INT_MAX worth of verts per index buffer
+		if (tri_count[i] > INT_MAX) {
+			Error( LOCATION, "Unable to generate vertex buffer data because model '%s' with %i verts is over the maximum of %i verts!\n", pm->filename, tri_count[i], INT_MAX);
+		}
+	}
+
+	if (total_verts < 1) {
+		return;
+	}
+
+	allocate_poly_list();
+
+	// fetch all vertices in all submodels based on texture
+	for ( i = 0; i < pm->n_models; ++i ) {
+		bsp_info *model = &pm->submodel[i];
+
+		parse_bsp(0, model->bsp_data, i);
+	}
+
+	total_verts = 0;
+
+	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
+		total_verts += polygon_list[i].n_verts;
+	}
+
+	poly_list *model_list = new(std::nothrow) poly_list;
+
+	if ( !model_list ) {
+		Error( LOCATION, "Unable to allocate memory for poly_list!\n" );
+	}
+
+	pm->main_buffer.model_list = model_list;
+
+	model_list->allocate( (int)total_verts );
+
+	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
+		if ( !polygon_list[i].n_verts )
+			continue;
+
+		memcpy( (model_list->vert) + model_list->n_verts, polygon_list[i].vert, sizeof(vertex) * polygon_list[i].n_verts );
+		memcpy( (model_list->norm) + model_list->n_verts, polygon_list[i].norm, sizeof(vec3d) * polygon_list[i].n_verts );
+
+		if (Cmdline_normal) {
+			memcpy( (model_list->tsb) + model_list->n_verts, polygon_list[i].tsb, sizeof(tsb_t) * polygon_list[i].n_verts );
+			memcpy( (model_list->submodels) + model_list->n_verts, polygon_list[i].submodels, sizeof(int) * polygon_list[i].n_verts );
+		}
+
+		model_list->n_verts += polygon_list[i].n_verts;
+	}
+
+	SCP_vector<int> vertex_list;
+
+	model_list->make_index_buffer(vertex_list);
+
+	vertex_list.clear();	// done
+
+	int vertex_flags = (VB_FLAG_POSITION | VB_FLAG_NORMAL | VB_FLAG_UV1);
+
+	if (model_list->tsb != NULL) {
+		Assert( Cmdline_normal );
+		vertex_flags |= VB_FLAG_TANGENT;
+	}
+
+	if (model_list->submodels != NULL) {
+		Assert( Use_GLSL );
+		vertex_flags |= VB_FLAG_MODEL_ID;
+	}
+
+	pm->main_buffer.flags = vertex_flags;
+
+	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
+		if ( !polygon_list[i].n_verts )
+			continue;
+
+		buffer_data new_buffer;
+
+		new_buffer.index = new(std::nothrow) uint[polygon_list[i].n_verts];
+		Verify( new_buffer.index != NULL );
+
+		for (j = 0; j < polygon_list[i].n_verts; j++) {
+			first_index = model_list->find_index(&polygon_list[i], j);
+			Assert(first_index != -1);
+
+			new_buffer.index[j] = (uint)first_index;
+		}
+
+		new_buffer.n_verts = polygon_list[i].n_verts;
+		new_buffer.texture = i;
+
+		new_buffer.flags = 0;
+
+		if (polygon_list[i].n_verts >= USHRT_MAX) {
+			new_buffer.flags |= VB_FLAG_LARGE_INDEX;
+		}
+
+		pm->main_buffer.tex_buf.push_back( new_buffer );
+	}
+
+	bool rval = gr_config_buffer(pm->vertex_buffer_id, &pm->main_buffer);
+
+	if ( !rval ) {
+		Error( LOCATION, "Unable to configure vertex buffer for '%s'\n", pm->filename );
 	}
 }
 

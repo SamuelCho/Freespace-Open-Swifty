@@ -59,6 +59,7 @@ SCP_vector<polymodel_instance*> Polygon_model_instances;
 
 static int model_initted = 0;
 extern int Cmdline_nohtl;
+extern int Use_GLSL;
 
 #ifndef NDEBUG
 CFILE *ss_fp = NULL;			// file pointer used to dump subsystem information
@@ -81,8 +82,9 @@ static uint Global_checksum = 0;
 
 static int Model_signature = 0;
 
+void interp_configure_vertex_buffers(polymodel*);
 void interp_configure_vertex_buffers(polymodel*, int);
-void interp_pack_vertex_buffers(polymodel*, int);
+void interp_pack_vertex_buffers(polymodel* pm, int mn = -1);
 
 void model_set_subsys_path_nums(polymodel *pm, int n_subsystems, model_subsystem *subsystems);
 void model_set_bay_path_nums(polymodel *pm);
@@ -812,67 +814,14 @@ void create_vertex_buffer(polymodel *pm)
 	} // End IBX code
 
 	// determine the size and configuration of each buffer segment
-	for (i = 0; i < pm->n_models; i++) {
-		interp_configure_vertex_buffers(pm, i);
-	}
-
-	int j = 0, k = 0;
-	int n_verts = 0;
-	int n_indexes[MAX_MODEL_TEXTURES] = {0};
-	bsp_info *model;
-
-	for (i = 0; i < pm->n_models; i++) {
-		model = &pm->submodel[i];
-
-		// figure out the sizes of the master vertex buffer and it's texture index buffers
-		n_verts += model->buffer.model_list->n_verts;
-
-		for (j = 0; j < (int)model->buffer.tex_buf.size(); j++) {
-			n_indexes[model->buffer.tex_buf[i].texture] += model->buffer.tex_buf[i].n_verts;
+	if ( Use_GLSL ) {
+		interp_configure_vertex_buffers(pm);
+	} else {
+		for (i = 0; i < pm->n_models; i++) {
+			interp_configure_vertex_buffers(pm, i);
 		}
 	}
-
-	// create the master vertex buffer
-	pm->main_buffer.model_list->allocate(n_verts);
-
-	for (i = 0; i < pm->n_models; i++) {
-		pm->main_buffer.model_list->norm;
-		memcpy(pm->main_buffer.model_list->vert + pm->submodel[i].buffer.vertex_offset/pm->submodel[i].buffer.stride, pm->submodel[i].buffer.model_list->vert, pm->submodel[i].buffer.model_list->n_verts);
-		pm->main_buffer.model_list->submodels;
-		pm->main_buffer.model_list->tsb;
-
-		
-	}
-
-	// create the texture index buffers
-	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
-		if ( !n_indexes[i] ) {
-			continue;
-		}
-
-		buffer_data new_buffer;
-		new_buffer.texture = i;
-		new_buffer.index = new(std::nothrow) uint[n_indexes[i]];
-
-		for (j = 0; j < pm->n_models; j++) {
-			model = &pm->submodel[j];
-
-			for (k = 0; k < model->buffer.tex_buf.size(); k++) {
-				if ( i == model->buffer.tex_buf[k].texture ) {
-					uint *index = new_buffer.index + new_buffer.n_verts;
-
-					memcpy(index, model->buffer.tex_buf[k].index, model->buffer.tex_buf[k].n_verts);
-
-					new_buffer.n_verts += model->buffer.tex_buf[k].n_verts;
-
-					model->buffer.tex_buf[k].release();
-				}
-			}
-		}
-
-		pm->main_buffer.tex_buf.push_back(new_buffer);
-	}
-
+	
 	// these must be reset to NULL for the tests to work correctly later
 	if (ibuffer_info.read != NULL) {
 		cfclose( ibuffer_info.read );
@@ -885,11 +834,17 @@ void create_vertex_buffer(polymodel *pm)
 	memset( &ibuffer_info, 0, sizeof(IBX) );
 
 	// now actually fill the buffer with our info ...
-	for (i = 0; i < pm->n_models; i++) {
-		interp_pack_vertex_buffers(pm, i);
+	if ( Use_GLSL ) {
+		interp_pack_vertex_buffers(pm);
 
-		// release temporary memory
-		pm->submodel[i].buffer.release();
+		pm->main_buffer.release();
+	} else {
+		for (i = 0; i < pm->n_models; i++) {
+			interp_pack_vertex_buffers(pm, i);
+
+			// release temporary memory
+			pm->submodel[i].buffer.release();
+		}
 	}
 
 	// ... and then finalize buffer

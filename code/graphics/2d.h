@@ -740,6 +740,7 @@ void gr_pline_special(vec3d **pts, int num_pts, int thickness,bool resize=true);
 #define VB_FLAG_UV4			(1<<8)
 #define VB_FLAG_TANGENT		(1<<9)
 #define VB_FLAG_LARGE_INDEX	(1<<10)
+#define VB_FLAG_MODEL_ID	(1<<11)
 
 void gr_clear_shaders_cache();
 
