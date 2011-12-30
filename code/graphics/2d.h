@@ -435,6 +435,10 @@ typedef struct screen {
 
 	void (*gf_line_htl)(vec3d *start, vec3d* end);
 	void (*gf_sphere_htl)(float rad);
+
+	uint (*gf_create_transformation_tex)();
+	void (*gf_destroy_transformation_tex)(uint tex_id);
+	void (*gf_update_transformation_tex)(int tex_id, int n_models, int *data);
 } screen;
 
 // handy macro
@@ -706,6 +710,11 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 
 #define gr_line_htl						GR_CALL(*gr_screen.gf_line_htl)
 #define gr_sphere_htl					GR_CALL(*gr_screen.gf_sphere_htl)
+
+// functions to prepare transformation data textures
+#define gr_create_transform_tex			GR_CALL(*gr_screen.gf_create_transformation_tex)
+#define gr_destroy_transform_tex		GR_CALL(*gr_screen.gf_destroy_transformation_tex)
+#define gr_update_transform_tex			GR_CALL(*gr_screen.gf_update_transformation_tex)
 
 // color functions
 void gr_get_color( int *r, int *g, int  b );

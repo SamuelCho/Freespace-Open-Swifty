@@ -84,4 +84,8 @@ int gr_opengl_preload(int bitmap_num, int is_aabitmap);
 void gr_opengl_set_texture_panning(float u, float v, bool enable);
 void gr_opengl_set_texture_addressing(int mode);
 
+uint gr_opengl_create_transformation_tex();
+void gr_opengl_destroy_transformation_tex(uint texture_id);
+void gr_opengl_update_transformation_tex(uint texture_id, int n_entries, float *data);
+
 #endif	//_GROPENGLTEXTURE_H

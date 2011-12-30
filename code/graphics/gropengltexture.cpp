@@ -1859,3 +1859,30 @@ int opengl_make_render_target( int handle, int slot, int *w, int *h, ubyte *bpp,
 // End of GL_EXT_framebuffer_object stuff
 // -----------------------------------------------------------------------------
 
+uint gr_opengl_create_transformation_tex()
+{
+	GLuint tex_id;
+
+	glGenTextures(1, &tex_id);
+
+	glBindTexture(GL_TEXTURE_2D, tex_id);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	return tex_id;
+}
+
+void gr_opengl_destroy_transformation_tex(uint texture_id)
+{
+	GLuint tex_id = (GLuint)texture_id;
+
+	glDeleteTextures(1, &tex_id);
+}
+
+void gr_opengl_update_transformation_tex(uint texture_id, int n_entries, float *data)
+{
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 3, n_entries*4, 0, GL_RGBA, GL_FLOAT, data);
+}

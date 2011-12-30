@@ -2634,6 +2634,8 @@ int model_create_instance(int model_num, int submodel_num)
 		pmi->root_submodel_num = submodel_num;
 	}
 
+	pmi->transform_tex_id = gr_create_transform_tex();
+
 	return open_slot;
 }
 
@@ -2648,6 +2650,8 @@ void model_delete_instance(int model_instance_num)
 	if ( pmi->submodel ) {
 		vm_free(pmi->submodel);
 	}
+
+	gr_destroy_transform_tex(pmi->transform_tex_id);
 
 	vm_free(pmi);
 

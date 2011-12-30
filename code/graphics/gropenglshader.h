@@ -41,8 +41,9 @@
 #define MAX_SHADER_UNIFORMS		15
 
 #define SDR_ATTRIB_RADIUS		0
+#define SDR_ATTRIB_SUBMODEL		1
 
-#define MAX_SDR_ATTRIBUTES		1
+#define MAX_SDR_ATTRIBUTES		2
 
 struct opengl_shader_file_t {
 	char *vert;
