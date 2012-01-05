@@ -1190,6 +1190,7 @@ $Add:			0								\n\
 //===========================================================
 
 char* Default_main_vertex_shader = 
+"uniform sampler2D transform_tex;\n"
 "#ifdef FLAG_ENV_MAP\n"
 "uniform mat4 envMatrix;\n"
 "varying vec3 envReflect;\n"
@@ -1200,6 +1201,7 @@ char* Default_main_vertex_shader =
 "#ifdef FLAG_FOG\n"
 "varying float fogDist;\n"
 "#endif\n"
+"attribute float submodel;\n"
 "varying vec4 position;\n"
 "varying vec3 lNormal;\n"
 "void main()\n"
