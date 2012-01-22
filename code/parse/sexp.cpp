@@ -274,7 +274,7 @@ sexp_oper Operators[] = {
 	{ "get-throttle-speed",			OP_GET_THROTTLE_SPEED,		1, 1,			}, // Karajorma
 	{ "has-primary-weapon",			OP_HAS_PRIMARY_WEAPON,		3,	INT_MAX},	// Karajorma
 	{ "has-secondary-weapon",		OP_HAS_SECONDARY_WEAPON,	3,	INT_MAX},	// Karajorma
-	{ "directive-is-variable",		OP_DIRECTIVE_IS_VARIABLE,	1,	2},	// Karajorma
+	{ "directive-value",			OP_DIRECTIVE_VALUE,	1,	2},	// Karajorma
 	
 	{ "time-ship-destroyed",	OP_TIME_SHIP_DESTROYED,		1,	1,	},
 	{ "time-ship-arrived",		OP_TIME_SHIP_ARRIVED,		1,	1,	},
@@ -3118,6 +3118,8 @@ int get_sexp(char *token)
 				strcpy(token, "hud-set-max-targeting-range");
 			else if (!stricmp(token, "ship-subsys-vanished"))
 				strcpy(token, "ship-subsys-vanish");
+			else if (!stricmp(token, "directive-is-variable"))
+				strcpy(token, "directive-value");
 
 			op = get_operator_index(token);
 			if (op != -1) {
@@ -5905,30 +5907,17 @@ int sexp_hits_left_subsystem_specific(int node)
 	return SEXP_NAN;
 }
 
-int sexp_directive_is_variable(int n)
-{
-	int sexp_variable_index;
-	int sexp_variable_value = 0;
+int sexp_directive_value(int n)
+{	
 	int replace_current_value = SEXP_TRUE; 
+	int directive_value;
 
 	Assert(n >= 0);
 
-	// get sexp_variable index
-	Assert(Sexp_nodes[n].first == -1);
-	sexp_variable_index = atoi(Sexp_nodes[n].text);
+	directive_value = eval_num(n);
 
-	// verify variable set
-	Assert(Sexp_variables[sexp_variable_index].type & SEXP_VARIABLE_SET);
-
-	if (Sexp_variables[sexp_variable_index].type & SEXP_VARIABLE_NUMBER)
-	{
-		// get new numerical value
-		sexp_variable_value = atoi(Sexp_variables[sexp_variable_index].text);
-	}
-	else
-	{
-		Warning(LOCATION, "Invalid variable type. Directive variables must be a number!\n");
-		return SEXP_KNOWN_FALSE;
+	if ((directive_value == SEXP_NAN) || (directive_value == SEXP_NAN_FOREVER)) {
+		directive_value = 0;
 	}
 
 	n = CDR(n);
@@ -5937,10 +5926,10 @@ int sexp_directive_is_variable(int n)
 	}
 
 	if ((replace_current_value == SEXP_KNOWN_FALSE) || (replace_current_value == SEXP_FALSE) ) {
-		Directive_count += sexp_variable_value;
+		Directive_count += directive_value;
 	}
 	else {
-		Directive_count = sexp_variable_value;
+		Directive_count = directive_value;
 	}
 
 		
@@ -21692,12 +21681,9 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = sexp_has_weapon(node, op_num);
 				break;
 
-			case OP_DIRECTIVE_IS_VARIABLE:
-				sexp_val = sexp_directive_is_variable(node);
+			case OP_DIRECTIVE_VALUE:
+				sexp_val = sexp_directive_value(node);
 				break;
-
-
-
 
 			case OP_CHANGE_SUBSYSTEM_NAME:
 				sexp_change_subsystem_name(node);
@@ -22546,7 +22532,7 @@ int query_operator_return_type(int op)
 		case OP_HAS_PRIMARY_WEAPON:
 		case OP_HAS_SECONDARY_WEAPON:
 		case OP_IS_BIT_SET:
-		case OP_DIRECTIVE_IS_VARIABLE:
+		case OP_DIRECTIVE_VALUE:
 		case OP_IS_IN_BOX:
 		case OP_IS_IN_MISSION:
 			return OPR_BOOL;
@@ -24545,9 +24531,9 @@ int query_operator_argument_type(int op, int argnum)
 			else 
 				return OPF_WEAPON_NAME;
 			
-		case OP_DIRECTIVE_IS_VARIABLE:
+		case OP_DIRECTIVE_VALUE:
 			if (argnum == 0)
-				return OPF_VARIABLE_NAME;
+				return OPF_NUMBER;
 			else 
 				return OPF_BOOL;			
 
@@ -24816,7 +24802,7 @@ int query_operator_argument_type(int op, int argnum)
 			else if (argnum == 1)
 				return OPF_NUMBER;
 			else
-				return OPF_SHIP;
+				return OPF_SHIP_WING;
 
 		case OP_CLEAR_SUBTITLES:
 			return OPF_NONE;
@@ -25981,6 +25967,41 @@ int eval_num(int n)
 		return eval_sexp(CAR(n));
 	else
 		return atoi(CTEXT(n));		// otherwise, just get the number
+}
+
+// Goober5000
+int get_sexp_id(char *sexp_name)
+{
+	for (int i = 0; i < Num_operators; i++)
+	{
+		if (!stricmp(sexp_name, Operators[i].text))
+			return Operators[i].value;
+	}
+	return -1;
+}
+
+// Goober5000
+int get_category(int sexp_id)
+{
+	int category = (sexp_id & OP_CATEGORY_MASK);
+
+	// hack so that CHANGE and CHANGE2 show up in the same menu
+	if (category == OP_CATEGORY_CHANGE2)
+		category = OP_CATEGORY_CHANGE;
+
+	return category;
+}
+
+// Goober5000
+int category_of_subcategory(int subcategory_id)
+{
+	int category = (subcategory_id & OP_CATEGORY_MASK);
+
+	// hack so that CHANGE and CHANGE2 show up in the same menu
+	if (category == OP_CATEGORY_CHANGE2)
+		category = OP_CATEGORY_CHANGE;
+
+	return category;
 }
 
 // Goober5000 - for FRED2 menu subcategories
@@ -29286,11 +29307,11 @@ sexp_help_struct Sexp_help[] = {
 	},
 
 	// Karajora
-	{ OP_DIRECTIVE_IS_VARIABLE, "directive-is-variable\r\n"
-		"\tCauses the variable to appear in the directive count\r\n"
+	{ OP_DIRECTIVE_VALUE, "directive-value\r\n"
+		"\tCauses a value to appear in the directive count\r\n"
 		"\tAlways returns true. Takes 1 or more arguments...\r\n\r\n"
-		"\t1:\tVariable name\r\n"
-		"\t2:\t(Optional) Reset the directive count set by any earlier SEXPs in the event.\r\n"
+		"\t1:\tValue\r\n"
+		"\t2:\t(Optional) Ignore the directive count set by any earlier SEXPs in the event. If set to false it will add instead\r\n"
 	},
 
 	//phreak
@@ -29865,7 +29886,7 @@ bool output_sexps(char *filepath)
 				fputs("<dl>", fp);
 				for(z = 0; z < Num_operators; z++)
 				{
-					if(((Operators[z].value & OP_CATEGORY_MASK) == op_menu[x].id)
+					if((get_category(Operators[z].value) == op_menu[x].id)
 						&& (get_subcategory(Operators[z].value) != -1)
 						&& (get_subcategory(Operators[z].value) == op_submenu[y].id))
 					{
@@ -29878,7 +29899,7 @@ bool output_sexps(char *filepath)
 		}
 		for(z = 0; z < Num_operators; z++)
 		{
-			if(((Operators[z].value & OP_CATEGORY_MASK) == op_menu[x].id)
+			if((get_category(Operators[z].value) == op_menu[x].id)
 				&& (get_subcategory(Operators[z].value) == -1))
 			{
 				output_sexp_html(z, fp);
@@ -29889,7 +29910,7 @@ bool output_sexps(char *filepath)
 	}
 	for(z = 0; z < Num_operators; z++)
 	{
-		if(!(Operators[z].value & OP_CATEGORY_MASK))
+		if(!get_category(Operators[z].value))
 		{
 			output_sexp_html(z, fp);
 		}

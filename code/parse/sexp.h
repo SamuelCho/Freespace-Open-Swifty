@@ -361,7 +361,7 @@ class waypoint_list;
 #define OP_NAV_DISTANCE						(0x0047 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Kazan
 #define OP_NAV_ISLINKED						(0x0048 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Kazan
 #define OP_IS_FACING						(0x0049 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // The E
-#define OP_DIRECTIVE_IS_VARIABLE			(0x004a | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
+#define OP_DIRECTIVE_VALUE					(0x004a | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
 #define OP_GET_NUM_COUNTERMEASURES			(0x004b | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
 #define OP_IS_IN_BOX					    (0x004c | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Sushi
 #define OP_IS_IN_MISSION					(0x004d | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Goober5000
@@ -1100,6 +1100,9 @@ void set_secondary_ammo (int ship_index, int requested_bank, int requested_ammo,
 
 
 // menu and category stuff
+extern int get_sexp_id(char *sexp_name);
+extern int get_category(int sexp_id);
+extern int category_of_subcategory(int subcategory_id);
 extern int get_subcategory(int sexp_id);
 
 // Goober5000

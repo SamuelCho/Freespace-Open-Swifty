@@ -89,7 +89,7 @@ int Multi_common_text_max_display[GR_NUM_RESOLUTIONS] = {
 };
 
 #define MULTI_COMMON_TEXT_META_CHAR				'$'
-#define MULTI_COMMON_TEXT_MAX_LINE_LENGTH		100
+#define MULTI_COMMON_TEXT_MAX_LINE_LENGTH		200
 #define MULTI_COMMON_TEXT_MAX_LINES				20
 #define MULTI_COMMON_MAX_TEXT						(MULTI_COMMON_TEXT_MAX_LINES * MULTI_COMMON_TEXT_MAX_LINE_LENGTH)
 
@@ -191,7 +191,9 @@ void multi_common_split_text()
 	Assert(n_lines != -1);
 
 	for ( i = 0; i < n_lines; i++ ) {
-		Assert(n_chars[i] < MULTI_COMMON_TEXT_MAX_LINE_LENGTH);
+		//The E -- This check is unnecessary, and will break when fonts that aren't bank gothic are used
+		//split_str already ensured that everything will fit in the text window for us already.
+		//Assert(n_chars[i] < MULTI_COMMON_TEXT_MAX_LINE_LENGTH); 
 		strncpy(Multi_common_text[i], p_str[i], n_chars[i]);
 		Multi_common_text[i][n_chars[i]] = 0;
 		drop_leading_white_space(Multi_common_text[i]);		
@@ -3688,7 +3690,7 @@ void multi_create_game_do()
 			Netgame.options.respawn = 99; //override anything //for debugging, i often forget this.
 			ng->respawn = Netgame.options.respawn;
 
-			Netgame.campaign_mode = MP_SINGLE; //multiplayer single mission. meaning Single mission, not single player
+			Netgame.campaign_mode = MP_SINGLE_MISSION; //multiplayer single mission. meaning Single mission, not single player
 
 			strncpy(Game_current_mission_filename,almissionname,MAX_FILENAME_LEN ); // copying almissionname to Game_current_mission_filename
 			strncpy(Netgame.mission_name,almissionname,MAX_FILENAME_LEN);// copying almission name to netgame.mission_name
@@ -4092,7 +4094,7 @@ void multi_create_button_pressed(int n)
 	// switch to individual mission mode and load in a list
 	case MC_MISSION_FILTER:
 		if(Multi_create_list_mode != MULTI_CREATE_SHOW_MISSIONS){
-			Netgame.campaign_mode = MP_SINGLE;
+			Netgame.campaign_mode = MP_SINGLE_MISSION;
 
 			gamesnd_play_iface(SND_USER_SELECT);												
 			
@@ -4948,7 +4950,7 @@ void multi_create_accept_hit()
 	case MULTI_CREATE_SHOW_MISSIONS:	
 		if(Multi_create_list_select != -1){
 			// set the netgame mode
-			Netgame.campaign_mode = MP_SINGLE;
+			Netgame.campaign_mode = MP_SINGLE_MISSION;
 
 			// setup various filenames and mission names
 			multi_create_select_to_filename(Multi_create_list_select,selected_name);
@@ -6187,7 +6189,7 @@ void multi_ho_accept_hit()
 
 	// set the netgame respawn count
 	// maybe warn the user that respawns will not be used for a campaign mission
-	if(Netgame.campaign_mode == MP_SINGLE){
+	if(Netgame.campaign_mode == MP_SINGLE_MISSION){
 		Multi_ho_respawns.get_text(resp_str);
 		uint temp_respawn = (uint)atoi(resp_str);
 		// if he currently has no mission selected, let the user set any # of respawns
@@ -6327,7 +6329,7 @@ void multi_ho_get_options()
 	Multi_ho_obs.set_text(resp_str);
 
 	// set the respawn count
-	if(Netgame.campaign_mode == MP_SINGLE){
+	if(Netgame.campaign_mode == MP_SINGLE_MISSION){
 		memset(resp_str,0,10);
 		sprintf(resp_str,"%u",Netgame.respawn);
 		Multi_ho_respawns.set_text(resp_str);	

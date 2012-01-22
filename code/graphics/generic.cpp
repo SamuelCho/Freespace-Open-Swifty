@@ -100,6 +100,13 @@ void generic_anim_init(generic_anim *ga, char *filename)
 	ga->width = 0;
 	ga->bitmap_id = -1;
 }
+/**
+ * CommanderDJ - same as generic_anim_init, just with an SCP_string 
+ */
+void generic_anim_init(generic_anim *ga, const SCP_string& filename)
+{
+	generic_anim_init(ga, const_cast<char*> (filename.c_str()));
+}
 
 // Goober5000
 void generic_bitmap_init(generic_bitmap *gb, char *filename)
@@ -281,7 +288,7 @@ void generic_render_ani_stream(generic_anim *ga)
 		int start_time = timer_get_fixed_seconds();
 	#endif
 
-	if((ga->current_frame == ga->previous_frame))
+	if(ga->current_frame == ga->previous_frame)
 		return;
 
 	#ifdef TIMER

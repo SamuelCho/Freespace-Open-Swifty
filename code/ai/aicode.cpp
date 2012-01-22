@@ -2163,7 +2163,7 @@ int find_enemy(int objnum, float range, int max_attackers)
 
 			// DKA don't undo object as target in nebula missions.
 			// This could cause attack on ship on fringe on nebula to stop if attackee moves our of nebula range.  (BAD)
-			if ( (Objects[target_objnum].signature == aip->target_signature) ) {
+			if ( Objects[target_objnum].signature == aip->target_signature ) {
 				if (iff_matches_mask(Ships[Objects[target_objnum].instance].team, enemy_team_mask)) {
 					if (!(Objects[target_objnum].flags & OF_PROTECTED)) {
 						return target_objnum;
@@ -8988,12 +8988,12 @@ float dock_orient_and_approach(object *docker_objp, int docker_index, object *do
 	rdinfo->submodel_w = submodel_omega;
 
 
-	//	If dockee has moved much, then path will be recreated.
-	//	Might need to change state if moved too far.
-	if ((dock_mode != DOA_DOCK_STAY) && (dock_mode != DOA_DOCK)) {
-		// Goober5000 - maybe force recreate
-		int force_recreate = (dockee_rotating_submodel >= 0) && ((dock_mode == DOA_APPROACH) || (dock_mode == DOA_UNDOCK_1));
-	}
+	////	If dockee has moved much, then path will be recreated.
+	////	Might need to change state if moved too far.
+	//if ((dock_mode != DOA_DOCK_STAY) && (dock_mode != DOA_DOCK)) {
+	//	// Goober5000 - maybe force recreate
+	//	int force_recreate = (dockee_rotating_submodel >= 0) && ((dock_mode == DOA_APPROACH) || (dock_mode == DOA_UNDOCK_1));
+	//}
 
 
 	float speed_scale = 1.0f;

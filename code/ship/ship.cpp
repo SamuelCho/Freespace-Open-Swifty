@@ -1374,8 +1374,24 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 	}
 	diag_printf ("Ship short name -- %s\n", sip->short_name);
 
-	Assert( tspecies_names );
-	find_and_stuff_optional("$Species:", &sip->species, F_NAME, tspecies_names, Species_info.size(), "species names");
+	if (optional_string("$Species:")) {
+		char temp[NAME_LENGTH];
+		stuff_string(temp, F_NAME, NAME_LENGTH);
+		int i = 0;
+		
+		bool found = false;
+		for (SCP_vector<species_info>::iterator sii = Species_info.begin(); sii != Species_info.end(); ++sii, ++i) {
+			if (!stricmp(temp, sii->species_name)) {
+				sip->species = i;
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			Error(LOCATION, "Invalid Species %s defined in table entry for ship %s.\n", temp, sip->name);
+		}
+	}
 
 	diag_printf ("Ship species -- %s\n", Species_info[sip->species].species_name);
 
@@ -3972,6 +3988,21 @@ void parse_shiptype_tbl(char *filename)
 	lcl_ext_close();
 }
 
+// The E - Simple lookup function for FRED.
+int get_default_player_ship_index() 
+{
+	if (strlen(default_player_ship)) 
+	{
+		for (int i = 0; i < Num_ship_classes; i++) 
+		{
+			if (stricmp(default_player_ship, Ship_info[i].name) == 0)
+				return i;
+		}
+		return 0;
+	} else
+		return 0;
+}
+
 // Goober5000 - this works better in its own function
 void ship_set_default_player_ship()
 {
@@ -4167,7 +4198,7 @@ void ship_parse_post_cleanup()
 		for(i = 0; i < n_tgt_groups; i++) {
 			if (!(Ai_tp_list[i].obj_flags || Ai_tp_list[i].sif_flags || Ai_tp_list[i].sif2_flags || Ai_tp_list[i].wif2_flags || Ai_tp_list[i].wif_flags)) {
 				//had none of these, check next
-				if ((Ai_tp_list[i].obj_type == -1)) {
+				if (Ai_tp_list[i].obj_type == -1) {
 					//didn't have this one
 					if (!(Ai_tp_list[i].ship_class.size() || Ai_tp_list[i].ship_type.size() || Ai_tp_list[i].weapon_class.size())) {
 						// had nothing - time to issue a warning
@@ -4416,7 +4447,6 @@ void ship_add_exited_ship( ship *sp, int reason )
 	entry.obj_signature = Objects[sp->objnum].signature;
 	entry.ship_class = sp->ship_info_index;
 	entry.team = sp->team;
-	entry.ship_class = sp->ship_info_index;
 	entry.flags = reason;
 	// if ship is red alert, flag as such
 	if (sp->flags & SF_RED_ALERT_STORE_STATUS) {
@@ -5020,6 +5050,13 @@ void ship_set(int ship_index, int objnum, int ship_type)
 	shipp->collision_damage_type_idx =  sip->collision_damage_type_idx;
 	shipp->debris_damage_type_idx = sip->debris_damage_type_idx;
 	sip->shockwave.damage_type_idx = sip->shockwave.damage_type_idx_sav;
+
+	// Reset special hitpoints. Fixes Mantis issue 2573
+	shipp->special_hitpoints = 0;
+	shipp->special_shield = -1;
+
+	// Reset special explosion too.
+	shipp->use_special_explosion = false;
 }
 
 /**
@@ -5401,7 +5438,7 @@ int subsys_set(int objnum, int ignore_subsys_info)
 		for (k = 0; k < MAX_TFP; k++)
 			ship_system->turret_swarm_info_index[k] = -1;
 
-		ship_system->turret_swarm_num;
+		ship_system->turret_swarm_num = 0;
 
 		// AWACS stuff
 		ship_system->awacs_intensity = model_system->awacs_intensity;
@@ -5719,6 +5756,14 @@ void ship_render(object * obj)
 		warp_shipp = &Ships[dfi.maintained_variables.objp_value->instance];
 
 		is_first_stage_arrival = ((warp_shipp->flags & SF_ARRIVING_STAGE_1) > 0);
+
+		// This is a hack to make ships using the hyperspace warpin type to
+		// render even in stage 1, which is used for collision detection
+		// purposes -zookeeper
+		if (Ship_info[warp_shipp->ship_info_index].warpin_type == WT_HYPERSPACE) {
+			warp_shipp = NULL;
+			is_first_stage_arrival = false;
+		}
 	}
 
 
@@ -9579,10 +9624,6 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 
 		// only non-multiplayer clients (single, multi-host) need to do timestamp checking
 		if ( !timestamp_elapsed(swp->next_primary_fire_stamp[bank_to_fire]) ) {
-			if (timestamp_until(swp->next_primary_fire_stamp[bank_to_fire]) > 5000){
-				swp->next_primary_fire_stamp[bank_to_fire] = timestamp(1000);
-			}
-
 			have_timeout = 1;
 			continue;
 		}
@@ -9729,7 +9770,7 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 
 				if ( shipp->weapon_energy < points*winfo_p->energy_consumed*flFrametime)
 				{
-					swp->next_primary_fire_stamp[bank_to_fire] = timestamp(swp->next_primary_fire_stamp[bank_to_fire]*2);
+					swp->next_primary_fire_stamp[bank_to_fire] = timestamp((int)(next_fire_delay));
 					if ( obj == Player_obj )
 					{
 						if ( ship_maybe_play_primary_fail_sound() )
@@ -9811,7 +9852,7 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 				if ( (shipp->weapon_energy < points*numtimes * winfo_p->energy_consumed)			//was num_slots
 				 && !force ) {
 
-					swp->next_primary_fire_stamp[bank_to_fire] = timestamp(swp->next_primary_fire_stamp[bank_to_fire]);
+					swp->next_primary_fire_stamp[bank_to_fire] = timestamp((int)(next_fire_delay));
 					if ( obj == Player_obj )
 					{
 						if ( ship_maybe_play_primary_fail_sound() )
@@ -10089,7 +10130,7 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 						}
 
 						//Check for pre-launch sound and play if relevant
-						if( (winfo_p->pre_launch_snd != NULL)									//If this weapon type has a pre-fire sound
+						if( (winfo_p->pre_launch_snd != -1)									//If this weapon type has a pre-fire sound
 							&& ((timestamp() - swp->last_primary_fire_sound_stamp[bank_to_fire]) >= winfo_p->pre_launch_snd_min_interval)	//and if we're past our minimum delay from the last cease-fire
 							&& (shipp->was_firing_last_frame[bank_to_fire] == 0)				//and if we are at the beginning of a firing stream
 						){ 
@@ -10360,6 +10401,8 @@ int ship_fire_secondary_detonate(object *obj, ship_weapon *swp)
 
 /**
  * Try to switch to a secondary bank that has ammo
+ *
+ * @note: not currently used - mark for removal?
  */
 int ship_select_next_valid_secondary_bank(ship_weapon *swp)
 {
@@ -10834,8 +10877,11 @@ done_secondary:
 	//then it would have no firedelay. and then add 250 ms of delay. in effect, this way there is no penalty if there is any firedelay remaning in
 	//the next valid bank. the delay is there to prevent things like Trible/Quad Fire Trebuchets.
 	//
-	if ( (obj->flags & OF_PLAYER_SHIP) && (swp->secondary_bank_ammo[bank] <= 0) ) {
-		if ( ship_select_next_valid_secondary_bank(swp) ) {			//DTP here we switch to the next valid bank, but we can't call weapon_info on next fire_wait
+	// niffiwan: only try to switch banks if object has multiple banks
+	if ( (obj->flags & OF_PLAYER_SHIP) && (swp->secondary_bank_ammo[bank] <= 0) && (swp->num_secondary_banks >= 2) ) {
+		// niffiwan: call ship_select_next_secondary instead of ship_select_next_valid_secondary_bank
+		// ensures all "extras" are dealt with, like animations, scripting hooks, etc
+		if (ship_select_next_secondary(obj) ) {			//DTP here we switch to the next valid bank, but we can't call weapon_info on next fire_wait
 
 			if ( timestamp_elapsed(shipp->weapons.next_secondary_fire_stamp[shipp->weapons.current_secondary_bank]) ) {	//DTP, this is simply a copy of the manual cycle functions
 				shipp->weapons.next_secondary_fire_stamp[shipp->weapons.current_secondary_bank] = timestamp(1000);	//Bumped from 250 to 1000 because some people seem to be to triggerhappy :).
@@ -10846,7 +10892,6 @@ done_secondary:
 				snd_play( &Snds[ship_get_sound(Player_obj, SND_SECONDARY_CYCLE)] );		
 			}
 		}
-
 	}	
 
 	if (has_fired) {
