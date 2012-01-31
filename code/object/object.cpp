@@ -514,7 +514,10 @@ void obj_delete(int objnum)
 
 	Assert(objnum >= 0 && objnum < MAX_OBJECTS);
 	objp = &Objects[objnum];
-	Assert(objp->type != OBJ_NONE);	
+	if (objp->type == OBJ_NONE) {
+		mprintf(("obj_delete() called for already deleted object %d.\n", objnum));
+		return;
+	};	
 
 	// Remove all object pairs
 	obj_remove_pairs( objp );
@@ -1436,8 +1439,11 @@ void obj_move_all(float frametime)
 		dock_move_docked_objects(objp);
 
 		//Valathil - Move the screen rotation calculation for billboards here to get the updated orientation matrices caused by docking interpolation
-		angles tangles;
-		vm_extract_angles_matrix(&tangles, &objp->orient);
+		vec3d tangles;
+
+		tangles.xyz.x = -objp->phys_info.rotvel.xyz.x*frametime;
+		tangles.xyz.y = -objp->phys_info.rotvel.xyz.y*frametime;
+		tangles.xyz.z = objp->phys_info.rotvel.xyz.z*frametime;
 
 		// If this is the viewer_object, keep track of the
 		// changes in banking so that rotated bitmaps look correct.
@@ -1445,30 +1451,22 @@ void obj_move_all(float frametime)
 		extern physics_info *Viewer_physics_info;
 		extern int Physics_viewer_direction;
 		if ( &objp->phys_info == Viewer_physics_info )	{
-			switch(Physics_viewer_direction){
-			case PHYSICS_VIEWER_FRONT:
-				Physics_viewer_bank = -tangles.b;
-				break;
+			vec3d tangles_r;
+			vm_vec_unrotate(&tangles_r, &tangles, &Eye_matrix);
+			vm_vec_rotate(&tangles, &tangles_r, &objp->orient);
 
-			case PHYSICS_VIEWER_UP:
-				Physics_viewer_bank = -tangles.h;
-				break;
+			if(objp->dock_list && objp->dock_list->docked_objp->type == OBJ_SHIP && Ai_info[Ships[objp->dock_list->docked_objp->instance].ai_index].submode == AIS_DOCK_4) {
+				Physics_viewer_bank -= tangles.xyz.z*0.65f;
+			} else {
+				Physics_viewer_bank -= tangles.xyz.z;
+			}
 
-			case PHYSICS_VIEWER_REAR:
-				Physics_viewer_bank = tangles.b;
-				break;
+			if ( Physics_viewer_bank < 0.0f ){
+				Physics_viewer_bank += 2.0f * PI; 	 
+			} 	 
 
-			case PHYSICS_VIEWER_LEFT:
-				Physics_viewer_bank = tangles.p;
-				break;
-
-			case PHYSICS_VIEWER_RIGHT:
-				Physics_viewer_bank = -tangles.p;
-				break;
-
-			default:
-				Physics_viewer_bank = -tangles.b;
-				break;
+			if ( Physics_viewer_bank > 2.0f * PI ){ 	 
+				Physics_viewer_bank -= 2.0f * PI; 	 
 			}
 		}
 

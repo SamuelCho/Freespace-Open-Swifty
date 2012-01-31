@@ -1065,11 +1065,17 @@ void wss_direct_restore_loadout()
 		return;
 	}
 
+	// niffiwan: if Starting_wings[] has missing wings, Player_loadout.unit_data
+	// skips the missing wings.  Use a new variable to track the number of valid
+	// wings in Starting_wings[], otherwise mission can crash on restart
+	int valid_wing_index = -1;
+
 	for ( i = 0; i < MAX_WING_BLOCKS; i++ ) {
 
 		if ( Starting_wings[i] < 0 )
 			continue;
 
+		valid_wing_index++;
 		wp = &Wings[Starting_wings[i]];
 
 		// If this wing is still on the arrival list, then update the parse objects
@@ -1077,7 +1083,7 @@ void wss_direct_restore_loadout()
 			p_object *p_objp;
 			j=0;
 			for ( p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp) ) {
-				slot = &Player_loadout.unit_data[i*MAX_WING_SLOTS+j];
+				slot = &Player_loadout.unit_data[valid_wing_index*MAX_WING_SLOTS+j];
 				if ( p_objp->wingnum == WING_INDEX(wp) ) {
 					p_objp->ship_class = slot->ship_class;
 					wl_update_parse_object_weapons(p_objp, slot);
@@ -1095,7 +1101,7 @@ void wss_direct_restore_loadout()
 
 			// This wing is already created, so directly update the ships
 			for ( j = 0; j < MAX_WING_SLOTS; j++ ) {
-				slot = &Player_loadout.unit_data[i*MAX_WING_SLOTS+j];
+				slot = &Player_loadout.unit_data[valid_wing_index*MAX_WING_SLOTS+j];
 				shipp = &Ships[wp->ship_index[j]];
 				if ( shipp->ship_info_index != slot->ship_class ) {
 
@@ -1458,7 +1464,6 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 		{
 			weap_closeup.xyz.z = bs->min.xyz.x;
 		}
-//		weap_closeup.xyz.x = bs->min.xyz.x + (bs->max.xyz.x - bs->min.xyz.x)/2.0f;
 		g3_set_view_matrix( &weap_closeup, &vmd_identity_matrix, zoom);
 
 		if (!Cmdline_nohtl) {
@@ -1480,9 +1485,7 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 		light_dir.xyz.y = 2.0f;
 		light_dir.xyz.z = -2.0f;	
 		light_add_directional(&light_dir, 0.65f, 1.0f, 1.0f, 1.0f);
-		// light_filter_reset();
 		light_rotate_all();
-		// lighting for techroom
 	}
 
 	model_clear_instance(model_id);
