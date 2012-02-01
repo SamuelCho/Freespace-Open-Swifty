@@ -445,12 +445,16 @@ int gr_create_font(char * typeface)
 	// JAS:  Try to squeeze this into the smallest square power of two texture.
 	// This should probably be done at font generation time, not here.
 	int w, h;
-	if ( fnt->pixel_data_size < 64*64 )	{
+	if ( fnt->pixel_data_size*4 < 64*64 )	{
 		w = h = 64;
-	} else if ( fnt->pixel_data_size < 128*128 )	{
+	} else if ( fnt->pixel_data_size*4 < 128*128 ) {
 		w = h = 128;
-	} else {
+	} else if ( fnt->pixel_data_size*4 < 256*256 ) {
 		w = h = 256;
+	} else if ( fnt->pixel_data_size*4 < 512*512 ) {
+		w = h = 512;
+	} else {
+		w = h = 1024;
 	}
 
 	fnt->bm_w = w;
@@ -470,6 +474,7 @@ int gr_create_font(char * typeface)
 		if ( x + fnt->char_data[i].byte_width >= fnt->bm_w )	{
 			x = 0;
 			y += fnt->h;
+			y += 2;
 			if ( y+fnt->h > fnt->bm_h ) {
 				Error( LOCATION, "Font too big!\n" );
 			}
@@ -485,6 +490,7 @@ int gr_create_font(char * typeface)
 			}
 		}
 		x += fnt->char_data[i].byte_width;
+		x += 2;
 	}
 
 	fnt->bitmap_id = bm_create( 8, fnt->bm_w, fnt->bm_h, fnt->bm_data, BMP_AABITMAP );
