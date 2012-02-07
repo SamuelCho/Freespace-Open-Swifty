@@ -78,9 +78,10 @@ static int Interp_num_verts = 0;
 static vertex **Interp_list = NULL;
 static int  Num_interp_list_verts_allocated = 0;
 
-static float Interp_box_scale = 1.0f;
+static float Interp_box_scale = 1.0f; // this is used to scale both detail boxes and spheres
 static vec3d Interp_render_box_min = ZERO_VECTOR;
 static vec3d Interp_render_box_max = ZERO_VECTOR;
+static float Interp_render_sphere_radius = 0.0f;
 
 // -------------------------------------------------------------------
 // lighting save stuff 
@@ -361,6 +362,7 @@ void interp_clear_instance()
 	Interp_box_scale = 1.0f;
 	Interp_render_box_min = vmd_zero_vector;
 	Interp_render_box_max = vmd_zero_vector;
+	Interp_render_sphere_radius = 0.0f;
 }
 
 /**
@@ -2244,7 +2246,20 @@ void model_render_thrusters(polymodel *pm, int objnum, ship *shipp, matrix *orie
 
 			if (shipp) {
 				// if ship is warping out, check position of the engine glow to the warp plane
-				if ( (shipp->flags & (SF_ARRIVING|SF_DEPART_WARP) ) && (shipp->warpout_effect) ) {
+				if ( (shipp->flags & (SF_ARRIVING) ) && (shipp->warpin_effect) && Ship_info[shipp->ship_info_index].warpin_type != WT_HYPERSPACE) {
+					vec3d warp_pnt, tmp;
+					matrix warp_orient;
+
+					shipp->warpin_effect->getWarpPosition(&warp_pnt);
+					shipp->warpin_effect->getWarpOrientation(&warp_orient);
+					vm_vec_sub( &tmp, &world_pnt, &warp_pnt );
+
+					if ( vm_vec_dot( &tmp, &warp_orient.vec.fvec ) < 0.0f ) {
+						break;
+					}
+				}
+
+				if ( (shipp->flags & (SF_DEPART_WARP) ) && (shipp->warpout_effect) && Ship_info[shipp->ship_info_index].warpout_type != WT_HYPERSPACE) {
 					vec3d warp_pnt, tmp;
 					matrix warp_orient;
 
@@ -2252,12 +2267,8 @@ void model_render_thrusters(polymodel *pm, int objnum, ship *shipp, matrix *orie
 					shipp->warpout_effect->getWarpOrientation(&warp_orient);
 					vm_vec_sub( &tmp, &world_pnt, &warp_pnt );
 
-					if ( vm_vec_dot( &tmp, &warp_orient.vec.fvec ) < 0.0f ) {
-						if (shipp->flags & SF_ARRIVING)// if in front of warp plane, don't create.
-							break;
-					} else {
-						if (shipp->flags & SF_DEPART_WARP)
-							break;
+					if ( vm_vec_dot( &tmp, &warp_orient.vec.fvec ) > 0.0f ) {
+						break;
 					}
 				}
 			}
@@ -2396,9 +2407,12 @@ void model_render_thrusters(polymodel *pm, int objnum, ship *shipp, matrix *orie
 						else {
 							dist_bitmap = Interp_secondary_thrust_glow_bitmap;
 						}
+						float mag = vm_vec_mag(&gpt->pnt); 
+						pow(mag,12);
+						mag -= (float)((int)mag);//Valathil - Get a fairly random but constant number to offset the distortion texture
 						distortion_add_beam(dist_bitmap,
 							TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT | TMAP_FLAG_DISTORTION_THRUSTER | TMAP_FLAG_SOFT_QUAD,
-							&pnt, &norm2, wVal*Interp_distortion_thrust_rad_factor*0.5f, 1.0f
+							&pnt, &norm2, wVal*Interp_distortion_thrust_rad_factor*0.5f, 1.0f, mag
 						);
 					}
 				}
@@ -3154,6 +3168,9 @@ void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * po
 			Interp_tmap_flags |= TMAP_FLAG_CORRECT;
 		}
 	}
+
+	if ( Interp_flags & MR_ANIMATED_SHADER )
+		Interp_tmap_flags |= TMAP_ANIMATED_SHADER;
 
 	bool is_outlines_only_htl = !Cmdline_nohtl && (flags & MR_NO_POLYS) && (flags & MR_SHOW_OUTLINE_HTL);
 
@@ -4429,6 +4446,18 @@ inline int in_box(vec3d *min, vec3d *max, vec3d *pos)
 	return -1;
 }
 
+inline int in_sphere(vec3d *pos, float radius)
+{
+	vec3d point;
+
+	vm_vec_sub(&point, &View_position, pos);
+
+	if ( vm_vec_dist(&point, pos) <= radius )
+		return 1;
+	else
+		return -1;
+}
+
 
 void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
 {
@@ -4457,12 +4486,18 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
 		Interp_thrust_scale_subobj = 0;
 	}
 
-	// if using detail boxes, check that we are valid for the range
+	// if using detail boxes or spheres, check that we are valid for the range
 	if ( !(Interp_flags & MR_FULL_DETAIL) && model->use_render_box ) {
 		vm_vec_copy_scale(&Interp_render_box_min, &model->render_box_min, Interp_box_scale);
 		vm_vec_copy_scale(&Interp_render_box_max, &model->render_box_max, Interp_box_scale);
 
 		if ( (-model->use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &model->offset)) )
+			return;
+	}
+	if ( !(Interp_flags & MR_FULL_DETAIL) && model->use_render_sphere ) {
+		Interp_render_sphere_radius = model->render_sphere_radius * Interp_box_scale;
+
+		if ( (-model->use_render_sphere + in_sphere(&model->offset, Interp_render_sphere_radius)) )
 			return;
 	}
 
@@ -4547,12 +4582,18 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 
 	bsp_info *model = &pm->submodel[mn];
 
-	// if using detail boxes, check that we are valid for the range
+	// if using detail boxes or spheres, check that we are valid for the range
 	if ( !is_child && !(Interp_flags & MR_FULL_DETAIL) && model->use_render_box ) {
 		vm_vec_copy_scale(&Interp_render_box_min, &model->render_box_min, Interp_box_scale);
 		vm_vec_copy_scale(&Interp_render_box_max, &model->render_box_max, Interp_box_scale);
 
 		if ( (-model->use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &model->offset)) )
+			return;
+	}
+	if ( !is_child && !(Interp_flags & MR_FULL_DETAIL) && model->use_render_sphere ) {
+		Interp_render_sphere_radius = model->render_sphere_radius * Interp_box_scale;
+
+		if ( (-model->use_render_sphere + in_sphere(&model->offset, Interp_render_sphere_radius)) )
 			return;
 	}
 
@@ -4846,6 +4887,11 @@ float texture_info::GetTotalTime()
 }
 int texture_info::LoadTexture(char *filename, char *dbg_name = "<UNKNOWN>")
 {
+	if (strlen(filename) + 4 >= NAME_LENGTH) //Filenames are passed in without extension
+	{
+		mprintf(("Generated texture name %s is too long. Skipping...\n"));
+		return -1;
+	}
 	this->original_texture = bm_load_either(filename, NULL, NULL, NULL, 1, CF_TYPE_MAPS);
 	if(this->original_texture < 0)
 		nprintf(("Maps", "For \"%s\" I couldn't find %s.ani\n", dbg_name, filename));

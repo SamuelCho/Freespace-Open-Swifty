@@ -564,71 +564,6 @@ void sexp_tree::setup_selected(HTREEITEM h)
 		}
 }
 
-// Goober5000
-int get_sexp_id(char *sexp_name)
-{
-	for (int i = 0; i < Num_operators; i++)
-	{
-		if (!stricmp(sexp_name, Operators[i].text))
-			return Operators[i].value;
-	}
-	return -1;
-}
-
-// Goober5000
-int get_category(int sexp_id)
-{
-	int category = (sexp_id & OP_CATEGORY_MASK);
-
-	// hack so that CHANGE and CHANGE2 show up in the same menu
-	if (category == OP_CATEGORY_CHANGE2)
-		category = OP_CATEGORY_CHANGE;
-
-	return category;
-}
-
-// Goober5000
-int category_of_subcategory(int subcategory_id)
-{
-	int category = (subcategory_id & OP_CATEGORY_MASK);
-
-	// hack so that CHANGE and CHANGE2 show up in the same menu
-	if (category == OP_CATEGORY_CHANGE2)
-		category = OP_CATEGORY_CHANGE;
-
-	return category;
-}
-
-// Goober5000
-// this seems not to be used anywhere?
-int get_category_id(char *category_name)
-{
-	for (int i = 0; i < Num_op_menus; i++)
-	{
-		if (!stricmp(category_name, op_menu[i].name))
-		{
-			return op_menu[i].id;
-		}
-	}
-	return -1;
-}
-
-// Goober5000
-// this seems not to be used anywhere?
-int has_submenu(char *category_name)
-{
-	int category_id = get_category_id(category_name);
-	if (category_id != -1)
-	{
-		for (int i = 0; i < Num_submenus; i++)
-		{
-			if (category_of_subcategory(op_submenu[i].id) == category_id)
-				return 1;
-		}
-	}
-	return 0;
-}
-
 // handler for right mouse button clicks.
 void sexp_tree::right_clicked(int mode)
 {
@@ -2253,7 +2188,6 @@ int sexp_tree::add_default_operator(int op, int argnum)
 				(argnum == 8 && Operators[op].value == OP_ADD_BACKGROUND_BITMAP) ||
 				(argnum == 5 && Operators[op].value == OP_ADD_SUN_BITMAP) ||
 				(argnum == 2 && Operators[op].value == OP_STRING_CONCATENATE) ||
-				(argnum == 0 && Operators[op].value == OP_DIRECTIVE_IS_VARIABLE) ||
 				(argnum == 1 && Operators[op].value == OP_INT_TO_STRING) ||
 				(argnum == 3 && Operators[op].value == OP_STRING_GET_SUBSTRING) ||
 				(argnum == 4 && Operators[op].value == OP_STRING_SET_SUBSTRING))
@@ -2347,7 +2281,7 @@ int sexp_tree::get_default_value(sexp_list_item *item, int op, int i)
 			{
 				item->set_data("-1", (SEXPT_NUMBER | SEXPT_VALID));
 			}
-			else if ( (Operators[op].value == OP_SHIP_TAG) && (i == 1) )
+			else if ( (Operators[op].value == OP_SHIP_TAG) && (i == 1) || (Operators[op].value == OP_TRIGGER_SUBMODEL_ANIMATION) && (i == 3) )
 			{
 				item->set_data("1", (SEXPT_NUMBER | SEXPT_VALID));
 			}
@@ -2694,8 +2628,8 @@ int sexp_tree::query_default_argument_available(int op, int i)
 		case OPF_TURRET_TARGET_ORDER:
 		case OPF_POST_EFFECT:
 		case OPF_TARGET_PRIORITIES:
-		case OPF_ARMOR_TYPES:
-		case OPF_DAMAGE_TYPES:
+		case OPF_ARMOR_TYPE:
+		case OPF_DAMAGE_TYPE:
 		case OPF_FONT:
 		case OPF_HUD_ELEMENT:
 		case OPF_SOUND_ENVIRONMENT:
@@ -2706,6 +2640,7 @@ int sexp_tree::query_default_argument_available(int op, int i)
 		case OPF_MESSAGE_OR_STRING:
 		case OPF_HUD_GAUGE:
 		case OPF_SHIP_EFFECT:
+		case OPF_ANIMATION_TYPE:
 			return 1;
 
 		case OPF_SHIP:
@@ -3089,12 +3024,12 @@ int sexp_tree::verify_tree(int node, int *bypass)
 
 			case OPF_IFF:
 				if (type2 == SEXP_ATOM_STRING) {
-					for (i=0; i<Num_team_names; i++)
+					for (i=0; i<Num_iffs; i++)
 						if (!stricmp(Team_names[i], tree_nodes[node].text))
 							break;
 				}
 
-				if (i == Num_team_names)
+				if (i == Num_iffs)
 					return node_error(node, "Iff team type expected here", bypass);
 
 				break;
@@ -3294,10 +3229,9 @@ void sexp_tree::verify_and_fix_arguments(int node)
 						(arg_num == 8 && Operators[op].value == OP_ADD_BACKGROUND_BITMAP) ||
 						(arg_num == 5 && Operators[op].value == OP_ADD_SUN_BITMAP) ||
 						(arg_num == 2 && Operators[op].value == OP_STRING_CONCATENATE) ||
-						(arg_num == 0 && Operators[op].value == OP_DIRECTIVE_IS_VARIABLE) ||
 						(arg_num == 1 && Operators[op].value == OP_INT_TO_STRING) ||
 						(arg_num == 3 && Operators[op].value == OP_STRING_GET_SUBSTRING) ||
-						(arg_num == 4 && Operators[op].value == OP_STRING_SET_SUBSTRING))
+						(arg_num == 4 && Operators[op].value == OP_STRING_SET_SUBSTRING))	
 					{
 						// make text_ptr to start - before '('
 						get_variable_name_from_sexp_tree_node_text(tree_nodes[item_index].text, default_variable_text);
@@ -4391,12 +4325,16 @@ sexp_list_item *sexp_tree::get_listing_opf(int opf, int parent_node, int arg_ind
 			list = get_listing_opf_turret_target_priorities();
 			break;
 
-		case OPF_ARMOR_TYPES:
-			list = get_listing_opf_armor_types();
+		case OPF_ARMOR_TYPE:
+			list = get_listing_opf_armor_type();
 			break;
 
-		case OPF_DAMAGE_TYPES:
-			list = get_listing_opf_damage_types();
+		case OPF_DAMAGE_TYPE:
+			list = get_listing_opf_damage_type();
+			break;
+
+		case OPF_ANIMATION_TYPE:
+			list = get_listing_opf_animation_type();
 			break;
 
 		case OPF_PERSONA:
@@ -4440,11 +4378,11 @@ sexp_list_item *sexp_tree::get_listing_opf(int opf, int parent_node, int arg_ind
 			break;
 
 		case OPF_HUD_GAUGE:
-			list = get_listing_hud_gauge();
+			list = get_listing_opf_hud_gauge();
 			break;
 
 		case OPF_SHIP_EFFECT:
-			list = get_listing_ship_effects();
+			list = get_listing_opf_ship_effect();
 			break;
 
 		default:
@@ -5360,7 +5298,7 @@ sexp_list_item *sexp_tree::get_listing_opf_adjust_audio_volume()
 	return head.next;
 }
 
-sexp_list_item *sexp_tree::get_listing_hud_gauge() 
+sexp_list_item *sexp_tree::get_listing_opf_hud_gauge() 
 {
 	sexp_list_item head;
 
@@ -5370,7 +5308,7 @@ sexp_list_item *sexp_tree::get_listing_hud_gauge()
 	return head.next;
 }
 
-sexp_list_item *sexp_tree::get_listing_ship_effects() 
+sexp_list_item *sexp_tree::get_listing_opf_ship_effect() 
 {
 	sexp_list_item head;
 	
@@ -5873,7 +5811,7 @@ sexp_list_item *sexp_tree::get_listing_opf_turret_target_priorities()
 	return head.next;
 }
 
-sexp_list_item *sexp_tree::get_listing_opf_armor_types()
+sexp_list_item *sexp_tree::get_listing_opf_armor_type()
 {
 	size_t t;
 	sexp_list_item head;
@@ -5883,13 +5821,24 @@ sexp_list_item *sexp_tree::get_listing_opf_armor_types()
 	return head.next;
 }
 
-sexp_list_item *sexp_tree::get_listing_opf_damage_types()
+sexp_list_item *sexp_tree::get_listing_opf_damage_type()
 {
 	size_t t;
 	sexp_list_item head;
 	head.add_data(SEXP_NONE_STRING);
 	for (t=0; t<Damage_types.size(); t++)
 		head.add_data(Damage_types[t].name);
+
+	return head.next;
+}
+
+sexp_list_item *sexp_tree::get_listing_opf_animation_type()
+{
+	size_t t;
+	sexp_list_item head;
+
+	for (t = 0; t < MAX_TRIGGER_ANIMATION_TYPES; t++)
+		head.add_data(Animation_type_names[t]);
 
 	return head.next;
 }

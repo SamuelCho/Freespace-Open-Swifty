@@ -122,6 +122,7 @@ sexp_oper Operators[] = {
 	{ "max",				OP_MAX,				1,	INT_MAX },	// Goober5000
 	{ "avg",				OP_AVG,				1,	INT_MAX },	// Goober5000
 	{ "pow",				OP_POW,				2,	2 },	// Goober5000
+	{ "signum",				OP_SIGNUM,			1,	1 },	// Goober5000
 	{ "set-bit",			OP_SET_BIT,			2,	2 },	// Goober5000
 	{ "unset-bit",			OP_UNSET_BIT,		2,	2 },	// Goober5000
 	{ "is-bit-set",			OP_IS_BIT_SET,		2,	2 },	// Goober5000
@@ -230,6 +231,7 @@ sexp_oper Operators[] = {
 	{ "sim-hits-left",						OP_SIM_HITS_LEFT,					1, 1, }, // Turey
 	{ "distance",						OP_DISTANCE,					2, 2, },
 	{ "distance-ship-subsystem",	OP_DISTANCE_SUBSYSTEM,	3, 3 },					// Goober5000
+	{ "distance-to-nav",				OP_NAV_DISTANCE,				1, 1 }, // Kazan
 	{ "num-within-box",				OP_NUM_WITHIN_BOX,					7,	INT_MAX},	//WMC
 	{ "is-in-box",					OP_IS_IN_BOX,					7,	8},	//Sushi
 	{ "special-warp-dist",			OP_SPECIAL_WARP_DISTANCE,	1, 1,	},
@@ -274,7 +276,7 @@ sexp_oper Operators[] = {
 	{ "get-throttle-speed",			OP_GET_THROTTLE_SPEED,		1, 1,			}, // Karajorma
 	{ "has-primary-weapon",			OP_HAS_PRIMARY_WEAPON,		3,	INT_MAX},	// Karajorma
 	{ "has-secondary-weapon",		OP_HAS_SECONDARY_WEAPON,	3,	INT_MAX},	// Karajorma
-	{ "directive-is-variable",		OP_DIRECTIVE_IS_VARIABLE,	1,	2},	// Karajorma
+	{ "directive-value",			OP_DIRECTIVE_VALUE,	1,	2},	// Karajorma
 	
 	{ "time-ship-destroyed",	OP_TIME_SHIP_DESTROYED,		1,	1,	},
 	{ "time-ship-arrived",		OP_TIME_SHIP_ARRIVED,		1,	1,	},
@@ -359,6 +361,7 @@ sexp_oper Operators[] = {
 	{ "free-rotating-subsystem",	OP_FREE_ROTATING_SUBSYSTEM,		2, INT_MAX },	// Goober5000
 	{ "reverse-rotating-subsystem",	OP_REVERSE_ROTATING_SUBSYSTEM,	2, INT_MAX },	// Goober5000
 	{ "rotating-subsys-set-turn-time", OP_ROTATING_SUBSYS_SET_TURN_TIME,	3, INT_MAX	},	// Goober5000
+	{ "trigger-submodel-animation",	OP_TRIGGER_SUBMODEL_ANIMATION,	4, 6 },		// Goober5000
 	{ "set-primary-ammo",			OP_SET_PRIMARY_AMMO,			3, 4 },		// Karajorma
 	{ "set-secondary-ammo",			OP_SET_SECONDARY_AMMO,			3, 4 },		// Karajorma
 	{ "set-primary-weapon",			OP_SET_PRIMARY_WEAPON,			3, 5 },		// Karajorma
@@ -442,7 +445,6 @@ sexp_oper Operators[] = {
 	{ "end-campaign",					OP_END_CAMPAIGN,				0, 0 },
 	{ "end-of-campaign",				OP_END_OF_CAMPAIGN,				0, 0 },
 
-	{ "distance-to-nav",				OP_NAV_DISTANCE,				1, 1 }, // Kazan
 	{ "add-nav-waypoint",				OP_NAV_ADD_WAYPOINT,			3, 4 }, //kazan
 	{ "add-nav-ship",					OP_NAV_ADD_SHIP,				2, 2 }, //kazan
 	{ "del-nav",						OP_NAV_DEL,						1, 1 }, //kazan
@@ -2628,7 +2630,7 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 				}
 
 				if (audio_volume_option_lookup(CTEXT(node)) == -1)
-					return SEXP_CHECK_TYPE_MISMATCH;
+					return SEXP_CHECK_INVALID_AUDIO_VOLUME_OPTION;
 				break;
 
 			case OPF_HUD_GAUGE:
@@ -2637,7 +2639,7 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 				}
 
 				if (hud_gauge_type_lookup(CTEXT(node)) == -1)
-					return SEXP_CHECK_TYPE_MISMATCH;
+					return SEXP_CHECK_INVALID_HUD_GAUGE;
 				break;
 
 			case OPF_SOUND_ENVIRONMENT_OPTION:
@@ -2744,11 +2746,11 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 				}
 
 				if ( i == NUM_TURRET_ORDER_TYPES )
-					return SEXP_CHECK_INVALID_INTEL_NAME;
+					return SEXP_CHECK_INVALID_TURRET_TARGET_ORDER;
 				
 				break;
 
-			case OPF_ARMOR_TYPES:
+			case OPF_ARMOR_TYPE:
 				if ( type2 != SEXP_ATOM_STRING )
 					return SEXP_CHECK_TYPE_MISMATCH;
 
@@ -2761,11 +2763,11 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 				}
 
 				if ( st == Armor_types.size() )
-					return SEXP_CHECK_INVALID_INTEL_NAME;
+					return SEXP_CHECK_INVALID_ARMOR_TYPE;
 				
 				break;
 
-			case OPF_DAMAGE_TYPES:
+			case OPF_DAMAGE_TYPE:
 				if ( type2 != SEXP_ATOM_STRING )
 					return SEXP_CHECK_TYPE_MISMATCH;
 
@@ -2778,8 +2780,18 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 				}
 
 				if ( st == Armor_types.size() )
-					return SEXP_CHECK_INVALID_INTEL_NAME;
+					return SEXP_CHECK_INVALID_DAMAGE_TYPE;
 				
+				break;
+
+			case OPF_ANIMATION_TYPE:
+				if ( type2 != SEXP_ATOM_STRING )
+					return SEXP_CHECK_TYPE_MISMATCH;
+
+				st = model_anim_match_type(CTEXT(node));
+				if ( st == TRIGGER_TYPE_NONE )
+					return SEXP_CHECK_INVALID_ANIMATION_TYPE;
+
 				break;
 	
 			case OPF_TARGET_PRIORITIES:
@@ -2792,7 +2804,7 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 				}
 
 				if ( st == Ai_tp_list.size() )
-					return SEXP_CHECK_INVALID_INTEL_NAME;
+					return SEXP_CHECK_INVALID_TARGET_PRIORITIES;
 				
 				break;
 	
@@ -3118,6 +3130,8 @@ int get_sexp(char *token)
 				strcpy(token, "hud-set-max-targeting-range");
 			else if (!stricmp(token, "ship-subsys-vanished"))
 				strcpy(token, "ship-subsys-vanish");
+			else if (!stricmp(token, "directive-is-variable"))
+				strcpy(token, "directive-value");
 
 			op = get_operator_index(token);
 			if (op != -1) {
@@ -3929,6 +3943,22 @@ int pow_sexp(int node)
 	}
 
 	return static_cast<int>(pow_result);
+}
+
+// Goober5000
+int signum_sexp(int node)
+{
+	int num = eval_num(node);
+
+	if (num == 0)
+		return 0;
+
+	if (num < 0)
+		return -1;
+
+	// hurr durr math
+	Assert(num > 0);
+	return 1;
 }
 
 // Goober5000
@@ -5905,30 +5935,17 @@ int sexp_hits_left_subsystem_specific(int node)
 	return SEXP_NAN;
 }
 
-int sexp_directive_is_variable(int n)
-{
-	int sexp_variable_index;
-	int sexp_variable_value = 0;
+int sexp_directive_value(int n)
+{	
 	int replace_current_value = SEXP_TRUE; 
+	int directive_value;
 
 	Assert(n >= 0);
 
-	// get sexp_variable index
-	Assert(Sexp_nodes[n].first == -1);
-	sexp_variable_index = atoi(Sexp_nodes[n].text);
+	directive_value = eval_num(n);
 
-	// verify variable set
-	Assert(Sexp_variables[sexp_variable_index].type & SEXP_VARIABLE_SET);
-
-	if (Sexp_variables[sexp_variable_index].type & SEXP_VARIABLE_NUMBER)
-	{
-		// get new numerical value
-		sexp_variable_value = atoi(Sexp_variables[sexp_variable_index].text);
-	}
-	else
-	{
-		Warning(LOCATION, "Invalid variable type. Directive variables must be a number!\n");
-		return SEXP_KNOWN_FALSE;
+	if ((directive_value == SEXP_NAN) || (directive_value == SEXP_NAN_FOREVER)) {
+		directive_value = 0;
 	}
 
 	n = CDR(n);
@@ -5937,10 +5954,10 @@ int sexp_directive_is_variable(int n)
 	}
 
 	if ((replace_current_value == SEXP_KNOWN_FALSE) || (replace_current_value == SEXP_FALSE) ) {
-		Directive_count += sexp_variable_value;
+		Directive_count += directive_value;
 	}
 	else {
-		Directive_count = sexp_variable_value;
+		Directive_count = directive_value;
 	}
 
 		
@@ -9441,6 +9458,7 @@ void sexp_hud_set_color(int n)
 	HudGauge* cg = hud_get_gauge(gaugename);
 	if(cg) {
 		cg->updateColor(red, green, blue, (HUD_color_alpha+1)*16);
+		cg->sexpLockConfigColor(true);
 	}
 }
 
@@ -16423,6 +16441,67 @@ void sexp_rotating_subsys_set_turn_time(int node)
 		rotate->submodel_info_1.cur_turn_rate = PI2 / turn_time;
 }
 
+void sexp_trigger_submodel_animation(int node)
+{
+	int ship_num, animation_type, animation_subtype, direction, n = node;
+	bool instant;
+
+	// get the ship
+	ship_num = ship_name_lookup(CTEXT(n));
+	if (ship_num < 0)
+		return;
+	if (Ships[ship_num].objnum < 0)
+		return;
+	n = CDR(n);
+
+	// get the type
+	animation_type = model_anim_match_type(CTEXT(n));
+	if (animation_type == TRIGGER_TYPE_NONE)
+	{
+		Warning(LOCATION, "Unable to match animation type \"%s\"!", CTEXT(n));
+		return;
+	}
+	n = CDR(n);
+
+	// get the subtype
+	animation_subtype = eval_num(n);
+	n = CDR(n);
+
+	// get the direction, 1 or -1
+	direction = eval_num(n);
+	if (direction != 1 && direction != -1)
+	{
+		Warning(LOCATION, "Direction is %d; it must be 1 or -1!", direction);
+		return;
+	}
+	n = CDR(n);
+
+	// instant or not
+	if (n >= 0)
+	{
+		instant = (is_sexp_true(n) != 0);
+		n = CDR(n);
+	}
+	else
+		instant = false;
+
+	// do we narrow it to a specific subsystem?
+	if (n >= 0)
+	{
+		ship_subsys *ss = ship_get_subsys(&Ships[ship_num], CTEXT(n));
+		if (ss == NULL)
+		{
+			Warning(LOCATION, "Subsystem \"%s\" not found on ship \"%s\"!", CTEXT(n), CTEXT(node));
+			return;
+		}
+		model_anim_start_type(ss, animation_type, animation_subtype, direction, instant);
+	}
+	else
+	{
+		model_anim_start_type(&Ships[ship_num], animation_type, animation_subtype, direction, instant);
+	}
+}
+
 void sexp_turret_tagged_specific(int node)
 {
 	ship_subsys *subsys;
@@ -17138,8 +17217,7 @@ void multi_del_nav()
 //args: 1, boolean enable/disable
 void set_use_ap_cinematics(int node)
 {
-	int enable = eval_sexp(node);
-	if (enable)
+	if (is_sexp_true(node))
 	{
 		The_mission.flags |= MISSION_FLAG_USE_AP_CINEMATICS;
 	}
@@ -17153,8 +17231,7 @@ void set_use_ap_cinematics(int node)
 //args: 1, boolean enable/disable
 void set_use_ap(int node)
 {
-	int enable = eval_sexp(node);
-	if (enable)
+	if (is_sexp_true(node))
 	{
 		The_mission.flags &= ~MISSION_FLAG_DEACTIVATE_AP;
 	}
@@ -18335,52 +18412,49 @@ void multi_sexp_toggle_cutscene_bars(int set)
 
 void sexp_fade_in(int n)
 {
-	float delta_time = 0.0f;
+	int duration = 0;
 
 	if(n != -1)
-		delta_time = eval_num(n)/1000.0f;
+		duration = eval_num(n);
 
-	if(delta_time > 0.0f)
-	{
-		Fade_delta_time = delta_time;
+	if (duration > 0) {
+		Fade_start_timestamp = timestamp();
+		Fade_end_timestamp = timestamp(duration);
 		Fade_type = FI_FADEIN;
-	}
-	else
-	{
+	} else {
 		Fade_type = FI_NONE;
 		gr_create_shader(&Viewer_shader, 0, 0, 0, 0);
 	}
 
 	// multiplayer callback
 	multi_start_callback();
-	multi_send_float(delta_time);
+	multi_send_int(duration);
 	multi_end_callback();
 }
 
 void multi_sexp_fade_in()
 {
-	float delta_time = 0.0f;
+	int duration = 0;
 
-	multi_get_float(delta_time);
+	multi_get_int(duration);
 
-	if(delta_time > 0.0f) {
-		Fade_delta_time = delta_time;
+	if (duration > 0) {
+		Fade_start_timestamp = timestamp();
+		Fade_end_timestamp = timestamp(duration);
 		Fade_type = FI_FADEIN;
-	}
-	else {
+	} else {
 		Fade_type = FI_NONE;
 		gr_create_shader(&Viewer_shader, 0, 0, 0, 0);
 	}
 }
 
-void sexp_fade_out(float delta_time, int fade_type) 
+void sexp_fade_out(int duration, int fadeColor)
 {
 	ubyte R = 0;
 	ubyte G = 0;
 	ubyte B = 0;
 
-	switch(fade_type)
-	{
+	switch(fadeColor) {
 		//White out
 		case 1:
 			gr_create_shader(&Viewer_shader, 255, 255, 255, Viewer_shader.c);
@@ -18392,18 +18466,18 @@ void sexp_fade_out(float delta_time, int fade_type)
 		//Black out
 		default:
 			gr_create_shader(&Viewer_shader, 0, 0, 0, Viewer_shader.c);
+			break;
 	}
 
 	R = Viewer_shader.r;
 	G = Viewer_shader.g;
 	B = Viewer_shader.b;
 
-	if(delta_time > 0.0f) {
+	if (duration > 0) {
+		Fade_start_timestamp = timestamp();
+		Fade_end_timestamp = timestamp(duration);
 		Fade_type = FI_FADEOUT;
-		Fade_delta_time = delta_time;
-	}
-	else
-	{
+	} else {
 		Fade_type = FI_NONE;
 		gr_create_shader(&Viewer_shader, R, G, B, 255);
 	}
@@ -18411,40 +18485,38 @@ void sexp_fade_out(float delta_time, int fade_type)
 
 void sexp_fade_out(int n)
 {
-	float delta_time = 0.0f;
-	int fade_type = 0;
+	int duration = 0;
+	int fadeColor = 0;
 
-	if(n != -1)
-	{
-		delta_time = eval_num(n)/1000.0f;
+	if (n != -1) {
+		duration = eval_num(n);
 
 		n = CDR(n);
-		if(n != -1)
-		{
-			fade_type = eval_num(n);			
+		if (n != -1) {
+			fadeColor = eval_num(n);
 		}
 	}
 
-	sexp_fade_out(delta_time, fade_type);
+	sexp_fade_out(duration, fadeColor);
 
 	multi_start_callback();
-	multi_send_float(delta_time);
-	multi_send_int(fade_type);
+	multi_send_int(duration);
+	multi_send_int(fadeColor);
 	multi_end_callback();
 }
 
 void multi_sexp_fade_out()
 {
-	float delta_time = 0.0f;
-	int fade_type;
+	int duration = 0;
+	int fadeColor = 0;
 
-	multi_get_float(delta_time);
-	if (!multi_get_int(fade_type)){
+	multi_get_int(duration);
+	if (!multi_get_int(fadeColor)){
 		Int3();	// misformed packet
 		return;
 	}
 
-	sexp_fade_out(delta_time, fade_type);
+	sexp_fade_out(duration, fadeColor);
 }
 
 camera* sexp_get_set_camera(bool reset = false)
@@ -19444,9 +19516,7 @@ extern bool Perspective_locked;
 
 void sexp_force_perspective(int n)
 {
-	int result = eval_sexp(n);
-	Perspective_locked = (result == SEXP_TRUE || result == SEXP_KNOWN_TRUE);
-
+	Perspective_locked = (is_sexp_true(n) != 0);
 	n=CDR(n);
 
 	if(n != -1)
@@ -20055,6 +20125,10 @@ int eval_sexp(int cur_node, int referenced_node)
 
 			case OP_POW:
 				sexp_val = pow_sexp(node);
+				break;
+
+			case OP_SIGNUM:
+				sexp_val = signum_sexp(node);
 				break;
 
 			case OP_SET_BIT:
@@ -21619,6 +21693,11 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_rotating_subsys_set_turn_time(node);
 				sexp_val = SEXP_TRUE;
 				break;
+
+			case OP_TRIGGER_SUBMODEL_ANIMATION:
+				sexp_trigger_submodel_animation(node);
+				sexp_val = SEXP_TRUE;
+				break;
 				
 			// Karajorma
 			case OP_SET_PRIMARY_AMMO:
@@ -21692,12 +21771,9 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = sexp_has_weapon(node, op_num);
 				break;
 
-			case OP_DIRECTIVE_IS_VARIABLE:
-				sexp_val = sexp_directive_is_variable(node);
+			case OP_DIRECTIVE_VALUE:
+				sexp_val = sexp_directive_value(node);
 				break;
-
-
-
 
 			case OP_CHANGE_SUBSYSTEM_NAME:
 				sexp_change_subsystem_name(node);
@@ -22546,7 +22622,7 @@ int query_operator_return_type(int op)
 		case OP_HAS_PRIMARY_WEAPON:
 		case OP_HAS_SECONDARY_WEAPON:
 		case OP_IS_BIT_SET:
-		case OP_DIRECTIVE_IS_VARIABLE:
+		case OP_DIRECTIVE_VALUE:
 		case OP_IS_IN_BOX:
 		case OP_IS_IN_MISSION:
 			return OPR_BOOL;
@@ -22562,6 +22638,7 @@ int query_operator_return_type(int op)
 		case OP_MAX:
 		case OP_AVG:
 		case OP_POW:
+		case OP_SIGNUM:
 		case OP_GET_OBJECT_X:
 		case OP_GET_OBJECT_Y:
 		case OP_GET_OBJECT_Z:
@@ -22814,6 +22891,7 @@ int query_operator_return_type(int op)
 		case OP_FREE_ROTATING_SUBSYSTEM:
 		case OP_REVERSE_ROTATING_SUBSYSTEM:
 		case OP_ROTATING_SUBSYS_SET_TURN_TIME:
+		case OP_TRIGGER_SUBMODEL_ANIMATION:
 		case OP_PLAYER_USE_AI:
 		case OP_PLAYER_NOT_USE_AI:
 		case OP_ALLOW_TREASON:
@@ -23045,6 +23123,9 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_NUMBER;
 			else
 				return OPF_POSITIVE;
+
+		case OP_SIGNUM:
+			return OPF_NUMBER;
 
 		case OP_STRING_EQUALS:
 		case OP_STRING_GREATER_THAN:
@@ -24227,7 +24308,7 @@ int query_operator_argument_type(int op, int argnum)
 			} else if(argnum == 1) {
 				return OPF_BOOL;
 			} else if(argnum == 2) {
-				return OPF_ARMOR_TYPES;
+				return OPF_ARMOR_TYPE;
 			} else {
 				return OPF_SUBSYSTEM;
 			}
@@ -24236,7 +24317,7 @@ int query_operator_argument_type(int op, int argnum)
 			if(argnum == 0) {
 				return OPF_BOOL;
 			} else if(argnum == 1) {
-				return OPF_DAMAGE_TYPES;
+				return OPF_DAMAGE_TYPE;
 			} else if(argnum == 2) {
 				return OPF_BOOL;
 			} else {
@@ -24247,7 +24328,7 @@ int query_operator_argument_type(int op, int argnum)
 			if(argnum == 0) {
 				return OPF_BOOL;
 			} else if(argnum == 1) {
-				return OPF_DAMAGE_TYPES;
+				return OPF_DAMAGE_TYPE;
 			} else if(argnum == 2) {
 				return OPF_BOOL;
 			} else {
@@ -24256,7 +24337,7 @@ int query_operator_argument_type(int op, int argnum)
 
 		case OP_SHIP_SHOCKWAVE_SET_DAMAGE_TYPE:
 			if(argnum == 0) {
-				return OPF_DAMAGE_TYPES;
+				return OPF_DAMAGE_TYPE;
 			} else if(argnum == 1) {
 				return OPF_BOOL;
 			} else {
@@ -24265,7 +24346,7 @@ int query_operator_argument_type(int op, int argnum)
 
 		case OP_FIELD_SET_DAMAGE_TYPE:
 			if(argnum == 0) {
-				return OPF_DAMAGE_TYPES;
+				return OPF_DAMAGE_TYPE;
 			} else {
 				return OPF_BOOL;
 			}
@@ -24303,6 +24384,18 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_NUMBER;
 			else
 				return OPF_POSITIVE;
+
+		case OP_TRIGGER_SUBMODEL_ANIMATION:
+			if (argnum == 0)
+				return OPF_SHIP;
+			else if (argnum == 1)
+				return OPF_ANIMATION_TYPE;
+			else if (argnum == 2 || argnum == 3)
+				return OPF_NUMBER;
+			else if (argnum == 4)
+				return OPF_BOOL;
+			else if (argnum == 5)
+				return OPF_SUBSYSTEM;
 
 		case OP_BEAM_FREE_ALL:
 		case OP_BEAM_LOCK_ALL:
@@ -24545,9 +24638,9 @@ int query_operator_argument_type(int op, int argnum)
 			else 
 				return OPF_WEAPON_NAME;
 			
-		case OP_DIRECTIVE_IS_VARIABLE:
+		case OP_DIRECTIVE_VALUE:
 			if (argnum == 0)
-				return OPF_VARIABLE_NAME;
+				return OPF_NUMBER;
 			else 
 				return OPF_BOOL;			
 
@@ -24816,7 +24909,7 @@ int query_operator_argument_type(int op, int argnum)
 			else if (argnum == 1)
 				return OPF_NUMBER;
 			else
-				return OPF_SHIP;
+				return OPF_SHIP_WING;
 
 		case OP_CLEAR_SUBTITLES:
 			return OPF_NONE;
@@ -25256,11 +25349,32 @@ char *sexp_error_message(int num)
 		case SEXP_CHECK_INVALID_SOUND_ENVIRONMENT_OPTION:
 			return "Invalid sound environment option";
 
+		case SEXP_CHECK_INVALID_AUDIO_VOLUME_OPTION:
+			return "Invalid audio volume option";
+
 		case SEXP_CHECK_INVALID_EXPLOSION_OPTION:
 			return "Invalid explosion option";
 
 		case SEXP_CHECK_INVALID_SHIP_EFFECT:
 			return "Invalid ship effect name";
+
+		case SEXP_CHECK_INVALID_TURRET_TARGET_ORDER:
+			return "Invalid turret target order";
+
+		case SEXP_CHECK_INVALID_ARMOR_TYPE:
+			return "Invalid armor type";
+
+		case SEXP_CHECK_INVALID_DAMAGE_TYPE:
+			return "Invalid damage type";
+
+		case SEXP_CHECK_INVALID_HUD_GAUGE:
+			return "Invalid hud gauge";
+
+		case SEXP_CHECK_INVALID_TARGET_PRIORITIES:
+			return "Invalid target priorities";
+			
+		case SEXP_CHECK_INVALID_ANIMATION_TYPE:
+			return "Invalid animation type";
 	}
 
 	sprintf(Sexp_error_text, "Sexp error code %d", num);
@@ -25983,6 +26097,41 @@ int eval_num(int n)
 		return atoi(CTEXT(n));		// otherwise, just get the number
 }
 
+// Goober5000
+int get_sexp_id(char *sexp_name)
+{
+	for (int i = 0; i < Num_operators; i++)
+	{
+		if (!stricmp(sexp_name, Operators[i].text))
+			return Operators[i].value;
+	}
+	return -1;
+}
+
+// Goober5000
+int get_category(int sexp_id)
+{
+	int category = (sexp_id & OP_CATEGORY_MASK);
+
+	// hack so that CHANGE and CHANGE2 show up in the same menu
+	if (category == OP_CATEGORY_CHANGE2)
+		category = OP_CATEGORY_CHANGE;
+
+	return category;
+}
+
+// Goober5000
+int category_of_subcategory(int subcategory_id)
+{
+	int category = (subcategory_id & OP_CATEGORY_MASK);
+
+	// hack so that CHANGE and CHANGE2 show up in the same menu
+	if (category == OP_CATEGORY_CHANGE2)
+		category = OP_CATEGORY_CHANGE;
+
+	return category;
+}
+
 // Goober5000 - for FRED2 menu subcategories
 int get_subcategory(int sexp_id)
 {
@@ -26037,6 +26186,7 @@ int get_subcategory(int sexp_id)
 		case OP_FREE_ROTATING_SUBSYSTEM:
 		case OP_REVERSE_ROTATING_SUBSYSTEM:
 		case OP_ROTATING_SUBSYS_SET_TURN_TIME:
+		case OP_TRIGGER_SUBMODEL_ANIMATION:
 		case OP_SET_PRIMARY_AMMO:		// Karajorma
 		case OP_SET_SECONDARY_AMMO:		// Karajorma
 		case OP_SET_PRIMARY_WEAPON:		// Karajorma
@@ -26283,6 +26433,7 @@ int get_subcategory(int sexp_id)
 		case OP_NUM_SHIPS_IN_BATTLE:
 		case OP_NUM_SHIPS_IN_WING:
 		case OP_LAST_ORDER_TIME:
+		case OP_DIRECTIVE_VALUE:
 			return STATUS_SUBCATEGORY_MULTIPLAYER_AND_MISSION_CONFIG;
 
 		case OP_SHIELD_RECHARGE_PCT:
@@ -26322,6 +26473,7 @@ int get_subcategory(int sexp_id)
 		case OP_GET_THROTTLE_SPEED:
 		case OP_IS_FACING:
 		case OP_IS_IN_MISSION:
+		case OP_NAV_ISLINKED:
 			return STATUS_SUBCATEGORY_SHIP_STATUS;
 			
 		case OP_SHIELDS_LEFT:
@@ -26335,6 +26487,7 @@ int get_subcategory(int sexp_id)
 		
 		case OP_DISTANCE:
 		case OP_DISTANCE_SUBSYSTEM:
+		case OP_NAV_DISTANCE:
 		case OP_GET_OBJECT_X:
 		case OP_GET_OBJECT_Y:
 		case OP_GET_OBJECT_Z:
@@ -26475,6 +26628,10 @@ sexp_help_struct Sexp_help[] = {
 	// Goober5000
 	{ OP_POW, "Power (Arithmetic operator)\r\n"
 		"\tRaises one number to the power of the next number.  If the result will be larger than INT_MAX or smaller than INT_MIN, the appropriate limit will be returned.  Takes 2 numeric arguments.\r\n" },
+
+	// Goober5000
+	{ OP_SIGNUM, "Signum (Arithmetic operator)\r\n"
+		"\tReturns the sign of a number: -1 if it is negative, 0 if it is 0, and 1 if it is positive.  Takes one argument.\r\n" },
 
 	// Goober5000
 	{ OP_SET_BIT, "set-bit\r\n"
@@ -29015,6 +29172,17 @@ sexp_help_struct Sexp_help[] = {
 		"Omit this argument if you want an instantaneous change."
 	},
 
+	// Goober5000
+	{ OP_TRIGGER_SUBMODEL_ANIMATION, "trigger-submodel-animation\r\n"
+		"\tActivates a submodel animation trigger for a given ship.  Takes 4 to 6 arguments...\r\n"
+		"\t1: The ship on which the animation should run\r\n"
+		"\t2: The type of animation (named as one would see them in ships.tbl)\r\n"
+		"\t3: The subtype of animation, which is type-dependent.  For docking animations this is the dock index.\r\n"
+		"\t4: The animation direction: 1 for forward, or -1 for reverse\r\n"
+		"\t5: (Optional) Whether the animation should instantly snap to its final position\r\n"
+		"\t6: (Optional) A subsystem, if the animation should trigger on only a specific subsystem as opposed to all applicable subsystems\r\n"
+	},
+
 	// Karajorma
 	{ OP_SET_PRIMARY_AMMO, "set-primary-ammo\r\n"
 		"\tSets the amount of ammo for the specified ballistic bank\r\n"
@@ -29286,11 +29454,11 @@ sexp_help_struct Sexp_help[] = {
 	},
 
 	// Karajora
-	{ OP_DIRECTIVE_IS_VARIABLE, "directive-is-variable\r\n"
-		"\tCauses the variable to appear in the directive count\r\n"
+	{ OP_DIRECTIVE_VALUE, "directive-value\r\n"
+		"\tCauses a value to appear in the directive count\r\n"
 		"\tAlways returns true. Takes 1 or more arguments...\r\n\r\n"
-		"\t1:\tVariable name\r\n"
-		"\t2:\t(Optional) Reset the directive count set by any earlier SEXPs in the event.\r\n"
+		"\t1:\tValue\r\n"
+		"\t2:\t(Optional) Ignore the directive count set by any earlier SEXPs in the event. If set to false it will add instead\r\n"
 	},
 
 	//phreak
@@ -29865,7 +30033,7 @@ bool output_sexps(char *filepath)
 				fputs("<dl>", fp);
 				for(z = 0; z < Num_operators; z++)
 				{
-					if(((Operators[z].value & OP_CATEGORY_MASK) == op_menu[x].id)
+					if((get_category(Operators[z].value) == op_menu[x].id)
 						&& (get_subcategory(Operators[z].value) != -1)
 						&& (get_subcategory(Operators[z].value) == op_submenu[y].id))
 					{
@@ -29878,7 +30046,7 @@ bool output_sexps(char *filepath)
 		}
 		for(z = 0; z < Num_operators; z++)
 		{
-			if(((Operators[z].value & OP_CATEGORY_MASK) == op_menu[x].id)
+			if((get_category(Operators[z].value) == op_menu[x].id)
 				&& (get_subcategory(Operators[z].value) == -1))
 			{
 				output_sexp_html(z, fp);
@@ -29889,7 +30057,7 @@ bool output_sexps(char *filepath)
 	}
 	for(z = 0; z < Num_operators; z++)
 	{
-		if(!(Operators[z].value & OP_CATEGORY_MASK))
+		if(!get_category(Operators[z].value))
 		{
 			output_sexp_html(z, fp);
 		}

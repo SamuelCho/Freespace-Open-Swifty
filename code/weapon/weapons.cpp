@@ -93,8 +93,6 @@ int laser_model_outer = -1;
 
 int missile_model = -1;
 
-char	*Weapon_names[MAX_WEAPON_TYPES];
-
 int     First_secondary_index = -1;
 int		Default_cmeasure_index = -1;
 
@@ -636,6 +634,10 @@ void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2)
 			weaponp->wi_flags2 |= WIF2_TAKES_SHOCKWAVE_DAMAGE;
 		else if (!stricmp(NOX("hide from radar"), weapon_strings[i]))
 			weaponp->wi_flags2 |= WIF2_DONT_SHOW_ON_RADAR;
+		else if (!stricmp(NOX("render flak"), weapon_strings[i]))
+			weaponp->wi_flags2 |= WIF2_RENDER_FLAK;
+		else if (!stricmp(NOX("ciws"), weapon_strings[i]))
+			weaponp->wi_flags2 |= WIF2_CIWS;
 		else
 			Warning(LOCATION, "Bogus string in weapon flags: %s\n", weapon_strings[i]);
 	}
@@ -722,6 +724,10 @@ void parse_shockwave_info(shockwave_create_info *sci, char *pre_char)
 	sprintf(buf, "%sInner Radius:", pre_char);
 	if(optional_string(buf)) {
 		stuff_float(&sci->inner_rad);
+		if (!sci->inner_rad != 0.0f) {
+			WarningEx(LOCATION, "Invalid inner Radius for Shockwave. Must be greater than 0.\n");
+			sci->inner_rad = 0.1f;
+		}
 	}
 
 	sprintf(buf, "%sOuter Radius:", pre_char);
@@ -799,6 +805,9 @@ void init_weapon_entry(int weap_info_index)
 		wip->detail_distance[i] = -1;
 	}
 
+	vm_vec_zero(&wip->closeup_pos);
+	wip->closeup_zoom = 1.0f;
+
 	generic_anim_init(&wip->laser_bitmap);
 	generic_anim_init(&wip->laser_glow_bitmap);
 
@@ -832,6 +841,9 @@ void init_weapon_entry(int weap_info_index)
 	wip->arm_radius = 0.0f;
 	wip->det_range = 0.0f;
 	wip->det_radius = 0.0f;
+	wip->flak_targeting_accuracy = 60.0f; // Standard value as defined in flak.cpp
+	wip->flak_detonation_accuracy = 65.0f;
+	wip->untargeted_flak_range_penalty = 20.0f;
 	
 	wip->armor_factor = 1.0f;
 	wip->shield_factor = 1.0f;
@@ -852,11 +864,14 @@ void init_weapon_entry(int weap_info_index)
 	wip->catchup_pixels_per_sec = 50;
 	wip->catchup_pixel_penalty = 50;
 	wip->seeker_strength = 1.0f;
-	
+
 	wip->swarm_count = -1;
 	// *Default is 150  -Et1
 	wip->SwarmWait = SWARM_MISSILE_DELAY;
 	
+	wip->pre_launch_snd = -1;
+	wip->pre_launch_snd_min_interval = 0;
+
 	wip->launch_snd = -1;
 	wip->impact_snd = -1;
 	wip->disarmed_impact_snd = -1;
@@ -1171,8 +1186,16 @@ int parse_weapon(int subtype, bool replace)
 		stuff_malloc_string(&wip->tech_desc, F_MULTITEXT);
 	}
 
-	if(optional_string("$Tech Model:")) {
+	if (optional_string("$Tech Model:")) {
 		stuff_string(wip->tech_model, F_NAME, MAX_FILENAME_LEN);
+
+		if (optional_string("+Closeup_pos:")) {
+			stuff_vector(&wip->closeup_pos);
+		}
+
+		if (optional_string("+Closeup_zoom:")) {
+			stuff_float(&wip->closeup_zoom);
+		}
 	}
 
 	// Weapon fadein effect, used when no ani is specified or weapon_select_3d is active
@@ -1283,9 +1306,9 @@ int parse_weapon(int subtype, bool replace)
 
 		// Goober5000 - hack in order to make the beam whack behavior of these three beams match all other beams
 		// this relies on Bobboau's beam whack hack in beam_apply_whack()
-		if (!strcmp(wip->name, "SAAA") && (wip->mass == 4.0f)
-			|| !strcmp(wip->name, "MjolnirBeam") && (wip->mass == 1000.0f)
-			|| !strcmp(wip->name, "MjolnirBeam#home") && (wip->mass == 1000.0f))
+		if ((!strcmp(wip->name, "SAAA") && (wip->mass == 4.0f))
+			|| (!strcmp(wip->name, "MjolnirBeam") && (wip->mass == 1000.0f))
+			|| (!strcmp(wip->name, "MjolnirBeam#home") && (wip->mass == 1000.0f)))
 		{
 			wip->mass = 100.0f;
 		}
@@ -1340,6 +1363,18 @@ int parse_weapon(int subtype, bool replace)
 
 	if(optional_string("$Detonation Radius:")) {
 		stuff_float(&wip->det_radius);
+	}
+
+	if(optional_string("$Flak Detonation Accuracy:")) {
+		stuff_float(&wip->flak_detonation_accuracy);
+	}
+
+	if(optional_string("$Flak Targeting Accuracy:")) {
+		stuff_float(&wip->flak_targeting_accuracy);
+	}
+
+	if(optional_string("$Untargeted Flak Range Penalty:")) {
+		stuff_float(&wip->untargeted_flak_range_penalty);
 	}
 
 	parse_shockwave_info(&wip->shockwave, "$");
@@ -1629,18 +1664,8 @@ int parse_weapon(int subtype, bool replace)
 	//Disarmed impact sound
 	parse_sound("$Disarmed ImpactSnd:", &wip->impact_snd, wip->name);
 
-	if (subtype == WP_MISSILE)
-	{
-		parse_sound("$FlyBySnd:", &wip->flyby_snd, wip->name);
-	}
-	else
-	{
-		if (optional_string("$FlyBySnd:"))
-		{
-			Warning(LOCATION, "$FlyBySnd: flag found on %s, but is not used with primary weapons; ignoring...", wip->name);
-		}
-	}
-
+	parse_sound("$FlyBySnd:", &wip->flyby_snd, wip->name);
+	
 	if(optional_string("$Model:"))
 	{
 		wip->render_type = WRT_POF;
@@ -2738,14 +2763,6 @@ void parse_weaponstbl(char *filename)
 	lcl_ext_close();
 }
 
-void weapon_create_names()
-{
-	int	i;
-
-	for (i = 0; i < Num_weapon_types; i++)
-		Weapon_names[i] = Weapon_info[i].name;
-}
-
 //uses a simple bucket sort to sort weapons, order of importance is:
 //Lasers
 //Beams
@@ -3198,7 +3215,6 @@ void weapon_do_post_parse()
 	char *weakp;
 
 	weapon_sort_by_type();	// NOTE: This has to be first thing!
-	weapon_create_names();
 	weapon_clean_entries();
 	weapon_generate_indexes_for_substitution();
 
@@ -3426,6 +3442,8 @@ void weapon_render(object *obj)
 	{
 		case WRT_LASER:
 		{
+			if(wip->laser_length < 0.0001f)
+					return;
 			// turn off fogging for good measure
 			gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
 			int alpha = 255;
@@ -3455,6 +3473,7 @@ void weapon_render(object *obj)
 					alpha = fl2i(wp->alpha_current * 255.0f);
 
 				vec3d headp;
+				
 				vm_vec_scale_add(&headp, &obj->pos, &obj->orient.vec.fvec, wip->laser_length);
 				wp->weapon_flags &= ~WF_CONSIDER_FOR_FLYBY_SOUND;
 
@@ -3556,7 +3575,7 @@ void weapon_render(object *obj)
 			int clip_plane=0;
 				
 			//start a clip plane
-			if ((wp->lssm_stage==2))
+			if (wp->lssm_stage==2)
 			{
 				object *wobj=&Objects[wp->lssm_warp_idx];		//warphole object
 				clip_plane=1;
@@ -3566,7 +3585,7 @@ void weapon_render(object *obj)
 
 
 			model_render(wip->model_num, &obj->orient, &obj->pos, render_flags);
-
+			wp->weapon_flags |= WF_CONSIDER_FOR_FLYBY_SOUND;
 			if (clip_plane)
 			{
 				g3_stop_user_clip_plane();
@@ -4061,8 +4080,8 @@ void weapon_home(object *obj, int num, float frame_time)
 		}
 		break;
 	case OBJ_WEAPON:
-		// don't home on countermeasures or non-bombs, that's handled elsewhere
-		if ( (Weapon_info[Weapons[hobjp->instance].weapon_info_index].wi_flags & WIF_CMEASURE) || !(Weapon_info[Weapons[hobjp->instance].weapon_info_index].wi_flags & WIF_BOMB) )
+		// Home on countermeasures and bombs
+		if ( !(Weapon_info[Weapons[hobjp->instance].weapon_info_index].wi_flags & WIF_CMEASURE) || !(Weapon_info[Weapons[hobjp->instance].weapon_info_index].wi_flags & WIF_BOMB) )
 			break;
 
 		if (wip->wi_flags & WIF_LOCKED_HOMING) {
@@ -4336,12 +4355,7 @@ MONITOR( NumWeapons )
  * Maybe play a "whizz sound" if close enough to view position
  */
 void weapon_maybe_play_flyby_sound(object *weapon_objp, weapon *wp)
-{	
-	// do a quick out if not a laser
-	if ( Weapon_info[wp->weapon_info_index].subtype != WP_LASER ) {
-		return;
-	}
-
+{
 	// don't play flyby sounds too close together
 	if ( !timestamp_elapsed(Weapon_flyby_sound_timer) ) {
 		return;
@@ -4378,7 +4392,13 @@ void weapon_maybe_play_flyby_sound(object *weapon_objp, weapon *wp)
 			dot = vm_vec_dot(&vec_to_weapon, &weapon_objp->orient.vec.fvec);
 			
 			if ( (dot < -0.80) && (dot > -0.98) ) {
-				snd_play_3d( &Snds[SND_WEAPON_FLYBY], &weapon_objp->pos, &Eye_position );
+				if(Weapon_info[wp->weapon_info_index].flyby_snd != -1) {
+					snd_play_3d( &Snds[Weapon_info[wp->weapon_info_index].flyby_snd], &weapon_objp->pos, &Eye_position );
+				} else {
+					if ( Weapon_info[wp->weapon_info_index].subtype == WP_LASER ) {
+						snd_play_3d( &Snds[SND_WEAPON_FLYBY], &weapon_objp->pos, &Eye_position );
+					}
+				}
 				Weapon_flyby_sound_timer = timestamp(200);
 				wp->weapon_flags |= WF_PLAYED_FLYBY_SOUND;
 			}
@@ -5075,7 +5095,7 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 
 	// if this is a flak weapon shell, make it so
 	// NOTE : this function will change some fundamental things about the weapon object
-	if ( wip->wi_flags & WIF_FLAK ){
+	if ( (wip->wi_flags & WIF_FLAK) && !(wip->wi_flags2 & WIF2_RENDER_FLAK) ) {
 		obj_set_flags(&Objects[wp->objnum], Objects[wp->objnum].flags & ~(OF_RENDERS));
 	}
 
@@ -5561,7 +5581,7 @@ void weapon_do_area_effect(object *wobjp, shockwave_create_info *sci, vec3d *pos
 
 	wip = &Weapon_info[Weapons[wobjp->instance].weapon_info_index];	
 	wp = &Weapons[wobjp->instance];
-	Assert(sci->inner_rad != 0);	
+	Assertion(sci->inner_rad != 0, "Shockwave info for weapon %s is invalid. Inner Radius needs to be greater than 0./n", wip->name);	
 
 	// only blast ships and asteroids
 	// And (some) weapons
@@ -5573,7 +5593,7 @@ void weapon_do_area_effect(object *wobjp, shockwave_create_info *sci, vec3d *pos
 		if ( objp->type == OBJ_WEAPON ) {
 			// only apply to missiles with hitpoints
 			weapon_info* wip2 = &Weapon_info[Weapons[objp->instance].weapon_info_index];
-			if (wip2->weapon_hitpoints <= 0 || !(wip2->wi_flags2 & WIF2_TAKES_BLAST_DAMAGE))
+			if (wip2->weapon_hitpoints <= 0 || !(wip2->wi_flags2 & WIF2_TAKES_BLAST_DAMAGE) || (wip->wi_flags2 & WIF2_CIWS))
 				continue;
 		}
 

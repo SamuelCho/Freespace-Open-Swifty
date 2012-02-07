@@ -347,13 +347,13 @@ int CFred_mission_save::save_mission_info()
 		fout("\n+Storm: %s\n", Mission_parse_storm_name);
 	}
 
-	// write out the nebula clipping multipliers
-	fout("\n+Fog Near Mult: %f\n", Neb2_fog_near_mult);
-	fout("\n+Fog Far Mult: %f\n", Neb2_fog_far_mult);
-
 	// Goober5000
 	if (Format_fs2_open != FSO_FORMAT_RETAIL)
 	{
+		// write out the nebula clipping multipliers
+		fout("\n+Fog Near Mult: %f\n", Neb2_fog_near_mult);
+		fout("\n+Fog Far Mult: %f\n", Neb2_fog_far_mult);
+		
 		if (The_mission.contrail_threshold != CONTRAIL_THRESHOLD_DEFAULT)
 		{
 			fout("\n$Contrail Speed Threshold: %d\n", The_mission.contrail_threshold);
@@ -1579,8 +1579,6 @@ int CFred_mission_save::save_objects()
 			fout(" \"no-arrival-warp\"");
 		if (shipp->flags & SF_NO_DEPARTURE_WARP)
 			fout(" \"no-departure-warp\"");
-		if (shipp->flags & SF_LOCKED)
-			fout(" \"locked\"");
 		if (Objects[shipp->objnum].flags & OF_INVULNERABLE)
 			fout(" \"invulnerable\"");
 		if (shipp->flags & SF_HIDDEN_FROM_SENSORS)
@@ -1613,6 +1611,9 @@ int CFred_mission_save::save_objects()
 			fout(" \"friendly-stealth-invisible\"");
 		if (shipp->flags2 & SF2_DONT_COLLIDE_INVIS)
 			fout(" \"don't-collide-invisible\"");
+		//for compatibility reasons ship locked or weapons locked are saved as both locked in retail mode
+		if ((Format_fs2_open == FSO_FORMAT_RETAIL) && ((shipp->flags2 & SF2_SHIP_LOCKED) || (shipp->flags2 & SF2_WEAPONS_LOCKED)))
+			fout(" \"locked\"");
 		fout(" )");
 
 		// flags2 added by Goober5000 --------------------------------
@@ -1664,6 +1665,10 @@ int CFred_mission_save::save_objects()
 				fout(" \"no-ets\"");
 			if (shipp->flags2 & SF2_CLOAKED)
 				fout(" \"cloaked\"");
+			if (shipp->flags2 & SF2_SHIP_LOCKED)
+				fout(" \"ship-locked\"");
+			if (shipp->flags2 & SF2_WEAPONS_LOCKED)
+				fout(" \"weapons-locked\"");
 			fout(" )");
 		}
 		// -----------------------------------------------------------

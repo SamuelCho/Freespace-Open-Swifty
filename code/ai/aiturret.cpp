@@ -21,6 +21,7 @@
 #include "ai/aiinternal.h"	//Included last, so less includes are needed
 #include "iff_defs/iff_defs.h"
 #include "weapon/muzzleflash.h"
+#include "parse/scripting.h"
 
 #include <limits.h>
 
@@ -401,7 +402,7 @@ int valid_turret_enemy(object *objp, object *turret_parent)
 		return 1;
 	}
 
-	if ( (objp->type == OBJ_SHIP) ) {
+	if ( objp->type == OBJ_SHIP ) {
 		Assert( objp->instance >= 0 );
 		ship *shipp;
 		ship_info *sip;
@@ -1719,9 +1720,15 @@ bool turret_fire_weapon(int weapon_num, ship_subsys *turret, int parent_objnum, 
 
 				//nprintf(("AI", "Turret_time_enemy_in_range = %7.3f\n", ss->turret_time_enemy_in_range));		
 				if (weapon_objnum != -1) {
+					parent_ship->last_fired_turret = turret;
+					turret->last_fired_weapon_info_index = wp->weapon_info_index;
+
 					wp->target_num = turret->turret_enemy_objnum;
 					// AL 1-6-97: Store pointer to turret subsystem
 					wp->turret_subsys = turret;	
+
+					Script_system.SetHookObjects(3, "Ship", &Objects[parent_objnum], "Weapon", objp, "Target", &Objects[turret->turret_enemy_objnum]);
+					Script_system.RunCondition(CHA_ONTURRETFIRED, 0, NULL, &Objects[parent_objnum]);
 
 					// if the gun is a flak gun
 					if(wip->wi_flags & WIF_FLAK){			
@@ -1764,10 +1771,9 @@ bool turret_fire_weapon(int weapon_num, ship_subsys *turret, int parent_objnum, 
 						}
 					}
 				}
-
 				turret->turret_next_fire_pos++;
 			}
-
+			turret->turret_next_fire_pos--;
 			// reset any animations if we need to
 			// (I'm not sure how accurate this timestamp would be in practice - taylor)
 			if (turret->turret_animation_position == MA_POS_READY)
@@ -2085,6 +2091,12 @@ void ai_fire_from_turret(ship *shipp, ship_subsys *ss, int parent_objnum)
 					}
 				}
 
+				if ( wip->wi_flags2 & WIF2_SMALL_ONLY ) {
+					if ( (lep->type == OBJ_SHIP) && (Ship_info[Ships[lep->instance].ship_info_index].flags & (SIF_BIG_SHIP | SIF_HUGE_SHIP)) ) {
+						continue;
+					}
+				}
+
 				if (lep->type == OBJ_SHIP) {
 					// Check if we're targeting a protected ship
 					if (lep->flags & OF_PROTECTED) {
@@ -2279,7 +2291,7 @@ void ai_fire_from_turret(ship *shipp, ship_subsys *ss, int parent_objnum)
 			// if the weapon is a flak gun, add some jitter to its aim so it fires in a "cone" 
 			// to make a cool visual effect and make them less lethal
 			if(wip->wi_flags & WIF_FLAK){
-				flak_jitter_aim(&tv2e, dist_to_enemy, ship_get_subsystem_strength(shipp, SUBSYSTEM_WEAPONS));
+				flak_jitter_aim(&tv2e, dist_to_enemy, ship_get_subsystem_strength(shipp, SUBSYSTEM_WEAPONS), wip);
 			}
 			
 			// Fire if:
@@ -2400,6 +2412,7 @@ void ai_fire_from_turret(ship *shipp, ship_subsys *ss, int parent_objnum)
 					turret_set_next_fire_timestamp(valid_weapons[0], wip, ss, parent_aip);
 				}
 			}
+			ss->turret_next_fire_pos++;
 		}
 
 		if(!something_was_ok_to_fire)

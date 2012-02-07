@@ -420,10 +420,8 @@ int waypoint_path_dlg::update_data(int redraw)
 			UpdateData(FALSE);
 		}
 
-		strcpy_s(old_name, jnp->get_name_ptr());
-		string_copy(jnp->get_name_ptr(), m_name, NAME_LENGTH, 1);
-
-		if(jumpnode_check_for_duplicates())
+		jump_node* found = jumpnode_get_by_name(m_name);
+		if(found != NULL && &(*jnp) != found)
 		{
 			if (bypass_errors)
 				return 1;
@@ -432,14 +430,15 @@ int waypoint_path_dlg::update_data(int redraw)
 			z = MessageBox("This jump node name is already being used by another jump node\n"
 				"Press OK to restore old name", "Error", MB_ICONEXCLAMATION | MB_OKCANCEL);
 
-			jnp->set_name(old_name);
-
 			if (z == IDCANCEL)
 				return -1;
 
-			m_name = _T(old_name);
+			m_name = _T(jnp->get_name_ptr());
 			UpdateData(FALSE);
 		}
+		
+		strcpy_s(old_name, jnp->get_name_ptr());
+		jnp->set_name(const_cast<char *>((const char *) m_name));
 		
 		str = (char *) (LPCTSTR) m_name;
 		if (strcmp(old_name, str)) {

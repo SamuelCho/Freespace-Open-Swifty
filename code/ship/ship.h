@@ -310,6 +310,7 @@ typedef	struct ship_subsys {
 	float	favor_current_facing;					        
 	ship_subsys	*targeted_subsys;					//	subsystem this turret is attacking
 	bool	scripting_target_override;
+	int		last_fired_weapon_info_index;		// which weapon class was last fired
 
 	int		turret_pick_big_attack_point_timestamp;	//	Next time to pick an attack point for this turret
 	vec3d	turret_big_attack_point;			//	local coordinate of point for this turret to attack on enemy
@@ -390,7 +391,7 @@ typedef struct ship_subsys_info {
 #define	SF_NO_ARRIVAL_MUSIC		(1 << 3)		// don't play arrival music when ship arrives
 #define	SF_NO_ARRIVAL_WARP		(1 << 4)		// no arrival warp in effect
 #define	SF_NO_DEPARTURE_WARP		(1 << 5)		// no departure warp in effect
-#define	SF_LOCKED					(1 << 6)		// can't manipulate ship in loadout screens
+//#define	SF_LOCKED					(1 << 6)		// can't manipulate ship in loadout screens
 
 // high bits are for internal flags not saved to mission files
 // Go from bit 31 down to bit 3
@@ -453,6 +454,8 @@ typedef struct ship_subsys_info {
 #define SF2_NO_ETS							(1<<21)		// The E - This ship does not have an ETS
 #define SF2_CLOAKED							(1<<22)		// The E - This ship will not be rendered
 #define SF2_NO_THRUSTERS					(1<<23)		// The E - Thrusters on this ship are not rendered.
+#define SF2_SHIP_LOCKED						(1<<24)		// Karajorma - Prevents the player from changing the ship class on loadout screen
+#define SF2_WEAPONS_LOCKED					(1<<25)		// Karajorma - Prevents the player from changing the weapons on the ship on the loadout screen
 
 // If any of these bits in the ship->flags are set, ignore this ship when targetting
 extern int TARGET_SHIP_IGNORE_FLAGS;
@@ -706,6 +709,7 @@ typedef struct ship {
 	bool shader_effect_active;
 
 	int last_fired_point[MAX_SHIP_PRIMARY_BANKS]; //for fire point cylceing
+	ship_subsys *last_fired_turret; // which turret has fired last
 
 	// fighter bay door stuff, parent side
 	int bay_doors_anim_done_time;		// ammount of time to transition from one animation state to another
@@ -1555,12 +1559,6 @@ extern int wing_name_lookup(char *name, int ignore_count = 0);
 
 extern int Player_ship_class;
 
-#define MAX_PLAYER_SHIP_CHOICES	15
-/*
-extern int Num_player_ship_precedence;				// Number of ship types in Player_ship_precedence
-extern int Player_ship_precedence[MAX_PLAYER_SHIP_CHOICES];	// Array of ship types, precedence list for player ship/wing selection
-*/
-
 //	Do the special effect for energy dissipating into the shield for a hit.
 //	model_num	= index in Polygon_models[]
 //	centerp		= pos of object, sort of the center of the shield
@@ -1901,5 +1899,12 @@ extern SCP_vector<ship_effect> Ship_effects;
  *  @return An index into the Snds vector, if the specified index could not be found then the id itself will be returned
  */
 int ship_get_sound(object *objp, int id);
+
+/**
+ * @brief Returns the index of the default player ship
+ *
+ * @return An index into Ship_info[], location of the default player ship.
+ */
+int get_default_player_ship_index();
 
 #endif

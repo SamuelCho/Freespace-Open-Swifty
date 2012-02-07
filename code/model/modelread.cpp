@@ -1255,13 +1255,13 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 
 				// Sets can_move on submodels which are of a rotating type or which have such a parent somewhere down the hierarchy
 				if ((pm->submodel[n].movement_type != MOVEMENT_TYPE_NONE)
-					|| strstr(props, "$triggered:") || strstr(props, "$rotate") || strstr(props, "$dumb_rotate:") || strstr(props, "$gun_rotation:")) {
+					|| strstr(props, "$triggered:") || strstr(props, "$rotate") || strstr(props, "$dumb_rotate:") || strstr(props, "$gun_rotation:") || strstr(props, "$gun_rotation")) {
 					pm->submodel[n].can_move = true;
 				} else if (pm->submodel[n].parent > -1 && pm->submodel[pm->submodel[n].parent].can_move) {
 					pm->submodel[n].can_move = true;
 				}
 
-				if(( p = strstr(props, "$dumb_rotate:"))!= NULL ){ //Iyojj skybox 4
+				if(( p = strstr(props, "$dumb_rotate:"))!= NULL ){
 					pm->submodel[n].movement_type = MSS_FLAG_DUM_ROTATES;
 					pm->submodel[n].dumb_turn_rate = (float)atof(p+13);
 				}else{
@@ -1321,7 +1321,7 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 				else
 					pm->submodel[n].collide_invisible = false;
 
-				if ( (p = strstr(props, "$gun_rotation:")) != NULL )
+				if ( (p = strstr(props, "$gun_rotation:")) != NULL || (p = strstr(props, "$gun_rotation")) != NULL)
 					pm->submodel[n].gun_rotation = true;
 				else
 					pm->submodel[n].gun_rotation = false;
@@ -1361,6 +1361,20 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 						pm->submodel[n].render_box_max.xyz.z = (float)strtod(++p, (char **)NULL);
 					} else {
 						pm->submodel[n].render_box_max = pm->submodel[n].max;
+					}
+				}
+
+				if ( (p = strstr(props, "$detail_sphere:")) != NULL ) {
+					p += 15;
+					while (*p == ' ') p++;
+					pm->submodel[n].use_render_sphere = atoi(p);
+
+					if ( (p = strstr(props, "$radius:")) != NULL ) {
+						p += 8;
+						while (*p == ' ') p++;
+						pm->submodel[n].render_sphere_radius = (float)strtod(p, (char **)NULL);
+					} else {
+						pm->submodel[n].render_sphere_radius = pm->submodel[n].rad;
 					}
 				}
 
@@ -1476,7 +1490,7 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 							*orient = vmd_identity_matrix;
 						}
 
-						Warning( LOCATION, "Improper custom orientation matrix, you must define a up vector, then a forward vector");
+						Warning( LOCATION, "Improper custom orientation matrix for subsystem %s, you must define a up vector, then a forward vector", pm->submodel[n].name);
 					}
 				} else {
 					int parent_num = pm->submodel[n].parent;
@@ -1488,7 +1502,7 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 					}
 
 					if (strstr(props, "$fvec:") != NULL) {
-						Warning( LOCATION, "Improper custom orientation matrix, you must define a up vector, then a forward vector");
+						Warning( LOCATION, "Improper custom orientation matrix for subsystem %s, you must define a up vector, then a forward vector", pm->submodel[n].name);
 					}
 				}
 
@@ -2860,9 +2874,10 @@ float submodel_get_radius( int modelnum, int submodelnum )
 
 polymodel * model_get(int model_num)
 {
-	Assert( model_num >= 0 );
-	if ( model_num < 0 )
+	if ( model_num < 0 ) {
+		Warning(LOCATION, "Invalid model number %d requested. Please post the call stack where an SCP coder can see it.\n", model_num);
 		return NULL;
+	}
 
 	int num = model_num % MAX_POLYGON_MODELS;
 	

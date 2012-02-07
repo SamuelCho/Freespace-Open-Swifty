@@ -1644,7 +1644,7 @@ void ship_hit_kill(object *ship_obj, object *other_obj, float percent_killed, in
 	}
 
 	// if the player is dying, have wingman lament
-	if ( (ship_obj == Player_obj) ) {
+	if ( ship_obj == Player_obj ) {
 		ship_maybe_lament();
 	}
 
@@ -2293,10 +2293,6 @@ void ship_apply_tag(int ship_num, int tag_level, float tag_time, object *target,
 		Assert(target);
 		Assert(start);
 
-		struct ssm_firing_info;
-
-		HUD_sourced_printf(HUD_SOURCE_HIDDEN, XSTR("Firing artillery", 1570));
-
 		ssm_create(target, start, ssm_index, NULL, ssm_team);
 	}
 }
@@ -2312,6 +2308,7 @@ void ship_apply_local_damage(object *ship_obj, object *other_obj, vec3d *hitpos,
 
 	ship *ship_p = &Ships[ship_obj->instance];	
     weapon *wp = &Weapons[other_obj->instance];
+	bool create_sparks = true;
 
 	//	If got hit by a weapon, tell the AI so it can react.  Only do this line in single player,
 	// or if I am the master in a multiplayer game
@@ -2389,7 +2386,25 @@ void ship_apply_local_damage(object *ship_obj, object *other_obj, vec3d *hitpos,
 	if ((quadrant == MISS_SHIELDS) && create_spark)	{
 		// check if subsys destroyed
 		if ( !is_subsys_destroyed(ship_p, submodel_num) ) {
-			ship_hit_create_sparks(ship_obj, hitpos, submodel_num);
+			// Simulated weapons don't cause sparks
+			if(other_obj->type == OBJ_WEAPON || other_obj->type == OBJ_BEAM) {
+				weapon_info *wip = NULL;
+
+				if (other_obj->type == OBJ_WEAPON)
+					wip = &Weapon_info[Weapons[other_obj->instance].weapon_info_index];
+				else if (other_obj->type == OBJ_BEAM)
+					wip = &Weapon_info[Beams[other_obj->instance].weapon_info_index];
+
+				Assert(wip != NULL);
+
+				if (wip->wi_flags2 & WIF2_TRAINING) {
+					create_sparks = false;
+				}
+			}
+
+			if (create_sparks) {
+				ship_hit_create_sparks(ship_obj, hitpos, submodel_num);
+			}
 		}
 		//fireball_create( hitpos, FIREBALL_SHIP_EXPLODE1, OBJ_INDEX(ship_obj), 0.25f );
 	}

@@ -51,6 +51,12 @@ struct opengl_shader_file_t {
 static opengl_shader_file_t GL_shader_file[] = {
 	{ "null-v.sdr", "null-f.sdr", (0), 0, { NULL }, 0, { NULL } },
 
+	{ "soft-v.sdr", "soft-f.sdr", (SDR_FLAG_SOFT_QUAD), 
+		6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, { "radius_in" } },
+
+	{ "soft-v.sdr", "soft-f.sdr", (SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION), 
+		5, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer"}, 1, { "offset_in" } },
+
 	// with diffuse Textures
 	{ "lne-v.sdr", "lbgsne-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ENV_MAP),
 		8, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
@@ -247,7 +253,7 @@ static opengl_shader_file_t GL_shader_file[] = {
 		13, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
 
 	{ "lfnea-v.sdr", "lfbsnea-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ENV_MAP | SDR_FLAG_ANIMATED),
-		12, { "sBasemap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+		12, { "sBasemap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } }
 
 	/* No Heightmapping for now - Valathil
 	{ "lne-v.sdr", "lgsnhe-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP | SDR_FLAG_ENV_MAP),
@@ -304,11 +310,6 @@ static opengl_shader_file_t GL_shader_file[] = {
 	{ "ln-v.sdr", "lsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
 		4, { "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } }*/
 
-	{ "soft-v.sdr", "soft-f.sdr", (SDR_FLAG_SOFT_QUAD), 
-		6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, { "radius_in" } },
-
-	{ "soft-v.sdr", "soft-f.sdr", (SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION), 
-		8, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "distMap", "frameBuffer"}, 1, { "radius_in" } }
 };
 
 static const int Num_shader_files = sizeof(GL_shader_file) / sizeof(opengl_shader_file_t);
@@ -463,7 +464,7 @@ static char *opengl_load_shader(char *filename, int flags, bool unified)
 
 		return shader;	
 	} else {
-		mprintf(("Loading built-in default shader for: %s\n", filename));
+		mprintf(("   Loading built-in default shader for: %s\n", filename));
 		char* def_shader = defaults_get_file(filename);
 		size_t len = strlen(def_shader);
 		char *shader = (char*) vm_malloc(len + flags_len + 1);

@@ -229,7 +229,6 @@ extern char Mission_filename[80];  // filename of mission in The_mission (Fred o
 
 #define	MAX_FORMATION_NAMES	3
 #define	MAX_STATUS_NAMES		3
-#define	MAX_TEAM_NAMES			4
 
 // defines for arrival locations.  These defines should match their counterparts in the arrival location
 // array
@@ -294,7 +293,6 @@ extern int	Num_status_names;
 extern int	Num_arrival_names;
 extern int	Num_formation_names;
 extern int	Num_goal_type_names;
-extern int	Num_team_names;
 extern int	Num_reinforcement_type_names;
 extern int	Player_starts;
 extern fix	Entry_delay_time;
@@ -587,7 +585,7 @@ typedef struct p_object {
 // same caveat: This list of bitfield indicators MUST correspond EXACTLY
 // (i.e., order and position must be the same) to its counterpart in MissionParse.cpp!!!!
 
-#define MAX_PARSE_OBJECT_FLAGS_2	20
+#define MAX_PARSE_OBJECT_FLAGS_2	22
 
 #define P2_SF2_PRIMITIVE_SENSORS			(1<<0)
 #define P2_SF2_NO_SUBSPACE_DRIVE			(1<<1)
@@ -609,6 +607,8 @@ typedef struct p_object {
 #define P2_OF_IMMOBILE						(1<<17)
 #define P2_SF2_NO_ETS						(1<<18)
 #define P2_SF2_CLOAKED						(1<<19)
+#define P2_SF2_SHIP_LOCKED					(1<<20)
+#define P2_SF2_WEAPONS_LOCKED				(1<<21)
 
 // and again: these flags do not appear in the array
 //#define blah							(1<<29)
