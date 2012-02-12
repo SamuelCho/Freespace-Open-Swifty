@@ -528,7 +528,7 @@ void techroom_ships_render(float frametime)
 
 	model_clear_instance(Techroom_ship_modelnum);
 	model_set_detail_level(0);
-	model_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER);
+	model_render(Techroom_ship_modelnum, -1, &Techroom_ship_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER);
 
 	if (!Cmdline_nohtl)
 	{

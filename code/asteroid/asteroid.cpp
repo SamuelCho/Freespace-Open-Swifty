@@ -1160,7 +1160,7 @@ void asteroid_render(object * obj)
 		Assert( asp->flags & AF_USED );
 
 		model_clear_instance( Asteroid_info[asp->asteroid_type].model_num[asp->asteroid_subtype]);
-		model_render(Asteroid_info[asp->asteroid_type].model_num[asp->asteroid_subtype], &obj->orient, &obj->pos, MR_NORMAL|MR_IS_ASTEROID, OBJ_INDEX(obj) );	//	Replace MR_NORMAL with 0x07 for big yellow blobs
+		model_render(Asteroid_info[asp->asteroid_type].model_num[asp->asteroid_subtype], -1, &obj->orient, &obj->pos, MR_NORMAL|MR_IS_ASTEROID, OBJ_INDEX(obj) );	//	Replace MR_NORMAL with 0x07 for big yellow blobs
 	}
 }
 

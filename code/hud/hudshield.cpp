@@ -658,7 +658,7 @@ void HudGaugeShield::showShields(object *objp, int mode)
 		ship_model_start(objp);
 		//if(!digitus_improbus)
 		{
-			model_render( sip->model_num, &object_orient, &vmd_zero_vector, MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1, sp->ship_replacement_textures);
+			model_render( sip->model_num, -1, &object_orient, &vmd_zero_vector, MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1, sp->ship_replacement_textures);
 		}
 		/*else
 		{

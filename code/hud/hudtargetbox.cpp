@@ -525,9 +525,9 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 
 		// maybe render a special hud-target-only model
 		if(target_sip->model_num_hud >= 0){
-			model_render( target_sip->model_num_hud, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING);
+			model_render( target_sip->model_num_hud, -1, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING);
 		} else {
-			model_render( target_sip->model_num, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1, target_shipp->ship_replacement_textures);
+			model_render( target_sip->model_num, -1, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1, target_shipp->ship_replacement_textures);
 		}
 		ship_model_stop( target_objp );
 
@@ -761,7 +761,7 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 			opengl_shader_set_animated_effect(Targetbox_shader_effect);
 		}
 
-		model_render( viewed_model_num, &viewed_obj->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_IS_MISSILE | MR_NO_FOGGING, -1, -1, replacement_textures);
+		model_render( viewed_model_num, -1, &viewed_obj->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_IS_MISSILE | MR_NO_FOGGING, -1, -1, replacement_textures);
 		renderTargetClose();
 	}
 	renderTargetForeground(); 
@@ -869,7 +869,7 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 			opengl_shader_set_animated_effect(Targetbox_shader_effect);
 		}
 
-		model_render(Asteroid_info[asteroidp->asteroid_type].model_num[pof], &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_NO_FOGGING );
+		model_render(Asteroid_info[asteroidp->asteroid_type].model_num[pof], -1, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_NO_FOGGING );
 		renderTargetClose();
 	}
 	renderTargetForeground();

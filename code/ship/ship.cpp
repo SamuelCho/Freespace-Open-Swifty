@@ -6077,7 +6077,7 @@ void ship_render(object * obj)
 					for(k = 0; k < bank->num_slots; k++) {	
 						polymodel* pm = model_get(Weapon_info[swp->primary_bank_weapons[i]].external_model_num);
 						pm->gun_submodel_rotation = shipp->primary_rotate_ang[i];
-						model_render(Weapon_info[swp->primary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
+						model_render(Weapon_info[swp->primary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &bank->pnt[k], render_flags);
 						pm->gun_submodel_rotation = 0.0f;
 					}
 				}
@@ -6095,7 +6095,7 @@ void ship_render(object * obj)
 					
 					if (Weapon_info[swp->secondary_bank_weapons[i]].wi_flags2 & WIF2_EXTERNAL_WEAPON_LNCH) {
 						for(k = 0; k < bank->num_slots; k++) {
-							model_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
+							model_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &bank->pnt[k], render_flags);
 						}
 					} else {
 						num_secondaries_rendered = 0;
@@ -6114,7 +6114,7 @@ void ship_render(object * obj)
 			
 							vm_vec_scale_add2(&secondary_weapon_pos, &vmd_z_vector, -(1.0f-shipp->secondary_point_reload_pct[i][k]) * model_get(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num)->rad);
 
-							model_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos, render_flags);
+							model_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &secondary_weapon_pos, render_flags);
 						}
 					}
 				}
@@ -6129,12 +6129,12 @@ void ship_render(object * obj)
  					float fog_val = neb2_get_fog_intensity(obj);
 					if(fog_val >= 0.6f){
 						model_set_detail_level(2);
-						model_render( sip->model_num, &obj->orient, &obj->pos, render_flags | MR_LOCK_DETAIL, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures );
+						model_render( sip->model_num, shipp->model_instance_num, &obj->orient, &obj->pos, render_flags | MR_LOCK_DETAIL, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures );
 					} else {
-						model_render( sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures );
+						model_render( sip->model_num, shipp->model_instance_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures );
 					}
 				} else {
-					model_render( sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures );
+					model_render( sip->model_num, shipp->model_instance_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures );
 				}
 			}
 
@@ -6253,7 +6253,7 @@ void ship_render_cockpit(object *objp)
 	//Deal with the model
 	model_set_detail_level(0);
 	model_clear_instance(sip->cockpit_model_num);
-	model_render(sip->cockpit_model_num, &eye_ori, &pos, MR_LOCK_DETAIL | MR_NO_FOGGING, -1, -1, Player_cockpit_textures);
+	model_render(sip->cockpit_model_num, -1, &eye_ori, &pos, MR_LOCK_DETAIL | MR_NO_FOGGING, -1, -1, Player_cockpit_textures);
 
 	//Zbuffer
 	gr_zbuffer_set(saved_zbuffer_mode);

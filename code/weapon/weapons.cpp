@@ -3584,7 +3584,7 @@ void weapon_render(object *obj)
 			}
 
 
-			model_render(wip->model_num, &obj->orient, &obj->pos, render_flags);
+			model_render(wip->model_num, -1, &obj->orient, &obj->pos, render_flags);
 			wp->weapon_flags |= WF_CONSIDER_FOR_FLYBY_SOUND;
 			if (clip_plane)
 			{

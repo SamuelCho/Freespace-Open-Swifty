@@ -7860,7 +7860,7 @@ void Time_model( int modelnum )
 
 		model_clear_instance( modelnum );
 		model_set_detail_level(0);		// use highest detail level
-		model_render( modelnum, &model_orient, &model_pos, MR_LOCK_DETAIL);	//|MR_NO_POLYS );
+		model_render( modelnum, -1, &model_orient, &model_pos, MR_LOCK_DETAIL);	//|MR_NO_POLYS );
 
 		g3_end_frame();
 //		gr_flip();

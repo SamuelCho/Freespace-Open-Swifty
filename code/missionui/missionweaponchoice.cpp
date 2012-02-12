@@ -886,7 +886,7 @@ void wl_render_overhead_view(float frametime)
 			light_rotate_all();
 
 			model_clear_instance(wl_ship->model_num);
-			model_render(wl_ship->model_num, &object_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1);
+			model_render(wl_ship->model_num, -1, &object_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1);
 
 			//NOW render the lines for weapons
 			gr_reset_clip();

@@ -1840,7 +1840,7 @@ static void half_ship_render_ship_and_debris(clip_ship* half_ship,ship *shipp)
 	vm_vec_unrotate(&model_clip_plane_pt, &temp, &half_ship->orient);
 	vm_vec_add2(&model_clip_plane_pt, &orig_ship_world_center);
 	g3_start_user_clip_plane( &model_clip_plane_pt, &clip_plane_norm );
-	model_render(pm->id, &half_ship->orient, &orig_ship_world_center, render_flags, -1, -1, shipp->ship_replacement_textures);
+	model_render(pm->id, -1, &half_ship->orient, &orig_ship_world_center, render_flags, -1, -1, shipp->ship_replacement_textures);
 }
 
 void shipfx_large_blowup_level_init()

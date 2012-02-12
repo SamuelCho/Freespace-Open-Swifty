@@ -221,7 +221,7 @@ void jump_node::render(vec3d *pos, vec3d *view_pos)
 	
 	if ( Fred_running ) {
 		gr_set_color_fast(&m_display_color);		
-		model_render(m_modelnum, &node_orient, pos, mr_flags );
+		model_render(m_modelnum, -1, &node_orient, pos, mr_flags );
 	} else {
 		if (m_flags & JN_USE_DISPLAY_COLOR) {
 			gr_set_color_fast(&m_display_color);
@@ -252,7 +252,7 @@ void jump_node::render(vec3d *pos, vec3d *view_pos)
 			gr_set_color(HUD_color_red, HUD_color_green, HUD_color_blue);
 		}
 		
-		model_render(m_modelnum, &node_orient, pos, mr_flags );
+		model_render(m_modelnum, -1, &node_orient, pos, mr_flags );
 	}
 	
 }

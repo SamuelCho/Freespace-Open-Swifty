@@ -799,7 +799,7 @@ void labviewer_render_model(float frametime)
 		}
 		opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS1);
 		opengl_shader_set_animated_timer(MIN((timer_get_milliseconds()-anim_timer_start)/1500.0f,2.0f));
-		model_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, /*Lab_model_flags*/flagggs, -1, -1);
+		model_render(Lab_model_num, -1, &Lab_viewer_orient, &vmd_zero_vector, /*Lab_model_flags*/flagggs, -1, -1);
 	}
 
 	batch_render_all();

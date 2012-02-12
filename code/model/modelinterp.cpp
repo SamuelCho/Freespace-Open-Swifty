@@ -170,7 +170,7 @@ static int FULLCLOAK = -1;
 
 // forward references
 int model_interp_sub(void *model_ptr, polymodel * pm, bsp_info *sm, int do_box_check);
-void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1);
+void model_really_render(int model_num, int model_instance_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1);
 void model_interp_sortnorm_b2f(ubyte * p,polymodel * pm, bsp_info *sm, int do_box_check);
 void model_interp_sortnorm_f2b(ubyte * p,polymodel * pm, bsp_info *sm, int do_box_check);
 void (*model_interp_sortnorm)(ubyte * p,polymodel * pm, bsp_info *sm, int do_box_check) = model_interp_sortnorm_b2f;
@@ -1946,7 +1946,7 @@ DCF(model_darkening,"Makes models darker with distance")
 	}
 }
 
-void model_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures)
+void model_render(int model_num, int model_instance_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures)
 {
 	int cull = 0;
 	// replacement textures - Goober5000
@@ -2014,7 +2014,7 @@ void model_render(int model_num, matrix *orient, vec3d * pos, uint flags, int ob
 		num_lights = light_filter_push( objnum, pos, pm->rad );
 	}
 
-	model_really_render(model_num, orient, pos, flags, objnum);
+	model_really_render(model_num, model_instance_num, orient, pos, flags, objnum);
 
 	if ( !(flags & MR_NO_LIGHTING ) )	{
 		light_filter_pop();
@@ -2657,7 +2657,7 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 void light_set_all_relevent();
 extern int Warp_model;
 
-void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum )
+void model_really_render(int model_num, int model_instance_num, matrix *orient, vec3d * pos, uint flags, int objnum )
 {
 	int i;
 	int cull = 1;
@@ -2950,38 +2950,41 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		gr_set_buffer(pm->vertex_buffer_id);
 	}
 
-	// Draw the subobjects	
-	i = pm->submodel[pm->detail[Interp_detail_level]].first_child;
-
-	while( i >= 0 )	{
-		if ( !pm->submodel[i].is_thruster ) {
-			// When in htl mode render with htl method unless its a jump node
-			if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-				model_render_children_buffers( pm, i, Interp_detail_level );
-			} else {
-				model_interp_subcall( pm, i, Interp_detail_level );
-			}
-		} else {
-			draw_thrusters = true;
-		}
-
-		i = pm->submodel[i].next_sibling;
-	}	
-
-	gr_zbias(0);	
-
-	model_radius = pm->submodel[pm->detail[Interp_detail_level]].rad;
-
-	//*************************** draw the hull of the ship *********************************************
-
-	// When in htl mode render with htl method unless its a jump node
-	if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-		transparent_submodel ts;
-		ts.is_submodel = false;
-		transparent_submodels.push_back(ts);
-		model_render_buffers(pm, pm->detail[Interp_detail_level]);
+	if ( model_instance_num >= 0 ) {
 	} else {
-		model_interp_subcall(pm, pm->detail[Interp_detail_level], Interp_detail_level);
+		// Draw the subobjects	
+		i = pm->submodel[pm->detail[Interp_detail_level]].first_child;
+
+		while( i >= 0 )	{
+			if ( !pm->submodel[i].is_thruster ) {
+				// When in htl mode render with htl method unless its a jump node
+				if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
+					model_render_children_buffers( pm, i, Interp_detail_level );
+				} else {
+					model_interp_subcall( pm, i, Interp_detail_level );
+				}
+			} else {
+				draw_thrusters = true;
+			}
+
+			i = pm->submodel[i].next_sibling;
+		}	
+
+		gr_zbias(0);	
+
+		model_radius = pm->submodel[pm->detail[Interp_detail_level]].rad;
+
+		//*************************** draw the hull of the ship *********************************************
+
+		// When in htl mode render with htl method unless its a jump node
+		if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
+			transparent_submodel ts;
+			ts.is_submodel = false;
+			transparent_submodels.push_back(ts);
+			model_render_buffers(pm, pm->detail[Interp_detail_level]);
+		} else {
+			model_interp_subcall(pm, pm->detail[Interp_detail_level], Interp_detail_level);
+		}
 	}
 
 	// Draw the thruster subobjects

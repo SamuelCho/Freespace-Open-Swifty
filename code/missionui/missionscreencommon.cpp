@@ -1496,7 +1496,7 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 	}
 
 	model_clear_instance(model_id);
-	model_render(model_id, &object_orient, &vmd_zero_vector, flags, -1, -1);
+	model_render(model_id, -1, &object_orient, &vmd_zero_vector, flags, -1, -1);
 
 	if (!Cmdline_nohtl) 
 	{
@@ -1645,13 +1645,13 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 				if (time >= 1.5f) // Just clip the wireframe after Phase 1
 					g3_start_user_clip_plane(&plane_point,&wire_normal);
 				
-				model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_ANIMATED_SHADER);
+				model_render(model_id, -1, &model_orient, &vmd_zero_vector, flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_ANIMATED_SHADER);
 				g3_stop_user_clip_plane();
 			}
 
 			if (time >= 1.5f) { // Render the ship in Phase 2 onwards
 				g3_start_user_clip_plane(&plane_point,&ship_normal);
-				model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
+				model_render(model_id, -1, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
 				g3_stop_user_clip_plane();
 			}
 
@@ -1726,9 +1726,9 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		if (effect == 1) { // FS1 effect
 			opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS1);
 			opengl_shader_set_animated_timer(MIN(time*0.5f,2.0f));
-			model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
+			model_render(model_id, -1, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
 		} else {
-			model_render(model_id, &model_orient, &vmd_zero_vector, flags);
+			model_render(model_id, -1, &model_orient, &vmd_zero_vector, flags);
 		}
 
 		gr_end_view_matrix();
