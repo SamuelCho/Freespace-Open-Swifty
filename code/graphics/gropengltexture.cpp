@@ -1908,5 +1908,5 @@ void gr_opengl_destroy_transformation_tex(uint texture_id)
 
 void gr_opengl_update_transformation_tex(uint texture_id, int n_entries, float *data)
 {
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 3, n_entries*4, 0, GL_RGBA, GL_FLOAT, data);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 12, n_entries, 0, GL_RGBA, GL_FLOAT, data);
 }

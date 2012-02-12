@@ -2649,6 +2649,9 @@ int model_create_instance(int model_num, int submodel_num)
 	}
 
 	pmi->transform_tex_id = gr_create_transform_tex();
+	
+	// create transform texture buffer. allocate 12 floats per submodel. 3*3 for the orientation matrix. Plus another 3 for the offset.
+	pmi->transform_buffer = (float*)vm_malloc( sizeof(float)*pm->n_models*12 );
 
 	return open_slot;
 }
@@ -2666,6 +2669,10 @@ void model_delete_instance(int model_instance_num)
 	}
 
 	gr_destroy_transform_tex(pmi->transform_tex_id);
+
+	if ( pmi->transform_buffer ) {
+		vm_free(pmi->transform_buffer);
+	}
 
 	vm_free(pmi);
 
