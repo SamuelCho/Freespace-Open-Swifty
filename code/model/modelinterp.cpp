@@ -4578,38 +4578,42 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 	if (pm->vertex_buffer_id < 0)
 		return;
 
-	if ( (mn < 0) || (mn >= pm->n_models) ) {
-		Int3();
-		return;
-	}
+	vertex_buffer *
+	bsp_info *model = NULL;
 
-	bsp_info *model = &pm->submodel[mn];
+	if ( (mn >= 0) && (mn < pm->n_models) ) {
+		model = &pm->submodel[mn];
 
-	// if using detail boxes or spheres, check that we are valid for the range
-	if ( !is_child && !(Interp_flags & MR_FULL_DETAIL) && model->use_render_box ) {
-		vm_vec_copy_scale(&Interp_render_box_min, &model->render_box_min, Interp_box_scale);
-		vm_vec_copy_scale(&Interp_render_box_max, &model->render_box_max, Interp_box_scale);
+		// if using detail boxes or spheres, check that we are valid for the range
+		if ( !is_child && !(Interp_flags & MR_FULL_DETAIL) && model->use_render_box ) {
+			vm_vec_copy_scale(&Interp_render_box_min, &model->render_box_min, Interp_box_scale);
+			vm_vec_copy_scale(&Interp_render_box_max, &model->render_box_max, Interp_box_scale);
 
-		if ( (-model->use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &model->offset)) )
-			return;
-	}
-	if ( !is_child && !(Interp_flags & MR_FULL_DETAIL) && model->use_render_sphere ) {
-		Interp_render_sphere_radius = model->render_sphere_radius * Interp_box_scale;
+			if ( (-model->use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &model->offset)) )
+				return;
+		}
+		if ( !is_child && !(Interp_flags & MR_FULL_DETAIL) && model->use_render_sphere ) {
+			Interp_render_sphere_radius = model->render_sphere_radius * Interp_box_scale;
 
-		if ( (-model->use_render_sphere + in_sphere(&model->offset, Interp_render_sphere_radius)) )
-			return;
-	}
+			if ( (-model->use_render_sphere + in_sphere(&model->offset, Interp_render_sphere_radius)) )
+				return;
+		}
 
-	vec3d scale;
+		vec3d scale;
 
-	if (Interp_thrust_scale_subobj) {
-		scale.xyz.x = 1.0f;
-		scale.xyz.y = 1.0f;
-		scale.xyz.z = Interp_thrust_scale;
+		if (Interp_thrust_scale_subobj) {
+			scale.xyz.x = 1.0f;
+			scale.xyz.y = 1.0f;
+			scale.xyz.z = Interp_thrust_scale;
+		} else {
+			scale.xyz.x = Interp_warp_scale_x;
+			scale.xyz.y = Interp_warp_scale_y;
+			scale.xyz.z = Interp_warp_scale_z;
+		}
+
+		gr_push_scale_matrix(&scale);
 	} else {
-		scale.xyz.x = Interp_warp_scale_x;
-		scale.xyz.y = Interp_warp_scale_y;
-		scale.xyz.z = Interp_warp_scale_z;
+
 	}
 
 	texture_info tex_replace[TM_NUM_TYPES];
@@ -4639,8 +4643,6 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		forced_alpha = Interp_xparent_alpha;
 		forced_blend_filter = GR_ALPHABLEND_FILTER;
 	}
-
-	gr_push_scale_matrix(&scale);
 
 	size_t buffer_size = model->buffer.tex_buf.size();
 
