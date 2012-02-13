@@ -168,6 +168,9 @@ int Interp_detail_level = 0;
 
 static int FULLCLOAK = -1;
 
+// current transformation texture
+int Interp_transform_texture = -1;
+
 // forward references
 int model_interp_sub(void *model_ptr, polymodel * pm, bsp_info *sm, int do_box_check);
 void model_really_render(int model_num, int model_instance_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1);
@@ -2662,6 +2665,7 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	int i;
 	int cull = 1;
 	polymodel * pm;
+	polymodel_instance * pmi;
 
 	uint save_gr_zbuffering_mode;
 	int zbuf_mode;
@@ -2678,6 +2682,13 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 
 		if (objp->type == OBJ_SHIP) {
 			shipp = &Ships[objp->instance];
+
+			if ( model_instance_num >= 0 ) {
+				pmi = model_get_instance(model_instance_num);
+				Interp_transform_texture = pmi->transform_tex_id;
+			} else {
+				Interp_transform_texture = -1;
+			}
 
 			if (shipp->flags2 & SF2_GLOWMAPS_DISABLED)
 				flags |= MR_NO_GLOWMAPS;
@@ -2951,6 +2962,7 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	}
 
 	if ( model_instance_num >= 0 ) {
+		model_render_buffers(pm, -1);
 	} else {
 		// Draw the subobjects	
 		i = pm->submodel[pm->detail[Interp_detail_level]].first_child;
@@ -4578,11 +4590,12 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 	if (pm->vertex_buffer_id < 0)
 		return;
 
-	vertex_buffer *
-	bsp_info *model = NULL;
+	vertex_buffer *buffer;
+	bsp_info *model;
 
 	if ( (mn >= 0) && (mn < pm->n_models) ) {
 		model = &pm->submodel[mn];
+		buffer = &model->buffer;
 
 		// if using detail boxes or spheres, check that we are valid for the range
 		if ( !is_child && !(Interp_flags & MR_FULL_DETAIL) && model->use_render_box ) {
@@ -4599,22 +4612,24 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 				return;
 		}
 
-		vec3d scale;
-
-		if (Interp_thrust_scale_subobj) {
-			scale.xyz.x = 1.0f;
-			scale.xyz.y = 1.0f;
-			scale.xyz.z = Interp_thrust_scale;
-		} else {
-			scale.xyz.x = Interp_warp_scale_x;
-			scale.xyz.y = Interp_warp_scale_y;
-			scale.xyz.z = Interp_warp_scale_z;
-		}
-
-		gr_push_scale_matrix(&scale);
 	} else {
-
+		bsp_info *model = NULL;
+		buffer = &pm->main_buffer;
 	}
+
+	vec3d scale;
+
+	if (Interp_thrust_scale_subobj) {
+		scale.xyz.x = 1.0f;
+		scale.xyz.y = 1.0f;
+		scale.xyz.z = Interp_thrust_scale;
+	} else {
+		scale.xyz.x = Interp_warp_scale_x;
+		scale.xyz.y = Interp_warp_scale_y;
+		scale.xyz.z = Interp_warp_scale_z;
+	}
+
+	gr_push_scale_matrix(&scale);
 
 	texture_info tex_replace[TM_NUM_TYPES];
 
@@ -4644,11 +4659,11 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		forced_blend_filter = GR_ALPHABLEND_FILTER;
 	}
 
-	size_t buffer_size = model->buffer.tex_buf.size();
+	size_t buffer_size = buffer->tex_buf.size();
 
 	for (size_t i = 0; i < buffer_size; i++) {
 		int texture = -1;
-		int tmap_num = model->buffer.tex_buf[i].texture;
+		int tmap_num = buffer->tex_buf[i].texture;
 		texture_map *tmap = &pm->maps[tmap_num];
 		int rt_begin_index = tmap_num*TM_NUM_TYPES;
 		float alpha = 1.0f;
@@ -4750,7 +4765,7 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 
 			gr_set_bitmap(texture, blend_filter, GR_BITBLT_MODE_NORMAL, alpha);
 
-			gr_render_buffer(0, &model->buffer, i, Interp_tmap_flags);
+			gr_render_buffer(0, buffer, i, Interp_tmap_flags);
 		}
 
 		GLOWMAP = -1;

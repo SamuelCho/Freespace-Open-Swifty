@@ -514,6 +514,7 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 
 extern bool Scene_framebuffer_in_frame;
 extern GLuint Framebuffer_fallback_texture_id;
+extern int Interp_transform_texture;
 static void opengl_render_pipeline_program(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags)
 {
 	float u_scale, v_scale;
@@ -544,6 +545,9 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 
 	if (flags & TMAP_ANIMATED_SHADER)
 		shader_flags |= SDR_FLAG_ANIMATED;
+
+	if ( Interp_transform_texture >= 0 )
+		shader_flags |= SDR_FLAG_TRANSFORM;
 
 	if (textured) {
 		if ( !Basemap_override ) {
@@ -705,6 +709,16 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		vglUniform1iARB( opengl_shader_get_uniform("sFramebuffer"), render_pass );
 		render_pass++;
 	}
+
+	if ( shader_flags & SDR_FLAG_TRANSFORM ) {
+		GL_state.Texture.SetActiveUnit(render_pass);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(Interp_transform_texture);
+
+		vglUniform1iARB( opengl_shader_get_uniform("transform_tex"), render_pass );
+		render_pass++;
+	}
+
 	// DRAW IT!!
 	DO_RENDER();
 /*

@@ -37,6 +37,7 @@
 #define SDR_FLAG_ANIMATED		(1<<16)
 #define SDR_FLAG_SOFT_QUAD		(1<<17)
 #define SDR_FLAG_DISTORTION		(1<<18)
+#define SDR_FLAG_TRANSFORM		(1<<19)
 
 #define MAX_SHADER_UNIFORMS		15
 
