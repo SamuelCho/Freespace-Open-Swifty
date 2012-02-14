@@ -82,21 +82,19 @@ typedef struct submodel_instance_info {
 } submodel_instance_info;
 
 typedef struct submodel_instance {
-	bool blown_off;
 	angles angs;
 	angles prev_angs;
-	//int num_arcs;
-	bool collision_checked;
-	//submodel_instance_info *sii;
-
 	vec3d mc_base;
 	matrix mc_orient;
+	bool collision_checked;
+	bool blown_off;
 } submodel_instance;
 
+// Data specific to a particular instance of a model.
 typedef struct polymodel_instance {
-	int model_num;
-	int root_submodel_num;
-	submodel_instance *submodel;
+	int model_num;					// global model num index, same as polymodel->id
+	int root_submodel_num;			// unused?
+	submodel_instance *submodel;	// array of submodel instances; mirrors the polymodel->submodel array
 	uint *occlude_ids;
 	//float gun_submodel_rotation;
 } polymodel_instance;
@@ -137,6 +135,11 @@ typedef struct polymodel_instance {
 #define MSS_FLAG_NO_AGGREGATE		(1 << 30)		// Don't include with aggregate subsystem types - Goober5000
 #define MSS_FLAG_TURRET_ANIM_WAIT   (1 << 31)		// Turret won't fire until animation is complete - Sushi
 
+#define MSS_FLAG2_PLAYER_TURRET_SOUND			 (1 << 0)
+#define MSS_FLAG2_TURRET_ONLY_TARGET_IF_CAN_FIRE (1 << 1)	// Turrets only target things they're allowed to shoot at (e.g. if check-hull fails, won't keep targeting)
+
+#define NUM_SUBSYSTEM_FLAGS			33
+
 // definition of stepped rotation struct
 typedef struct stepped_rotation {
 	int num_steps;				// number of steps in complete revolution
@@ -147,31 +150,24 @@ typedef struct stepped_rotation {
 	float max_turn_accel;	// max accel going between steps
 } stepped_rotation_t;
 
-/*typedef struct ai_rotation {
-//	void *p_rotation;
-	uint type;			//flags for what animation type
-	float max;
-	float min;
-	int time;
-} ai_rotation_t;*/
-
 struct queued_animation;
 
 // definition for model subsystems.
 typedef struct model_subsystem {					/* contains rotation rate info */
 
-	uint		flags;									// See MSS_FLAG_* defines above
-	char		name[MAX_NAME_LEN];					// name of the subsystem.  Probably displayed on HUD
-	char		subobj_name[MAX_NAME_LEN];			// Temporary (hopefully) parameter used to match stuff in ships.tbl
-	char		alt_sub_name[NAME_LENGTH];					//Karajorma - Name that overrides name of original
-	char		alt_dmg_sub_name[NAME_LENGTH];      // Name for the damage popup subsystems, allows for translation
-	int		subobj_num;								// subobject number (from bspgen) -- used to match subobjects of subsystems to these entries
-	int		model_num;								// Which model this is attached to (i.e. the polymodel[] index)
-	int		type;										// type. see SUBSYSTEM_* types above.  A generic type thing
-	vec3d	pnt;										// center point of this subsystem
-	float		radius;									// the extent of the subsystem
-	float		max_subsys_strength;					// maximum hits of this subsystem
-	int armor_type_idx;								//Armor type on teh subsystem -C
+	uint	flags;								// See MSS_FLAG_* defines above
+	uint	flags2;
+	char	name[MAX_NAME_LEN];					// name of the subsystem.  Probably displayed on HUD
+	char	subobj_name[MAX_NAME_LEN];			// Temporary (hopefully) parameter used to match stuff in ships.tbl
+	char	alt_sub_name[NAME_LENGTH];			// Karajorma - Name that overrides name of original
+	char	alt_dmg_sub_name[NAME_LENGTH];		// Name for the damage popup subsystems, allows for translation
+	int		subobj_num;							// subobject number (from bspgen) -- used to match subobjects of subsystems to these entries; index to polymodel->submodel
+	int		model_num;							// Which model this is attached to (i.e. the polymodel[] index); same as polymodel->id
+	int		type;								// type. see SUBSYSTEM_* types above.  A generic type thing
+	vec3d	pnt;								// center point of this subsystem
+	float	radius;								// the extent of the subsystem
+	float	max_subsys_strength;				// maximum hits of this subsystem
+	int		armor_type_idx;						// Armor type on teh subsystem -C
 
 	//	The following items are specific to turrets and will probably be moved to
 	//	a separate struct so they don't take up space for all subsystem types.
@@ -203,7 +199,6 @@ typedef struct model_subsystem {					/* contains rotation rate info */
 	float		turn_rate;							// The turning rate of this subobject, if MSS_FLAG_ROTATES is set.
 	int			weapon_rotation_pbank;				// weapon-controlled rotation - Goober5000
 	stepped_rotation_t	*stepped_rotation;			// turn rotation struct
-//	ai_rotation_t		ai_rotation;				// ai controlled rotation struct - by Bobboau
 
 	// AWACS specific information
 	float		awacs_intensity;						// awacs intensity of this subsystem
@@ -228,6 +223,10 @@ typedef struct model_subsystem {					/* contains rotation rate info */
 	float	favor_current_facing;
 
 	float	turret_rof_scaler;
+
+	//Per-turret ownage settings - SUSHI
+	int turret_max_bomb_ownage; 
+	int turret_max_target_ownage; 
 } model_subsystem;
 
 typedef struct model_special {
@@ -260,6 +259,7 @@ typedef struct bsp_info {
 	char		name[MAX_NAME_LEN];	// name of the subsystem.  Probably displayed on HUD
 	int		movement_type;			// -1 if no movement, otherwise rotational or positional movement -- subobjects only
 	int		movement_axis;			// which axis this subobject moves or rotates on.
+	bool	can_move;				// If true, the position and/or orientation of this submodel can change due to rotation of itself OR a parent
 
 	vec3d	offset;					// 3d offset from parent object
 	matrix	orientation;			// 3d orientation relative to parent object
@@ -306,20 +306,19 @@ typedef struct bsp_info {
 	
 	// buffers used by HT&L
 	vertex_buffer buffer;
-	
-//	int flat_buffer;
-//	int flat_line_buffer;
 
 	vec3d	render_box_min;
 	vec3d	render_box_max;
-	int		use_render_box;	//0==do nothing, 1==only render this object if you are inside the box, -1==only if your out
-	bool	gun_rotation;//for animated weapon models
-	bool	no_collisions; // for $no_collisions property - kazan
-	bool	nocollide_this_only; //SUSHI: Like no_collisions, but not recursive. For the "replacement" collision model scheme.
-	bool	collide_invisible; //SUSHI: If set, this submodel should allow collisions for invisible textures. For the "replacement" collision model scheme.
-	bool	force_turret_normal; //Wanderer: Sets the turret uvec to override any input of for turret normal.
+	float	render_sphere_radius;
+	int		use_render_box;			// 0==do nothing, 1==only render this object if you are inside the box, -1==only if you're outside
+	int		use_render_sphere;		// 0==do nothing, 1==only render this object if you are inside the sphere, -1==only if you're outside
+	bool	gun_rotation;			// for animated weapon models
+	bool	no_collisions;			// for $no_collisions property - kazan
+	bool	nocollide_this_only;	//SUSHI: Like no_collisions, but not recursive. For the "replacement" collision model scheme.
+	bool	collide_invisible;		//SUSHI: If set, this submodel should allow collisions for invisible textures. For the "replacement" collision model scheme.
+	bool	force_turret_normal;	//Wanderer: Sets the turret uvec to override any input of for turret normal.
 	char	lod_name[MAX_NAME_LEN];	//FUBAR:  Name to be used for LOD naming comparison to preserve compatibility with older tables.  Only used on LOD0 
-
+	bool	attach_thrusters;		//zookeeper: If set and this submodel or any of its parents rotates, also rotates associated thrusters.
 	float		dumb_turn_rate;
 
 	/* If you've got a better way to do this, please implement it! */
@@ -328,6 +327,7 @@ typedef struct bsp_info {
 		name[ 0 ] = '\0';
 		movement_type = 0;
 		movement_axis = 0;
+		can_move = false;
 		
 		bsp_data_size = 0;
 		blown_off = 0;
@@ -344,7 +344,9 @@ typedef struct bsp_info {
 		next_sibling = 0;
 		num_details = 0;
 		num_arcs = 0;
+		render_sphere_radius = 0;
 		use_render_box = 0;
+		use_render_sphere = 0;
 		gun_rotation = false;
 		no_collisions = false;
 		nocollide_this_only = false;
@@ -353,7 +355,8 @@ typedef struct bsp_info {
 		dumb_turn_rate = 0.f;
 		bsp_data = NULL;
 		rad = 0.f;
-		lod_name[ 0 ] = '\0';  
+		lod_name[ 0 ] = '\0';
+		attach_thrusters = false;
 
 		/* Compound types */
 		memset( live_debris, 0, sizeof( live_debris ) );
@@ -428,9 +431,9 @@ typedef struct thruster_bank {
 	glow_point *points;
 
 	// Engine wash info
-	struct engine_wash_info	*wash_info_pointer;			// index into Engine_wash_info
-
-	int		obj_num;		// what subsystem number this thruster is on
+	struct engine_wash_info	*wash_info_pointer;		// index into Engine_wash_info
+	int		obj_num;		// what subsystem number this bank is on; index to ship_info->subsystems
+	int		submodel_num;	// what submodel number this bank is on; index to polymodel->submodel/polymodel_instance->submodel
 } thruster_bank;
 
 typedef struct glow_point_bank {  // glow bank structure -Bobboau
@@ -707,9 +710,6 @@ typedef struct polymodel {
 // Call once to initialize the model system
 void model_init();
 
-// call at the beginning of a level. after the level has been loaded
-void model_level_post_init();
-
 // call to unload a model (works like bm_unload()), "force" SHOULD NEVER BE SET outside of modelread.cpp!!!!
 void model_unload(int modelnum, int force = 0);
 
@@ -725,9 +725,6 @@ void model_delete_instance(int model_instance_num);
 
 // Goober5000
 void model_load_texture(polymodel *pm, int i, char *file);
-
-// notify the model system that a ship has died
-void model_notify_dead_ship(int objnum);
 
 // Returns a pointer to the polymodel structure for model 'n'
 polymodel *model_get(int model_num);
@@ -779,10 +776,7 @@ void model_set_detail_level(int n);
 #define MR_NO_GLOWMAPS				(1<<27)		// disable rendering of glowmaps - taylor
 #define MR_FULL_DETAIL				(1<<28)		// render all valid objects, particularly ones that are otherwise in/out of render boxes - taylor
 #define MR_FORCE_CLAMP				(1<<29)		// force clamp - Hery
-
-// old/obsolete flags
-//#define MR_SHOW_DAMAGE			(1<<4)		// Show the "destroyed" subobjects
-//#define MR_ALWAYS_REDRAW			(1<<13)		// Don't do any model caching; redraw this model each frame!
+#define MR_ANIMATED_SHADER			(1<<30)		// Use a animated Shader - Valathil
 
 // Renders a model and all it's submodels.
 // See MR_? defines for values for flags
@@ -869,6 +863,10 @@ void model_instance_find_world_point(vec3d * outpnt, vec3d *mpnt, int model_num,
 void world_find_model_point(vec3d *out, vec3d *world_pt, polymodel *pm, int submodel_num, matrix *orient, vec3d *pos);
 
 void world_find_model_instance_point(vec3d *out, vec3d *world_pt, polymodel *pm, polymodel_instance *pmi, int submodel_num, matrix *orient, vec3d *pos);
+
+extern void find_submodel_instance_point(vec3d *outpnt, object *ship_obj, int submodel_num);
+extern void find_submodel_instance_point_normal(vec3d *outpnt, vec3d *outnorm, object *ship_obj, int submodel_num, vec3d *submodel_pnt, vec3d *submodel_norm);
+extern void find_submodel_instance_world_point(vec3d *outpnt, object *ship_obj, int submodel_num);
 
 // Given a polygon model index, find a list of rotating submodels to be used for collision
 void model_get_rotating_submodel_list(SCP_vector<int> *submodel_vector, object *objp);
@@ -973,6 +971,35 @@ typedef struct mc_info {
 	ubyte		*t_poly;				// pointer to tmap poly where we intersected
 		
 										// flags can be changed for the case of sphere check finds an edge hit
+	mc_info()
+	{
+		memset(this, 0, sizeof(this));
+	}
+
+	mc_info(const mc_info& other)
+	{
+		this->model_instance_num = other.model_instance_num;
+		this->model_num = other.model_num;
+		this->submodel_num = other.submodel_num;
+		this->orient = other.orient;
+		this->pos = other.pos;
+		this->p0 = other.p0;
+		this->p1 = other.p1;
+		this->flags = other.flags;
+		this->radius = other.radius;
+
+		this->num_hits = other.num_hits;
+		this->hit_dist = other.hit_dist;
+		this->hit_point = other.hit_point;
+		this->hit_point_world = other.hit_point_world;
+		this->hit_u = other.hit_u;
+		this->hit_v = other.hit_v;
+		this->shield_hit_tri = other.shield_hit_tri;
+		this->hit_normal = other.hit_normal;
+		this->edge_hit = other.edge_hit;
+		this->f_poly = other.f_poly;
+		this->t_poly = other.t_poly;
+	}
 } mc_info;
 
 
@@ -1101,6 +1128,7 @@ typedef struct mst_info {
 	int primary_glow_bitmap;
 	int secondary_glow_bitmap;
 	int tertiary_glow_bitmap;
+	int distortion_bitmap;
 
 	bool use_ab;
 	float glow_noise;
@@ -1111,28 +1139,41 @@ typedef struct mst_info {
 	float secondary_glow_rad_factor;
 	float tertiary_glow_rad_factor;
 	float glow_length_factor;
+	float distortion_rad_factor;
+	float distortion_length_factor;
+	bool draw_distortion;
 
 	mst_info() : primary_bitmap(-1), primary_glow_bitmap(-1), secondary_glow_bitmap(-1), tertiary_glow_bitmap(-1),
 					use_ab(false), glow_noise(1.0f), rotvel(NULL), length(vmd_zero_vector), glow_rad_factor(1.0f),
-					secondary_glow_rad_factor(1.0f), tertiary_glow_rad_factor(1.0f), glow_length_factor(1.0f)
+					secondary_glow_rad_factor(1.0f), tertiary_glow_rad_factor(1.0f), glow_length_factor(1.0f), distortion_rad_factor(1.0f), distortion_length_factor(1.0f)
 				{}
 } mst_info;
 
+
+//Valathil - Buffer struct for transparent object sorting
+typedef struct transparent_object {
+	int blend_filter;
+	float alpha;
+	int texture;
+	int glow_map;
+	int spec_map;
+	int norm_map;
+	int height_map;
+	vertex_buffer *buffer;
+	unsigned int tmap_flags;
+	int i;
+	vec3d scale;
+} transparent_object;
+
+typedef struct transparent_submodel {
+	bsp_info *model;
+	matrix orient;
+	bool is_submodel;
+	SCP_vector<transparent_object> transparent_objects;
+} transparent_submodel;
 // scale the engines thrusters by this much
 // Only enabled if MR_SHOW_THRUSTERS is on
 void model_set_thrust(int model_num = -1, mst_info *mst = NULL);
-
-//=========================================================
-// model caching
-
-// Call once to init the model caching stuff
-//void model_cache_init();
-
-// Call before every level to clean up the model caching stuff
-//void model_cache_reset();
-
-// If TRUE, then model caching is enabled
-//extern int Model_caching;
 
 
 //=======================================================================================

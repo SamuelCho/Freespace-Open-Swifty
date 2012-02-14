@@ -102,11 +102,11 @@ ogl_extension GL_Extensions[NUM_OGL_EXTENSIONS] =
 	{ false, false, 1, { "GL_SGIS_generate_mipmap" }, 0, { NULL } },
 
 	// framebuffer object gives us render-to-texture support, among other things
-	{ false, false, 1, { "GL_EXT_framebuffer_object" }, 15, { 
+	{ false, false, 1, { "GL_EXT_framebuffer_object" }, 16, { 
 		"glIsRenderbufferEXT", "glBindRenderbufferEXT", "glDeleteRenderbuffersEXT", "glGenRenderbuffersEXT",
 		"glRenderbufferStorageEXT", "glGetRenderbufferParameterivEXT", "glIsFramebufferEXT", "glBindFramebufferEXT",
 		"glDeleteFramebuffersEXT", "glGenFramebuffersEXT", "glCheckFramebufferStatusEXT", "glFramebufferTexture2DEXT",
-		"glFramebufferRenderbufferEXT", "glGetFramebufferAttachmentParameterivEXT", "glGenerateMipmapEXT" } },
+		"glFramebufferRenderbufferEXT", "glGetFramebufferAttachmentParameterivEXT", "glGenerateMipmapEXT", "glDrawBuffers" } },
 
 	// these next three are almost exactly the same, just different stages of naming.
 	// allows for non-power-of-textures, but at a cost of functionality
@@ -130,10 +130,10 @@ ogl_extension GL_Extensions[NUM_OGL_EXTENSIONS] =
 	{ false, false, 1, { "GL_ARB_shading_language_100" }, 0, { NULL } },
 
 	// shader objects and program object management
-	{ false, false, 1, { "GL_ARB_shader_objects" }, 17, { "glDeleteObjectARB", "glCreateShaderObjectARB", "glShaderSourceARB",
+	{ false, false, 1, { "GL_ARB_shader_objects" }, 18, { "glDeleteObjectARB", "glCreateShaderObjectARB", "glShaderSourceARB",
 		"glCompileShaderARB", "glGetObjectParameterivARB", "glGetInfoLogARB", "glCreateProgramObjectARB",
 		"glAttachObjectARB", "glLinkProgramARB", "glUseProgramObjectARB", "glValidateProgramARB", "glGetUniformLocationARB",
-		"glGetUniformivARB", "glUniform1fARB", "glUniform3fARB", "glUniform1iARB", "glUniformMatrix4fvARB" } },
+		"glGetUniformivARB", "glUniform1fARB", "glUniform2fARB", "glUniform3fARB", "glUniform1iARB", "glUniformMatrix4fvARB" } },
 
 	// programmable vertex level processing
 	// some of functions are provided by GL_ARB_vertex_program
@@ -146,7 +146,7 @@ ogl_extension GL_Extensions[NUM_OGL_EXTENSIONS] =
 	// shader version 3.0 detection extensions (if any of these extensions exist then we should have a SM3.0 compatible card, hopefully)
 	{ false, false, 3, { "GL_ARB_shader_texture_lod", "GL_NV_vertex_program3", "GL_ATI_shader_texture_lod" }, 0, { NULL } },
 
-		{ false, false, 1, { "GL_ARB_occlusion_query" }, 8, { "glGenQueriesARB", "glDeleteQueriesARB", "glIsQueryARB", "glBeginQueryARB",
+	{ false, false, 1, { "GL_ARB_occlusion_query" }, 8, { "glGenQueriesARB", "glDeleteQueriesARB", "glIsQueryARB", "glBeginQueryARB",
 		"glEndQueryARB", "glGetQueryivARB", "glGetQueryObjectivARB", "glGetQueryObjectuivARB"} }
 };
 
@@ -219,6 +219,7 @@ ogl_function GL_Functions[NUM_OGL_FUNCTIONS] =
 	{ "glUniform4fvARB", 0 },
 	{ "glUniform1iARB", 0 },
 	{ "glUniformMatrix4fvARB", 0 },
+	{ "glDrawBuffers", 0 },
 	{ "glGenQueriesARB", 0 },
 	{ "glDeleteQueriesARB", 0 },
 	{ "glIsQueryARB", 0 },

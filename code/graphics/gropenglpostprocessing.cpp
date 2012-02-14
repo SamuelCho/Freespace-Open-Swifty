@@ -4,12 +4,16 @@
 #include "graphics/gropenglpostprocessing.h"
 #include "graphics/gropenglshader.h"
 #include "graphics/gropenglstate.h"
+#include "graphics/gropengldraw.h"
 
 #include "io/timer.h"
 #include "nebula/neb.h"
 #include "parse/parselo.h"
 #include "cmdline/cmdline.h"
 #include "globalincs/def_files.h"
+#include "ship/ship.h"
+#include "freespace2/freespace.h"
+#include "lighting/lighting.h"
 
 
 extern bool PostProcessing_override;
@@ -20,18 +24,29 @@ size_t fxaa_shader_id;
 //In case we don't find the shaders at all, this override is needed
 bool fxaa_unavailable = false;
 int Fxaa_preset_last_frame;
+bool zbuffer_saved = false;
 
+// lightshaft parameters
+bool ls_on = false;
+bool ls_force_off = false;
+float ls_density = 0.5f;
+float ls_weight = 0.02f;
+float ls_falloff = 1.0f;
+float ls_intensity = 0.5f;
+float ls_cpintensity = 0.5f * 50 * 0.02f;
+int ls_samplenum = 50;
 
 #define SDR_POST_FLAG_MAIN		(1<<0)
 #define SDR_POST_FLAG_BRIGHT	(1<<1)
 #define SDR_POST_FLAG_BLUR		(1<<2)
 #define SDR_POST_FLAG_PASS1		(1<<3)
 #define SDR_POST_FLAG_PASS2		(1<<4)
+#define SDR_POST_FLAG_LIGHTSHAFT (1<<5)
 
 static SCP_vector<opengl_shader_t> GL_post_shader;
 
 // NOTE: The order of this list *must* be preserved!  Additional shaders can be
-//       added, but the first 5 are used with magic numbers so their position
+//       added, but the first 7 are used with magic numbers so their position
 //       is assumed to never change.
 static opengl_shader_file_t GL_post_shader_files[] = {
 	// NOTE: the main post-processing shader has any number of uniforms, but
@@ -52,7 +67,10 @@ static opengl_shader_file_t GL_post_shader_files[] = {
 		3, { "tex0", "rt_w", "rt_h"} },
 
 	{ "post-v.sdr", "fxaapre-f.sdr", NULL,
-		1, { "tex"} }
+		1, { "tex"} },
+
+	{ "post-v.sdr", "ls-f.sdr", SDR_POST_FLAG_LIGHTSHAFT,
+		8, { "scene", "cockpit", "sun_pos", "weight", "intensity", "falloff", "density", "cp_intensity" } }
 };
 
 static const unsigned int Num_post_shader_files = sizeof(GL_post_shader_files) / sizeof(opengl_shader_file_t);
@@ -80,13 +98,11 @@ SCP_vector<post_effect_t> Post_effects;
 
 static int Post_initialized = 0;
 
-static bool Post_in_frame = false;
+bool Post_in_frame = false;
 
 static int Post_active_shader_index = 0;
 
-static GLuint Post_framebuffer_id[3] = { 0 };
-static GLuint Post_renderbuffer_id = 0;
-static GLuint Post_screen_texture_id = 0;
+static GLuint Post_framebuffer_id[2] = { 0 };
 static GLuint Post_bloom_texture_id[3] = { 0 };
 
 static int Post_texture_width = 0;
@@ -107,7 +123,7 @@ static bool opengl_post_pass_bloom()
 
 	// ------  begin bright pass ------
 
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[1]);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[0]);
 
 	// width and height are 1/2 for the bright pass
 	int width = Post_texture_width >> 1;
@@ -124,7 +140,7 @@ static bool opengl_post_pass_bloom()
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Post_screen_texture_id);
+	GL_state.Texture.Enable(Scene_color_texture);
 
 	glBegin(GL_QUADS);
 		glTexCoord2f(0.0f, 0.0f);
@@ -156,7 +172,7 @@ static bool opengl_post_pass_bloom()
 
 	glViewport(0, 0, width, height);
 
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[2]);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[1]);
 
 	for (int pass = 0; pass < 2; pass++) {
 		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[1+pass], 0);
@@ -194,7 +210,7 @@ static bool opengl_post_pass_bloom()
 	glViewport(0, 0, gr_screen.max_w, gr_screen.max_h);
 	GL_state.ScissorTest(scissor_test);
 
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, opengl_get_rtt_framebuffer());
 
 	return true;
 }
@@ -214,13 +230,15 @@ void gr_opengl_post_process_begin()
 	}
 
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[0]);
-	vglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, Post_renderbuffer_id);
 
 //	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, Post_renderbuffer_id);
 
 //	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_screen_texture_id, 0);
 
 //	Assert( !opengl_check_framebuffer() );
+
+	GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
+	vglDrawBuffers(2, buffers);
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -277,27 +295,32 @@ void opengl_post_pass_fxaa() {
 		recompile_fxaa_shader();
 	}
 
+	// We only want to draw to ATTACHMENT0
+	glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+
 	// Do a prepass to convert the main shaders' RGBA output into RGBL
 	opengl_shader_set_current( &GL_post_shader[fxaa_shader_id + 1] );
 
 	// basic/default uniforms
 	vglUniform1iARB( opengl_shader_get_uniform("tex"), 0 );
 
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_luminance_texture, 0);
+
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Post_screen_texture_id);
+	GL_state.Texture.Enable(Scene_color_texture);
 
 	glBegin(GL_QUADS);
 		glTexCoord2f(0.0f, 0.0f);
 		glVertex2f(-1.0f, -1.0f);
 
-		glTexCoord2f(1.0f, 0.0f);
+		glTexCoord2f(Scene_texture_u_scale, 0.0f);
 		glVertex2f(1.0f, -1.0f);
 
-		glTexCoord2f(1.0f, 1.0f);
+		glTexCoord2f(Scene_texture_u_scale, Scene_texture_v_scale);
 		glVertex2f(1.0f, 1.0f);
 
-		glTexCoord2f(0.0f, 1.0f);
+		glTexCoord2f(0.0f, Scene_texture_v_scale);
 		glVertex2f(-1.0f, 1.0f);
 	glEnd();
 
@@ -306,6 +329,8 @@ void opengl_post_pass_fxaa() {
 	// set and configure post shader ..
 	opengl_shader_set_current( &GL_post_shader[fxaa_shader_id] );
 
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
+
 	// basic/default uniforms
 	vglUniform1iARB( opengl_shader_get_uniform("tex0"), 0 );
 	vglUniform1fARB( opengl_shader_get_uniform("rt_w"), static_cast<float>(Post_texture_width));
@@ -313,19 +338,19 @@ void opengl_post_pass_fxaa() {
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Post_screen_texture_id);
+	GL_state.Texture.Enable(Scene_luminance_texture);
 
 	glBegin(GL_QUADS);
 		glTexCoord2f(0.0f, 0.0f);
 		glVertex2f(-1.0f, -1.0f);
 
-		glTexCoord2f(1.0f, 0.0f);
+		glTexCoord2f(Scene_texture_u_scale, 0.0f);
 		glVertex2f(1.0f, -1.0f);
 
-		glTexCoord2f(1.0f, 1.0f);
+		glTexCoord2f(Scene_texture_u_scale, Scene_texture_v_scale);
 		glVertex2f(1.0f, 1.0f);
 
-		glTexCoord2f(0.0f, 1.0f);
+		glTexCoord2f(0.0f, Scene_texture_v_scale);
 		glVertex2f(-1.0f, 1.0f);
 	glEnd();
 
@@ -334,12 +359,13 @@ void opengl_post_pass_fxaa() {
 	opengl_shader_set_current();
 }
 
+extern GLuint shadow_map[2];
+extern GLuint Scene_depth_texture;
+extern GLuint Cockpit_depth_texture;
+extern bool stars_sun_has_glare(int index);
+extern float Sun_spot;
 void gr_opengl_post_process_end()
 {
-	if ( !Post_in_frame ) {
-		return;
-	}
-
 	// state switch just the once (for bloom pass and final render-to-screen)
 	GLboolean depth = GL_state.DepthTest(GL_FALSE);
 	GLboolean depth_mask = GL_state.DepthMask(GL_FALSE);
@@ -350,13 +376,78 @@ void gr_opengl_post_process_end()
 	GL_state.Texture.SetShaderMode(GL_TRUE);
 
 	// Do FXAA
-	if (Cmdline_fxaa && !fxaa_unavailable) {
+	if (Cmdline_fxaa && !fxaa_unavailable && !GL_rendering_to_texture) {
 		opengl_post_pass_fxaa();
 	}
+	
+	opengl_shader_set_current( &GL_post_shader[6] );
+	float x,y;
+	// should we even be here?
+	if (!Game_subspace_effect && ls_on && !ls_force_off)
+	{	
+		int n_lights = light_get_global_count();
+		
+		for(int idx=0; idx<n_lights; idx++)
+		{
+			vec3d light_dir;
+			vec3d local_light_dir;
+			light_get_global_dir(&light_dir, idx);
+			vm_vec_rotate(&local_light_dir, &light_dir, &Eye_matrix);
+			if (!stars_sun_has_glare(idx))
+				continue;
+			float dot;
+			if((dot=vm_vec_dot( &light_dir, &Eye_matrix.vec.fvec )) > 0.7f)
+			{
+				
+				x = asin(vm_vec_dot( &light_dir, &Eye_matrix.vec.rvec ))/PI*1.5f+0.5f; //cant get the coordinates right but this works for the limited glare fov
+				y = asin(vm_vec_dot( &light_dir, &Eye_matrix.vec.uvec ))/PI*1.5f*gr_screen.clip_aspect+0.5f;
+				vglUniform2fARB( opengl_shader_get_uniform("sun_pos"), x, y);
+				vglUniform1iARB( opengl_shader_get_uniform("scene"), 0);
+				vglUniform1iARB( opengl_shader_get_uniform("cockpit"), 1);
+				vglUniform1fARB( opengl_shader_get_uniform("density"), ls_density);
+				vglUniform1fARB( opengl_shader_get_uniform("falloff"), ls_falloff);
+				vglUniform1fARB( opengl_shader_get_uniform("weight"), ls_weight);
+				vglUniform1fARB( opengl_shader_get_uniform("intensity"), Sun_spot * ls_intensity);
+				vglUniform1fARB( opengl_shader_get_uniform("cp_intensity"), Sun_spot * ls_cpintensity);
 
-	// done with screen render framebuffer
-	vglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+				GL_state.Texture.SetActiveUnit(0);
+				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+				GL_state.Texture.Enable(Scene_depth_texture);
+				GL_state.Texture.SetActiveUnit(1);
+				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+				GL_state.Texture.Enable(Cockpit_depth_texture);
+				glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+				GL_state.Blend(GL_TRUE);
+				GL_state.SetAlphaBlendMode(ALPHA_BLEND_ADDITIVE);
+				glBegin(GL_QUADS);
+					glTexCoord2f(0.0f, 0.0f);
+					glVertex2f(-1.0f, -1.0f);
+
+					glTexCoord2f(Scene_texture_u_scale, 0.0f);
+					glVertex2f(1.0f, -1.0f);
+
+					glTexCoord2f(Scene_texture_u_scale, Scene_texture_v_scale);
+					glVertex2f(1.0f, 1.0f);
+
+					glTexCoord2f(0.0f, Scene_texture_v_scale);
+					glVertex2f(-1.0f, 1.0f);
+				glEnd();
+				GL_state.Blend(GL_FALSE);
+				break;
+			}
+		}
+	}
+	if(zbuffer_saved)
+	{
+		zbuffer_saved = false;
+		gr_zbuffer_set(GR_ZBUFF_FULL);
+		glClear(GL_DEPTH_BUFFER_BIT);
+		gr_zbuffer_set(GR_ZBUFF_NONE);
+		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, Scene_depth_texture, 0);
+	}
+	
+	// Bind the correct framebuffer. opengl_get_rtt_framebuffer returns 0 if not doing RTT
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, opengl_get_rtt_framebuffer());	
 
 	// do bloom, hopefully ;)
 	bool bloomed = opengl_post_pass_bloom();
@@ -405,19 +496,19 @@ void gr_opengl_post_process_end()
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Post_screen_texture_id);
+	GL_state.Texture.Enable(Scene_color_texture);
 
 	glBegin(GL_QUADS);
 		glTexCoord2f(0.0f, 0.0f);
 		glVertex2f(-1.0f, -1.0f);
 
-		glTexCoord2f(1.0f, 0.0f);
+		glTexCoord2f(Scene_texture_u_scale, 0.0f);
 		glVertex2f(1.0f, -1.0f);
 
-		glTexCoord2f(1.0f, 1.0f);
+		glTexCoord2f(Scene_texture_u_scale, Scene_texture_v_scale);
 		glVertex2f(1.0f, 1.0f);
 
-		glTexCoord2f(0.0f, 1.0f);
+		glTexCoord2f(0.0f, Scene_texture_v_scale);
 		glVertex2f(-1.0f, 1.0f);
 	glEnd();
 
@@ -444,9 +535,9 @@ void gr_opengl_post_process_end()
 
 void get_post_process_effect_names(SCP_vector<SCP_string> &names) 
 {
-	int idx;
+	size_t idx;
 
-	for (idx = 0; idx < (int)Post_effects.size(); idx++) {
+	for (idx = 0; idx < Post_effects.size(); idx++) {
 		names.push_back(Post_effects[idx].name);
 	}
 }
@@ -545,6 +636,13 @@ void gr_opengl_post_process_set_effect(const char *name, int value)
 	int sflags = 0;
 	bool need_change = true;
 
+	if(!stricmp("lightshafts",name))
+	{
+		ls_intensity = value / 100.0f;
+		ls_on = !!value;
+		return;
+	}
+
 	for (idx = 0; idx < Post_effects.size(); idx++) {
 		const char *eff_name = Post_effects[idx].name.c_str();
 
@@ -595,8 +693,6 @@ void gr_opengl_post_process_set_defaults()
 	}
 
 	// reset all effects to their default values
-	list_size = Post_effects.size();
-
 	for (idx = 0; idx < Post_effects.size(); idx++) {
 		Post_effects[idx].intensity = Post_effects[idx].default_intensity;
 	}
@@ -621,11 +717,15 @@ void gr_opengl_post_process_set_defaults()
 	Post_active_shader_index = 0;
 }
 
+extern GLuint Cockpit_depth_texture;
 void gr_opengl_post_process_save_zbuffer()
 {
 	if ( !Post_initialized ) {
 		return;
 	}
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, Cockpit_depth_texture, 0);
+	gr_zbuffer_clear(TRUE);
+	zbuffer_saved = true;
 }
 
 
@@ -646,46 +746,97 @@ static bool opengl_post_init_table()
 
 	reset_parse();
 
-	required_string("#Effects");
 
-	while ( required_string_either("#End", "$Name:") ) {
-		char tbuf[NAME_LENGTH+1] = { 0 };
-		post_effect_t eff;
+	if (optional_string("#Effects")) {
+		while ( !required_string_3("$Name:", "#Ship Effects", "#End") ) {
+			char tbuf[NAME_LENGTH+1] = { 0 };
+			post_effect_t eff;
 
-		required_string("$Name:");
-		stuff_string(tbuf, F_NAME, NAME_LENGTH);
-		eff.name = tbuf;
+			required_string("$Name:");
+			stuff_string(tbuf, F_NAME, NAME_LENGTH);
+			eff.name = tbuf;
 
-		required_string("$Uniform:");
-		stuff_string(tbuf, F_NAME, NAME_LENGTH);
-		eff.uniform_name = tbuf;
+			required_string("$Uniform:");
+			stuff_string(tbuf, F_NAME, NAME_LENGTH);
+			eff.uniform_name = tbuf;
 
-		required_string("$Define:");
-		stuff_string(tbuf, F_NAME, NAME_LENGTH);
-		eff.define_name = tbuf;
+			required_string("$Define:");
+			stuff_string(tbuf, F_NAME, NAME_LENGTH);
+			eff.define_name = tbuf;
 
-		required_string("$AlwaysOn:");
-		stuff_boolean(&eff.always_on);
+			required_string("$AlwaysOn:");
+			stuff_boolean(&eff.always_on);
 
-		required_string("$Default:");
-		stuff_float(&eff.default_intensity);
-		eff.intensity = eff.default_intensity;
+			required_string("$Default:");
+			stuff_float(&eff.default_intensity);
+			eff.intensity = eff.default_intensity;
 
-		required_string("$Div:");
-		stuff_float(&eff.div);
+			required_string("$Div:");
+			stuff_float(&eff.div);
 
-		required_string("$Add:");
-		stuff_float(&eff.add);
+			required_string("$Add:");
+			stuff_float(&eff.add);
 
-		// Post_effects index is used for flag checks, so we can't have more than 32
-		if (Post_effects.size() < 32) {
-			Post_effects.push_back( eff );
-		} else if ( !warned ) {
-			mprintf(("WARNING: post_processing.tbl can only have a max of 32 effects! Ignoring extra...\n"));
-			warned = true;
+			// Post_effects index is used for flag checks, so we can't have more than 32
+			if (Post_effects.size() < 32) {
+				Post_effects.push_back( eff );
+			} else if ( !warned ) {
+				mprintf(("WARNING: post_processing.tbl can only have a max of 32 effects! Ignoring extra...\n"));
+				warned = true;
+			}
 		}
 	}
 
+	//Built-in per-ship effects
+	ship_effect se1;
+	strcpy_s(se1.name, "FS1 Ship select");
+	se1.shader_effect = 0;
+	se1.disables_rendering = false;
+	se1.invert_timer = false;
+	Ship_effects.push_back(se1);
+
+	if (optional_string("#Ship Effects")) {
+		while ( !required_string_3("$Name:", "#Light Shafts", "#End") ) {
+			ship_effect se;
+			char tbuf[NAME_LENGTH] = { 0 };
+
+			required_string("$Name:");
+			stuff_string(tbuf, F_NAME, NAME_LENGTH);
+			strcpy_s(se.name, tbuf);
+
+			required_string("$Shader Effect:");
+			stuff_int(&se.shader_effect);
+
+			required_string("$Disables Rendering:");
+			stuff_boolean(&se.disables_rendering);
+
+			required_string("$Invert timer:");
+			stuff_boolean(&se.invert_timer);
+
+			Ship_effects.push_back(se);
+		}
+	}
+
+	if (optional_string("#Light Shafts")) {
+		required_string("$AlwaysOn:");
+		stuff_boolean(&ls_on);
+		required_string("$Density:");
+		stuff_float(&ls_density);
+		required_string("$Falloff:");
+		stuff_float(&ls_falloff);
+		required_string("$Weight:");
+		stuff_float(&ls_weight);
+		required_string("$Intensity:");
+		stuff_float(&ls_intensity);
+		required_string("$Sample Number:");
+		stuff_int(&ls_samplenum);
+
+		ls_cpintensity = ls_weight;
+		for(int i = 1; i < ls_samplenum; i++)
+			ls_cpintensity += ls_weight * pow(ls_falloff, i);
+		ls_cpintensity *= ls_intensity;
+	}
+	
 	required_string("#End");
 
 	return true;
@@ -693,7 +844,7 @@ static bool opengl_post_init_table()
 
 static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 {
-	std::string sflags;
+	SCP_string sflags;
 
 	if (Use_GLSL >= 4) {
 		sflags += "#define SHADER_MODEL 4\n";
@@ -716,68 +867,74 @@ static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 	} else if (flags & SDR_POST_FLAG_PASS2) {
 		sflags += "#define PASS_1\n";
 	}
+
+	if (flags & SDR_POST_FLAG_LIGHTSHAFT) {
+		char temp[42];
+		sprintf(temp, "#define SAMPLE_NUM %d\n", ls_samplenum);
+		sflags += temp;
+	}
 	
 	switch (Cmdline_fxaa_preset) {
 		case 0:
 			sflags += "#define FXAA_QUALITY__PRESET 10\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/6.0)\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/12.0)\n";
-			sflags += "#define FXAA_QUALITY__SUBPIX (3.0/4.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX 0.33\n";
 			break;
 		case 1:
 			sflags += "#define FXAA_QUALITY__PRESET 11\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/7.0)\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/14.0)\n";
-			sflags += "#define FXAA_QUALITY__SUBPIX (4.0/5.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX 0.33\n";
 			break;
 		case 2:
 			sflags += "#define FXAA_QUALITY__PRESET 12\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/8.0)\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/16.0)\n";
-			sflags += "#define FXAA_QUALITY__SUBPIX (5.0/6.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX 0.33\n";
 			break;
 		case 3:
 			sflags += "#define FXAA_QUALITY__PRESET 13\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/9.0)\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/18.0)\n";
-			sflags += "#define FXAA_QUALITY__SUBPIX (6.0/7.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX 0.33\n";
 			break;
 		case 4:
 			sflags += "#define FXAA_QUALITY__PRESET 14\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/10.0)\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/20.0)\n";
-			sflags += "#define FXAA_QUALITY__SUBPIX (7.0/8.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX 0.33\n";
 			break;
 		case 5:
 			sflags += "#define FXAA_QUALITY__PRESET 25\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/11.0)\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/22.0)\n";
-			sflags += "#define FXAA_QUALITY__SUBPIX (8.0/9.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX 0.33\n";
 			break;
 		case 6:
 			sflags += "#define FXAA_QUALITY__PRESET 26\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/12.0)\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/24.0)\n";
-			sflags += "#define FXAA_QUALITY__SUBPIX (9.0/10.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX 0.33\n";
 			break;
 		case 7:
 			sflags += "#define FXAA_PC 1\n";
 			sflags += "#define FXAA_QUALITY__PRESET 27\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/13.0)\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/26.0)\n";
-			sflags += "#define FXAA_QUALITY__SUBPIX (10.0/11.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX 0.33\n";
 			break;
 		case 8:
 			sflags += "#define FXAA_QUALITY__PRESET 28\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/14.0)\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/28.0)\n";
-			sflags += "#define FXAA_QUALITY__SUBPIX (11.0/12.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX 0.33\n";
 			break;
 		case 9:
 			sflags += "#define FXAA_QUALITY__PRESET 39\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD (1.0/15.0)\n";
 			sflags += "#define FXAA_QUALITY__EDGE_THRESHOLD_MIN (1.0/32.0)\n";
-			sflags += "#define FXAA_QUALITY__SUBPIX (12.0/13.0)\n";
+			sflags += "#define FXAA_QUALITY__SUBPIX 0.33\n";
 			break;
 	}
 
@@ -786,7 +943,7 @@ static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 
 	CFILE *cf_shader = cfopen(filename, "rt", CFILE_NORMAL, CF_TYPE_EFFECTS);
 
-	if (cf_shader != NULL) {
+	if (cf_shader != NULL && stricmp(filename, "fxaa-f.sdr") && stricmp(filename, "fxaa-v.sdr") ) {
 		int len = cfilelength(cf_shader);
 		char *shader = (char*) vm_malloc(len + flags_len + 1);
 
@@ -797,7 +954,7 @@ static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 
 		return shader;
 	} else {
-		mprintf(("Loading built-in default shader for: %s\n", filename));
+		mprintf(("   Loading built-in default shader for: %s\n", filename));
 		char* def_shader = defaults_get_file(filename);
 		size_t len = strlen(def_shader);
 		char *shader = (char*) vm_malloc(len + flags_len + 1);
@@ -940,133 +1097,85 @@ static bool opengl_post_init_framebuffer()
 		Post_texture_height = GL_max_renderbuffer_size;
 	}
 
-	// create framebuffer
-	vglGenFramebuffersEXT(1, &Post_framebuffer_id[0]);
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[0]);
+	if (Cmdline_bloom_intensity > 0) {
+		// two more framebuffers, one each for the two different sized bloom textures
+		vglGenFramebuffersEXT(1, &Post_framebuffer_id[0]);
+		vglGenFramebuffersEXT(1, &Post_framebuffer_id[1]);
 
-	// create renderbuffer
-	vglGenRenderbuffersEXT(1, &Post_renderbuffer_id);
-	vglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, Post_renderbuffer_id);
-	vglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT, Post_texture_width, Post_texture_height);
+		// need to generate textures for bloom too
+		glGenTextures(3, Post_bloom_texture_id);
 
-	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, Post_renderbuffer_id);
+		// half size
+		int width = Post_texture_width >> 1;
+		int height = Post_texture_height >> 1;
 
-	// setup main render texture
-	glGenTextures(1, &Post_screen_texture_id);
+		for (int tex = 0; tex < 3; tex++) {
+			GL_state.Texture.SetActiveUnit(0);
+			GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+			GL_state.Texture.Enable(Post_bloom_texture_id[tex]);
 
-	GL_state.Texture.SetActiveUnit(0);
-	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Post_screen_texture_id);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Post_texture_width, Post_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+			if (tex == 0) {
+				// attach to our bright pass framebuffer and make sure it's ok
+				vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[0]);
+				vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[tex], 0);
 
-	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_screen_texture_id, 0);
+				// if not then clean up and disable bloom
+				if ( opengl_check_framebuffer() ) {
+					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
+					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
+					Post_framebuffer_id[0] = 0;
+					Post_framebuffer_id[1] = 0;
 
-	if ( opengl_check_framebuffer() ) {
-	//	nprintf(("OpenGL", "Unable to validate FBO!  Disabling post-processing...\n"));
+					glDeleteTextures(3, Post_bloom_texture_id);
+					memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
 
-		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-		vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
-		Post_framebuffer_id[0] = 0;
+					Cmdline_bloom_intensity = 0;
 
-		vglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);
-		vglDeleteRenderbuffersEXT(1, &Post_renderbuffer_id);
-		Post_renderbuffer_id = 0;
+					break;
+				}
 
-		GL_state.Texture.Disable();
-		glDeleteTextures(1, &Post_screen_texture_id);
-		Post_screen_texture_id = 0;
+				// width and height are 1/2 for the bright pass, 1/4 for the blur, so drop down
+				width >>= 1;
+				height >>= 1;
+			} else {
+				// attach to our blur pass framebuffer and make sure it's ok
+				vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[1]);
+				vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[tex], 0);
 
-		rval = false;
-	} else {
-		vglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);
+				// if not then clean up and disable bloom
+				if ( opengl_check_framebuffer() ) {
+					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
+					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
+					Post_framebuffer_id[0] = 0;
+					Post_framebuffer_id[1] = 0;
 
-		if (Cmdline_bloom_intensity > 0) {
-			// two more framebuffers, one each for the two different sized bloom textures
-			vglGenFramebuffersEXT(1, &Post_framebuffer_id[1]);
-			vglGenFramebuffersEXT(1, &Post_framebuffer_id[2]);
+					glDeleteTextures(3, Post_bloom_texture_id);
+					memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
 
-			// need to generate textures for bloom too
-			glGenTextures(3, Post_bloom_texture_id);
+					Cmdline_bloom_intensity = 0;
 
-			// half size
-			int width = Post_texture_width >> 1;
-			int height = Post_texture_height >> 1;
-
-			for (int tex = 0; tex < 3; tex++) {
-				GL_state.Texture.SetActiveUnit(0);
-				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-				GL_state.Texture.Enable(Post_bloom_texture_id[tex]);
-
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
-
-				if (tex == 0) {
-					// attach to our bright pass framebuffer and make sure it's ok
-					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[1]);
-					vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[tex], 0);
-
-					// if not then clean up and disable bloom
-					if ( opengl_check_framebuffer() ) {
-						vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-						vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
-						vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[2]);
-						Post_framebuffer_id[1] = 0;
-						Post_framebuffer_id[2] = 0;
-
-						glDeleteTextures(3, Post_bloom_texture_id);
-						memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
-
-						Cmdline_bloom_intensity = 0;
-
-						break;
-					}
-
-					// width and height are 1/2 for the bright pass, 1/4 for the blur, so drop down
-					width >>= 1;
-					height >>= 1;
-				} else {
-					// attach to our blur pass framebuffer and make sure it's ok
-					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[2]);
-					vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[tex], 0);
-
-					// if not then clean up and disable bloom
-					if ( opengl_check_framebuffer() ) {
-						vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-						vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
-						vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[2]);
-						Post_framebuffer_id[1] = 0;
-						Post_framebuffer_id[2] = 0;
-
-						glDeleteTextures(3, Post_bloom_texture_id);
-						memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
-
-						Cmdline_bloom_intensity = 0;
-
-						break;
-					}
+					break;
 				}
 			}
 		}
-
-		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-
-		GL_state.Texture.Disable();
-
-		rval = true;
 	}
 
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+
+	GL_state.Texture.Disable();
+
+	rval = true;
+	
 	if ( opengl_check_for_errors("post_init_framebuffer()") ) {
 		rval = false;
 	}
@@ -1086,6 +1195,10 @@ void opengl_post_process_init()
 	}
 
 	if ( !Cmdline_postprocess ) {
+		return;
+	}
+
+	if ( !Scene_texture_initialized ) {
 		return;
 	}
 
@@ -1135,19 +1248,9 @@ void opengl_post_process_shutdown()
 
 	GL_post_shader.clear();
 
-	if (Post_screen_texture_id) {
-		glDeleteTextures(1, &Post_screen_texture_id);
-		Post_screen_texture_id = 0;
-	}
-
 	if (Post_bloom_texture_id[0]) {
 		glDeleteTextures(3, Post_bloom_texture_id);
 		memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
-	}
-
-	if (Post_renderbuffer_id) {
-		vglDeleteRenderbuffersEXT(1, &Post_renderbuffer_id);
-		Post_renderbuffer_id = 0;
 	}
 
 	if (Post_framebuffer_id[0]) {
@@ -1156,9 +1259,7 @@ void opengl_post_process_shutdown()
 
 		if (Post_framebuffer_id[1]) {
 			vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
-			vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[2]);
 			Post_framebuffer_id[1] = 0;
-			Post_framebuffer_id[2] = 0;
 		}
 	}
 

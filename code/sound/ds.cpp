@@ -651,11 +651,6 @@ int ds_get_sid()
 		}
 	}
 
-	// if we need to, bump the reserve limit (helps prevent memory fragmentation)
-	if ( sound_buffers.size() == sound_buffers.capacity() ) {
-		sound_buffers.reserve( sound_buffers.size() + BUFFER_BUMP );
-	}
-
 	sound_buffers.push_back( new_buffer );
 
 	return (int)(sound_buffers.size() - 1);
@@ -1060,8 +1055,8 @@ int ds_init()
 
 	sample_rate = os_config_read_uint("Sound", "SampleRate", sample_rate);
 	attrList[1] = sample_rate;
-	std::string playback_device;
-	std::string capture_device;
+	SCP_string playback_device;
+	SCP_string capture_device;
 
 	if ( openal_init_device(&playback_device, &capture_device) == false ) {
 		mprintf(("\n  ERROR: Unable to find suitable playback device!\n\n"));
@@ -1540,7 +1535,7 @@ int ds_play_easy(int sid, float volume)
 	OpenAL_ErrorPrint( alSource3f(Channels[ch_idx].source_id, AL_POSITION, 0.0f, 0.0f, 0.0f) );
 	OpenAL_ErrorPrint( alSource3f(Channels[ch_idx].source_id, AL_VELOCITY, 0.0f, 0.0f, 0.0f) );
 
-	OpenAL_ErrorPrint( alSourcef(Channels[ch_idx].source_id, AL_DOPPLER_FACTOR, 0.0f) );
+	OpenAL_ErrorPrint( alDopplerFactor(0.0f) );
 
 	OpenAL_ErrorPrint( alSourcePlay(source_id) );
 
@@ -1581,7 +1576,7 @@ int ds_play(int sid, int snd_id, int priority, float volume, float pan, int loop
 	OpenAL_ErrorPrint( alSource3f(Channels[ch_idx].source_id, AL_POSITION, pan, 0.0f, 0.0f) );
 	OpenAL_ErrorPrint( alSource3f(Channels[ch_idx].source_id, AL_VELOCITY, 0.0f, 0.0f, 0.0f) );
 
-	OpenAL_ErrorPrint( alSourcef(Channels[ch_idx].source_id, AL_DOPPLER_FACTOR, 0.0f) );
+	OpenAL_ErrorPrint( alDopplerFactor(0.0f) );
 	OpenAL_ErrorPrint( alSourcef(Channels[ch_idx].source_id, AL_PITCH, 1.0f) );
 	OpenAL_ErrorPrint( alSourcef(Channels[ch_idx].source_id, AL_GAIN, volume) );
 
@@ -2096,21 +2091,6 @@ int ds_eax_set_environment(unsigned long envid)
 }
 
 /**
- * Set up a predefined environment for EAX
- *
- * @param envid Value from the EAX_ENVIRONMENT_* enumeration.
- * @return Always returns 0.
- * @todo Proper error reporting, otherwise make a void return type.
- */
-int ds_eax_set_preset(unsigned long envid)
-{
-	al_efx_load_preset(envid);
-
-	return 0;
-}
-
-
-/**
  * Set up all the parameters for an environment
  *
  * @param id Value from the EAX_ENVIRONMENT_* enumeration
@@ -2168,7 +2148,7 @@ int ds_eax_get_prop(EFXREVERBPROPERTIES **props, const char *name, const char *t
 {
 	Assert( props != NULL );
 	Assert( name != NULL );
-	Assert( strlen(name) > 0 );
+	Assert( strlen(name) > 0 ); //-V805
 
 	int template_id = -1;
 
@@ -2181,7 +2161,7 @@ int ds_eax_get_prop(EFXREVERBPROPERTIES **props, const char *name, const char *t
 
 		EFXREVERBPROPERTIES n_prop;
 
-		if ( (template_name != NULL) && (strlen(template_name) > 0) ) {
+		if ( (template_name != NULL) && (template_name[0] != '\0') ) {
 			template_id = ds_eax_get_preset_id(template_name);
 		}
 

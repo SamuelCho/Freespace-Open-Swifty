@@ -85,7 +85,7 @@ void FSLight2GLLight(light *FSLight, opengl_light *GLLight)
 	GLLight->Position[0] = FSLight->vec.xyz.x;
 	GLLight->Position[1] = FSLight->vec.xyz.y;
 	GLLight->Position[2] = FSLight->vec.xyz.z; // flipped axis for FS2
-	GLLight->Position[3] = 1.0f;	
+	GLLight->Position[3] = 1.0f;
 
 
 	switch (FSLight->type) {
@@ -108,7 +108,7 @@ void FSLight2GLLight(light *FSLight, opengl_light *GLLight)
 
 			GLLight->Specular[0] *= static_tube_factor;
 			GLLight->Specular[1] *= static_tube_factor;
-			GLLight->Specular[2] *= static_tube_factor;	
+			GLLight->Specular[2] *= static_tube_factor;
 
 			GLLight->Position[0] = FSLight->vec2.xyz.x; // Valathil: Use endpoint of tube as light position
 			GLLight->Position[1] = FSLight->vec2.xyz.y;
@@ -325,10 +325,14 @@ void opengl_change_active_lights(int pos, int d_offset)
 			GL_state.Light(i, GL_TRUE);
 		}
 	}
+	opengl_light zero;
+	memset(&zero,0,sizeof(opengl_light));
+	zero.Position[0] = 1.0f;
 
 	// make sure that we turn off any lights that we aren't using right now
 	for ( ; i < GL_max_lights; i++) {
 		GL_state.Light(i, GL_FALSE);
+		opengl_set_light(i, &zero);
 	}
 
 	glPopMatrix();
@@ -381,6 +385,8 @@ void gr_opengl_set_center_alpha(int type)
 	if (!type || Cmdline_nohtl)
 		return;
 
+	if(Num_active_gl_lights == MAX_LIGHTS)
+		return;
 	opengl_light glight;
 
 	vec3d dir;

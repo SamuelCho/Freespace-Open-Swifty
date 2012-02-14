@@ -54,7 +54,6 @@
 #include "VoiceActingManager.h"
 #include "FictionViewerDlg.h"
 #include "cmdline/cmdline.h"
-#include "debugconsole/dbugfile.h"
 #include "object/objectdock.h"
 #include "species_defs/species_defs.h"
 #include "sound/audiostr.h"
@@ -676,8 +675,9 @@ int drag_objects()
 			if (objp->flags & OF_MARKED) {
 				vm_vec_add(&objp->pos, &objp->pos, &movement_vector);
 				if (objp->type == OBJ_WAYPOINT) {
-					Waypoint_lists[objp->instance / 65536].waypoints[objp->instance & 0xffff] =
-						objp->pos;
+					waypoint *wpt = find_waypoint_with_instance(objp->instance);
+					Assert(wpt != NULL);
+					wpt->set_pos(&objp->pos);
 				}
 			}
 
@@ -902,15 +902,18 @@ void CFREDView::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	// RT point
 
-	int list = -1;
+	int waypoint_instance = -1;
 	
 	if (!Fred_active) {
 		CView::OnLButtonDown(nFlags, point);
 		return;
 	}
 
-	if (cur_waypoint != -1)
-		list = cur_waypoint_list * 65536 + cur_waypoint;
+	if (cur_waypoint != NULL)
+	{
+		Assert(cur_waypoint_list != NULL);
+		waypoint_instance = Objects[cur_waypoint->get_objnum()].instance;
+	}
 
 	marking_box.x1 = point.x;
 	marking_box.y1 = point.y;
@@ -925,7 +928,7 @@ void CFREDView::OnLButtonDown(UINT nFlags, CPoint point)
 		if (!Bg_bitmap_dialog) {
 			if (on_object == -1) {
 				Selection_lock = 0;  // force off selection lock
-				on_object = create_object_on_grid(list);
+				on_object = create_object_on_grid(waypoint_instance);
 
 			} else
 				Dup_drag = 1;
@@ -1309,8 +1312,8 @@ void select_objects()
 		g3_rotate_vertex(&v, &ptr->pos);
 		if (!(v.codes & CC_BEHIND) && valid)
 			if (!(g3_project_vertex(&v) & PF_OVERFLOW)) {
-				x = (int) v.sx;
-				y = (int) v.sy;
+				x = (int) v.screen.xyw.x;
+				y = (int) v.screen.xyw.y;
 
 				if (x >= marking_box.x1 && x <= marking_box.x2 && y >= marking_box.y1 && y <= marking_box.y2) {
 					if (ptr->flags & OF_MARKED)
@@ -1391,6 +1394,7 @@ void CFREDView::OnContextMenu(CWnd* /*pWnd*/, CPoint point)
 	CMenu menu;
 	int	objnum;
 	CPoint local = point;
+	SCP_list<jump_node>::iterator jnp;
 
 	if (button_down) {
 		cancel_drag();
@@ -1417,12 +1421,19 @@ void CFREDView::OnContextMenu(CWnd* /*pWnd*/, CPoint point)
 
 				else if (Objects[objnum].type == OBJ_JUMP_NODE) {
 					id = ID_EDITORS_WAYPOINT;
-					str.Format("Edit %s", Objects[objnum].jnp->get_name_ptr());
+					for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
+						if(jnp->get_obj() == &Objects[objnum])
+							break;
+					}
+					str.Format("Edit %s", jnp->get_name_ptr());
 
 				} else if (Objects[objnum].type == OBJ_WAYPOINT) {
+					int idx;
+					waypoint_list *wp_list = find_waypoint_list_with_instance(Objects[objnum].instance, &idx);
+					Assert(wp_list != NULL);
+
 					id = ID_EDITORS_WAYPOINT;
-					str.Format("Edit %s:%d", Waypoint_lists[Objects[objnum].instance / 65536].name,
-						(Objects[objnum].instance & 0xffff) + 1);
+					str.Format("Edit %s:%d", wp_list->get_name(), idx + 1);
 
 				} else if (Objects[objnum].type == OBJ_POINT) {
 					return;
@@ -2446,12 +2457,6 @@ int CFREDView::global_error_check()
 						count++;
 					}
 				}
-
-				if (!count && Ships[i].weapons.num_secondary_banks > 0){
-					if (error("Player \"%s\" has no secondary weapons.  Should have at least 1", Ships[i].ship_name)){
-						return 1;
-					}
-				}
 			}
 
 			if (Ships[i].objnum != OBJ_INDEX(ptr)){
@@ -2485,7 +2490,7 @@ int CFREDView::global_error_check()
 				}
 
 				// wing squad logo check - Goober5000
-				if (strlen(Wings[wing].wing_squad_filename) > 0)
+				if (strlen(Wings[wing].wing_squad_filename) > 0) //-V805
 				{
 					if (The_mission.game_type & MISSION_TYPE_MULTI)
 					{
@@ -2519,17 +2524,18 @@ int CFREDView::global_error_check()
 				}
 			}
 		} else if (ptr->type == OBJ_WAYPOINT) {
-			j = i / 65536;  // waypoint path number
-			z = i & 0xffff;  // waypoint number in path
-			if (j < 0 || j >= Num_waypoint_lists){
+			int waypoint_num;
+			waypoint_list *wp_list = find_waypoint_list_with_instance(i, &waypoint_num);
+
+			if (wp_list == NULL) {
 				return internal_error("Object references an illegal waypoint path number");
 			}
 
-			if (z >= Waypoint_lists[j].count){
+			if (waypoint_num < 0 || (uint) waypoint_num >= wp_list->get_waypoints().size()) {
 				return internal_error("Object references an illegal waypoint number in path");
 			}
 
-			sprintf(buf, "%s:%d", Waypoint_lists[j].name, z + 1);
+			sprintf(buf, "%s:%d", wp_list->get_name(), waypoint_num + 1);
 			names[obj_count] = new char[strlen(buf) + 1];
 			strcpy(names[obj_count], buf);
 			flags[obj_count] = 1;
@@ -2782,18 +2788,18 @@ int CFREDView::global_error_check()
 		return internal_error("Num_wings is incorrect");
 	}
 
-	for (i=0; i<Num_waypoint_lists; i++) {
+	SCP_list<waypoint_list>::iterator ii;
+	for (ii = Waypoint_lists.begin(); ii != Waypoint_lists.end(); ++ii) {
 		for (z=0; z<obj_count; z++){
 			if (names[z]){
-				if (!stricmp(names[z], Waypoint_lists[i].name)){
+				if (!stricmp(names[z], ii->get_name())){
 					return internal_error("Waypoint path name is also used by an object (%s)", names[z]);
 				}
 			}
 		}
 
-		j = Waypoint_lists[i].count;
-		while (j--) {
-			sprintf(buf, "%s:%d", Waypoint_lists[i].name, j + 1);
+		for (j = 0; (uint) j < ii->get_waypoints().size(); j++) {
+			sprintf(buf, "%s:%d", ii->get_name(), j + 1);
 			for (z=0; z<obj_count; z++){
 				if (names[z]){
 					if (!stricmp(names[z], buf)){
@@ -3271,7 +3277,7 @@ int CFREDView::internal_error(char *msg, ...)
 
 int CFREDView::fred_check_sexp(int sexp, int type, char *msg, ...)
 {
-	char buf[512], buf2[2048], buf3[4096];
+	char buf[512], buf2[2048], buf3[MAX_EVENT_SIZE];
 	int err = 0, z, faulty_node;
 	va_list args;
 
@@ -3286,7 +3292,7 @@ int CFREDView::fred_check_sexp(int sexp, int type, char *msg, ...)
 	if (!z)
 		return 0;
 
-	convert_sexp_to_string(sexp, buf2, SEXP_ERROR_CHECK_MODE, 2048);
+	convert_sexp_to_string(sexp, buf2, SEXP_ERROR_CHECK_MODE, MAX_EVENT_SIZE);
 	sprintf(buf3, "Error in %s: %s\n\nIn sexpression: %s\n(Error appears to be: %s)",
 		buf, sexp_error_message(z), buf2, Sexp_nodes[faulty_node].text);
 
@@ -3395,10 +3401,10 @@ char *error_check_initial_orders(ai_goal *goals, int ship, int wing)
 
 		found = 0;
 		if (flag > 0) {
-			if (*goals[i].ship_name == '<')
+			if (*goals[i].target_name == '<')
 				return "Invalid target";
 
-			if (!stricmp(goals[i].ship_name, source))
+			if (!stricmp(goals[i].target_name, source))
 				if (ship >= 0)
 					return "Target of ship's goal is itself";
 				else
@@ -3407,11 +3413,7 @@ char *error_check_initial_orders(ai_goal *goals, int ship, int wing)
 
 		inst = team2 = -1;
 		if (flag == 1) {  // target waypoint required
-			for (j=0; j<Num_waypoint_lists; j++)
-				if (!stricmp(goals[i].ship_name, Waypoint_lists[j].name))
-					found = 1;
-
-			if (!found)
+			if (find_matching_waypoint_list(goals[i].target_name) == NULL)
 				return "*Invalid target waypoint path name";
 
 		} else if (flag == 2) {  // target ship required
@@ -3419,7 +3421,7 @@ char *error_check_initial_orders(ai_goal *goals, int ship, int wing)
 			while (ptr != END_OF_LIST(&obj_used_list)) {
 				if (ptr->type == OBJ_SHIP || ptr->type == OBJ_START) {
 					inst = ptr->instance;
-					if (!stricmp(goals[i].ship_name, Ships[inst].ship_name)) {
+					if (!stricmp(goals[i].target_name, Ships[inst].ship_name)) {
 						found = 1;
 						break;
 					}
@@ -3440,7 +3442,7 @@ char *error_check_initial_orders(ai_goal *goals, int ship, int wing)
 
 		} else if (flag == 3) {  // target wing required
 			for (j=0; j<MAX_WINGS; j++)
-				if (Wings[j].wave_count && !stricmp(Wings[j].name, goals[i].ship_name))
+				if (Wings[j].wave_count && !stricmp(Wings[j].name, goals[i].target_name))
 					break;
 
 			if (j >= MAX_WINGS)
@@ -3458,13 +3460,13 @@ char *error_check_initial_orders(ai_goal *goals, int ship, int wing)
 			while (ptr != END_OF_LIST(&obj_used_list)) {
 				if (ptr->type == OBJ_SHIP || ptr->type == OBJ_START) {
 					inst = ptr->instance;
-					if (!stricmp(goals[i].ship_name, Ships[inst].ship_name)) {
+					if (!stricmp(goals[i].target_name, Ships[inst].ship_name)) {
 						found = 2;
 						break;
 					}
 
 				} else if (ptr->type == OBJ_WAYPOINT) {
-					if (!stricmp(goals[i].ship_name, object_name(OBJ_INDEX(ptr)))) {
+					if (!stricmp(goals[i].target_name, object_name(OBJ_INDEX(ptr)))) {
 						found = 1;
 						break;
 					}
@@ -4589,7 +4591,6 @@ void CFREDView::OnDestroy()
 {
 	audiostream_close();
 	snd_close();
-	DBUGFILE_OUTPUT_0("About to gr_close");
  	gr_close();
    	os_set_window(NULL);	 
 

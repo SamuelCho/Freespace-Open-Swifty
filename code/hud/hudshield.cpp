@@ -37,12 +37,12 @@
 #define SHIELD_HIT_DURATION_SHORT	300	// time a shield quadrant flashes after being hit
 #define SHIELD_FLASH_INTERVAL_FAST	200	// time between shield quadrant flashes
 
-// now read in from hud.tbl
-#define MAX_SHIELD_ICONS		80	//DTP bumped from 40 to 80
-int Hud_shield_filename_count = 0;
-char Hud_shield_filenames[MAX_SHIELD_ICONS][MAX_FILENAME_LEN];
+// CommanderDJ - now dynamic
+// #define MAX_SHIELD_ICONS		80	
 
-hud_frames Shield_gauges[MAX_SHIELD_ICONS];
+SCP_vector<SCP_string> Hud_shield_filenames;
+
+SCP_vector<hud_frames> Shield_gauges;
 
 static int Hud_shield_inited = 0;
 /*static int Player_shield_coords[GR_NUM_RESOLUTIONS][2] = 
@@ -119,46 +119,19 @@ static shield_hit_info	Shield_hit_data[2];
 // translate between clockwise-from-top shield quadrant ordering to way quadrants are numbered in the game
 ubyte Quadrant_xlate[MAX_SHIELD_SECTIONS] = {1,0,2,3};
 
-/*void hud_shield_game_init()
-{
-	int rval;
-	char name[MAX_FILENAME_LEN+1] = "";
-
-	if ((rval = setjmp(parse_abort)) != 0) {
-		mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", "hud.tbl", rval));
-		return;
-	}
-
-	// read in hud.tbl
-	read_file_text("hud.tbl");
-	reset_parse();
-
-	Hud_shield_filename_count = 0;
-	required_string("#Shield Icons Begin");
-	while(!optional_string("#End")){
-		required_string("$Shield:");
-
-		stuff_string(name, F_NAME, NULL);
-
-		// maybe store
-		Assert(Hud_shield_filename_count < MAX_SHIELD_ICONS);
-		if(Hud_shield_filename_count < MAX_SHIELD_ICONS){
-			strcpy_s(Hud_shield_filenames[Hud_shield_filename_count++], name);
-		}
-	}
-}*/
-
 // called at the start of each level from HUD_init.  Use Hud_shield_init so we only init Shield_gauges[] once.
 void hud_shield_level_init()
 {
-	int i;	
+	unsigned int i;
+	hud_frames temp;
 
 	hud_shield_hit_reset(1);	// reset for the player
 
 	if ( !Hud_shield_inited ) {
-		for ( i = 0; i < MAX_SHIELD_ICONS; i++ ) {
-			Shield_gauges[i].first_frame = -1;
-			Shield_gauges[i].num_frames  = 0;
+		for ( i = 0; i < Hud_shield_filenames.size(); i++ ) {
+			Shield_gauges.push_back(temp);
+			Shield_gauges.at(i).first_frame = -1;
+			Shield_gauges.at(i).num_frames  = 0;
 		}
 		
 		Hud_shield_inited = 1;
@@ -212,13 +185,13 @@ void hud_ship_icon_page_in(ship_info *sip)
 	}
 
 	// load in shield frames if not already loaded
-	Assert(sip->shield_icon_index < Hud_shield_filename_count);
-	sgp = &Shield_gauges[sip->shield_icon_index];
+	Assert(sip->shield_icon_index < (ubyte)Hud_shield_filenames.size());
+	sgp = &Shield_gauges.at(sip->shield_icon_index);
 
 	if ( sgp->first_frame == -1 ) {
-		sgp->first_frame = bm_load_animation(Hud_shield_filenames[sip->shield_icon_index], &sgp->num_frames);
+		sgp->first_frame = bm_load_animation(const_cast<char*>(Hud_shield_filenames.at(sip->shield_icon_index).c_str()), &sgp->num_frames);
 		if ( sgp->first_frame == -1 ) {
-			Warning(LOCATION, "Could not load in the HUD shield ani: %s\n", Hud_shield_filenames[sip->shield_icon_index]);
+			Warning(LOCATION, "Could not load in the HUD shield ani: %s\n", Hud_shield_filenames.at(sip->shield_icon_index).c_str());
 			return;
 		}
 	}
@@ -358,19 +331,16 @@ void hud_shield_assign_info(ship_info *sip, char *filename)
 {
 	ubyte i;
 
-	for ( i = 0; i < Hud_shield_filename_count; i++ ) {
-		if ( !stricmp(filename, Hud_shield_filenames[i]) ) {
+	for ( i = 0; i < (ubyte)Hud_shield_filenames.size(); i++ ) {
+		if ( !stricmp(filename, Hud_shield_filenames.at(i).c_str()) ) {
 			sip->shield_icon_index = i;
 			return;
 		}
 	}
 
 	//No HUD icon found. Add one!
-	Assert(Hud_shield_filename_count < MAX_SHIELD_ICONS);
-	if(Hud_shield_filename_count < MAX_SHIELD_ICONS){
-		sip->shield_icon_index = (unsigned char) Hud_shield_filename_count;
-		strcpy_s(Hud_shield_filenames[Hud_shield_filename_count++], filename);
-	}
+	sip->shield_icon_index = (unsigned char) Hud_shield_filenames.size();
+	Hud_shield_filenames.push_back((SCP_string)filename);
 }
 
 void hud_show_mini_ship_integrity(object *objp, int x_force, int y_force)
@@ -583,12 +553,12 @@ void hud_shield_quadrant_hit(object *objp, int quadrant)
 }
 
 HudGaugeShield::HudGaugeShield():
-HudGauge(HUD_OBJECT_PLAYER_SHIELD, HUD_PLAYER_SHIELD_ICON, true, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
+HudGauge(HUD_OBJECT_PLAYER_SHIELD, HUD_PLAYER_SHIELD_ICON, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
 {
 }
 
 HudGaugeShield::HudGaugeShield(int _gauge_object, int _gauge_config):
-HudGauge(_gauge_object, _gauge_config, true, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
+HudGauge(_gauge_object, _gauge_config, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
 {
 }
 
@@ -626,14 +596,14 @@ void HudGaugeShield::showShields(object *objp, int mode)
 	// load in shield frames if not already loaded
 	if(sip->shield_icon_index != 255)
 	{
-		sgp = &Shield_gauges[sip->shield_icon_index];
+		sgp = &Shield_gauges.at(sip->shield_icon_index);
 
-		if ( sgp->first_frame == -1 && sip->shield_icon_index < Hud_shield_filename_count) {
-			sgp->first_frame = bm_load_animation(Hud_shield_filenames[sip->shield_icon_index], &sgp->num_frames);
+		if ( (sgp->first_frame == -1) && (sip->shield_icon_index < Hud_shield_filenames.size()) ) {
+			sgp->first_frame = bm_load_animation(const_cast<char*>(Hud_shield_filenames.at(sip->shield_icon_index).c_str()), &sgp->num_frames);
 			if ( sgp->first_frame == -1 ) {
 				if(!shield_ani_warning_displayed_already){
 					shield_ani_warning_displayed_already = true;
-					Warning(LOCATION, "Could not load in the HUD shield ani: %s\n", Hud_shield_filenames[sip->shield_icon_index]);
+					Warning(LOCATION, "Could not load in the HUD shield ani: %s\n", Hud_shield_filenames.at(sip->shield_icon_index));
 				}
 				return;
 			}
@@ -949,7 +919,7 @@ void HudGaugeShieldTarget::render(float frametime)
 }
 
 HudGaugeShieldMini::HudGaugeShieldMini(): // HUD_TARGET_MINI_ICON
-HudGauge(HUD_OBJECT_MINI_SHIELD, HUD_TARGET_MINI_ICON, true, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
+HudGauge(HUD_OBJECT_MINI_SHIELD, HUD_TARGET_MINI_ICON, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
 {
 }
 

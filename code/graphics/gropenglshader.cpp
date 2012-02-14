@@ -22,6 +22,7 @@
 #include "graphics/gropengldraw.h"
 #include "graphics/gropenglshader.h"
 #include "graphics/gropenglpostprocessing.h"
+#include "graphics/gropenglstate.h"
 
 #include "math/vecmat.h"
 #include "render/3d.h"
@@ -32,7 +33,10 @@ SCP_vector<opengl_shader_t> GL_shader;
 
 static char *GLshader_info_log = NULL;
 static const int GLshader_info_log_size = 8192;
+GLuint Framebuffer_fallback_texture_id = 0;
 
+static int Effect_num = 0;
+static float Anim_timer = 0.0f;
 /*
 struct opengl_shader_file_t {
 	char *vert;
@@ -45,175 +49,267 @@ struct opengl_shader_file_t {
 };
 */
 static opengl_shader_file_t GL_shader_file[] = {
-	{ "null-v.sdr", "null-f.sdr", (0), 0, { NULL }, },
+	{ "null-v.sdr", "null-f.sdr", (0), 0, { NULL }, 0, { NULL } },
 
-	{ "l-v.sdr", "lb-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP),
-		2, { "sBasemap", "n_lights" } },
+	{ "soft-v.sdr", "soft-f.sdr", (SDR_FLAG_SOFT_QUAD), 
+		6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, { "radius_in" } },
 
-	{ "b-v.sdr", "b-f.sdr", (SDR_FLAG_DIFFUSE_MAP),
-		1, { "sBasemap" } },
+	{ "soft-v.sdr", "soft-f.sdr", (SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION), 
+		5, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer"}, 1, { "offset_in" } },
 
-	{ "b-v.sdr", "bg-f.sdr", (SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP),
-		2, { "sBasemap", "sGlowmap" } },
-
-	{ "l-v.sdr", "lbg-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP),
-		3, { "sBasemap", "sGlowmap", "n_lights" } },
-
-	{ "l-v.sdr", "lbgs-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP),
-		4, { "sBasemap", "sGlowmap", "sSpecmap", "n_lights" } },
-
-	{ "l-v.sdr", "lbs-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP),
-		3, { "sBasemap", "sSpecmap", "n_lights" } },
-
-	{ "le-v.sdr", "lbgse-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP),
-		7, { "sBasemap", "sGlowmap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
-
-	{ "le-v.sdr", "lbse-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP),
-		6, { "sBasemap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
-
-	{ "ln-v.sdr", "lbgn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP| SDR_FLAG_NORMAL_MAP),
-		4, { "sBasemap", "sGlowmap", "sNormalmap", "n_lights" } },
-
-	{ "ln-v.sdr", "lbgsn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP),
-		5, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "n_lights" } },
-
-	{ "ln-v.sdr", "lbn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_NORMAL_MAP),
-		3, { "sBasemap", "sNormalmap", "n_lights" } },
-
-	{ "ln-v.sdr", "lbsn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP),
-		4, { "sBasemap", "sSpecmap", "sNormalmap", "n_lights" } },
-
-	{ "ln-v.sdr", "lbgnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP| SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
-		5, { "sBasemap", "sGlowmap", "sNormalmap", "sHeightmap", "n_lights" } },
-
-	{ "ln-v.sdr", "lbgsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
-		6, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" } },
-
-	{ "ln-v.sdr", "lbnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
-		4, { "sBasemap", "sNormalmap", "sHeightmap", "n_lights" } },
-
-	{ "ln-v.sdr", "lbsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
-		5, { "sBasemap", "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" } },
-
+	// with diffuse Textures
 	{ "lne-v.sdr", "lbgsne-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ENV_MAP),
-		8, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
+		8, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
 
 	{ "lne-v.sdr", "lbsne-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ENV_MAP),
-		7, { "sBasemap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
-
-	{ "lne-v.sdr", "lbgsnhe-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP | SDR_FLAG_ENV_MAP),
-		9, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
-
-	{ "lne-v.sdr", "lbsnhe-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP | SDR_FLAG_ENV_MAP),
-		8, { "sBasemap", "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
-
-	{ "lf-v.sdr", "lfb-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP),
-		2, { "sBasemap", "n_lights" } },
-
-	{ "lf-v.sdr", "lfbg-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP),
-		3, { "sBasemap", "sGlowmap", "n_lights" } },
-
-	{ "lf-v.sdr", "lfbgs-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP),
-		4, { "sBasemap", "sGlowmap", "sSpecmap", "n_lights" } },
-
-	{ "lf-v.sdr", "lfbs-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP),
-		3, { "sBasemap", "sSpecmap", "n_lights" } },
-
-	{ "lfe-v.sdr", "lfbgse-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP),
-		7, { "sBasemap", "sGlowmap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
-
-	{ "lfe-v.sdr", "lfbse-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP),
-		6, { "sBasemap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
-
-	{ "lfn-v.sdr", "lfbgn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP| SDR_FLAG_NORMAL_MAP),
-		4, { "sBasemap", "sGlowmap", "sNormalmap", "n_lights" } },
-
-	{ "lfn-v.sdr", "lfbgsn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP),
-		5, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "n_lights" } },
-
-	{ "lfn-v.sdr", "lfbn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_NORMAL_MAP),
-		3, { "sBasemap", "sNormalmap", "n_lights" } },
-
-	{ "lfn-v.sdr", "lfbsn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP),
-		4, { "sBasemap", "sSpecmap", "sNormalmap", "n_lights" } },
-
-	{ "lfn-v.sdr", "lfbgnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP| SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
-		5, { "sBasemap", "sGlowmap", "sNormalmap", "sHeightmap", "n_lights" } },
-
-	{ "lfn-v.sdr", "lfbgsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
-		6, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" } },
-
-	{ "lfn-v.sdr", "lfbnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
-		4, { "sBasemap", "sNormalmap", "sHeightmap", "n_lights" } },
-
-	{ "lfn-v.sdr", "lfbsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
-		5, { "sBasemap", "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" } },
+		7, { "sBasemap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
 
 	{ "lfne-v.sdr", "lfbgsne-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ENV_MAP),
-		8, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
+		8, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
 
 	{ "lfne-v.sdr", "lfbsne-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ENV_MAP),
-		7, { "sBasemap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
+		7, { "sBasemap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
+	
+	{ "l-v.sdr", "lb-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP),
+		2, { "sBasemap", "n_lights" }, 0, { NULL } },
 
-	{ "lfne-v.sdr", "lfbgsnhe-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP | SDR_FLAG_ENV_MAP),
-		9, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
+	{ "b-v.sdr", "b-f.sdr", (SDR_FLAG_DIFFUSE_MAP),
+		1, { "sBasemap" }, 0, { NULL } },
 
-	{ "lfne-v.sdr", "lfbsnhe-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP | SDR_FLAG_ENV_MAP),
-		8, { "sBasemap", "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
+	{ "b-v.sdr", "bg-f.sdr", (SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP),
+		2, { "sBasemap", "sGlowmap" }, 0, { NULL } },
 
+	{ "l-v.sdr", "lbg-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP),
+		3, { "sBasemap", "sGlowmap", "n_lights" }, 0, { NULL } },
+
+	{ "l-v.sdr", "lbgs-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP),
+		4, { "sBasemap", "sGlowmap", "sSpecmap", "n_lights" }, 0, { NULL } },
+
+	{ "l-v.sdr", "lbs-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP),
+		3, { "sBasemap", "sSpecmap", "n_lights" }, 0, { NULL } },
+
+	{ "le-v.sdr", "lbgse-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP),
+		7, { "sBasemap", "sGlowmap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
+
+	{ "le-v.sdr", "lbse-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP),
+		6, { "sBasemap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
+
+	{ "ln-v.sdr", "lbgn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP| SDR_FLAG_NORMAL_MAP),
+		4, { "sBasemap", "sGlowmap", "sNormalmap", "n_lights" }, 0, { NULL } },
+
+	{ "ln-v.sdr", "lbgsn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP),
+		5, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "n_lights" }, 0, { NULL } },
+
+	{ "ln-v.sdr", "lbn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_NORMAL_MAP),
+		3, { "sBasemap", "sNormalmap", "n_lights" }, 0, { NULL } },
+
+	{ "ln-v.sdr", "lbsn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP),
+		4, { "sBasemap", "sSpecmap", "sNormalmap", "n_lights" }, 0, { NULL } },
+
+	{ "lf-v.sdr", "lfb-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP),
+		2, { "sBasemap", "n_lights" }, 0, { NULL } },
+
+	{ "lf-v.sdr", "lfbg-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP),
+		3, { "sBasemap", "sGlowmap", "n_lights" }, 0, { NULL } },
+
+	{ "lf-v.sdr", "lfbgs-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP),
+		4, { "sBasemap", "sGlowmap", "sSpecmap", "n_lights" }, 0, { NULL } },
+
+	{ "lf-v.sdr", "lfbs-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP),
+		3, { "sBasemap", "sSpecmap", "n_lights" }, 0, { NULL } },
+
+	{ "lfe-v.sdr", "lfbgse-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP),
+		7, { "sBasemap", "sGlowmap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
+
+	{ "lfe-v.sdr", "lfbse-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP),
+		6, { "sBasemap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
+
+	{ "lfn-v.sdr", "lfbgn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP| SDR_FLAG_NORMAL_MAP),
+		4, { "sBasemap", "sGlowmap", "sNormalmap", "n_lights" }, 0, { NULL } },
+
+	{ "lfn-v.sdr", "lfbgsn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP),
+		5, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "n_lights" }, 0, { NULL } },
+
+	{ "lfn-v.sdr", "lfbn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_NORMAL_MAP),
+		3, { "sBasemap", "sNormalmap", "n_lights" }, 0, { NULL } },
+
+	{ "lfn-v.sdr", "lfbsn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP),
+		4, { "sBasemap", "sSpecmap", "sNormalmap", "n_lights" }, 0, { NULL } },
+
+	// no diffuse Textures 
 	{ "l-v.sdr", "null-f.sdr", (SDR_FLAG_LIGHT),
-		1, { "n_lights" } },
+		1, { "n_lights" }, 0, { NULL } },
 
 	{ "l-v.sdr", "lg-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_GLOW_MAP),
-		2, { "sGlowmap", "n_lights" } },
+		2, { "sGlowmap", "n_lights" }, 0, { NULL } },
 
 	{ "l-v.sdr", "lgs-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP),
-		3, { "sGlowmap", "sSpecmap", "n_lights" } },
+		3, { "sGlowmap", "sSpecmap", "n_lights" }, 0, { NULL } },
 
 	{ "l-v.sdr", "ls-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_SPEC_MAP),
-		2, { "sSpecmap", "n_lights" } },
+		2, { "sSpecmap", "n_lights" }, 0, { NULL } },
 
 	{ "le-v.sdr", "lgse-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP),
-		6, { "sGlowmap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
+		6, { "sGlowmap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
 
 	{ "le-v.sdr", "lse-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP),
-		5, { "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
+		5, { "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
 
 	{ "ln-v.sdr", "lgn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_GLOW_MAP | SDR_FLAG_NORMAL_MAP),
-		3, { "sGlowmap", "sNormalmap", "n_lights" } },
+		3, { "sGlowmap", "sNormalmap", "n_lights" }, 0, { NULL } },
 
 	{ "ln-v.sdr", "lgsn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP),
-		4, { "sGlowmap", "sSpecmap", "sNormalmap", "n_lights" } },
+		4, { "sGlowmap", "sSpecmap", "sNormalmap", "n_lights" }, 0, { NULL } },
 
 	{ "ln-v.sdr", "ln-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_NORMAL_MAP),
-		2, { "sNormalmap", "n_lights" } },
+		2, { "sNormalmap", "n_lights" }, 0, { NULL } },
 
 	{ "ln-v.sdr", "lsn-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP),
-		3, { "sSpecmap", "sNormalmap", "n_lights" } },
-
-	{ "ln-v.sdr", "lgnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_GLOW_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
-		4, { "sGlowmap", "sNormalmap", "sHeightmap", "n_lights" } },
-
-	{ "ln-v.sdr", "lgsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
-		5, { "sGlowmap", "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" } },
-
-	{ "ln-v.sdr", "lnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
-		3, { "sNormalmap", "sHeightmap", "n_lights" } },
-
-	{ "ln-v.sdr", "lsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
-		4, { "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" } },
+		3, { "sSpecmap", "sNormalmap", "n_lights" }, 0, { NULL } },
 
 	{ "lne-v.sdr", "lgsne-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ENV_MAP),
-		7, { "sGlowmap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
+		7, { "sGlowmap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
 
 	{ "lne-v.sdr", "lsne-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ENV_MAP),
-		6, { "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
+		6, { "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
 
+	// Animated Shaders
+	{ "la-v.sdr", "la-f.sdr", (SDR_FLAG_ANIMATED),
+		5, { "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "la-v.sdr", "lba-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_ANIMATED),
+		7, { "sBasemap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "ba-v.sdr", "ba-f.sdr", (SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_ANIMATED),
+		6, { "sBasemap", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "ba-v.sdr", "bga-f.sdr", (SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_ANIMATED),
+		7, { "sBasemap", "sGlowmap", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "la-v.sdr", "lbga-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_ANIMATED),
+		8, { "sBasemap", "sGlowmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "la-v.sdr", "lbgsa-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ANIMATED),
+		9, { "sBasemap", "sGlowmap", "sSpecmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "la-v.sdr", "lbsa-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ANIMATED),
+		8, { "sBasemap", "sSpecmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lea-v.sdr", "lbgsea-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP | SDR_FLAG_ANIMATED),
+		12, { "sBasemap", "sGlowmap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lea-v.sdr", "lbsea-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP | SDR_FLAG_ANIMATED),
+		11, { "sBasemap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lna-v.sdr", "lbgna-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP| SDR_FLAG_NORMAL_MAP | SDR_FLAG_ANIMATED),
+		9, { "sBasemap", "sGlowmap", "sNormalmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lna-v.sdr", "lbgsna-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ANIMATED),
+		10, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lna-v.sdr", "lbna-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ANIMATED),
+		8, { "sBasemap", "sNormalmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lna-v.sdr", "lbsna-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ANIMATED),
+		9, { "sBasemap", "sSpecmap", "sNormalmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lnea-v.sdr", "lbgsnea-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ENV_MAP | SDR_FLAG_ANIMATED),
+		13, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lnea-v.sdr", "lbsnea-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ENV_MAP | SDR_FLAG_ANIMATED),
+		12, { "sBasemap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lfa-v.sdr", "lfba-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_ANIMATED),
+		7, { "sBasemap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lfa-v.sdr", "lfbga-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_ANIMATED),
+		8, { "sBasemap", "sGlowmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lfa-v.sdr", "lfbgsa-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ANIMATED),
+		9, { "sBasemap", "sGlowmap", "sSpecmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lfa-v.sdr", "lfbsa-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ANIMATED),
+		8, { "sBasemap", "sSpecmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lfea-v.sdr", "lfbgsea-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP | SDR_FLAG_ANIMATED),
+		12, { "sBasemap", "sGlowmap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lfea-v.sdr", "lfbsea-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_ENV_MAP | SDR_FLAG_ANIMATED),
+		11, { "sBasemap", "sSpecmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lfna-v.sdr", "lfbgna-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP| SDR_FLAG_NORMAL_MAP | SDR_FLAG_ANIMATED),
+		9, { "sBasemap", "sGlowmap", "sNormalmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lfna-v.sdr", "lfbgsna-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ANIMATED),
+		10, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lfna-v.sdr", "lfbna-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ANIMATED),
+		8, { "sBasemap", "sNormalmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lfna-v.sdr", "lfbsna-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ANIMATED),
+		9, { "sBasemap", "sSpecmap", "sNormalmap", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lfnea-v.sdr", "lfbgsnea-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ENV_MAP | SDR_FLAG_ANIMATED),
+		13, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
+
+	{ "lfnea-v.sdr", "lfbsnea-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ENV_MAP | SDR_FLAG_ANIMATED),
+		12, { "sBasemap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } }
+
+	/* No Heightmapping for now - Valathil
 	{ "lne-v.sdr", "lgsnhe-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP | SDR_FLAG_ENV_MAP),
-		8, { "sGlowmap", "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } },
+		8, { "sGlowmap", "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
 
 	{ "lne-v.sdr", "lsnhe-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP | SDR_FLAG_ENV_MAP),
-		7, { "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" } }
+		7, { "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
+
+	{ "ln-v.sdr", "lbgnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP| SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
+		5, { "sBasemap", "sGlowmap", "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } },
+
+	{ "ln-v.sdr", "lbgsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
+		6, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } },
+
+	{ "ln-v.sdr", "lbnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
+		4, { "sBasemap", "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } },
+
+	{ "ln-v.sdr", "lbsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
+		5, { "sBasemap", "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } },
+
+	{ "lne-v.sdr", "lbgsnhe-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP | SDR_FLAG_ENV_MAP),
+		9, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
+
+	{ "lne-v.sdr", "lbsnhe-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP | SDR_FLAG_ENV_MAP),
+		8, { "sBasemap", "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
+
+	{ "lfn-v.sdr", "lfbgnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP| SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
+		5, { "sBasemap", "sGlowmap", "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } },
+
+	{ "lfn-v.sdr", "lfbgsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
+		6, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } },
+
+	{ "lfn-v.sdr", "lfbnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
+		4, { "sBasemap", "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } },
+
+	{ "lfn-v.sdr", "lfbsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
+		5, { "sBasemap", "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } },
+
+	{ "lfne-v.sdr", "lfbgsnhe-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP | SDR_FLAG_ENV_MAP),
+		9, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
+
+	{ "lfne-v.sdr", "lfbsnhe-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP | SDR_FLAG_ENV_MAP),
+		8, { "sBasemap", "sSpecmap", "sNormalmap", "sHeightmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights" }, 0, { NULL } },
+
+	{ "ln-v.sdr", "lgnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_GLOW_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
+		4, { "sGlowmap", "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } },
+
+	{ "ln-v.sdr", "lgsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_GLOW_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
+		5, { "sGlowmap", "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } },
+
+	{ "ln-v.sdr", "lnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
+		3, { "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } },
+
+	{ "ln-v.sdr", "lsnh-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_HEIGHT_MAP),
+		4, { "sSpecmap", "sNormalmap", "sHeightmap", "n_lights" }, 0, { NULL } }*/
+
 };
 
 static const int Num_shader_files = sizeof(GL_shader_file) / sizeof(opengl_shader_file_t);
@@ -258,7 +354,7 @@ void opengl_shader_set_current(opengl_shader_t *shader_obj)
 
 int opengl_shader_get_index(int flags)
 {
-	uint idx;
+	size_t idx;
 
 	for (idx = 0; idx < GL_shader.size(); idx++) {
 		if (GL_shader[idx].flags == flags) {
@@ -271,7 +367,7 @@ int opengl_shader_get_index(int flags)
 
 void opengl_shader_shutdown()
 {
-	uint i;
+	size_t i;
 
 	if ( !Use_GLSL ) {
 		return;
@@ -296,9 +392,7 @@ void opengl_shader_shutdown()
 
 static char *opengl_load_shader(char *filename, int flags, bool unified)
 {
-	std::string sflags;
-
-	//sflags += "#version 120\n";
+	SCP_string sflags;
 
 	if (Use_GLSL >= 4) {
 		sflags += "#define SHADER_MODEL 4\n";
@@ -344,9 +438,15 @@ static char *opengl_load_shader(char *filename, int flags, bool unified)
 		if (flags & SDR_FLAG_SPEC_MAP) {
 			sflags += "#define FLAG_SPEC_MAP\n";
 		}
+
+		if (flags & SDR_FLAG_ANIMATED) {
+			sflags += "#define FLAG_ANIMATED\n";
+		}
+
+		if (flags & SDR_FLAG_DISTORTION) {
+			sflags += "#define FLAG_DISTORTION\n";
+		}
 	}
-
-
 
 	const char *shader_flags = sflags.c_str();
 	int flags_len = strlen(shader_flags);
@@ -364,18 +464,16 @@ static char *opengl_load_shader(char *filename, int flags, bool unified)
 
 		return shader;	
 	} else {
-		mprintf(("Loading built-in default shader for: %s\n", filename));
+		mprintf(("   Loading built-in default shader for: %s\n", filename));
 		char* def_shader = defaults_get_file(filename);
 		size_t len = strlen(def_shader);
 		char *shader = (char*) vm_malloc(len + flags_len + 1);
 
 		strcpy(shader, shader_flags);
 		strcat(shader, def_shader);
-		//memset(shader + flags_len, 0, len + 1);
 
 		return shader;
 	}
-
 }
 
 void opengl_shader_init()
@@ -387,14 +485,25 @@ void opengl_shader_init()
 		return;
 	}
 
+	glGenTextures(1,&Framebuffer_fallback_texture_id);
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Framebuffer_fallback_texture_id);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	GLuint pixels[4] = {0,0,0,0};
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, &pixels);
+
 	if (Cmdline_no_glsl_model_rendering) {
 		Use_GLSL = 1;
 	} else {
 		// check if main shaders exist
 		bool main_vert = cf_exists_full("main-v.sdr", CF_TYPE_EFFECTS) != 0;
 		bool main_frag = cf_exists_full("main-f.sdr", CF_TYPE_EFFECTS) != 0;
-
-		GL_shader.reserve(Num_shader_files+1);
 
 		for (idx = 0; idx < Num_shader_files; idx++) {
 			bool in_error = false;
@@ -433,6 +542,13 @@ void opengl_shader_init()
 				frag_name = "main-f.sdr";
 			}
 
+			if ( shader_file->flags & SDR_FLAG_SOFT_QUAD ) {
+				// soft particles use their own shader files
+				vert_name = shader_file->vert;
+				frag_name = shader_file->frag;
+			}
+
+
 			mprintf(("  Compiling shader: %s (%s), %s (%s)\n", vert_name, GL_shader_file[idx].vert, frag_name, GL_shader_file[idx].frag ));
 
 			// read vertex shader
@@ -462,9 +578,14 @@ void opengl_shader_init()
 			opengl_shader_set_current( &new_shader );
 
 			new_shader.uniforms.reserve(shader_file->num_uniforms);
+			new_shader.attributes.reserve(shader_file->num_attributes);
 
 			for (i = 0; i < shader_file->num_uniforms; i++) {
 				opengl_shader_init_uniform( shader_file->uniforms[i] );
+			}
+
+			for ( i = 0; i < shader_file->num_attributes; i++ ) {
+				opengl_shader_init_attribute( shader_file->attributes[i] );
 			}
 
 			opengl_shader_set_current();
@@ -700,6 +821,44 @@ Done:
 	return program;
 }
 
+void opengl_shader_init_attribute(const char *attribute_text)
+{
+	opengl_shader_uniform_t new_attribute;
+
+	if ( ( Current_shader == NULL ) || ( attribute_text == NULL ) ) {
+		Int3();
+		return;
+	}
+
+	new_attribute.text_id = attribute_text;
+	new_attribute.location = vglGetAttribLocationARB(Current_shader->program_id, attribute_text);
+
+	if ( new_attribute.location < 0 ) {
+		nprintf(("SHADER-DEBUG", "WARNING: Unable to get shader attribute location for \"%s\"!\n", attribute_text));
+		return;
+	}
+
+	Current_shader->attributes.push_back( new_attribute );
+}
+
+GLint opengl_shader_get_attribute(const char *attribute_text)
+{
+	if ( (Current_shader == NULL) || (attribute_text == NULL) ) {
+		Int3();
+		return -1;
+	}
+
+	SCP_vector<opengl_shader_uniform_t>::iterator attribute;
+
+	for (attribute = Current_shader->attributes.begin(); attribute != Current_shader->attributes.end(); ++attribute) {
+		if ( !attribute->text_id.compare(attribute_text) ) {
+			return attribute->location;
+		}
+	}
+
+	return -1;
+}
+
 void opengl_shader_init_uniform(const char *uniform_text)
 {
 	opengl_shader_uniform_t new_uniform;
@@ -736,4 +895,25 @@ GLint opengl_shader_get_uniform(const char *uniform_text)
 	}
 
 	return -1;
+}
+
+void opengl_shader_set_animated_effect(int effect)
+{
+	Assert(effect > -1);
+	Effect_num = effect;
+}
+
+int opengl_shader_get_animated_effect()
+{
+	return Effect_num;
+}
+
+void opengl_shader_set_animated_timer(float timer)
+{
+	Anim_timer = timer;
+}
+
+float opengl_shader_get_animated_timer()
+{
+	return Anim_timer;
 }

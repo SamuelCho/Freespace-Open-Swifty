@@ -430,6 +430,18 @@ int check_for_eof()
 	return 0;
 }
 
+/**
+Returns 1 if it finds a newline character precded by any amount of grayspace.
+*/
+int check_for_eoln()
+{
+	ignore_gray_space();
+
+	if(*Mp == EOLN)
+		return 1;
+	else
+		return 0;
+}
 // similar to optional_string, but just checks if next token is a match.
 // It doesn't advance Mp except to skip past white space.
 //
@@ -2183,7 +2195,12 @@ int stuff_string_list(char slp[][NAME_LENGTH], int max_strings)
 		}
 		//Assert ( *Mp == '\"' );					// should always be enclosed in quotes
 
-		get_string( slp[count++] );
+		if (count < max_strings) {
+			get_string( slp[count++] );
+		} else {
+			char trash[NAME_LENGTH];
+			get_string( trash );
+		}
 		ignore_white_space();
 	}
 
@@ -2254,8 +2271,8 @@ int stuff_int_list(int *ilp, int max_ints, int lookup_type)
 				if (num == -1) {
 					Error(LOCATION, "Unable to find string \"%s\" in stuff_int_list\n\nMany possible sources for this error.  Get a programmer!\n", str);
 				} else if (num == -2) {
-					if (strlen(str) > 0) {
-						if(strlen(parse_error_text) > 0){
+					if (str[0] != '\0') {
+						if(parse_error_text[0] != '\0'){
 							Warning(LOCATION, "Unable to find WEAPON_LIST_TYPE string \"%s\" %s.\n", str, parse_error_text);
 						}else{
 							Warning(LOCATION, "Unable to find WEAPON_LIST_TYPE string \"%s\" in stuff_int_list\n\nMany possible sources for this error.  Get a programmer!\n", str);
@@ -2266,11 +2283,13 @@ int stuff_int_list(int *ilp, int max_ints, int lookup_type)
 				if (num < 0)  // other negatives used to bypass the above error trap, but should be -1
 					num = -1;
 
-				ilp[count++] = num;
+				if (count < max_ints) {
+					ilp[count++] = num;
+				}
 			}
 
 		} else {
-			if (ok_flag)
+			if (ok_flag && (count < max_ints))
 				stuff_int(&ilp[count++]);
 			else
 				stuff_int(&dummy);
@@ -2372,7 +2391,9 @@ int stuff_loadout_list (int *ilp, int max_ints, int lookup_type)
 		}
 		
 		// we've found a real item. Add its index to the list.
-		ilp[count++] = index;
+		if (count < max_ints) {
+			ilp[count++] = index;
+		}
 		
 		ignore_white_space();
 
@@ -2382,7 +2403,9 @@ int stuff_loadout_list (int *ilp, int max_ints, int lookup_type)
 		}
 		
 		// record the index of the variable that gave us this item if any
-		ilp[count++] = sexp_variable_index;
+		if (count < max_ints) {
+			ilp[count++] = sexp_variable_index;
+		}
 
 		// Now read in the number of this type available. The number must be positive
 		count = stuff_int_or_variable(ilp, count, true);
@@ -2410,7 +2433,12 @@ int stuff_float_list(float* flp, int max_floats)
 	while(*Mp != ')')
 	{
 		Assert(count < max_floats);
-		stuff_float(&flp[count++]);
+		if (count < max_floats) {
+			stuff_float(&flp[count++]);
+		} else {
+			float dummy;
+			stuff_float(&dummy);
+		}
 		ignore_white_space();
 	}
 
@@ -2470,7 +2498,9 @@ void mark_int_list(int *ilp, int max_ints, int lookup_type)
 
 			stuff_int(&tval);
 			Assert((tval >= 0) && (tval < max_ints));
-			ilp[tval] = 1;
+			if (tval >= 0 && tval < max_ints) {
+				ilp[tval] = 1;
+			}
 		}
 		
 		ignore_white_space();
@@ -2521,7 +2551,7 @@ int stuff_vector_list(vec3d *vlp, int max_vecs)
 	ignore_white_space();
 
 	if (*Mp != '(') {
-		error_display(1, "Reading integer list.  Found [%c].  Expecting '('.\n", *Mp);
+		error_display(1, "Reading vec3d list.  Found [%c].  Expecting '('.\n", *Mp);
 		longjmp(parse_abort, 6);
 	}
 
@@ -2531,7 +2561,12 @@ int stuff_vector_list(vec3d *vlp, int max_vecs)
 
 	while (*Mp != ')') {
 		Assert(count < max_vecs);
-		stuff_parenthesized_vector(&vlp[count++]);
+		if (count < max_vecs) {
+			stuff_parenthesized_vector(&vlp[count++]);
+		} else {
+			vec3d temp;
+			stuff_parenthesized_vector(&temp);
+		}
 		
 		ignore_white_space();
 	}
@@ -2541,6 +2576,32 @@ int stuff_vector_list(vec3d *vlp, int max_vecs)
 	return count;
 }
 
+// ditto the above, but a vector of vectors...
+int stuff_vector_list(SCP_vector<vec3d> &vec_list)
+{
+	ignore_white_space();
+
+	if (*Mp != '(') {
+		error_display(1, "Reading vec3d list.  Found [%c].  Expecting '('.\n", *Mp);
+		longjmp(parse_abort, 6);
+	}
+
+	Mp++;
+
+	ignore_white_space();
+
+	while (*Mp != ')') {
+		vec3d temp;
+		stuff_parenthesized_vector(&temp);
+		vec_list.push_back(temp);
+		
+		ignore_white_space();
+	}
+
+	Mp++;
+
+	return vec_list.size();
+}
 
 //	Stuff a matrix, which is 3 vectors.
 void stuff_matrix(matrix *mp)
@@ -2561,7 +2622,7 @@ int string_lookup(char *str1, char *strlist[], int max, char *description, int s
 	int	i;
 
 	for (i=0; i<max; i++) {
-		Assert(strlen(strlist[i]) != 0);
+		Assert(strlen(strlist[i]) != 0); //-V805
 
 		if (!stricmp(str1, strlist[i]))
 			return i;
@@ -2784,10 +2845,10 @@ char *split_str_once(char *src, int max_pixel_w)
 //	returns:			number of lines src is broken into
 //						-1 is returned when an error occurs
 //
-int split_str(char *src, int max_pixel_w, int *n_chars, char **p_str, int max_lines, char ignore_char)
+int split_str(const char *src, int max_pixel_w, int *n_chars, const char **p_str, int max_lines, char ignore_char)
 {
 	char buffer[SPLIT_STR_BUFFER_SIZE];
-	char *breakpoint = NULL;
+	const char *breakpoint = NULL;
 	int sw, new_line = 1, line_num = 0, last_was_white = 0;
 	int ignore_until_whitespace, buf_index;
 	
@@ -2871,7 +2932,7 @@ int split_str(char *src, int max_pixel_w, int *n_chars, char **p_str, int max_li
 	
 		gr_get_string_size(&sw, NULL, buffer);
 		if (sw >= max_pixel_w) {
-			char *end;
+			const char *end;
 
 			if (breakpoint) {
 				end = src = breakpoint;
@@ -2904,10 +2965,10 @@ int split_str(char *src, int max_pixel_w, int *n_chars, char **p_str, int max_li
 	return line_num;
 }
 
-int split_str(char *src, int max_pixel_w, SCP_vector<int> *n_chars, SCP_vector<char*> *p_str, char ignore_char)
+int split_str(const char *src, int max_pixel_w, SCP_vector<int> *n_chars, SCP_vector<const char*> *p_str, char ignore_char)
 {
 	char buffer[SPLIT_STR_BUFFER_SIZE];
-	char *breakpoint = NULL;
+	const char *breakpoint = NULL;
 	int sw, new_line = 1, line_num = 0, last_was_white = 0;
 	int ignore_until_whitespace = 0, buf_index = 0;
 	
@@ -2981,7 +3042,7 @@ int split_str(char *src, int max_pixel_w, SCP_vector<int> *n_chars, SCP_vector<c
 	
 		gr_get_string_size(&sw, NULL, buffer);
 		if (sw >= max_pixel_w) {
-			char *end;
+			const char *end;
 
 			if (breakpoint) {
 				end = src = breakpoint;

@@ -33,22 +33,30 @@
 #define AAV_VOICE		1
 #define AAV_EFFECTS		2
 
+/**
+ * Game level sound entities
+ */
 typedef struct game_snd
 {
-	int	sig;						// index number of sound in as specified in sounds.tbl
-	char	filename[MAX_FILENAME_LEN];
-	float	default_volume;		// range: 0.0 -> 1.0
-	int	min, max;				// min: distance at which sound will stop getting louder  max: distance at which sound is inaudible
-	int	preload;					// preload sound (ie read from disk before mission starts)
-	int	id;						// index into Sounds[], where sound data is stored
-	int	id_sig;					// signature of Sounds[] element
+	int	sig;						//!< index number of sound in as specified in sounds.tbl
+	char filename[MAX_FILENAME_LEN];
+	float default_volume;			//!<range: 0.0 -> 1.0
+	int	min;						//!<distance at which sound will stop getting louder
+	int max;						//!<distance at which sound is inaudible
+	int	preload;					//!< preload sound (ie read from disk before mission starts)
+	int	id;							//!< index into Sounds[], where sound data is stored
+	int	id_sig;						//!< signature of Sounds[] element
 	int	flags;
 
 	game_snd( )
-		: sig ( 0 ), default_volume( 0 ),
-		  preload( 0 ), id( 0 ), id_sig( 0 ), flags( 0 )
+		: sig ( -1 ),
+		  default_volume( 0 ),
+		  preload( 0 ),
+		  id( -1 ),
+		  id_sig( -1 ),
+		  flags( 0 )
 	{
-		filename[ 0 ] = NULL;
+		filename[0] = 0;
 		min = 0;
 		max = 0;
 	}
@@ -97,7 +105,7 @@ void snd_update_3d_pos(int soudnnum, game_snd *gs, vec3d *new_pos, float radius 
 // Use these for looping sounds.
 // Returns the handle of the sound. -1 if failed.
 // If startloop or stoploop are not -1, then then are used.
-int	snd_play_looping( game_snd *gs, float pan=0.0f, int start_loop=-1, int stop_loop=-1, float vol_scale=1.0f, int priority = SND_PRIORITY_MUST_PLAY, int force = 0 );
+int	snd_play_looping( game_snd *gs, float pan=0.0f, int start_loop=-1, int stop_loop=-1, float vol_scale=1.0f, int scriptingUpdateVolume = 1);
 
 void	snd_stop( int snd_handle );
 
@@ -157,12 +165,8 @@ int snd_time_remaining(int handle);
 
 int snd_get_samples_per_measure(char *filename, float num_measures);
 
-
 // sound environment
-
-
 extern unsigned int SND_ENV_DEFAULT;
-
 
 int sound_env_set(sound_env *se);
 int sound_env_get(sound_env *se, int preset = -1);

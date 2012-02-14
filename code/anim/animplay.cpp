@@ -741,8 +741,8 @@ anim *anim_load(char *real_filename, int cf_dir_type, int file_mapped)
 			ptr->keys[idx].frame_num = 0;
 			cfread(&ptr->keys[idx].frame_num, 2, 1, fp);
 			cfread(&ptr->keys[idx].offset, 4, 1, fp);
-			ptr->keys[idx].frame_num = INTEL_INT( ptr->keys[idx].frame_num );
-			ptr->keys[idx].offset = INTEL_INT( ptr->keys[idx].offset );
+			ptr->keys[idx].frame_num = INTEL_INT( ptr->keys[idx].frame_num ); //-V570
+			ptr->keys[idx].offset = INTEL_INT( ptr->keys[idx].offset ); //-V570
 		}
 
 		cfread(&count, 4, 1, fp);	// size of compressed data
@@ -840,14 +840,14 @@ int anim_free(anim *ptr)
 
 	if ( ptr->flags & (ANF_MEM_MAPPED|ANF_STREAMED) ) {
 		cfclose(ptr->cfile_ptr);
-		if ( ptr->cache ) {
+		if (ptr->cache != NULL) {
 			vm_free(ptr->cache);
 			ptr->cache = NULL;
 		}
 	}
 	else {
 		Assert(ptr->data);
-		if ( ptr->data ) {
+		if (ptr->data != NULL) {
 			vm_free(ptr->data);
 			ptr->data = NULL;
 		}

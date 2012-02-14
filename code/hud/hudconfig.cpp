@@ -181,7 +181,7 @@ int HUD_config_default_flags2 =
 // bits to tell whether a given gauge should be treated as pop-up or not
 int HUD_default_popup_mask =
 {
-	0	|											// (1<<HUD_LEAD_INDICATOR) |
+	0	|											// (1<<HUD_LEAD_INDICATOR) | //-V578
 	0	|											// (1<<HUD_ORIENTATION_TEE) |
 	0	|											//	(1<<HUD_HOSTILE_TRIANGLE) |
 	0	|											// (1<<HUD_TARGET_TRIANGLE) |
@@ -216,7 +216,7 @@ int HUD_default_popup_mask =
 
 int HUD_default_popup_mask2 =
 {
-	0  |											// offscreen indicator range
+	0  |											// offscreen indicator range //-V578
 	0	|
 	0											// kills gauge
 };
@@ -701,7 +701,6 @@ void hud_config_init_ui()
 	struct HC_gauge_region	*hg;
 	struct ui_button_info			*hb;
 
-//	common_set_interface_palette("HUDConfigPalette");  // set the interface palette
 	hud_config_synch_ui();
 	HC_background_bitmap = bm_load(Hud_config_fname[gr_screen.res]);
 
@@ -1227,7 +1226,7 @@ void hud_config_button_do(int n)
 		// get the text in the input control
 		exists = 0;
 		HC_fname_input.get_text(name);
-		if(strlen(name) > 0){
+		if(name[0] != '\0'){
 			// if the filename in there already exists
 			for(idx=0; idx<HC_num_files; idx++){
 				if(!stricmp(HC_filenames[idx], name)){

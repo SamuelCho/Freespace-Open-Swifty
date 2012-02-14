@@ -157,9 +157,9 @@ public:
 		UNREFERENCED_PARAMETER( error );
 	}
 
-	std::string DumpToString( )
+	SCP_string DumpToString( )
 	{
-		std::string callstack;
+		SCP_string callstack;
 		for ( size_t i = 0; i < m_stackFrames.size( ); i++ )
 		{
 			callstack += m_stackFrames[ i ].module + "! " + m_stackFrames[ i ].symbol + "\n";
@@ -170,8 +170,8 @@ public:
 private:
 	struct StackEntry
 	{
-		std::string module;
-		std::string symbol;
+		SCP_string module;
+		SCP_string symbol;
 	};
 
 	SCP_vector< StackEntry > m_stackFrames;
@@ -870,7 +870,7 @@ void _cdecl WinAssert(char * text, char * filename, int linenum )
 	SCP_DumpStack( dynamic_cast< SCP_IDumpHandler* >( &callStack ) );
 	
 	/* Format the string */
-	std::string assertString( AssertText1 );
+	SCP_string assertString( AssertText1 );
 	assertString += "\n";
 	assertString += callStack.DumpToString( );
 	
@@ -898,11 +898,8 @@ void _cdecl WinAssert(char * text, char * filename, int linenum )
 
 	if (val == IDCANCEL)
 		exit(1);
-#ifndef INTERPLAYQA
+
 	Int3();
-#else
-	AsmInt3();
-#endif
 
 	gr_activate(1);
 
@@ -938,7 +935,7 @@ void _cdecl WinAssert(char * text, char * filename, int linenum, const char * fo
 	SCP_DumpStack( dynamic_cast< SCP_IDumpHandler* >( &callStack ) );
 	
 	/* Format the string */
-	std::string assertString( AssertText1 );
+	SCP_string assertString( AssertText1 );
 	assertString += "\n";
 	assertString += callStack.DumpToString( );
 	
@@ -966,11 +963,8 @@ void _cdecl WinAssert(char * text, char * filename, int linenum, const char * fo
 
 	if (val == IDCANCEL)
 		exit(1);
-#ifndef INTERPLAYQA
+
 	Int3();
-#else
-	AsmInt3();
-#endif
 
 	gr_activate(1);
 
@@ -1117,7 +1111,7 @@ void _cdecl Error( const char * filename, int line, const char * format, ... )
 	SCP_DumpStack( dynamic_cast< SCP_IDumpHandler* >( &callStack ) );
 	
 	/* Format the string */
-	std::string assertString( AssertText1 );
+	SCP_string assertString( AssertText1 );
 	assertString += "\n";
 	assertString += callStack.DumpToString( );
 	
@@ -1151,11 +1145,7 @@ void _cdecl Error( const char * filename, int line, const char * format, ... )
 			exit(1);
 
 		default:
-#ifndef INTERPLAYQA
 			Int3();
-#else
-			AsmInt3();
-#endif
 			break;
 	}
 
@@ -1237,7 +1227,7 @@ void _cdecl Warning( char *filename, int line, const char *format, ... )
 	SCP_DumpStack( dynamic_cast< SCP_IDumpHandler* >( &callStack ) );
 	
 	/* Format the string */
-	std::string assertString( AssertText1 );
+	SCP_string assertString( AssertText1 );
 	assertString += "\n";
 	assertString += callStack.DumpToString( );
 	
@@ -1273,11 +1263,7 @@ void _cdecl Warning( char *filename, int line, const char *format, ... )
 	switch (result)
 	{
 		case IDYES:
-#ifndef INTERPLAYQA
 			Int3();
-#else
-			AsmInt3();
-#endif
 			break;
 
 		case IDNO:

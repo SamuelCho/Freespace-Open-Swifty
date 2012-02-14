@@ -9,7 +9,6 @@
 
 
 
-
 #include "object/objcollide.h"
 #include "object/object.h"
 #include "weapon/weapon.h"
@@ -17,13 +16,15 @@
 #include "parse/lua.h"
 #include "parse/scripting.h"
 #include "freespace2/freespace.h"
+#include "stats/scoring.h"
+#include "network/multi.h"
 
 
-// moved to ai_profiles.tbl
-//#define	BOMB_ARM_TIME	1.5f
-
-// Checks weapon-weapon collisions.  pair->a and pair->b are weapons.
-// Returns 1 if all future collisions between these can be ignored
+/**
+ * Checks weapon-weapon collisions.  
+ * @param pair obj_pair pointer to the two objects. pair->a and pair->b are weapons.
+ * @return 1 if all future collisions between these can be ignored
+ */
 int collide_weapon_weapon( obj_pair * pair )
 {
 	float A_radius, B_radius;
@@ -53,10 +54,6 @@ int collide_weapon_weapon( obj_pair * pair )
 
 	A_radius = A->radius;
 	B_radius = B->radius;
-
-	// UnknownPlayer : Should we even be bothering with collision detection is neither one of these is a bomb?
-
-	//WMC - Here's a reason why...scripting now!
 
 	if (wipA->weapon_hitpoints > 0) {
 		if (!(wipA->wi_flags2 & WIF2_HARD_TARGET_BOMB)) {
@@ -92,9 +89,14 @@ int collide_weapon_weapon( obj_pair * pair )
 			sap = &Ships[Objects[A->parent].instance];
 			sbp = &Ships[Objects[B->parent].instance];
 
-			// MWA -- commented out next line because it was too long for output window on occation.
-			// Yes -- I should fix the output window, but I don't have time to do it now.
-			//nprintf(("AI", "[%s] %s's missile %i shot down by [%s] %s's laser %i\n", Iff_info[sbp->team].iff_name, sbp->ship_name, B->instance, Iff_info[sap->team].iff_name, sap->ship_name, A->instance));
+			float aDamage = wipA->damage;
+			if (wipB->armor_type_idx >= 0)
+				aDamage = Armor_types[wipB->armor_type_idx].GetDamage(aDamage, wipA->damage_type_idx);
+
+			float bDamage = wipB->damage;
+			if (wipA->armor_type_idx >= 0)
+				bDamage = Armor_types[wipA->armor_type_idx].GetDamage(bDamage, wipB->damage_type_idx);
+
 			if (wipA->weapon_hitpoints > 0) {
 				if (wipB->weapon_hitpoints > 0) {		//	Two bombs collide, detonate both.
 					if ((wipA->wi_flags & WIF_BOMB) && (wipB->wi_flags & WIF_BOMB)) {
@@ -103,8 +105,8 @@ int collide_weapon_weapon( obj_pair * pair )
 						Weapons[A->instance].weapon_flags |= WF_DESTROYED_BY_WEAPON;
 						Weapons[B->instance].weapon_flags |= WF_DESTROYED_BY_WEAPON;
 					} else {
-						A->hull_strength -= wipB->damage;
-						B->hull_strength -= wipA->damage;
+						A->hull_strength -= bDamage;
+						B->hull_strength -= aDamage;
 
 						// safety to make sure either of the weapons die - allow 'bulkier' to keep going
 						if ((A->hull_strength > 0.0f) && (B->hull_strength > 0.0f)) {
@@ -119,14 +121,13 @@ int collide_weapon_weapon( obj_pair * pair )
 							Weapons[A->instance].lifeleft = 0.01f;
 							Weapons[A->instance].weapon_flags |= WF_DESTROYED_BY_WEAPON;
 						}
-						B->hull_strength -= wipA->damage;
 						if (B->hull_strength < 0.0f) {
 							Weapons[B->instance].lifeleft = 0.01f;
 							Weapons[B->instance].weapon_flags |= WF_DESTROYED_BY_WEAPON;
 						}
 					}
 				} else {
-					A->hull_strength -= wipB->damage;
+					A->hull_strength -= bDamage;
 					Weapons[B->instance].lifeleft = 0.01f;
 					Weapons[B->instance].weapon_flags |= WF_DESTROYED_BY_WEAPON;
 					if (A->hull_strength < 0.0f) {
@@ -135,7 +136,7 @@ int collide_weapon_weapon( obj_pair * pair )
 					}
 				}
 			} else if (wipB->weapon_hitpoints > 0) {
-				B->hull_strength -= wipA->damage;
+				B->hull_strength -= aDamage;
 				Weapons[A->instance].lifeleft = 0.01f;
 				Weapons[A->instance].weapon_flags |= WF_DESTROYED_BY_WEAPON;
 				if (B->hull_strength < 0.0f) {
@@ -143,16 +144,31 @@ int collide_weapon_weapon( obj_pair * pair )
 					Weapons[B->instance].weapon_flags |= WF_DESTROYED_BY_WEAPON;
 				}
 			}
+
+			// single player and multiplayer masters evaluate the scoring and kill stuff
+			if (!MULTIPLAYER_CLIENT) {
+
+				//Save damage for bomb so we can do scoring once it's destroyed. -Halleck
+				if (wipA->wi_flags & WIF_BOMB) {
+					scoring_add_damage_to_weapon(A, B, wipB->damage);
+					//Update stats. -Halleck
+					scoring_eval_hit(A, B, 0);
+				}
+				if (wipB->wi_flags & WIF_BOMB) {
+					scoring_add_damage_to_weapon(B, A, wipA->damage);
+					//Update stats. -Halleck
+					scoring_eval_hit(B, A, 0);
+				}
+			}
+
 	#ifndef NDEBUG
 			float dist = 0.0f;
 
 			if (Weapons[A->instance].lifeleft == 0.01f) {
 				dist = vm_vec_dist_quick(&A->pos, &wpA->homing_pos);
-				//nprintf(("AI", "Frame %i: Weapon %s shot down. Dist: %.1f, inner: %.0f, outer: %.0f\n", Framecount, wipA->name, dist, wipA->inner_radius, wipA->outer_radius));
 			}
 			if (Weapons[B->instance].lifeleft == 0.01f) {
 				dist = vm_vec_dist_quick(&A->pos, &wpB->homing_pos);
-				//nprintf(("AI", "Frame %i: Weapon %s shot down. Dist: %.1f, inner: %.0f, outer: %.0f\n", Framecount, wipB->name, dist, wipB->inner_radius, wipB->outer_radius));
 			}
 	#endif
 		}
@@ -164,7 +180,7 @@ int collide_weapon_weapon( obj_pair * pair )
 		}
 		if((b_override && !a_override) || (!b_override && !a_override))
 		{
-			//SHould be reversed
+			//Should be reversed
 			Script_system.SetHookObjects(4, "Weapon", B, "WeaponB", A, "Self",B, "Object", A);
 			Script_system.RunCondition(CHA_COLLIDEWEAPON, '\0', NULL, B);
 		}

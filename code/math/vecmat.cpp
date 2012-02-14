@@ -173,21 +173,6 @@ void vm_vec_sub2(vec3d *dest,vec3d *src)
 }
 #endif
 
-
-void vm_vert2vec(vertex *vert, vec3d *vec)	//takes a vertex and makes it into a vector-Bobboau
-{
-	vec->xyz.x = vert->x;
-	vec->xyz.y = vert->y;
-	vec->xyz.z = vert->z;
-}
-
-void vm_vec2vert(vec3d *vec, vertex *vert)	//takes a vector and makes it into a vertex-Bobboau
-{
-	vert->x = vec->xyz.x;
-	vert->y = vec->xyz.y;
-	vert->z = vec->xyz.z;
-}
-
 //averages n vectors. returns ptr to dest
 //dest can equal either source
 vec3d *vm_vec_avg_n(vec3d *dest, int n, vec3d src[])
@@ -636,6 +621,10 @@ float vm_vec_normalized_dir_quick_mag(vec3d *dest,vec3d *end,vec3d *start)
 //dest CANNOT equal either source
 vec3d *vm_vec_normal(vec3d *dest,vec3d *p0,vec3d *p1,vec3d *p2)
 {
+	Assert(dest != p0);
+	Assert(dest != p1);
+	Assert(dest != p2);
+
 	vm_vec_perp(dest,p0,p1,p2);
 
 	vm_vec_normalize(dest);
@@ -673,6 +662,10 @@ int vm_test_parallel(vec3d *src0, vec3d *src1)
 //dest CANNOT equal either source
 vec3d *vm_vec_perp(vec3d *dest,vec3d *p0,vec3d *p1,vec3d *p2)
 {
+	Assert(dest != p0);
+	Assert(dest != p1);
+	Assert(dest != p2);
+
 	vec3d t0,t1;
 
 	vm_vec_sub(&t0,p1,p0);
@@ -938,6 +931,8 @@ matrix *vm_vector_2_matrix_norm(matrix *m,vec3d *fvec,vec3d *uvec,vec3d *rvec)
 // also be a normalized vector.  It took me awhile to verify online that this was true. ;)
 vec3d *vm_vec_rotate(vec3d *dest,vec3d *src,matrix *m)
 {
+	Assert(dest != src);
+
 	dest->xyz.x = (src->xyz.x*m->vec.rvec.xyz.x)+(src->xyz.y*m->vec.rvec.xyz.y)+(src->xyz.z*m->vec.rvec.xyz.z);
 	dest->xyz.y = (src->xyz.x*m->vec.uvec.xyz.x)+(src->xyz.y*m->vec.uvec.xyz.y)+(src->xyz.z*m->vec.uvec.xyz.z);
 	dest->xyz.z = (src->xyz.x*m->vec.fvec.xyz.x)+(src->xyz.y*m->vec.fvec.xyz.y)+(src->xyz.z*m->vec.fvec.xyz.z);
@@ -962,6 +957,8 @@ vec3d *vm_vec_rotate(vec3d *dest,vec3d *src,matrix *m)
 // also be a normalized vector.  It took me awhile to verify online that this was true. ;)
 vec3d *vm_vec_unrotate(vec3d *dest,vec3d *src,matrix *m)
 {
+	Assert(dest != src);
+
 	dest->xyz.x = (src->xyz.x*m->vec.rvec.xyz.x)+(src->xyz.y*m->vec.uvec.xyz.x)+(src->xyz.z*m->vec.fvec.xyz.x);
 	dest->xyz.y = (src->xyz.x*m->vec.rvec.xyz.y)+(src->xyz.y*m->vec.uvec.xyz.y)+(src->xyz.z*m->vec.fvec.xyz.y);
 	dest->xyz.z = (src->xyz.x*m->vec.rvec.xyz.z)+(src->xyz.y*m->vec.uvec.xyz.z)+(src->xyz.z*m->vec.fvec.xyz.z);
@@ -985,19 +982,18 @@ matrix *vm_transpose_matrix(matrix *m)
 //dest CANNOT equal source. use vm_transpose_matrix() if this is the case
 matrix *vm_copy_transpose_matrix(matrix *dest,matrix *src)
 {
-
 	Assert(dest != src);
 
 	dest->vec.rvec.xyz.x = src->vec.rvec.xyz.x;
 	dest->vec.rvec.xyz.y = src->vec.uvec.xyz.x;
 	dest->vec.rvec.xyz.z = src->vec.fvec.xyz.x;
 
-	dest->vec.uvec.xyz.x = src->vec.rvec.xyz.y;
+	dest->vec.uvec.xyz.x = src->vec.rvec.xyz.y; //-V537
 	dest->vec.uvec.xyz.y = src->vec.uvec.xyz.y;
-	dest->vec.uvec.xyz.z = src->vec.fvec.xyz.y;
+	dest->vec.uvec.xyz.z = src->vec.fvec.xyz.y; //-V537
 
 	dest->vec.fvec.xyz.x = src->vec.rvec.xyz.z;
-	dest->vec.fvec.xyz.y = src->vec.uvec.xyz.z;
+	dest->vec.fvec.xyz.y = src->vec.uvec.xyz.z; //-V537
 	dest->vec.fvec.xyz.z = src->vec.fvec.xyz.z;
 
 
@@ -1008,7 +1004,6 @@ matrix *vm_copy_transpose_matrix(matrix *dest,matrix *src)
 //dest CANNOT equal either source
 matrix *vm_matrix_x_matrix(matrix *dest,matrix *src0,matrix *src1)
 {
-
 	Assert(dest!=src0 && dest!=src1);
 
 	dest->vec.rvec.xyz.x = vm_vec_dot3(src0->vec.rvec.xyz.x,src0->vec.uvec.xyz.x,src0->vec.fvec.xyz.x, &src1->vec.rvec);
@@ -1022,7 +1017,6 @@ matrix *vm_matrix_x_matrix(matrix *dest,matrix *src0,matrix *src1)
 	dest->vec.rvec.xyz.z = vm_vec_dot3(src0->vec.rvec.xyz.z,src0->vec.uvec.xyz.z,src0->vec.fvec.xyz.z, &src1->vec.rvec);
 	dest->vec.uvec.xyz.z = vm_vec_dot3(src0->vec.rvec.xyz.z,src0->vec.uvec.xyz.z,src0->vec.fvec.xyz.z, &src1->vec.uvec);
 	dest->vec.fvec.xyz.z = vm_vec_dot3(src0->vec.rvec.xyz.z,src0->vec.uvec.xyz.z,src0->vec.fvec.xyz.z, &src1->vec.fvec);
-
 
 	return dest;
 }
@@ -1172,12 +1166,12 @@ void vm_vec_outer_product(matrix *mat, vec3d *vec)
 	mat->vec.rvec.xyz.y = vec->xyz.x * vec->xyz.y;
 	mat->vec.rvec.xyz.z = vec->xyz.x * vec->xyz.z;
 
-	mat->vec.uvec.xyz.x = vec->xyz.y * vec->xyz.x;
+	mat->vec.uvec.xyz.x = vec->xyz.y * vec->xyz.x; //-V537
 	mat->vec.uvec.xyz.y = vec->xyz.y * vec->xyz.y;
-	mat->vec.uvec.xyz.z = vec->xyz.y * vec->xyz.z;
+	mat->vec.uvec.xyz.z = vec->xyz.y * vec->xyz.z; //-V537
 
 	mat->vec.fvec.xyz.x = vec->xyz.z * vec->xyz.x;
-	mat->vec.fvec.xyz.y = vec->xyz.z * vec->xyz.y;
+	mat->vec.fvec.xyz.y = vec->xyz.z * vec->xyz.y; //-V537
 	mat->vec.fvec.xyz.z = vec->xyz.z * vec->xyz.z;
 }
 
@@ -1261,7 +1255,7 @@ void vm_orthogonalize_matrix(matrix *m_src)
 	if (vm_vec_normalize(&m->vec.rvec) == 0.0f)
 		Error( LOCATION, "Bad vector!" );
 
-	//now recompute up vector, in case it wasn't entirely perpendiclar
+	//now recompute up vector, in case it wasn't entirely perpendicular
 	vm_vec_crossprod(&m->vec.uvec, &m->vec.fvec, &m->vec.rvec);
 	*m_src = tempm;
 }

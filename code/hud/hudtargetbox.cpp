@@ -9,7 +9,6 @@
 
 
 
-
 #include "hud/hudtargetbox.h"
 #include "object/object.h"
 #include "hud/hud.h"
@@ -35,6 +34,7 @@
 #include "species_defs/species_defs.h"
 #include "iff_defs/iff_defs.h"
 #include "network/multi.h"
+#include "graphics/gropenglshader.h"
 
 #ifndef NDEBUG
 #include "hud/hudets.h"
@@ -103,6 +103,7 @@ int Cargo_scan_coords[GR_NUM_RESOLUTIONS][4] = {
 int Targetbox_flash_timers[NUM_TBOX_FLASH_TIMERS];
 
 int Targetbox_wire = 0;
+int Targetbox_shader_effect = -1;
 bool Lock_targetbox_mode = false;
 
 // Different target states.  This drives the text display right below the hull integrity on the targetbox.
@@ -114,7 +115,9 @@ bool Lock_targetbox_mode = false;
 static int Current_ts; // holds current target status
 static int Last_ts;	// holds last target status.
 
-// cut down long subsystem names to a more manageable length
+/**
+ * @note Cut down long subsystem names to a more manageable length
+ */
 void hud_targetbox_truncate_subsys_name(char *outstr)
 {	
 	if(Lcl_gr){
@@ -175,7 +178,7 @@ void hud_targetbox_truncate_subsys_name(char *outstr)
 }
 
 HudGaugeTargetBox::HudGaugeTargetBox():
-HudGauge(HUD_OBJECT_TARGET_MONITOR, HUD_TARGET_MONITOR, true, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY), 255, 255, 255)
+HudGauge(HUD_OBJECT_TARGET_MONITOR, HUD_TARGET_MONITOR, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY), 255, 255, 255)
 {
 }
 
@@ -278,6 +281,8 @@ void HudGaugeTargetBox::initialize()
 	for(int i = 0; i < NUM_TBOX_FLASH_TIMERS; i++) {
 		initFlashTimer(i);
 	}
+
+	HudGauge::initialize();
 }
 
 void HudGaugeTargetBox::initFlashTimer(int index)
@@ -325,13 +330,11 @@ void HudGaugeTargetBox::render(float frametime)
 			break;
 
 		default:
-			// Error(LOCATION, "Trying to show object type %d on target monitor\n", target_objp->type);
 			hud_cease_targeting();
 			break;
 	} // end switch
 
 	if ( Target_static_playing ) {
-		// hud_set_default_color();
 		setGaugeColor();
 		gr_set_screen_scale(base_w, base_h);
 		hud_anim_render(&Monitor_static, frametime, 1);
@@ -343,7 +346,6 @@ void HudGaugeTargetBox::render(float frametime)
 	if(Target_display_cargo) {
 		// Print out what the cargo is
 		if ( maybeFlashSexp() == 1 ) {
-			// hud_set_bright_color();
 			setGaugeColor(HUD_C_BRIGHT);
 		} else {
 			maybeFlashElement(TBOX_FLASH_CARGO);
@@ -360,7 +362,9 @@ void HudGaugeTargetBox::renderTargetForeground()
 	renderBitmap(Monitor_frame.first_frame+1, position[0], position[1]);	
 }
 
-// call to draw the integrity bar that is on the right of the target monitor
+/**
+ * Draw the integrity bar that is on the right of the target monitor
+ */
 void HudGaugeTargetBox::renderTargetIntegrity(int disabled,int force_obj_num)
 {
 	object	*objp;
@@ -379,8 +383,6 @@ void HudGaugeTargetBox::renderTargetIntegrity(int disabled,int force_obj_num)
 		Assert(Player_ai->target_objnum >= 0 );
 		objp = &Objects[Player_ai->target_objnum];
 	} else {
-		// Goober5000: what the... this probably should be changed
-		//objp = &Objects[Player_ai->target_objnum];
 		objp = &Objects[force_obj_num];
 	}
 
@@ -479,37 +481,48 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 		// the objects position
 		vm_vec_copy_scale(&obj_pos,&orient_vec,factor);
 
-		// set camera eye to eye of ship relative to origin
-	//	hud_targetbox_get_eye(&camera_eye, &camera_orient, Player_obj->instance);
-
 		// RT, changed scaling here
 		renderTargetSetup(&camera_eye, &camera_orient, target_sip->closeup_zoom);
-		// model_clear_instance(target_shipp->modelnum);
 		ship_model_start( target_objp );
 
-		if (Targetbox_wire!=0)
-		{
-			int is_bright = 1;
+		switch (Targetbox_wire) {
+			case 0:
+				flags |= MR_NO_LIGHTING;
 
-			if (ship_is_tagged(target_objp))
-				model_set_outline_color_fast(iff_get_color(IFF_COLOR_TAGGED, is_bright));
-			else
-			{
-				model_set_outline_color_fast(iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, is_bright, target_objp));
-			}
+				break;
+			case 1:
+				if (ship_is_tagged(target_objp))
+					model_set_outline_color_fast(iff_get_color(IFF_COLOR_TAGGED, true));
+				else
+					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, true, target_objp));
 
-			flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
+				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
+				flags |= MR_NO_POLYS | MR_NO_LIGHTING;
 
-			if (Targetbox_wire==1)
-				flags |=MR_NO_POLYS;
+				break;
+			case 2:
+				break;
+			case 3:
+				if (ship_is_tagged(target_objp))
+					model_set_outline_color_fast(iff_get_color(IFF_COLOR_TAGGED, true));
+				else
+					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, true, target_objp));
+
+				flags |= MR_NO_LIGHTING | MR_NO_TEXTURING;
+
+				break;
 		}
 
 		if (target_sip->hud_target_lod >= 0) {
 			model_set_detail_level(target_sip->hud_target_lod);
 		}
 
-		if(Targetbox_wire != 2) flags |= MR_NO_LIGHTING;
-		
+		if(Targetbox_shader_effect > -1) {
+			flags |= MR_ANIMATED_SHADER;
+
+			opengl_shader_set_animated_effect(Targetbox_shader_effect);
+		}
+
 		// maybe render a special hud-target-only model
 		if(target_sip->model_num_hud >= 0){
 			model_render( target_sip->model_num_hud, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING);
@@ -558,7 +571,9 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 	maybeRenderCargoScan(target_sip);
 }
 
-// formerly hud_render_target_debris(object *target_objp) (Swifty)
+/**
+ * @note formerly hud_render_target_debris(object *target_objp) (Swifty)
+ */
 void HudGaugeTargetBox::renderTargetDebris(object *target_objp)
 {
 	vec3d	obj_pos = ZERO_VECTOR;
@@ -572,7 +587,6 @@ void HudGaugeTargetBox::renderTargetDebris(object *target_objp)
 
 	debrisp = &Debris[target_objp->instance];
 
-	//target_sip = &Ship_info[debrisp->ship_info_index];
 	target_team = obj_team(target_objp);
 
 	if ( Detail.targetview_model )	{
@@ -590,19 +604,37 @@ void HudGaugeTargetBox::renderTargetDebris(object *target_objp)
 		// the objects position
 		vm_vec_copy_scale(&obj_pos,&orient_vec,factor);
 
-		if (Targetbox_wire!=0)
-		{
-			model_set_outline_color(255,255,255);
-			flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
-
-			if (Targetbox_wire==1)
-				flags |=MR_NO_POLYS;
-		}
 		renderTargetSetup(&camera_eye, &camera_orient, 0.5f);
 		model_clear_instance(debrisp->model_num);
 
-		if(Targetbox_wire != 2) flags |= MR_NO_LIGHTING;
-		
+		switch (Targetbox_wire) {
+			case 0:
+				flags |= MR_NO_LIGHTING;
+
+				break;
+			case 1:
+				model_set_outline_color(255,255,255);
+
+				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
+				flags |= MR_NO_POLYS | MR_NO_LIGHTING;
+
+				break;
+			case 2:
+				break;
+			case 3:
+				model_set_outline_color(255,255,255);
+
+				flags |= MR_NO_LIGHTING | MR_NO_TEXTURING;
+
+				break;
+		}
+
+		if(Targetbox_shader_effect > -1) {
+			flags |= MR_ANIMATED_SHADER;
+
+			opengl_shader_set_animated_effect(Targetbox_shader_effect);
+		}
+
 		// This calls the colour that doesn't get reset
 		submodel_render( debrisp->model_num, debrisp->submodel_num, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_NO_FOGGING );
 		renderTargetClose();
@@ -623,7 +655,9 @@ void HudGaugeTargetBox::renderTargetDebris(object *target_objp)
 	renderString(position[0] + Name_offsets[0], position[1] + Name_offsets[1], EG_TBOX_NAME, XSTR("Debris", 348));	
 }
 
-// formerly hud_render_target_weapon(object *target_objp)
+/**
+ * @note Formerly hud_render_target_weapon(object *target_objp)
+ */
 void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 {
 	vec3d		obj_pos = ZERO_VECTOR;
@@ -675,19 +709,6 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 			hud_target_lod		= homing_sip->hud_target_lod;
 		}
 
-		if (Targetbox_wire!=0)
-		{
-			int is_bright = 0;
-
-			model_set_outline_color_fast(iff_get_color_by_team_and_object(target_team, Player_ship->team, is_bright, target_objp));
-
-			flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
-
-			if (Targetbox_wire==1)
-				flags |=MR_NO_POLYS;
-		}
-			
-
 		// take the forward orientation to be the vector from the player to the current target
 		vm_vec_sub(&orient_vec, &viewed_obj->pos, &viewer_obj->pos);
 		vm_vec_normalize(&orient_vec);
@@ -705,16 +726,41 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 		// the objects position
 		vm_vec_copy_scale(&obj_pos,&orient_vec,factor);
 
-		//hud_render_target_setup(&camera_eye, &camera_orient, View_zoom/3);
 		renderTargetSetup(&camera_eye, &camera_orient, View_zoom/3);
 		model_clear_instance(viewed_model_num);
+
+		switch (Targetbox_wire) {
+			case 0:
+				flags |= MR_NO_LIGHTING;
+
+				break;
+			case 1:
+				model_set_outline_color_fast(iff_get_color_by_team_and_object(target_team, Player_ship->team, 0, target_objp));
+
+				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
+				flags |= MR_NO_POLYS | MR_NO_LIGHTING;
+
+				break;
+			case 2:
+				break;
+			case 3:
+				model_set_outline_color_fast(iff_get_color_by_team_and_object(target_team, Player_ship->team, 0, target_objp));
+
+				flags |= MR_NO_LIGHTING | MR_NO_TEXTURING;
+
+				break;
+		}
 
 		if (hud_target_lod >= 0) {
 			model_set_detail_level(hud_target_lod);
 		}
 
-		if(Targetbox_wire != 2) flags |= MR_NO_LIGHTING;
-		
+		if(Targetbox_shader_effect > -1) {
+			flags |= MR_ANIMATED_SHADER;
+
+			opengl_shader_set_animated_effect(Targetbox_shader_effect);
+		}
+
 		model_render( viewed_model_num, &viewed_obj->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_IS_MISSILE | MR_NO_FOGGING, -1, -1, replacement_textures);
 		renderTargetClose();
 	}
@@ -748,7 +794,9 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 	}
 }
 
-// formerly hud_render_target_asteroid(object *target_objp)
+/**
+ * @note Formerly hud_render_target_asteroid(object *target_objp)
+ */
 void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 {
 	vec3d		obj_pos = ZERO_VECTOR;
@@ -784,25 +832,43 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 		// the objects position
 		vm_vec_copy_scale(&obj_pos,&orient_vec,factor);
 
-		//hud_render_target_setup(&camera_eye, &camera_orient, 0.5f);
 		renderTargetSetup(&camera_eye, &camera_orient, 0.5f);
 		model_clear_instance(Asteroid_info[asteroidp->asteroid_type].model_num[pof]);
 		
-		if (Targetbox_wire!=0)
-		{
-			if (time_to_impact>=0)
-				model_set_outline_color(255,255,255);
-			else
-				model_set_outline_color(64,64,0);
+		switch (Targetbox_wire) {
+			case 0:
+				flags |= MR_NO_LIGHTING;
 
-			flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
+				break;
+			case 1:
+				if (time_to_impact>=0)
+					model_set_outline_color(255,255,255);
+				else
+					model_set_outline_color(64,64,0);
 
-			if (Targetbox_wire==1)
-				flags |=MR_NO_POLYS;
+				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
+				flags |= MR_NO_POLYS | MR_NO_LIGHTING;
+
+				break;
+			case 2:
+				break;
+			case 3:
+				if (time_to_impact>=0)
+					model_set_outline_color(255,255,255);
+				else
+					model_set_outline_color(64,64,0);
+
+				flags |= MR_NO_LIGHTING | MR_NO_TEXTURING;
+
+				break;
 		}
 
-		if(Targetbox_wire != 2) flags |= MR_NO_LIGHTING;
-		
+		if(Targetbox_shader_effect > -1) {
+			flags |= MR_ANIMATED_SHADER;
+
+			opengl_shader_set_animated_effect(Targetbox_shader_effect);
+		}
+
 		model_render(Asteroid_info[asteroidp->asteroid_type].model_num[pof], &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_NO_FOGGING );
 		renderTargetClose();
 	}
@@ -832,8 +898,10 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 	}
 }
 
-// Render a jump node on the target monitor
-// formerly hud_render_target_jump_node(object *target_objp)
+/**
+ * Render a jump node on the target monitor
+ * @note Formerly hud_render_target_jump_node(object *target_objp)
+ */
 void HudGaugeTargetBox::renderTargetJumpNode(object *target_objp)
 {
 	char			outstr[256];
@@ -843,76 +911,91 @@ void HudGaugeTargetBox::renderTargetJumpNode(object *target_objp)
 	vec3d		orient_vec, up_vector;
 	float			factor, dist;
 	int			hx, hy, w, h;
-
-	if ( target_objp->jnp->is_hidden() ) {
-		set_target_objnum( Player_ai, -1 );
-		return;
-	}
-
-	if ( Detail.targetview_model )	{
-		// take the forward orientation to be the vector from the player to the current target
-		vm_vec_sub(&orient_vec, &target_objp->pos, &Player_obj->pos);
-		vm_vec_normalize(&orient_vec);
-
-		factor = target_objp->radius*4.0f;
-
-		// use the player's up vector, and construct the viewers orientation matrix
-		up_vector = Player_obj->orient.vec.uvec;
-		vm_vector_2_matrix(&camera_orient,&orient_vec,&up_vector,NULL);
-
-		// normalize the vector from the player to the current target, and scale by a factor to calculate
-		// the objects position
-		vm_vec_copy_scale(&obj_pos,&orient_vec,factor);
-
-		//hud_render_target_setup(&camera_eye, &camera_orient, 0.5f);
-		renderTargetSetup(&camera_eye, &camera_orient, 0.5f);
-		target_objp->jnp->render( &obj_pos );
-		renderTargetClose();
-	}
-
-	renderTargetForeground();
-	renderTargetIntegrity(1);
-	// hud_set_default_color();
-	setGaugeColor();
-
-	renderString(position[0] + Name_offsets[0], position[1] + Name_offsets[1], EG_TBOX_NAME, target_objp->jnp->get_name_ptr());	
-
-	dist = vm_vec_dist_quick(&target_objp->pos, &Player_obj->pos);
-	if ( Hud_unit_multiplier > 0.0f ) {	// use a different displayed distance scale
-		dist = dist * Hud_unit_multiplier;
-	}
-
-	// account for hud shaking
-	hx = fl2i(HUD_offset_x);
-	hy = fl2i(HUD_offset_y);
-
-	sprintf(outstr,XSTR( "d: %.0f", 340), dist);
-	hud_num_make_mono(outstr);
-	gr_get_string_size(&w,&h,outstr);
+	SCP_list<jump_node>::iterator jnp;
 	
-	renderPrintf(position[0] + Dist_offsets[0]+hx, position[1] + Dist_offsets[1]+hy, EG_TBOX_DIST, outstr);	
+	for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
+		if(jnp->get_obj() != target_objp)
+			continue;
+	
+		if ( jnp->is_hidden() ) {
+			set_target_objnum( Player_ai, -1 );
+			return;
+		}
+
+		if ( Detail.targetview_model )	{
+			// take the forward orientation to be the vector from the player to the current target
+			vm_vec_sub(&orient_vec, &target_objp->pos, &Player_obj->pos);
+			vm_vec_normalize(&orient_vec);
+
+			factor = target_objp->radius*4.0f;
+
+			// use the player's up vector, and construct the viewers orientation matrix
+			up_vector = Player_obj->orient.vec.uvec;
+			vm_vector_2_matrix(&camera_orient,&orient_vec,&up_vector,NULL);
+
+			// normalize the vector from the player to the current target, and scale by a factor to calculate
+			// the objects position
+			vm_vec_copy_scale(&obj_pos,&orient_vec,factor);
+
+			renderTargetSetup(&camera_eye, &camera_orient, 0.5f);
+			jnp->render( &obj_pos );
+			renderTargetClose();
+		}
+
+		renderTargetForeground();
+		renderTargetIntegrity(1);
+		setGaugeColor();
+
+		strcpy_s(outstr, jnp->get_name_ptr());
+		end_string_at_first_hash_symbol(outstr);
+		renderString(position[0] + Name_offsets[0], position[1] + Name_offsets[1], EG_TBOX_NAME, outstr);	
+
+		dist = vm_vec_dist_quick(&target_objp->pos, &Player_obj->pos);
+		if ( Hud_unit_multiplier > 0.0f ) {	// use a different displayed distance scale
+			dist = dist * Hud_unit_multiplier;
+		}
+
+		// account for hud shaking
+		hx = fl2i(HUD_offset_x);
+		hy = fl2i(HUD_offset_y);
+
+		sprintf(outstr,XSTR( "d: %.0f", 340), dist);
+		hud_num_make_mono(outstr);
+		gr_get_string_size(&w,&h,outstr);
+	
+		renderPrintf(position[0] + Dist_offsets[0]+hx, position[1] + Dist_offsets[1]+hy, EG_TBOX_DIST, outstr);
+	}
 }
 
-//swich through the valid targetbox modes
+/**
+ * Toggle through the valid targetbox modes
+ *
+ * @note 0==standard
+ * @note 1==wireframe only
+ * @note 2==standard with lighting
+ */
 void hud_targetbox_switch_wireframe_mode()
 {
-	//0==standard
-	//1==wireframe only
-	//2==standard with lighting
+
 	Targetbox_wire++;
 		if (Targetbox_wire==3)
 			Targetbox_wire=0;
 }
 
-// init a specific targetbox timer
+/**
+ * Init a specific targetbox timer
+ */
 void hud_targetbox_init_flash_timer(int index)
 {
 	Targetbox_flash_timers[index] = 1;
 }
 
-// init the timers used to flash different parts of the targetbox.  This needs to get called whenever
-// the current target changes.
-// need to call initFlashTimers for any TargetBox gauges and call initDockFlashTimer() for Extra Target Info gauges (Switfty)
+/**
+ * Init the timers used to flash different parts of the targetbox.
+ *
+ * @note This needs to get called whenever the current target changes.
+ * @note Need to call initFlashTimers for any TargetBox gauges and call initDockFlashTimer() for Extra Target Info gauges (Switfty)
+ */
 void hud_targetbox_init_flash()
 {
 	for(int i = 0; i < NUM_TBOX_FLASH_TIMERS; i++) {
@@ -927,7 +1010,6 @@ int HudGaugeTargetBox::maybeFlashElement(int index, int flash_fast)
 {
 	int draw_bright=0;
 
-	// hud_set_default_color();
 	setGaugeColor();
 	if ( !timestamp_elapsed(Targetbox_flash_timers[index]) ) {
 		if ( timestamp_elapsed(Next_flash_timers[index]) ) {
@@ -940,11 +1022,9 @@ int HudGaugeTargetBox::maybeFlashElement(int index, int flash_fast)
 		}
 
 		if ( flash_flags & (1<<index) ) {
-			// hud_set_bright_color();
 			setGaugeColor(HUD_C_BRIGHT);
 			draw_bright=1;
 		} else {			
-			// hud_set_dim_color();
 			setGaugeColor(HUD_C_DIM);
 		}
 	}
@@ -964,16 +1044,13 @@ void HudGaugeTargetBox::renderTargetClose()
 	resetClip();
 }
 
-// -------------------------------------------------------------------------------------
-// hud_get_target_strength()
-//
-// Get the shield and hull percentages for a given ship object
-//
-// input:	*objp		=>		pointer to ship object that you want strength values for
-//				shields	=>		OUTPUT parameter:	percentage value of shields (0->1.0)
-//				integrity =>	OUTPUT parameter: percentage value of integrity (0->1.0)
-//
-// Goober5000 - simplified
+/**
+ * Get the shield and hull percentages for a given ship object
+ *
+ * @param objp		Pointer to ship object that you want strength values for
+ * @param shields	OUTPUT parameter:	percentage value of shields (0->1.0)
+ * @param integrity OUTPUT parameter: percentage value of integrity (0->1.0)
+ */
 void hud_get_target_strength(object *objp, float *shields, float *integrity)
 {
 	*shields = get_shield_pct(objp);
@@ -981,7 +1058,7 @@ void hud_get_target_strength(object *objp, float *shields, float *integrity)
 }
 
 HudGaugeExtraTargetData::HudGaugeExtraTargetData():
-HudGauge(HUD_OBJECT_EXTRA_TARGET_DATA, HUD_TARGET_MONITOR_EXTRA_DATA, true, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY), 255, 255, 255)
+HudGauge(HUD_OBJECT_EXTRA_TARGET_DATA, HUD_TARGET_MONITOR_EXTRA_DATA, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY), 255, 255, 255)
 {
 	initDockFlashTimer();
 }
@@ -989,6 +1066,8 @@ HudGauge(HUD_OBJECT_EXTRA_TARGET_DATA, HUD_TARGET_MONITOR_EXTRA_DATA, true, fals
 void HudGaugeExtraTargetData::initialize()
 {
 	initDockFlashTimer();
+
+	HudGauge::initialize();
 }
 
 void HudGaugeExtraTargetData::initBracketOffsets(int x, int y)
@@ -1028,7 +1107,9 @@ void HudGaugeExtraTargetData::pageIn()
 	bm_page_in_aabitmap( bracket.first_frame, bracket.num_frames );
 }
 
-// formerly hud_targetbox_show_extra_ship_info(target_shipp, target_objp) (Swifty)
+/**
+ * @note Formerly hud_targetbox_show_extra_ship_info(target_shipp, target_objp) (Swifty)
+ */
 void HudGaugeExtraTargetData::render(float frametime)
 {
 	char outstr[256], tmpbuf[256];
@@ -1113,9 +1194,7 @@ void HudGaugeExtraTargetData::render(float frametime)
 		extra_data_shown=1;
 	}
 
-	if ( extra_data_shown ) {
-		// hud_set_default_color();		
-
+	if ( extra_data_shown ) {	
 		renderBitmap(bracket.first_frame, position[0] + bracket_offsets[0], position[1] + bracket_offsets[1]);		
 	}
 }
@@ -1136,7 +1215,6 @@ int HudGaugeExtraTargetData::maybeFlashDock(int flash_fast)
 {
 	int draw_bright=0;
 
-	// hud_set_default_color();
 	setGaugeColor();
 	if ( !timestamp_elapsed(flash_timer[0]) ) {
 		if ( timestamp_elapsed(flash_timer[1]) ) {
@@ -1154,11 +1232,9 @@ int HudGaugeExtraTargetData::maybeFlashDock(int flash_fast)
 		}
 
 		if (flash_flags) {
-			// hud_set_bright_color();
 			setGaugeColor(HUD_C_BRIGHT);
 			draw_bright=1;
 		} else {			
-			// hud_set_dim_color();
 			setGaugeColor(HUD_C_DIM);
 		}
 	}
@@ -1178,7 +1254,6 @@ extern bool turret_weapon_has_subtype(ship_weapon *swp, int subtype);
 void get_turret_subsys_name(ship_weapon *swp, char *outstr)
 {
 	Assert(swp != NULL);	// Goober5000 //WMC
-	//Assert(system_info->type == SUBSYSTEM_TURRET);
 
 	//WMC - find the first weapon, if there is one
 	if (swp->num_primary_banks || swp->num_secondary_banks) {
@@ -1292,13 +1367,12 @@ void HudGaugeTargetBox::renderTargetShipInfo(object *target_objp)
 	gr_get_string_size(&w,&h,outstr);
 
 	if ( HudGauge::maybeFlashSexp() == 1 ) {
-		// hud_set_bright_color();
 		setGaugeColor(HUD_C_BRIGHT);
 	} else {
 		maybeFlashElement(TBOX_FLASH_HULL);
 	}
 
-	renderPrintf(position[0] + Hull_offsets[0]-w /*Targetbox_coords[gr_screen.res][TBOX_HULL][0]-w*/, position[1] + Hull_offsets[1] /*Targetbox_coords[gr_screen.res][TBOX_HULL][1]*/, EG_TBOX_HULL, "%s", outstr);	
+	renderPrintf(position[0] + Hull_offsets[0]-w, position[1] + Hull_offsets[1], EG_TBOX_HULL, "%s", outstr);	
 	setGaugeColor();
 
 	// print out the targeted sub-system and % integrity
@@ -1318,8 +1392,6 @@ void HudGaugeTargetBox::renderTargetShipInfo(object *target_objp)
 
 		maybeFlashElement(TBOX_FLASH_SUBSYS);
 
-		// PRINT SUBSYS NAME
-		// hud_set_default_color();
 		// get turret subsys name
 		if (Player_ai->targeted_subsys->system_info->type == SUBSYSTEM_TURRET && !ship_subsys_has_instance_name(Player_ai->targeted_subsys)) {
 			get_turret_subsys_name(&Player_ai->targeted_subsys->weapons, outstr);
@@ -1377,8 +1449,10 @@ void HudGaugeTargetBox::renderTargetShipInfo(object *target_objp)
 	}
 }
 
-// determine if the subsystem is in line-of sight, without taking into account whether the player ship is
-// facing the subsystem
+/**
+ * Determine if the subsystem is in line-of sight, without taking into account whether the player ship is
+ * facing the subsystem
+ */
 int hud_targetbox_subsystem_in_view(object *target_objp, int *sx, int *sy)
 {
 	ship_subsys	*subsys;
@@ -1389,7 +1463,7 @@ int hud_targetbox_subsystem_in_view(object *target_objp, int *sx, int *sy)
 
 	subsys = Player_ai->targeted_subsys;
 	if (subsys != NULL ) {
-		vm_vec_unrotate(&subobj_pos, &subsys->system_info->pnt, &target_objp->orient);
+		find_submodel_instance_point(&subobj_pos, target_objp, subsys->system_info->subobj_num);
 		vm_vec_add2(&subobj_pos, &target_objp->pos);
 
 		// is it subsystem in view
@@ -1413,8 +1487,8 @@ int hud_targetbox_subsystem_in_view(object *target_objp, int *sx, int *sy)
 
 		g3_rotate_vertex(&subobj_vertex, &subobj_pos);
 		g3_project_vertex(&subobj_vertex);
-		*sx = (int) subobj_vertex.sx;
-		*sy = (int) subobj_vertex.sy;
+		*sx = (int) subobj_vertex.screen.xyw.x;
+		*sy = (int) subobj_vertex.screen.xyw.y;
 	}
 
 	return rval;
@@ -1444,7 +1518,9 @@ void hud_update_cargo_scan_sound()
 
 }
 
-// If the player is scanning for cargo, draw some cool scanning lines on the target monitor
+/**
+ * If the player is scanning for cargo, draw some cool scanning lines on the target monitor
+ */
 void HudGaugeTargetBox::maybeRenderCargoScan(ship_info *target_sip)
 {
 	int x1, y1, x2, y2;
@@ -1455,7 +1531,6 @@ void HudGaugeTargetBox::maybeRenderCargoScan(ship_info *target_sip)
 	}
 
 	scan_time = target_sip->scan_time;
-	// hud_set_default_color();
 	setGaugeColor(HUD_C_BRIGHT);
 
 	// draw horizontal scan line
@@ -1474,8 +1549,8 @@ void HudGaugeTargetBox::maybeRenderCargoScan(ship_info *target_sip)
 
 	// draw vertical scan line
 	x1 = fl2i(0.5f + position[0] + Cargo_scan_start_offsets[0] + ( (i2fl(Player->cargo_inspect_time) / scan_time) * Cargo_scan_w ));
-	y1 = position[1] + Cargo_scan_start_offsets[1] /*Cargo_scan_coords[gr_screen.res][1]*/;
-	y2 = y1 + Cargo_scan_h; /*Cargo_scan_coords[gr_screen.res][3]*/
+	y1 = position[1] + Cargo_scan_start_offsets[1];
+	y2 = y1 + Cargo_scan_h;
 
 	renderLine(x1, y1-3, x1, y2-1);
 
@@ -1557,7 +1632,6 @@ void HudGaugeTargetBox::showTargetData(float frametime)
 #endif
 	// 7/28/99 DKA: Do not use vec_mag_quick -- the error is too big
 	current_target_speed = vm_vec_mag(&target_objp->phys_info.vel);
-//	current_target_speed = target_objp->phys_info.fspeed;
 	if ( current_target_speed < 0.1f ) {
 		current_target_speed = 0.0f;
 	}
@@ -1604,20 +1678,15 @@ void HudGaugeTargetBox::showTargetData(float frametime)
 			switch (aip->mode) {
 			case AIM_CHASE:
 				Assert(aip->submode <= SM_BIG_PARALLEL);	//	Must be <= largest chase submode value.
-//				sprintf(outstr,"AI: %s",Submode_text[aip->submode]);
 				sprintf(outstr2," / %s",Submode_text[aip->submode]);
 				strcat_s(outstr,outstr2);
 				break;
 			case AIM_STRAFE:
 				Assert(aip->submode <= AIS_STRAFE_POSITION);	//	Must be <= largest chase submode value.
-//				sprintf(outstr,"AI: %s",Strafe_submode_text[aip->submode-AIS_STRAFE_ATTACK]);
 				sprintf(outstr2," / %s",Strafe_submode_text[aip->submode-AIS_STRAFE_ATTACK]);
 				strcat_s(outstr,outstr2);
 				break;
 			case AIM_WAYPOINTS:
-//				gr_printf(sx, sy, "Wpnum: %i",aip->wp_index);
-				sprintf(outstr2," / Wpnum: %i",aip->wp_index);
-				strcat_s(outstr,outstr2);
 				break;
 			default:
 				break;
@@ -1630,7 +1699,6 @@ void HudGaugeTargetBox::showTargetData(float frametime)
 			sy += dy;
 			
 			// data can be found in target montior
-			// gr_printf(TARGET_WINDOW_X1+TARGET_WINDOW_WIDTH+3, TARGET_WINDOW_Y1+5*h, "Shields: %d", (int) Players[Player_num].current_target->ship_max_shield_strength);
 			if (aip->target_objnum != -1) {
 				char	target_str[32];
 				float	dot, dist;
@@ -1641,7 +1709,6 @@ void HudGaugeTargetBox::showTargetData(float frametime)
 				else
 					sprintf(target_str, "%s", Ships[Objects[aip->target_objnum].instance].ship_name);
 
-//		gr_printf(TARGET_WINDOW_X1+TARGET_WINDOW_WIDTH+2, TARGET_WINDOW_Y1+4*h, "Target: %s", target_str);
 				gr_printf(sx, sy, "Targ: %s", target_str);
 				sy += dy;
 
@@ -1650,12 +1717,9 @@ void HudGaugeTargetBox::showTargetData(float frametime)
 
 				dot = vm_vec_dot(&v2t, &Objects[Player_ai->target_objnum].orient.vec.fvec);
 
-				// data can be found in target montior
-				// gr_printf(TARGET_WINDOW_X1+TARGET_WINDOW_WIDTH+3, TARGET_WINDOW_Y1+6*h, "Targ dist: %5.1f", dist);
-//		gr_printf(TARGET_WINDOW_X1+TARGET_WINDOW_WIDTH+2, TARGET_WINDOW_Y1+5*h, "Targ dot: %3.2f", dot);
+				// data can be found in target monitor
 				gr_printf(sx, sy, "Targ dot: %3.2f", dot);
 				sy += dy;
-//		gr_printf(TARGET_WINDOW_X1+TARGET_WINDOW_WIDTH+2, TARGET_WINDOW_Y1+6*h, "Targ dst: %3.2f", dist);
 				gr_printf(sx, sy, "Targ dst: %3.2f", dist);
 				sy += dy;
 
@@ -1778,14 +1842,18 @@ void HudGaugeTargetBox::showTargetData(float frametime)
 #endif
 }
 
-// called at the start of each level
+/**
+ * Called at the start of each level
+ */
 void hud_init_target_static()
 {
 	Target_static_next = 0;
 	Target_static_playing = 0;
 }
 
-// determine if we should draw static on top of the target box
+/**
+ * Determine if we should draw static on top of the target box
+ */
 void hud_update_target_static()
 {
 	float	sensors_str;
@@ -1851,15 +1919,20 @@ void hud_update_ship_status(object *targetp)
 	Last_ts = Current_ts;
 }
 
-// start the targetbox item flashing for duration ms
-// input:	index	=>	TBOX_FLASH_ #define
-//				duration	=>	optional param (default value TBOX_FLASH_DURATION), how long to flash in ms
+/**
+ * Start the targetbox item flashing for duration ms
+ *
+ * @param index		TBOX_FLASH_ define
+ * @param duration	optional param (default value TBOX_FLASH_DURATION), how long to flash in ms
+ */
 void hud_targetbox_start_flash(int index, int duration)
 {
 	Targetbox_flash_timers[index] = timestamp(duration);
 }
 
-// stop flashing a specific targetbox item 
+/**
+ * Stop flashing a specific targetbox item
+ */
 void hud_targetbox_end_flash(int index)
 {
 	Targetbox_flash_timers[index] = timestamp(0);

@@ -27,7 +27,6 @@
 #include "graphics/grinternal.h"
 #include "globalincs/systemvars.h"
 #include "cmdline/cmdline.h"
-#include "debugconsole/dbugfile.h"
 #include "graphics/grbatch.h"
 #include "parse/scripting.h"
 #include "gamesequence/gamesequence.h"	//WMC - for scripting hooks in gr_flip()
@@ -78,6 +77,8 @@ const float Default_max_draw_distance = 1e10;
 float Min_draw_distance = Default_min_draw_distance;
 float Max_draw_distance = Default_max_draw_distance;
 
+static int GL_cursor_nframes = 0;
+
 // Pre-computed screen resize vars
 static float Gr_resize_X = 1.0f, Gr_resize_Y = 1.0f;
 static float Gr_unsize_X = 1.0f, Gr_unsize_Y = 1.0f;
@@ -92,6 +93,15 @@ void gr_set_screen_scale(int w, int h)
 
 	Gr_unsize_X = (float)w / (float)gr_screen.max_w;
 	Gr_unsize_Y = (float)h / (float)gr_screen.max_h;
+}
+
+void gr_set_screen_scale(int w, int h, int max_w, int max_h)
+{
+	Gr_resize_X = (float)max_w / (float)w;
+	Gr_resize_Y = (float)max_h / (float)h;
+
+	Gr_unsize_X = (float)w / (float)max_w;
+	Gr_unsize_Y = (float)h / (float)max_h;
 }
 
 void gr_reset_screen_scale()
@@ -266,7 +276,9 @@ DCF(gr,"Changes graphics mode")
 }
 //XSTR:ON
 
-// set screen clear color
+/**
+ * Set screen clear color
+ */
 DCF(clear_color, "set clear color r, g, b")
 {
 	ubyte r, g, b;
@@ -448,11 +460,9 @@ static bool gr_init_sub(int mode, int width, int height, int depth)
 		case GR_OPENGL:
 			rc = gr_opengl_init();
 			break;
-
 		case GR_STUB: 
 			rc = gr_stub_init();
 			break;
-
 		default:
 			Int3();		// Invalid graphics mode
 	}
@@ -468,7 +478,7 @@ bool gr_init(int d_mode, int d_width, int d_height, int d_depth)
 {
 	int width = 1024, height = 768, depth = 16, mode = GR_OPENGL;
 	char *ptr = NULL;
-
+	char *Default_video_settings = "OGL -(1024x768)x16 bit";
 
 	if ( !Gr_inited ) {
 		atexit(gr_close);
@@ -494,8 +504,7 @@ bool gr_init(int d_mode, int d_width, int d_height, int d_depth)
 
 	// if we don't have a config string then construct one, using OpenGL 1024x768 16-bit as the default
 	if (ptr == NULL) {
-		char Default_video_settings[] = "OGL -(1024x768)x16 bit";
-		ptr = &Default_video_settings[0];
+		ptr = Default_video_settings;
 	}
 
 	Assert( ptr != NULL );
@@ -640,9 +649,8 @@ void gr_force_windowed()
 	switch( gr_screen.mode ) {
 		case GR_OPENGL:
 			break;
-
-		case GR_STUB: break;
-
+		case GR_STUB: 
+			break;
 		default:
 			Int3();		// Invalid graphics mode
 	}
@@ -670,9 +678,8 @@ void gr_activate(int active)
 			extern void gr_opengl_activate(int active);
 			gr_opengl_activate(active);
 			break;
-
-		case GR_STUB: break;
-
+		case GR_STUB: 
+			break;
 		default:
 			Int3();		// Invalid graphics mode
 	}
@@ -763,18 +770,16 @@ void gr_set_shader(shader *shade)
 	}
 }
 
-// -----------------------------------------------------------------------
-// gr_set_cursor_bitmap()
-//
-// Set the bitmap for the mouse pointer.  This is called by the animating mouse
-// pointer code.
-//
-// The lock parameter just locks basically disables the next call of this function that doesn't
-// have an unlock feature.  If adding in more cursor-changing situations, be aware of
-// unexpected results. You have been warned.
-//
-// TODO: investigate memory leak of original Gr_cursor bitmap when this is called
-static int GL_cursor_nframes = 0;
+/**
+ * Set the bitmap for the mouse pointer.  This is called by the animating mouse
+ * pointer code.
+ *
+ * The lock parameter just locks basically disables the next call of this function that doesn't
+ * have an unlock feature.  If adding in more cursor-changing situations, be aware of
+ * unexpected results. You have been warned.
+ *
+ * @todo investigate memory leak of original Gr_cursor bitmap when this is called
+ */
 void gr_set_cursor_bitmap(int n, int lock)
 {
 	int w, h;
@@ -826,8 +831,10 @@ void gr_unset_cursor_bitmap(int n)
 	}
 }
 
-// retrieves the current bitmap
-// used in UI_GADGET to save/restore current cursor state
+/**
+ * Retrieves the current bitmap
+ * Used in UI_GADGET to save/restore current cursor state
+ */
 int gr_get_cursor_bitmap()
 {
 	return Gr_cursor;
@@ -859,25 +866,25 @@ void gr_bitmap(int _x, int _y, bool allow_scaling)
 
 	memset(verts, 0, sizeof(verts));
 
-	verts[0].sx = x;
-	verts[0].sy = y;
-	verts[0].u = 0.0f;
-	verts[0].v = 0.0f;
+	verts[0].screen.xyw.x = x;
+	verts[0].screen.xyw.y = y;
+	verts[0].texture_position.u = 0.0f;
+	verts[0].texture_position.v = 0.0f;
 
-	verts[1].sx = x + w;
-	verts[1].sy = y;
-	verts[1].u = 1.0f;
-	verts[1].v = 0.0f;
+	verts[1].screen.xyw.x = x + w;
+	verts[1].screen.xyw.y = y;
+	verts[1].texture_position.u = 1.0f;
+	verts[1].texture_position.v = 0.0f;
 
-	verts[2].sx = x + w;
-	verts[2].sy = y + h;
-	verts[2].u = 1.0f;
-	verts[2].v = 1.0f;
+	verts[2].screen.xyw.x = x + w;
+	verts[2].screen.xyw.y = y + h;
+	verts[2].texture_position.u = 1.0f;
+	verts[2].texture_position.v = 1.0f;
 
-	verts[3].sx = x;
-	verts[3].sy = y + h;
-	verts[3].u = 0.0f;
-	verts[3].v = 1.0f;
+	verts[3].screen.xyw.x = x;
+	verts[3].screen.xyw.y = y + h;
+	verts[3].texture_position.u = 0.0f;
+	verts[3].texture_position.v = 1.0f;
 
 	// turn off zbuffering
 	int saved_zbuffer_mode = gr_zbuffer_get();
@@ -910,25 +917,25 @@ void gr_bitmap_uv(int _x, int _y, int _w, int _h, float _u0, float _v0, float _u
 
 	memset(verts, 0, sizeof(verts));
 
-	verts[0].sx = x;
-	verts[0].sy = y;
-	verts[0].u = _u0;
-	verts[0].v = _v0;
+	verts[0].screen.xyw.x = x;
+	verts[0].screen.xyw.y = y;
+	verts[0].texture_position.u = _u0;
+	verts[0].texture_position.v = _v0;
 
-	verts[1].sx = x + w;
-	verts[1].sy = y;
-	verts[1].u = _u1;
-	verts[1].v = _v0;
+	verts[1].screen.xyw.x = x + w;
+	verts[1].screen.xyw.y = y;
+	verts[1].texture_position.u = _u1;
+	verts[1].texture_position.v = _v0;
 
-	verts[2].sx = x + w;
-	verts[2].sy = y + h;
-	verts[2].u = _u1;
-	verts[2].v = _v1;
+	verts[2].screen.xyw.x = x + w;
+	verts[2].screen.xyw.y = y + h;
+	verts[2].texture_position.u = _u1;
+	verts[2].texture_position.v = _v1;
 
-	verts[3].sx = x;
-	verts[3].sy = y + h;
-	verts[3].u = _u0;
-	verts[3].v = _v1;
+	verts[3].screen.xyw.x = x;
+	verts[3].screen.xyw.y = y + h;
+	verts[3].texture_position.u = _u0;
+	verts[3].texture_position.v = _v1;
 
 	// turn off zbuffering
 	int saved_zbuffer_mode = gr_zbuffer_get();
@@ -978,7 +985,9 @@ void gr_bitmap_list(bitmap_rect_list* list, int n_bm, bool allow_scaling)
 }
 
 
-// given endpoints, and thickness, calculate coords of the endpoint
+/**
+ * Given endpoints, and thickness, calculate coords of the endpoint
+ */
 void gr_pline_helper(vec3d *out, vec3d *in1, vec3d *in2, int thickness)
 {
 	vec3d slope;
@@ -997,9 +1006,13 @@ void gr_pline_helper(vec3d *out, vec3d *in1, vec3d *in2, int thickness)
 	vm_vec_scale_add(out, in1, &slope, (float)thickness);
 }
 
-// special function for drawing polylines. this function is specifically intended for
-// polylines where each section is no more than 90 degrees away from a previous section.
-// Moreover, it is _really_ intended for use with 45 degree angles. 
+/**
+ * Special function for drawing polylines.
+ *
+ * This function is specifically intended for polylines where each section 
+ * is no more than 90 degrees away from a previous section.
+ * Moreover, it is _really_ intended for use with 45 degree angles. 
+ */
 void gr_pline_special(vec3d **pts, int num_pts, int thickness,bool resize)
 {
 	vec3d s1, s2, e1, e2, dir;
@@ -1040,44 +1053,44 @@ void gr_pline_special(vec3d **pts, int num_pts, int thickness,bool resize)
 		vm_vec_add(&e2, &s2, &dir);								// end 2
 		
 		// stuff coords
-		v[0].sx = (float)ceil(s1.xyz.x);
-		v[0].sy = (float)ceil(s1.xyz.y);
-		v[0].sw = 0.0f;
-		v[0].u = 0.5f;
-		v[0].v = 0.5f;
+		v[0].screen.xyw.x = (float)ceil(s1.xyz.x);
+		v[0].screen.xyw.y = (float)ceil(s1.xyz.y);
+		v[0].screen.xyw.w = 0.0f;
+		v[0].texture_position.u = 0.5f;
+		v[0].texture_position.v = 0.5f;
 		v[0].flags = PF_PROJECTED;
 		v[0].codes = 0;
 		v[0].r = gr_screen.current_color.red;
 		v[0].g = gr_screen.current_color.green;
 		v[0].b = gr_screen.current_color.blue;
 
-		v[1].sx = (float)ceil(s2.xyz.x);
-		v[1].sy = (float)ceil(s2.xyz.y);
-		v[1].sw = 0.0f;
-		v[1].u = 0.5f;
-		v[1].v = 0.5f;
+		v[1].screen.xyw.x = (float)ceil(s2.xyz.x);
+		v[1].screen.xyw.y = (float)ceil(s2.xyz.y);
+		v[1].screen.xyw.w = 0.0f;
+		v[1].texture_position.u = 0.5f;
+		v[1].texture_position.v = 0.5f;
 		v[1].flags = PF_PROJECTED;
 		v[1].codes = 0;
 		v[1].r = gr_screen.current_color.red;
 		v[1].g = gr_screen.current_color.green;
 		v[1].b = gr_screen.current_color.blue;
 
-		v[2].sx = (float)ceil(e2.xyz.x);
-		v[2].sy = (float)ceil(e2.xyz.y);
-		v[2].sw = 0.0f;
-		v[2].u = 0.5f;
-		v[2].v = 0.5f;
+		v[2].screen.xyw.x = (float)ceil(e2.xyz.x);
+		v[2].screen.xyw.y = (float)ceil(e2.xyz.y);
+		v[2].screen.xyw.w = 0.0f;
+		v[2].texture_position.u = 0.5f;
+		v[2].texture_position.v = 0.5f;
 		v[2].flags = PF_PROJECTED;
 		v[2].codes = 0;
 		v[2].r = gr_screen.current_color.red;
 		v[2].g = gr_screen.current_color.green;
 		v[2].b = gr_screen.current_color.blue;
 
-		v[3].sx = (float)ceil(e1.xyz.x);
-		v[3].sy = (float)ceil(e1.xyz.y);
-		v[3].sw = 0.0f;
-		v[3].u = 0.5f;
-		v[3].v = 0.5f;
+		v[3].screen.xyw.x = (float)ceil(e1.xyz.x);
+		v[3].screen.xyw.y = (float)ceil(e1.xyz.y);
+		v[3].screen.xyw.w = 0.0f;
+		v[3].texture_position.u = 0.5f;
+		v[3].texture_position.v = 0.5f;
 		v[3].flags = PF_PROJECTED;
 		v[3].codes = 0;
 		v[3].r = gr_screen.current_color.red;
@@ -1087,7 +1100,7 @@ void gr_pline_special(vec3d **pts, int num_pts, int thickness,bool resize)
 		//We could really do this better...but oh well. _WMC
 		if(resize) {
 			for(j=0;j<4;j++) {
-				gr_resize_screen_posf(&v[j].sx,&v[j].sy);
+				gr_resize_screen_posf(&v[j].screen.xyw.x,&v[j].screen.xyw.y);
 			}
 		}
 
@@ -1097,22 +1110,22 @@ void gr_pline_special(vec3d **pts, int num_pts, int thickness,bool resize)
 		// if we're past the first section, draw a "patch" triangle to fill any gaps
 		if(idx > 0) {
 			// stuff coords
-			v[0].sx = (float)ceil(s1.xyz.x);
-			v[0].sy = (float)ceil(s1.xyz.y);
-			v[0].sw = 0.0f;
-			v[0].u = 0.5f;
-			v[0].v = 0.5f;
+			v[0].screen.xyw.x = (float)ceil(s1.xyz.x);
+			v[0].screen.xyw.y = (float)ceil(s1.xyz.y);
+			v[0].screen.xyw.w = 0.0f;
+			v[0].texture_position.u = 0.5f;
+			v[0].texture_position.v = 0.5f;
 			v[0].flags = PF_PROJECTED;
 			v[0].codes = 0;
 			v[0].r = gr_screen.current_color.red;
 			v[0].g = gr_screen.current_color.green;
 			v[0].b = gr_screen.current_color.blue;
 
-			v[1].sx = (float)ceil(s2.xyz.x);
-			v[1].sy = (float)ceil(s2.xyz.y);
-			v[1].sw = 0.0f;
-			v[1].u = 0.5f;
-			v[1].v = 0.5f;
+			v[1].screen.xyw.x = (float)ceil(s2.xyz.x);
+			v[1].screen.xyw.y = (float)ceil(s2.xyz.y);
+			v[1].screen.xyw.w = 0.0f;
+			v[1].texture_position.u = 0.5f;
+			v[1].texture_position.v = 0.5f;
 			v[1].flags = PF_PROJECTED;
 			v[1].codes = 0;
 			v[1].r = gr_screen.current_color.red;
@@ -1120,11 +1133,11 @@ void gr_pline_special(vec3d **pts, int num_pts, int thickness,bool resize)
 			v[1].b = gr_screen.current_color.blue;
 
 
-			v[2].sx = (float)ceil(last_e2.xyz.x);
-			v[2].sy = (float)ceil(last_e2.xyz.y);
-			v[2].sw = 0.0f;
-			v[2].u = 0.5f;
-			v[2].v = 0.5f;
+			v[2].screen.xyw.x = (float)ceil(last_e2.xyz.x);
+			v[2].screen.xyw.y = (float)ceil(last_e2.xyz.y);
+			v[2].screen.xyw.w = 0.0f;
+			v[2].texture_position.u = 0.5f;
+			v[2].texture_position.v = 0.5f;
 			v[2].flags = PF_PROJECTED;
 			v[2].codes = 0;
 			v[2].r = gr_screen.current_color.red;
@@ -1134,7 +1147,7 @@ void gr_pline_special(vec3d **pts, int num_pts, int thickness,bool resize)
 			//Inefficiency or flexibility? you be the judge -WMC
 			if(resize) {
 				for(j=0;j<3;j++) {
-					gr_resize_screen_posf(&v[j].sx,&v[j].sy);
+					gr_resize_screen_posf(&v[j].screen.xyw.x,&v[j].screen.xyw.y);
 				}
 			}
 
@@ -1166,7 +1179,10 @@ int poly_list::find_first_vertex(int idx)
 
 	// we should always equal ourselves, so just use that as the stopping point
 	for (int i = 0; i < idx; i++) {
-		if ( (*p_norm == *o_norm) && (*p_vert == *o_vert) ) {
+		if ( (*p_norm == *o_norm)
+			&& (p_vert->world == o_vert->world)
+			&& (p_vert->texture_position == o_vert->texture_position) )
+		{
 			return i;
 		}
 
@@ -1177,7 +1193,9 @@ int poly_list::find_first_vertex(int idx)
 	return idx;
 }
 
-//given a list (plist) find the index within the indexed list that the vert at position idx within list is at 
+/**
+ * Given a list (plist) find the index within the indexed list that the vert at position idx within list is at
+ */
 int poly_list::find_index(poly_list *plist, int idx)
 {
 	vec3d *o_norm = &plist->norm[idx];
@@ -1186,7 +1204,10 @@ int poly_list::find_index(poly_list *plist, int idx)
 	vertex *p_vert = &vert[0];
 
 	for (int i = 0; i < n_verts; i++) {
-		if ( (*p_norm == *o_norm) && (*p_vert == *o_vert) ) {
+		if ( (*p_norm == *o_norm)
+			&& (p_vert->world == o_vert->world)
+			&& (p_vert->texture_position == o_vert->texture_position))
+		{
 			return i;
 		}
 
@@ -1276,11 +1297,11 @@ void poly_list::calculate_tangent()
 		t2 = &tsb[i+2].tangent;
 
 
-		deltaU0 = v1->u - v0->u;
-		deltaV0 = v1->v - v0->v;
+		deltaU0 = v1->texture_position.u - v0->texture_position.u;
+		deltaV0 = v1->texture_position.v - v0->texture_position.v;
 
-		deltaU1 = v2->u - v0->u;
-		deltaV1 = v2->v - v0->v;
+		deltaU1 = v2->texture_position.u - v0->texture_position.u;
+		deltaV1 = v2->texture_position.v - v0->texture_position.v;
 
 		// quick short circuit for NULL case
 		float n = (deltaU0 * deltaV1) - (deltaU1 * deltaV0);
@@ -1292,13 +1313,8 @@ void poly_list::calculate_tangent()
 		} else {
 			float blah = 1.0f / n;
 
-			side0.xyz.x = v1->x - v0->x;
-			side0.xyz.y = v1->y - v0->y;
-			side0.xyz.z = v1->z - v0->z;
-
-			side1.xyz.x = v2->x - v0->x;
-			side1.xyz.y = v2->y - v0->y;
-			side1.xyz.z = v2->z - v0->z;
+			vm_vec_sub(&side0, &v1->world, &v0->world);
+			vm_vec_sub(&side1, &v2->world, &v0->world);
 
 			// tangent
 			vm_vec_copy_scale(&vt0, &side0, deltaV1);

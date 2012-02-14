@@ -124,11 +124,14 @@ int common_scroll_up_pressed(int *start, int size, int max_show);
 
 #define WING_SLOT_FILLED				(1<<0)
 #define WING_SLOT_EMPTY					(1<<1)
-#define WING_SLOT_DISABLED				(1<<2)
 #define WING_SLOT_IS_PLAYER			(1<<3)
 #define WING_SLOT_LOCKED				(1<<4)
+#define WING_SLOT_SHIPS_DISABLED		(1<<5)
+#define WING_SLOT_WEAPONS_DISABLED		(1<<6)
 
-#define WING_SLOT_IGNORE	(WING_SLOT_DISABLED|WING_SLOT_LOCKED)
+#define WING_SLOT_DISABLED			(WING_SLOT_SHIPS_DISABLED|WING_SLOT_WEAPONS_DISABLED)
+#define WING_SLOT_IGNORE_SHIPS		(WING_SLOT_SHIPS_DISABLED|WING_SLOT_LOCKED)
+#define WING_SLOT_IGNORE_WEAPONS	(WING_SLOT_WEAPONS_DISABLED|WING_SLOT_LOCKED)
 
 // different operations used in xx_apply()
 #define WSS_DUMP_TO_LIST		0
@@ -200,7 +203,7 @@ int restore_wss_data(ubyte *block);
 
 struct ship_info;
 void draw_model_icon(int model_id, int flags, float closeup_zoom, int x1, int x2, int y1, int y2, ship_info* sip=NULL, bool resize=true);
-void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *rotation_buffer, vec3d *closeup_pos=NULL, float closeup_zoom = .65f, float rev_rate = REVOLUTION_RATE, int flags = MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, bool resize=true);
+void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *rotation_buffer, vec3d *closeup_pos=NULL, float closeup_zoom = .65f, float rev_rate = REVOLUTION_RATE, int flags = MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, bool resize=true, int effect = 2);
 
 void common_set_team_pointers(int team);
 void common_reset_team_pointers();

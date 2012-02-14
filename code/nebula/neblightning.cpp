@@ -21,8 +21,6 @@
 #include "weapon/emp.h"
 #include "network/multi.h"
 #include "network/multimsgs.h"
-
-
 extern int Cmdline_nohtl;
 
 // ------------------------------------------------------------------------------------------------------
@@ -359,7 +357,7 @@ void nebl_render_all()
 				b->used = 0;
 				continue;
 			}
-			if( (b->type < 0) || (b->type >= Bolt_types.size()) ){
+			if( b->type >= Bolt_types.size() ){
 				b->used = 0;
 				continue;
 			}
@@ -439,7 +437,7 @@ void nebl_render_all()
 
 					// do some special stuff on the very first strike of the bolt
 					if(b->strikes_left == bi->num_strikes){					
-						// play a sound						
+						// play a sound
 						float bang;
 						if(Nebl_bang < 40.0f){
 							bang = 1.0f;
@@ -452,7 +450,7 @@ void nebl_render_all()
 							snd_play(&Snds[SND_LIGHTNING_2], 0.0f, bang, SND_PRIORITY_DOUBLE_INSTANCE);
 						} else {
 							snd_play(&Snds[SND_LIGHTNING_1], 0.0f, bang, SND_PRIORITY_DOUBLE_INSTANCE);
-						}						
+						}
 
 						// apply em pulse
 						if(bi->emp_intensity > 0.0f){
@@ -598,7 +596,7 @@ void nebl_bolt(size_t type, vec3d *start, vec3d *strike)
 		return;
 	}
 
-	if( (type < 0) || (type >= Bolt_types.size()) ){
+	if( type >= Bolt_types.size() ){
 		return;
 	}
 	bi = &Bolt_types[type];	
@@ -679,7 +677,6 @@ l_node *nebl_new()
 
 	// if we're out of nodes
 	if(Num_lnodes >= MAX_LIGHTNING_NODES){
-		// Int3();
 		nprintf(("lightning", "Out of lightning nodes!\n"));
 		return NULL;
 	}
@@ -887,16 +884,16 @@ void nebl_render_section(bolt_type *bi, l_section *a, l_section *b)
 	// draw some stuff
 	for(size_t idx=0; idx<2; idx++){		
 		v[0] = a->vex[idx];		
-		v[0].u = 0.0f; v[0].v = 0.0f;
+		v[0].texture_position.u = 0.0f; v[0].texture_position.v = 0.0f;
 
 		v[1] = a->vex[idx+1];		
-		v[1].u = 1.0f; v[1].v = 0.0f;
+		v[1].texture_position.u = 1.0f; v[1].texture_position.v = 0.0f;
 
 		v[2] = b->vex[idx+1];		
-		v[2].u = 1.0f; v[2].v = 1.0f;
+		v[2].texture_position.u = 1.0f; v[2].texture_position.v = 1.0f;
 
 		v[3] = b->vex[idx];		
-		v[3].u = 0.0f; v[3].v = 1.0f;
+		v[3].texture_position.u = 0.0f; v[3].texture_position.v = 1.0f;
 
 		// draw
 		gr_set_bitmap(bi->texture, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, Nebl_alpha);
@@ -905,32 +902,32 @@ void nebl_render_section(bolt_type *bi, l_section *a, l_section *b)
 
 	// draw
 	v[0] = a->vex[2];		
-	v[0].u = 0.0f; v[0].v = 0.0f;
+	v[0].texture_position.u = 0.0f; v[0].texture_position.v = 0.0f;
 
 	v[1] = a->vex[0];		
-	v[1].u = 1.0f; v[1].v = 0.0f;
+	v[1].texture_position.u = 1.0f; v[1].texture_position.v = 0.0f;
 
 	v[2] = b->vex[0];		
-	v[2].u = 1.0f; v[2].v = 1.0f;
+	v[2].texture_position.u = 1.0f; v[2].texture_position.v = 1.0f;
 
 	v[3] = b->vex[2];		
-	v[3].u = 0.0f; v[3].v = 1.0f;
+	v[3].texture_position.u = 0.0f; v[3].texture_position.v = 1.0f;
 
 	gr_set_bitmap(bi->texture, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, Nebl_alpha);
 	g3_draw_poly(4, verts, TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT);	
 
 	// draw the glow beam	
 	verts[0] = &a->glow_vex[0];
-	verts[0]->v = 0.0f; verts[0]->u = 0.0f;
+	verts[0]->texture_position.v = 0.0f; verts[0]->texture_position.u = 0.0f;
 
 	verts[1] = &a->glow_vex[1];
-	verts[1]->v = 1.0f; verts[1]->u = 0.0f;
+	verts[1]->texture_position.v = 1.0f; verts[1]->texture_position.u = 0.0f;
 
 	verts[2] = &b->glow_vex[1];
-	verts[2]->v = 1.0f; verts[2]->u = 1.0f;
+	verts[2]->texture_position.v = 1.0f; verts[2]->texture_position.u = 1.0f;
 
 	verts[3] = &b->glow_vex[0];
-	verts[3]->v = 0.0f; verts[3]->u = 1.0f;
+	verts[3]->texture_position.v = 0.0f; verts[3]->texture_position.u = 1.0f;
 
 	gr_set_bitmap(bi->glow, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, Nebl_glow_alpha);
 	g3_draw_poly(4, verts, TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT);	
@@ -977,9 +974,13 @@ void nebl_generate_section(bolt_type *bi, float width, l_node *a, l_node *b, l_s
 		g3_project_vertex(&c->vex[idx]);		
 
 		// if first frame, keep track of the average screen pos
-		if((c->vex[idx].sx >= 0) && (c->vex[idx].sx < gr_screen.max_w) && (c->vex[idx].sy >= 0) && (c->vex[idx].sy < gr_screen.max_h)){
-			Nebl_flash_x += c->vex[idx].sx;
-			Nebl_flash_y += c->vex[idx].sy;
+		if((c->vex[idx].screen.xyw.x >= 0)
+			&& (c->vex[idx].screen.xyw.x < gr_screen.max_w)
+			&& (c->vex[idx].screen.xyw.y >= 0)
+			&& (c->vex[idx].screen.xyw.y < gr_screen.max_h))
+		{
+			Nebl_flash_x += c->vex[idx].screen.xyw.x;
+			Nebl_flash_y += c->vex[idx].screen.xyw.y;
 			Nebl_flash_count++;
 		}
 	}
@@ -1020,9 +1021,13 @@ void nebl_generate_section(bolt_type *bi, float width, l_node *a, l_node *b, l_s
 			g3_project_vertex(&cap->vex[idx]);			
 
 			// if first frame, keep track of the average screen pos			
-			if( (c->vex[idx].sx >= 0) && (c->vex[idx].sx < gr_screen.max_w) && (c->vex[idx].sy >= 0) && (c->vex[idx].sy < gr_screen.max_h)){
-				Nebl_flash_x += c->vex[idx].sx;
-				Nebl_flash_y += c->vex[idx].sy;
+			if( (c->vex[idx].screen.xyw.x >= 0)
+				&& (c->vex[idx].screen.xyw.x < gr_screen.max_w)
+				&& (c->vex[idx].screen.xyw.y >= 0)
+				&& (c->vex[idx].screen.xyw.y < gr_screen.max_h))
+			{
+				Nebl_flash_x += c->vex[idx].screen.xyw.x;
+				Nebl_flash_y += c->vex[idx].screen.xyw.y;
 				Nebl_flash_count++;
 			}
 		}
@@ -1114,7 +1119,7 @@ void nebl_jitter(l_bolt *b)
 	if(b == NULL){
 		return;
 	}
-	if( (b->type < 0) || (b->type >= Bolt_types.size()) ){
+	if( b->type >= Bolt_types.size() ){
 		return;		
 	}
 	bi = &Bolt_types[b->type];

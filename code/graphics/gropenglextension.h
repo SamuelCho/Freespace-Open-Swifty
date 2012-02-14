@@ -141,16 +141,17 @@ extern ogl_function GL_EXT_Special[];
 #define OGL_UNIFORM4FV						55
 #define OGL_UNIFORM1I						56
 #define OGL_UNIFORM_MATRIX4FV				57
-#define OGL_GEN_QUERIES						58
-#define OGL_DELETE_QUERIES					59
-#define OGL_IS_QUERY						60
-#define OGL_BEGIN_QUERY						61
-#define OGL_END_QUERY						62
-#define OGL_GET_QUERYIV						63
-#define OGL_GET_QUERY_OBJECTIV				64
-#define OGL_GET_QUERY_OBJECTUIV				65
+#define OGL_DRAWBUFFERS						58
+#define OGL_GEN_QUERIES						59
+#define OGL_DELETE_QUERIES					60
+#define OGL_IS_QUERY						61
+#define OGL_BEGIN_QUERY						62
+#define OGL_END_QUERY						63
+#define OGL_GET_QUERYIV						64
+#define OGL_GET_QUERY_OBJECTIV				65
+#define OGL_GET_QUERY_OBJECTUIV				66
 
-#define NUM_OGL_FUNCTIONS					66
+#define NUM_OGL_FUNCTIONS					67
 
 
 // special extensions/functions (OS specific, non-GL stuff)
@@ -236,12 +237,14 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define PFNGLGETUNIFORMLOCATIONARBPROC			glGetUniformLocationARBProcPtr
 #define PFNGLGETUNIFORMIVARBPROC				glGetUniformivARBProcPtr
 #define PFNGLUNIFORM1FARBPROC					glUniform1fARBProcPtr
+#define PFNGLUNIFORM2FARBPROC					glUniform2fARBProcPtr
 #define PFNGLUNIFORM3FARBPROC					glUniform3fARBProcPtr
 #define PFNGLUNIFORM4FARBPROC					glUnifrom4fARBProcPtr
 #define PFNGLUNIFORM3FVARBPROC					glUniform3fvARBProcPtr
 #define PFNGLUNIFORM4FVARBPROC					glUnifrom4fvARBProcPtr
 #define PFNGLUNIFORM1IARBPROC					glUniform1iARBProcPtr
 #define PFNGLUNIFORMMATRIX4FVARBPROC			glUniformMatrix4fvARBProcPtr
+#define PFNGLDRAWBUFFERSPROC					glDrawBuffersARBProcPtr
 #define PFNGLGENQUERIESARBPROC					glGenQueriesARBProcPtr
 #define PFNGLDELETEQUERIESARBPROC				glDeleteQueriesARBProcPtr
 #define PFNGLISQUERYARBPROC						glIsQueryARBProcPtr
@@ -314,6 +317,7 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define vglUniform4fvARB				GLEXT_CALL( OGL_UNIFORM4FV, PFNGLUNIFORM4FVARBPROC )
 #define vglUniform1iARB					GLEXT_CALL( OGL_UNIFORM1I, PFNGLUNIFORM1IARBPROC )
 #define vglUniformMatrix4fvARB			GLEXT_CALL( OGL_UNIFORM_MATRIX4FV, PFNGLUNIFORMMATRIX4FVARBPROC )
+#define vglDrawBuffers					GLEXT_CALL( OGL_DRAWBUFFERS, PFNGLDRAWBUFFERSPROC )
 #define vglGenQueriesARB				GLEXT_CALL( OGL_GEN_QUERIES, PFNGLGENQUERIESARBPROC )
 #define vglDeleteQueriesARB				GLEXT_CALL( OGL_DELETE_QUERIES, PFNGLDELETEQUERIESARBPROC )
 #define vglIsQueryARB					GLEXT_CALL( OGL_IS_QUERY, PFNGLISQUERYARBPROC )

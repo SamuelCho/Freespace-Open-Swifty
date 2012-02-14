@@ -16,6 +16,7 @@
 #include "sound/channel.h"
 #include "sound/sound.h"
 #include "object/object.h"
+#include "cmdline/cmdline.h"
 
 
 // ---------------------------------------------------------------------------------------
@@ -33,6 +34,11 @@
 //
 int ds3d_update_buffer(int channel, float min, float max, vec3d *pos, vec3d *vel)
 {
+	if (Cmdline_no_3d_sound) {
+		nprintf(("Sound", "Aborting ds3d_update_buffer due to Cmdline_no_3d_sound..."));
+		return -1;
+	}
+
 	if (channel < 0) {
 		return 0;
 	}
@@ -46,10 +52,10 @@ int ds3d_update_buffer(int channel, float min, float max, vec3d *pos, vec3d *vel
 
 	if (vel) {
 		OpenAL_ErrorPrint( alSource3f(source_id, AL_VELOCITY, vel->xyz.x, vel->xyz.y, vel->xyz.z) );
-	//	OpenAL_ErrorPrint( alSourcef(source_id, AL_DOPPLER_FACTOR, 1.0f) );
+		//OpenAL_ErrorPrint( alDopplerFactor(1.0f) );
 	} else {
 		OpenAL_ErrorPrint( alSource3f(source_id, AL_VELOCITY, 0.0f, 0.0f, 0.0f) );
-		OpenAL_ErrorPrint( alSourcef(source_id, AL_DOPPLER_FACTOR, 0.0f) );
+		OpenAL_ErrorPrint( alDopplerFactor(0.0f) );
 	}
 
 	if (max <= min) {
@@ -81,6 +87,11 @@ int ds3d_update_buffer(int channel, float min, float max, vec3d *pos, vec3d *vel
 //
 int ds3d_update_listener(vec3d *pos, vec3d *vel, matrix *orient)
 {
+	if (Cmdline_no_3d_sound) {
+		nprintf(("Sound", "Aborting ds3d_update_buffer due to Cmdline_no_3d_sound..."));
+		return -1;
+	}
+
 	if (pos) {
 		OpenAL_ErrorPrint( alListener3f(AL_POSITION, pos->xyz.x, pos->xyz.y, -pos->xyz.z) );
 	}

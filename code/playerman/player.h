@@ -73,11 +73,7 @@ struct campaign_info;
 
 // number of times dude can fail a mission in a session before 
 // having the opportunity to skip it
-#ifdef RELEASE_REAL
-	#define PLAYER_MISSION_FAILURE_LIMIT		5
-#else
-	#define PLAYER_MISSION_FAILURE_LIMIT		5
-#endif  // RELEASE_REAL
+#define PLAYER_MISSION_FAILURE_LIMIT		5
 
 
 typedef struct campaign_stats {
@@ -263,7 +259,7 @@ void player_maybe_play_all_alone_msg();
 void player_set_next_all_alone_msg_timestamp();
 
 void player_get_padlock_orient(matrix *eye_orient);
-void player_display_packlock_view();
+void player_display_padlock_view();
 
 // get the player's eye position and orient
 camid player_get_cam();

@@ -103,6 +103,8 @@ int Standalone_ng_stamp;
 char Standalone_ban_list[STANDALONE_MAX_BAN][CALLSIGN_LEN+1];
 int Standalone_ban_count = 0;
 
+char title_str[512];
+
 // ----------------------------------------------------------------------------------------
 // mission validation dialog
 //
@@ -473,7 +475,7 @@ int std_connect_lindex_to_npindex(int index)
 			psnet_addr_to_string(addr_text,&Net_players[idx].p_info.addr);
 
 			// if we found the match
-			if((strlen(addr_text) != 0) && (strstr(list_text,addr_text) != NULL)){
+			if((addr_text[0] != '\0') && (strstr(list_text,addr_text) != NULL)){
 				ret = idx;
 				break;
 			}
@@ -878,7 +880,7 @@ void std_multi_update_netgame_info_controls()
 	SetWindowText(Std_ng_security,buf);
 
 	// update the netgame respawns # control
-	sprintf(buf,"%d",Netgame.respawn);
+	sprintf(buf,"%u",Netgame.respawn);
 	SetWindowText(Std_ng_respawns,buf);
 }
 
@@ -1270,7 +1272,7 @@ int std_pinfo_player_is_active(net_player *p)
 	SendMessage(Player_name_list,CB_GETLBTEXT,(WPARAM)sel,(LPARAM)player);
 	
 	// if there is a valid player selected and he's the guy we want
-	return ((strlen(player) != 0) && (strcmp(p->m_player->callsign,player) == 0)) ? 1 : 0;
+	return ((player[0] != '\0') && (strcmp(p->m_player->callsign,player) == 0)) ? 1 : 0;
 }
 
 // message handler for the player info tab
@@ -1388,7 +1390,7 @@ void std_gs_send_godstuff_message()
 	SendMessage(Godstuff_broadcast_text,EM_GETLINE,(WPARAM)0,(LPARAM)&txt[0]);
 	
 	// if the string is not zero length
-	if(strlen(txt) > 0){		
+	if( txt[0] != '\0' ){		
 		// send a game chat packet
 		send_game_chat_packet(Net_player, txt, MULTI_MSG_ALL,NULL);		
 
@@ -1543,7 +1545,7 @@ void std_debug_set_standalone_state_string(char *str)
 
 void std_debug_multilog_add_line(const char *str)
 {
-	std::string log_str;
+	SCP_string log_str;
 
 	if ( !str || !strlen(str) ) {
 		return;
@@ -1558,7 +1560,7 @@ void std_debug_multilog_add_line(const char *str)
 	// parse the string, adding each new line to the list
 	size_t nline = log_str.find('\n');
 
-	while (nline != std::string::npos) {
+	while (nline != SCP_string::npos) {
 		log_str[nline] = '\0';
 
 		SendMessage(Standalone_multilog_string, LB_ADDSTRING, 0, (LPARAM)log_str.c_str());
@@ -1857,7 +1859,7 @@ void std_add_chat_text(char *text,int player_index,int add_id)
 // if the standalone is host password protected
 int std_is_host_passwd()
 {
-	return (strlen(Multi_options_g.std_passwd) > 0) ? 1 : 0;
+	return (Multi_options_g.std_passwd[0] != '\0') ? 1 : 0;
 }
 
 // change the default property sheet interface into something more useful
@@ -2040,7 +2042,7 @@ void std_build_title_string(char *str)
 	// build the version #
 	memset(ver_str, 0, sizeof(ver_str));
 
-	if (FS_VERSION_BUILD == 0 && FS_VERSION_REVIS == 0) {
+	if (FS_VERSION_BUILD == 0 && FS_VERSION_REVIS == 0) { //-V547
 		snprintf(ver_str, sizeof(ver_str)-1, "%i.%i", FS_VERSION_MAJOR, FS_VERSION_MINOR);
 	} else if (FS_VERSION_REVIS == 0) {
 		snprintf(ver_str, sizeof(ver_str)-1, "%i.%i.%i", FS_VERSION_MAJOR, FS_VERSION_MINOR, FS_VERSION_BUILD);
@@ -2079,7 +2081,6 @@ HWND std_init_property_sheet(HWND hwndDlg)
 	Sheet.nPages = MAX_STANDALONE_PAGES;
 
 	// set the title bar appropriately
-	char title_str[512];
 	memset(title_str, 0, 512);
 	std_build_title_string(title_str);
 	Sheet.pszCaption = title_str;

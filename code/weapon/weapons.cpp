@@ -9,9 +9,6 @@
 
 
 
-//#include <stdlib.h>
-
-
 #include "weapon/weapon.h"
 #include "render/3d.h"
 #include "object/object.h"
@@ -48,6 +45,7 @@
 #include "network/multimsgs.h"
 #include "network/multiutil.h"
 #include "parse/scripting.h"
+#include "stats/scoring.h"
 
 
 #ifndef NDEBUG
@@ -95,10 +93,10 @@ int laser_model_outer = -1;
 
 int missile_model = -1;
 
-char	*Weapon_names[MAX_WEAPON_TYPES];
-
 int     First_secondary_index = -1;
 int		Default_cmeasure_index = -1;
+
+int Default_weapon_select_effect = 2;
 
 static int *used_weapons = NULL;
 
@@ -147,9 +145,9 @@ int weapon_explosions::GetIndex(char *filename)
 		return -1;
 	}
 
-	for (uint i = 0; i < ExplosionInfo.size(); i++) {
+	for (size_t i = 0; i < ExplosionInfo.size(); i++) {
 		if ( !stricmp(ExplosionInfo[i].lod[0].filename, filename)) {
-			return i;
+			return (int)i;
 		}
 	}
 
@@ -371,11 +369,9 @@ void parse_weapon_expl_tbl(char *filename)
 	lcl_ext_close();
 }
 
-// ----------------------------------------------------------------------
-// missile_obj_list_init()
-//
-// Clear out the Missile_obj_list
-//
+/**
+ * Clear out the Missile_obj_list
+ */
 void missile_obj_list_init()
 {
 	int i;
@@ -386,11 +382,10 @@ void missile_obj_list_init()
 	}
 }
 
-// ---------------------------------------------------
-// missile_obj_list_add()
-//
-// Function to add a node from the Missile_obj_list.  Only
-// called from weapon_create()
+/**
+ * Add a node from the Missile_obj_list.
+ * @note Only called from weapon_create()
+ */
 int missile_obj_list_add(int objnum)
 {
 	int i;
@@ -412,11 +407,10 @@ int missile_obj_list_add(int objnum)
 	return i;
 }
 
-// ---------------------------------------------------
-// missle_obj_list_remove()
-//
-// Function to remove a node from the Missile_obj_list.  Only
-// called from weapon_delete()
+/**
+ * Remove a node from the Missile_obj_list.
+ * @note Only called from weapon_delete()
+ */
 void missle_obj_list_remove(int index)
 {
 	Assert(index >= 0 && index < MAX_MISSILE_OBJS);
@@ -424,11 +418,9 @@ void missle_obj_list_remove(int index)
 	Missile_objs[index].flags = 0;
 }
 
-// ---------------------------------------------------
-// missile_obj_list_rebuild()
-//
-// Called by the save/restore code to rebuild Missile_obj_list
-//
+/**
+ * Called by the save/restore code to rebuild Missile_obj_list
+ */
 void missile_obj_list_rebuild()
 {
 	object *objp;
@@ -442,19 +434,19 @@ void missile_obj_list_rebuild()
 	}
 }
 
-// ---------------------------------------------------
-// missile_obj_return_address()
-//
-// Called externally to generate an address from an index into
-// the Missile_objs[] array
-//
+/**
+ * Called externally to generate an address from an index into
+ * the Missile_objs[] array
+ */
 missile_obj *missile_obj_return_address(int index)
 {
 	Assert(index >= 0 && index < MAX_MISSILE_OBJS);
 	return &Missile_objs[index];
 }
 
-//	Return the index of Weapon_info[].name that is *name.
+/**
+ * Return the index of Weapon_info[].name that is *name.
+ */
 int weapon_info_lookup(const char *name)
 {
 	// bogus
@@ -473,6 +465,9 @@ int weapon_info_lookup(const char *name)
 //	Parse the weapon flags.
 void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2)
 {
+	const char *spawn_str = NOX("Spawn");
+	const size_t spawn_str_len = strlen(spawn_str);
+
 	//Make sure we HAVE flags :p
 	if(!optional_string("$Flags:"))
 		return;
@@ -492,7 +487,7 @@ void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2)
 	bool set_nopierce = false;
 	
 	for (int i=0; i<num_strings; i++) {
-		if (!strnicmp(NOX("Spawn"), weapon_strings[i], 5))
+		if (!strnicmp(spawn_str, weapon_strings[i], 5))
 		{
             if (weaponp->num_spawn_weapons_defined < MAX_SPAWN_TYPES_PER_WEAPON)
 			{
@@ -509,7 +504,7 @@ void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2)
 
 				weaponp->wi_flags |= WIF_SPAWN;
 				weaponp->spawn_info[weaponp->num_spawn_weapons_defined].spawn_type = (short)Num_spawn_types;
-				skip_length = strlen(NOX("Spawn")) + strspn(&temp_string[strlen(NOX("Spawn"))], NOX(" \t"));
+				skip_length = spawn_str_len + strspn(&temp_string[spawn_str_len], NOX(" \t"));
 				char *num_start = strchr(&temp_string[skip_length], ',');
 				if (num_start == NULL) {
 					weaponp->spawn_info[weaponp->num_spawn_weapons_defined].spawn_count = DEFAULT_WEAPON_SPAWN_COUNT;
@@ -639,6 +634,10 @@ void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2)
 			weaponp->wi_flags2 |= WIF2_TAKES_SHOCKWAVE_DAMAGE;
 		else if (!stricmp(NOX("hide from radar"), weapon_strings[i]))
 			weaponp->wi_flags2 |= WIF2_DONT_SHOW_ON_RADAR;
+		else if (!stricmp(NOX("render flak"), weapon_strings[i]))
+			weaponp->wi_flags2 |= WIF2_RENDER_FLAK;
+		else if (!stricmp(NOX("ciws"), weapon_strings[i]))
+			weaponp->wi_flags2 |= WIF2_CIWS;
 		else
 			Warning(LOCATION, "Bogus string in weapon flags: %s\n", weapon_strings[i]);
 	}
@@ -694,6 +693,11 @@ void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2)
 	{
 		Warning(LOCATION,"Weapon %s has the \"inherit parent target\" flag, but not the \"child\" flag.  No changes in behavior will occur.", weaponp->name);
 	}
+
+	if (!(weaponp->wi_flags & WIF_HOMING_HEAT) && (weaponp->wi_flags2 & WIF2_UNTARGETED_HEAT_SEEKER))
+	{
+		Warning(LOCATION,"Weapon '%s' has the \"untargeted heat seeker\" flag, but Homing Type is not set to \"HEAT\".", weaponp->name);
+	}
 }
 
 void parse_shockwave_info(shockwave_create_info *sci, char *pre_char)
@@ -720,6 +724,10 @@ void parse_shockwave_info(shockwave_create_info *sci, char *pre_char)
 	sprintf(buf, "%sInner Radius:", pre_char);
 	if(optional_string(buf)) {
 		stuff_float(&sci->inner_rad);
+		if (!sci->inner_rad != 0.0f) {
+			WarningEx(LOCATION, "Invalid inner Radius for Shockwave. Must be greater than 0.\n");
+			sci->inner_rad = 0.1f;
+		}
 	}
 
 	sprintf(buf, "%sOuter Radius:", pre_char);
@@ -797,6 +805,9 @@ void init_weapon_entry(int weap_info_index)
 		wip->detail_distance[i] = -1;
 	}
 
+	vm_vec_zero(&wip->closeup_pos);
+	wip->closeup_zoom = 1.0f;
+
 	generic_anim_init(&wip->laser_bitmap);
 	generic_anim_init(&wip->laser_glow_bitmap);
 
@@ -823,11 +834,16 @@ void init_weapon_entry(int weap_info_index)
 	wip->damage_type_idx = -1;
 	wip->damage_type_idx_sav = -1;
 
+	wip->armor_type_idx = -1;
+
 	wip->arm_time = 0;
 	wip->arm_dist = 0.0f;
 	wip->arm_radius = 0.0f;
 	wip->det_range = 0.0f;
 	wip->det_radius = 0.0f;
+	wip->flak_targeting_accuracy = 60.0f; // Standard value as defined in flak.cpp
+	wip->flak_detonation_accuracy = 65.0f;
+	wip->untargeted_flak_range_penalty = 20.0f;
 	
 	wip->armor_factor = 1.0f;
 	wip->shield_factor = 1.0f;
@@ -848,11 +864,14 @@ void init_weapon_entry(int weap_info_index)
 	wip->catchup_pixels_per_sec = 50;
 	wip->catchup_pixel_penalty = 50;
 	wip->seeker_strength = 1.0f;
-	
+
 	wip->swarm_count = -1;
 	// *Default is 150  -Et1
 	wip->SwarmWait = SWARM_MISSILE_DELAY;
 	
+	wip->pre_launch_snd = -1;
+	wip->pre_launch_snd_min_interval = 0;
+
 	wip->launch_snd = -1;
 	wip->impact_snd = -1;
 	wip->disarmed_impact_snd = -1;
@@ -970,11 +989,6 @@ void init_weapon_entry(int weap_info_index)
 
 		generic_anim_init(&bsip->texture, NULL);
 
-		for (j = 0; j < 4; j++) {
-			bsip->rgba_inner[j] = 0;
-			bsip->rgba_outer[j] = 255;
-		}
-
 		bsip->width = 1.0f;
 		bsip->flicker = 0.1f;
 		bsip->z_add = i2fl(MAX_BEAM_SECTIONS - i - 1);
@@ -1026,6 +1040,8 @@ void init_weapon_entry(int weap_info_index)
 	
 	wip->thruster_glow_factor = 1.0f;
 	wip->target_lead_scaler = 0.0f;
+
+	wip->selection_effect = Default_weapon_select_effect;
 }
 
 // function to parse the information for a specific weapon type.	
@@ -1168,14 +1184,32 @@ int parse_weapon(int subtype, bool replace)
 		}
 
 		stuff_malloc_string(&wip->tech_desc, F_MULTITEXT);
-//		stuff_string(buf, F_MULTITEXT, NULL, WEAPONS_MULTITEXT_LENGTH);
-//		wip->tech_desc = vm_strdup(buf);
 	}
 
-	if(optional_string("$Tech Model:")) {
+	if (optional_string("$Tech Model:")) {
 		stuff_string(wip->tech_model, F_NAME, MAX_FILENAME_LEN);
+
+		if (optional_string("+Closeup_pos:")) {
+			stuff_vector(&wip->closeup_pos);
+		}
+
+		if (optional_string("+Closeup_zoom:")) {
+			stuff_float(&wip->closeup_zoom);
+		}
 	}
-		
+
+	// Weapon fadein effect, used when no ani is specified or weapon_select_3d is active
+	wip->selection_effect = Default_weapon_select_effect; // By default, use the FS2 effect
+	if(optional_string("$Selection Effect:")) {
+		char effect[NAME_LENGTH];
+		stuff_string(effect, F_NAME, NAME_LENGTH);
+		if (!stricmp(effect, "FS2"))
+			wip->selection_effect = 2;
+		if (!stricmp(effect, "FS1"))
+			wip->selection_effect = 1;
+		if (!stricmp(effect, "off"))
+			wip->selection_effect = 0;
+	}	
 
 	//Check for the HUD image string
 	if(optional_string("$HUD Image:")) {
@@ -1272,9 +1306,9 @@ int parse_weapon(int subtype, bool replace)
 
 		// Goober5000 - hack in order to make the beam whack behavior of these three beams match all other beams
 		// this relies on Bobboau's beam whack hack in beam_apply_whack()
-		if (!strcmp(wip->name, "SAAA") && (wip->mass == 4.0f)
-			|| !strcmp(wip->name, "MjolnirBeam") && (wip->mass == 1000.0f)
-			|| !strcmp(wip->name, "MjolnirBeam#home") && (wip->mass == 1000.0f))
+		if ((!strcmp(wip->name, "SAAA") && (wip->mass == 4.0f))
+			|| (!strcmp(wip->name, "MjolnirBeam") && (wip->mass == 1000.0f))
+			|| (!strcmp(wip->name, "MjolnirBeam#home") && (wip->mass == 1000.0f)))
 		{
 			wip->mass = 100.0f;
 		}
@@ -1331,6 +1365,18 @@ int parse_weapon(int subtype, bool replace)
 		stuff_float(&wip->det_radius);
 	}
 
+	if(optional_string("$Flak Detonation Accuracy:")) {
+		stuff_float(&wip->flak_detonation_accuracy);
+	}
+
+	if(optional_string("$Flak Targeting Accuracy:")) {
+		stuff_float(&wip->flak_targeting_accuracy);
+	}
+
+	if(optional_string("$Untargeted Flak Range Penalty:")) {
+		stuff_float(&wip->untargeted_flak_range_penalty);
+	}
+
 	parse_shockwave_info(&wip->shockwave, "$");
 
 	//Retain compatibility
@@ -1362,7 +1408,7 @@ int parse_weapon(int subtype, bool replace)
 
 		if(wip->life_min < 0.0f) {
 			wip->life_min = 0.0f;
-			Warning(LOCATION, "Lifetime min for weapon '%s' cannot be less than 0. Setting to 0.", wip->name);
+			Warning(LOCATION, "Lifetime min for weapon '%s' cannot be less than 0. Setting to 0.\n", wip->name);
 		}
 	}
 
@@ -1371,14 +1417,19 @@ int parse_weapon(int subtype, bool replace)
 
 		if(wip->life_max < 0.0f) {
 			wip->life_max = 0.0f;
-			Warning(LOCATION, "Lifetime max for weapon '%s' cannot be less than 0. Setting to 0.", wip->name);
+			Warning(LOCATION, "Lifetime max for weapon '%s' cannot be less than 0. Setting to 0.\n", wip->name);
+		} else if (wip->life_max < wip->life_min) {
+			wip->life_max = wip->life_min + 0.1f;
+			Warning(LOCATION, "Lifetime max for weapon '%s' cannot be less than its Lifetime Min (%d) value. Setting to %d.\n", wip->name, wip->life_min, wip->life_max);
+		} else {
+			wip->lifetime = (wip->life_min+wip->life_max)*0.5f;
 		}
 	}
 
 	if(wip->life_min >= 0.0f && wip->life_max < 0.0f) {
 		wip->lifetime = wip->life_min;
 		wip->life_min = -1.0f;
-		Warning(LOCATION, "Lifetime min, but not lifetime max, specified for weapon %s. Assuming static lifetime of %.2f seconds.", wip->lifetime);
+		Warning(LOCATION, "Lifetime min, but not lifetime max, specified for weapon %s. Assuming static lifetime of %.2f seconds.\n", wip->lifetime);
 	}
 
 	if(optional_string("$Lifetime:")) {
@@ -1613,18 +1664,8 @@ int parse_weapon(int subtype, bool replace)
 	//Disarmed impact sound
 	parse_sound("$Disarmed ImpactSnd:", &wip->impact_snd, wip->name);
 
-	if (subtype == WP_MISSILE)
-	{
-		parse_sound("$FlyBySnd:", &wip->flyby_snd, wip->name);
-	}
-	else
-	{
-		if (optional_string("$FlyBySnd:"))
-		{
-			Warning(LOCATION, "$FlyBySnd: flag found on %s, but is not used with primary weapons; ignoring...", wip->name);
-		}
-	}
-
+	parse_sound("$FlyBySnd:", &wip->flyby_snd, wip->name);
+	
 	if(optional_string("$Model:"))
 	{
 		wip->render_type = WRT_POF;
@@ -1759,7 +1800,6 @@ int parse_weapon(int subtype, bool replace)
 		if ( optional_string("+Faded Out Sections:") ) {
 			stuff_int(&ti->n_fade_out_sections);
 		}
-		// wip->delta_time = fl2i(1000.0f*wip->max_life)/(NUM_TRAIL_SECTIONS+1);		// time between sections.  max_life / num_sections basically.
 	}
 
 	// read in filename for icon that is used in weapons selection
@@ -1771,15 +1811,6 @@ int parse_weapon(int subtype, bool replace)
 	if ( optional_string("$Anim:") ) {
 		stuff_string(wip->anim_filename, F_NAME, MAX_FILENAME_LEN);
 	}
-/*
-	if(optional_string("$Collide Ship:")) {
-		wip->sc_collide_ship = Script_system.ParseChunk("$Collide Ship");
-	}
-
-	if(optional_string("$Collide Weapon:")) {
-		wip->sc_collide_weapon = Script_system.ParseChunk("$Collide Weapon");
-	}
-*/
 
 	if ( optional_string("$Impact Explosion:") ) {
 		stuff_string(fname, F_NAME, NAME_LENGTH);
@@ -1859,18 +1890,6 @@ int parse_weapon(int subtype, bool replace)
 		stuff_float(&wip->afterburner_reduce);
 	}
 
-/*
-	int Corkscrew_missile_delay			= 30;			// delay between missile firings
-	int Corkscrew_num_missiles_fired		= 4;			// # of missiles fire in one shot
-	float Corkscrew_radius					= 1.25f;		// radius of the corkscrew itself
-	float Corkscrew_twist					= 5.0f;		// in degrees/second
-	int Corkscrew_helix						= 1;			// attempt to point the missile in the right direction
-	int Corkscrew_counterrotate			= 1;			// counterrotate every other missile
-	int Corkscrew_shrink						= 0;			// shrink the radius of every successive missile
-	float Corkscrew_shrink_val				= 0.3f;		// rate at which the radius shrinks
-	int Corkscrew_down_first				= 1;			// have the corkscrew go "down" first
-*/
-
 	if (optional_string("$Corkscrew:"))
 	{
 		if(optional_string("+Num Fired:")) {
@@ -1945,7 +1964,6 @@ int parse_weapon(int subtype, bool replace)
 			stuff_int(&wip->elec_randomness);
 		}
 	}
-
 
 	//read in the spawn angle info
 	//if the weapon isn't a spawn weapon, then this is not going to be used.
@@ -2221,20 +2239,22 @@ int parse_weapon(int subtype, bool replace)
 				generic_anim_init(&bsip->texture, fname);
 			}
 
-			// rgba inner
+			// The E -- Dummied out due to not being used anywhere
 			if ( optional_string("+RGBA Inner:") ) {
-				stuff_ubyte(&bsip->rgba_inner[0]);
-				stuff_ubyte(&bsip->rgba_inner[1]);
-				stuff_ubyte(&bsip->rgba_inner[2]);
-				stuff_ubyte(&bsip->rgba_inner[3]);
+				ubyte dummy;
+				stuff_ubyte(&dummy);
+				stuff_ubyte(&dummy);
+				stuff_ubyte(&dummy);
+				stuff_ubyte(&dummy);
 			}
 
-			// rgba outer
+			// The E -- Dummied out due to not being used anywhere
 			if ( optional_string("+RGBA Outer:") ) {
-				stuff_ubyte(&bsip->rgba_outer[0]);
-				stuff_ubyte(&bsip->rgba_outer[1]);
-				stuff_ubyte(&bsip->rgba_outer[2]);
-				stuff_ubyte(&bsip->rgba_outer[3]);
+				ubyte dummy;
+				stuff_ubyte(&dummy);
+				stuff_ubyte(&dummy);
+				stuff_ubyte(&dummy);
+				stuff_ubyte(&dummy);
 			}
 
 			// flicker
@@ -2398,7 +2418,6 @@ int parse_weapon(int subtype, bool replace)
 		}
 	}
 
-
 	// tag weapon optional stuff
 	if( optional_string("$Tag:")){
 		stuff_int(&wip->tag_level);
@@ -2429,10 +2448,10 @@ int parse_weapon(int subtype, bool replace)
 		}
 
 		float bogus;
-		
+
 		required_string("+radius:");
 		stuff_float(&bogus);
-		
+
 		if ( optional_string("+burn time:") ) {
 			stuff_float(&bogus);
 		}
@@ -2477,6 +2496,14 @@ int parse_weapon(int subtype, bool replace)
 	// making sure bombs get their hitpoints assigned
 	if ((wip->wi_flags & WIF_BOMB) && (wip->weapon_hitpoints == 0)) {
 		wip->weapon_hitpoints = 50;
+	}
+
+	if(optional_string("$Armor Type:")) {
+		stuff_string(buf, F_NAME, WEAPONS_MULTITEXT_LENGTH);
+		wip->armor_type_idx = armor_type_get_idx(buf);
+
+		if(wip->armor_type_idx == -1)
+			Warning(LOCATION,"Invalid armor name %s specified for weapon %s", buf, wip->name);
 	}
 
 	if (optional_string("$Burst Shots:")) {
@@ -2527,24 +2554,24 @@ int parse_weapon(int subtype, bool replace)
 
 	/* Generate a substitution pattern for this weapon.
 	This pattern is very naive such that is calculates the lowest common demoniator as being all of
-	the freqencies multiplied together.
+	the periods multiplied together.
 	*/
 	while ( optional_string("$substitute:") ) {
 		char subname[NAME_LENGTH];
-		int frequency = 0;
+		int period = 0;
 		int index = 0;
 		int offset = 0;
 		stuff_string(subname, F_NAME, NAME_LENGTH);
-		if ( optional_string("+frequency:") ) {
-			stuff_int(&frequency);
-			if ( frequency <= 0 ) {
-				Warning(LOCATION, "Substitution '%s' for weapon '%s' requires a frequency greater than 0. Setting frequency to 1.", subname, wip->name);
-				frequency = 1;
+		if ( optional_string("+period:") ) {
+			stuff_int(&period);
+			if ( period <= 0 ) {
+				Warning(LOCATION, "Substitution '%s' for weapon '%s' requires a period greater than 0. Setting period to 1.", subname, wip->name);
+				period = 1;
 			}
 			if ( optional_string("+offset:") ) {
 				stuff_int(&offset);
 				if ( offset <= 0 ) {
-					Warning(LOCATION, "Frequency offset for substitution '%s' of weapon '%s' has to be greater than 0. Setting offset to 1.", subname, wip->name);
+					Warning(LOCATION, "Period offset for substitution '%s' of weapon '%s' has to be greater than 0. Setting offset to 1.", subname, wip->name);
 					offset = 1;
 				}
 			}
@@ -2554,24 +2581,21 @@ int parse_weapon(int subtype, bool replace)
 				Warning(LOCATION, "Substitution '%s' for weapon '%s' requires an index greater than 0. Setting index to 0.", subname, wip->name);
 				index = 0;
 			}
-		} else {
-			Warning(LOCATION, "Substitution '%s' for weapon '%s' requires either '+index:' or '+frequency:' to follow. Skipping substitution.", subname, wip->name);
-			continue;
 		}
 
-		// we are going to use weapon subistution so, make sure that the pattern array has at least one element
+		// we are going to use weapon substition so, make sure that the pattern array has at least one element
 		if ( wip->weapon_substitution_pattern_names.empty() ) {
 			// pattern is empty, initialize pattern with the weapon being currently parsed.
 			wip->weapon_substitution_pattern_names.push_back(wip->name);
 		}
 
-		// if tbler specifies a frequency then determine if we can fit the resulting pattern
+		// if tbler specifies a period then determine if we can fit the resulting pattern
 		// neatly into the pattern array.
-		if ( frequency > 0 ) {
-			if ( (wip->weapon_substitution_pattern_names.size() % frequency) > 0 ) {
+		if ( period > 0 ) {
+			if ( (wip->weapon_substitution_pattern_names.size() % period) > 0 ) {
 				// not neat, need to expand the pattern so that our freqency pattern fits completly.
 				size_t current_size = wip->weapon_substitution_pattern_names.size();
-				wip->weapon_substitution_pattern_names.resize(current_size*frequency);
+				wip->weapon_substitution_pattern_names.resize(current_size*period);
 
 				// now duplicate the current pattern into the new area so the current pattern holds
 				for ( size_t i = current_size; i < wip->weapon_substitution_pattern_names.size(); i++) {
@@ -2579,14 +2603,12 @@ int parse_weapon(int subtype, bool replace)
 				}
 			}
 
-			/* Apply the substituted weapon as the requested freqency, barrel
+			/* Apply the substituted weapon at the requested period, barrel
 			shifted by offset if needed.*/
-			for ( size_t pos = (frequency + offset - 1) % frequency;
-				pos < wip->weapon_substitution_pattern_names.size(); pos += frequency )
+			for ( size_t pos = (period + offset - 1) % period;
+				pos < wip->weapon_substitution_pattern_names.size(); pos += period )
 			{
-				if ( pos > 0 ) {
-					wip->weapon_substitution_pattern_names[pos] = subname;
-				}
+				wip->weapon_substitution_pattern_names[pos] = subname;
 			}
 		} else {
 			// assume that tbler wanted to specify a index for the new weapon.
@@ -2602,131 +2624,18 @@ int parse_weapon(int subtype, bool replace)
 		}
 	}
 
+	//Optional score for destroying this weapon.
+	if (optional_string("$Score:")) {
+		stuff_int(&wip->score);
+	}
+
 	return WEAPON_INFO_INDEX(wip);
 }
-//Commented out with ifdef
-/*
-int cmeasure_name_lookup(char *name)
-{
-	int	i;
 
-	for ( i=0; i < Num_cmeasure_types; i++) {
-		if (!stricmp(name, Cmeasure_info[i].cmeasure_name)) {
-			return i;
-		}
-	}
-
-	return -1;
-}
-
-void init_cmeasure_entry(int cmeasure_idx)
-{
-	Assert(cmeasure_idx > -1 && cmeasure_idx < MAX_CMEASURES);
-	cmeasure_info *cmeasurep = &Cmeasure_info[cmeasure_idx];
-
-	cmeasurep->max_speed = 20.0f;
-	cmeasurep->fire_wait = 0.5f;
-	cmeasurep->life_min = 1.0f;
-	cmeasurep->life_max = 2.0f;
-	cmeasurep->launch_sound = -1;
-	cmeasurep->model_num = -1;
-	cmeasurep->pof_name[0] = '\0';
-}
-
-// function to parse the information for a specific ship type.	
-void parse_cmeasure(bool replace)
-{
-	cmeasure_info *cmeasurep;
-	bool create_if_not_found = true;
-
-	cmeasurep = &Cmeasure_info[Num_cmeasure_types];
-
-	char buf[NAME_LENGTH];
-	required_string("$Name:");
-	stuff_string(buf, F_NAME, NULL);
-
-	if(optional_string("+nocreate")) {
-		if(!replace) {
-			Warning(LOCATION, "+nocreate flag used for countermeasure in non-modular table");
-		}
-		create_if_not_found = false;
-	}
-
-	int c_id = cmeasure_name_lookup(buf);
-
-	if(c_id <= -1)
-	{
-		if(Num_cmeasure_types >= MAX_CMEASURES) {
-			Warning(LOCATION, "Too many countermeasures before '%s'; maximum is %d, so only the first %d will be used", buf, MAX_CMEASURES, Num_cmeasure_types);
-			
-			//Skip the rest of the ships in non-modular tables, since we can't add them.
-			if(!replace) {
-				while(skip_to_start_of_string_either("$Name:", "#End"));
-			}
-			return;
-		}
-
-		if(!create_if_not_found && replace)
-		{
-			if ( !skip_to_start_of_string_either("$Name:", "#End")) {
-				Int3();
-			}
-		}
-
-		//Make a new cmeasure
-		init_cmeasure_entry(Num_cmeasure_types);
-		cmeasurep = &Cmeasure_info[Num_cmeasure_types];
-		Num_cmeasure_types++;
-		strcpy_s(cmeasurep->cmeasure_name, buf);
-	}
-	else
-	{
-		cmeasurep = &Cmeasure_info[c_id];
-		if(!replace)
-		{
-			Warning(LOCATION, "Error:  Countermeasure '%s' already exists.  All countermeasure class names in weapons.tbl must be unique.", cmeasurep->cmeasure_name);
-			if ( !skip_to_start_of_string_either("$Name:", "#End")) {
-				Int3();
-			}
-			return;
-		}
-	}
-
-//$Name:					Type One
-//$Velocity:				20.0				;; speed relative to ship, rear-fired until POF info added, MK, 5/22/97
-//$Fire Wait:				0.5
-//$Lifetime Min:			1.0				;; Minimum lifetime
-//$Lifetime Max:			2.0				;; Maximum lifetime.  Actual lifetime is rand(min..max).
-//$LaunchSnd:				counter_1.wav,	.8, 10, 300	;; countermeasure 1 fired (sound is 3d)
-
-	if(optional_string("$Velocity:")) {
-		stuff_float( &(cmeasurep->max_speed) );
-	}
-
-	if(optional_string("$Fire Wait:")) {
-		stuff_float( &(cmeasurep->fire_wait) );
-	}
-
-	if(optional_string("$Lifetime Min:")) {
-		stuff_float(&cmeasurep->life_min);
-	}
-
-	if(optional_string("$Lifetime Max:")) {
-		stuff_float(&cmeasurep->life_max);
-	}
-
-	//Launching sound
-	parse_sound("$LaunchSnd:", &cmeasurep->launch_sound, cmeasurep->cmeasure_name);
-
-	if(optional_string("$Model:")) {
-		stuff_string(cmeasurep->pof_name, F_NAME, NULL);
-	}
-}
-*/
-
-
-//	For all weapons that spawn weapons, given an index at weaponp->spawn_type,
-// convert the strings in Spawn_names to indices in the Weapon_types array.
+/**
+ * For all weapons that spawn weapons, given an index at weaponp->spawn_type,
+ * convert the strings in Spawn_names to indices in the Weapon_types array.
+ */
 void translate_spawn_types()
 {
     int	i, j, k;
@@ -2852,14 +2761,6 @@ void parse_weaponstbl(char *filename)
 
 	// close localization
 	lcl_ext_close();
-}
-
-void weapon_create_names()
-{
-	int	i;
-
-	for (i = 0; i < Num_weapon_types; i++)
-		Weapon_names[i] = Weapon_info[i].name;
 }
 
 //uses a simple bucket sort to sort weapons, order of importance is:
@@ -3009,7 +2910,9 @@ void weapon_sort_by_type()
 	if (child_weapons)	delete [] child_weapons;
 }
 
-// do any post-parse cleaning on weapon entries
+/**
+ * Do any post-parse cleaning on weapon entries
+ */
 void weapon_clean_entries()
 {
 	weapon_info *wip;
@@ -3236,7 +3139,7 @@ void weapon_load_bitmaps(int weapon_index)
 			if (wip->particle_spewers[s].particle_spew_type != PSPEW_NONE){
 
 				if ((wip->particle_spewers[s].particle_spew_anim.first_frame < 0) 
-					&& (strlen(wip->particle_spewers[s].particle_spew_anim.filename) > 0) ) {
+					&& (wip->particle_spewers[s].particle_spew_anim.filename[0] != '\0') ) {
 
 					wip->particle_spewers[s].particle_spew_anim.first_frame = bm_load(wip->particle_spewers[s].particle_spew_anim.filename);
 
@@ -3275,9 +3178,10 @@ void weapon_load_bitmaps(int weapon_index)
 		used_weapons[weapon_index]++;
 }
 
-/* checks all of the weapon infos for subsitution patterns 
-and caches the weapon_index of any that it finds. */
-void weapon_generate_indexes_for_subsitution() {
+/**
+ * Checks all of the weapon infos for substitution patterns and caches the weapon_index of any that it finds. 
+ */
+void weapon_generate_indexes_for_substitution() {
 	for (int i = 0; i < MAX_WEAPON_TYPES; i++) {
 		weapon_info *wip = &(Weapon_info[i]);
 
@@ -3298,7 +3202,7 @@ void weapon_generate_indexes_for_subsitution() {
 				wip->weapon_substitution_pattern[j] = weapon_index;
 			}
 
-			wip->weapon_substitution_pattern_names.empty();
+			wip->weapon_substitution_pattern_names.clear();
 		}
 	}
 }
@@ -3311,9 +3215,8 @@ void weapon_do_post_parse()
 	char *weakp;
 
 	weapon_sort_by_type();	// NOTE: This has to be first thing!
-	weapon_create_names();
 	weapon_clean_entries();
-	weapon_generate_indexes_for_subsitution();
+	weapon_generate_indexes_for_substitution();
 
 	Default_cmeasure_index = -1;
 
@@ -3383,7 +3286,9 @@ void weapon_reset_info()
 		init_weapon_entry(i);
 }
 
-// This will get called once at game startup
+/**
+ * This will get called once at game startup
+ */
 void weapon_init()
 {
 	if ( !Weapons_inited ) {
@@ -3410,7 +3315,9 @@ void weapon_init()
 }
 
 
-// call from game_shutdown() only!!
+/**
+ * Call from game_shutdown() only!!
+ */
 void weapon_close()
 {
 	int i;
@@ -3445,7 +3352,9 @@ void weapon_close()
 	}
 }
 
-// This will get called at the start of each level.
+/**
+ * This will get called at the start of each level.
+ */
 void weapon_level_init()
 {
 	int i;
@@ -3533,6 +3442,8 @@ void weapon_render(object *obj)
 	{
 		case WRT_LASER:
 		{
+			if(wip->laser_length < 0.0001f)
+					return;
 			// turn off fogging for good measure
 			gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
 			int alpha = 255;
@@ -3562,6 +3473,7 @@ void weapon_render(object *obj)
 					alpha = fl2i(wp->alpha_current * 255.0f);
 
 				vec3d headp;
+				
 				vm_vec_scale_add(&headp, &obj->pos, &obj->orient.vec.fvec, wip->laser_length);
 				wp->weapon_flags &= ~WF_CONSIDER_FOR_FLYBY_SOUND;
 
@@ -3636,7 +3548,6 @@ void weapon_render(object *obj)
 				mst_info mst;
 
 				//	Add noise to thruster geometry.
-				//ft = obj->phys_info.forward_thrust;					
 				ft = 1.0f;		// Always use 1.0f for missiles					
 				ft *= (1.0f + frand()/5.0f - 1.0f/10.0f);
 				if (ft > 1.0f)
@@ -3664,7 +3575,7 @@ void weapon_render(object *obj)
 			int clip_plane=0;
 				
 			//start a clip plane
-			if ((wp->lssm_stage==2))
+			if (wp->lssm_stage==2)
 			{
 				object *wobj=&Objects[wp->lssm_warp_idx];		//warphole object
 				clip_plane=1;
@@ -3674,29 +3585,11 @@ void weapon_render(object *obj)
 
 
 			model_render(wip->model_num, &obj->orient, &obj->pos, render_flags);
-
+			wp->weapon_flags |= WF_CONSIDER_FOR_FLYBY_SOUND;
 			if (clip_plane)
 			{
 				g3_stop_user_clip_plane();
 			}
-			// render a missile plume as well
-			/*
-			static int plume = -1;	
-			extern float Interp_thrust_twist;
-			extern float Interp_thrust_twist2;
-			if(plume == -1){
-				plume = model_load("plume01.pof", -1, NULL);
-			}
-			if(plume != -1){
-				Interp_thrust_twist = tw;
-				Interp_thrust_twist2 = tw2;
-				model_set_alpha(plume_alpha);
-				model_render(plume, &obj->orient, &obj->pos, MR_ALL_XPARENT);
-				Interp_thrust_twist = -1.0f;
-				Interp_thrust_twist2 = -1.0f;
-			}
-			*/
-
 			break;
 		}
 
@@ -3736,13 +3629,6 @@ void weapon_delete(object *obj)
 		wp->missile_list_index = -1;
 	}
 
-/*
-	if (wp->flak_index >= 0){
-		flak_delete(wp->flak_index);
-		wp->flak_index = -1;
-	}
-*/
-
 	if (wp->trail_ptr != NULL) {
 		trail_object_died(wp->trail_ptr);
 		wp->trail_ptr = NULL;
@@ -3753,7 +3639,9 @@ void weapon_delete(object *obj)
 	Assert(Num_weapons >= 0);
 }
 
-// Check if missile is newly locked onto the Player, maybe play a launch warning
+/**
+ * Check if missile is newly locked onto the Player, maybe play a launch warning
+ */
 void weapon_maybe_play_warning(weapon *wp)
 {
 	if ( wp->homing_object == Player_obj ) {
@@ -3763,10 +3651,10 @@ void weapon_maybe_play_warning(weapon *wp)
 			// Possibly add an additional third sound later
 			if ( Weapon_info[wp->weapon_info_index].wi_flags & WIF_HOMING_HEAT ||
 				 Weapon_info[wp->weapon_info_index].wi_flags & WIF_HOMING_JAVELIN ) {
-				snd_play(&Snds[SND_HEATLOCK_WARN]);
+				snd_play(&Snds[ship_get_sound(Player_obj, SND_HEATLOCK_WARN)]);
 			} else {
 				Assert(Weapon_info[wp->weapon_info_index].wi_flags & WIF_HOMING_ASPECT);
-				snd_play(&Snds[SND_ASPECTLOCK_WARN]);
+				snd_play(&Snds[ship_get_sound(Player_obj, SND_ASPECTLOCK_WARN)]);
 			}
 		}
 	}
@@ -3774,7 +3662,9 @@ void weapon_maybe_play_warning(weapon *wp)
 
 #define	CMEASURE_DETONATE_DISTANCE		40.0f
 
-//	Detonate all missiles near this countermeasure.
+/**
+ * Detonate all missiles near this countermeasure.
+ */
 void detonate_nearby_missiles(object *killer_objp)
 {
 	if(killer_objp->type != OBJ_WEAPON) {
@@ -3796,9 +3686,7 @@ void detonate_nearby_missiles(object *killer_objp)
 			if ( Missiontime - wp->creation_time > F1_0/2) {
 				if (vm_vec_dist_quick(&killer_objp->pos, &objp->pos) < CMEASURE_DETONATE_DISTANCE) {
 					if (wp->lifeleft > 0.2f) { 
-						//nprintf(("Jim", "Frame %i: Cmeasure #%i detonating weapon #%i\n", Framecount, cmp-Cmeasures, wp-Weapons));
 						wp->lifeleft = 0.2f;
-						// nprintf(("AI", "Frame %i: Flagging weapon %i for detonation.\n", Framecount, wp-Weapons));
 					}
 				}
 			}
@@ -3808,7 +3696,9 @@ void detonate_nearby_missiles(object *killer_objp)
 	}
 }
 
-//	Find an object for weapon #num (object *weapon_objp) to home on due to heat.
+/**
+ * Find an object for weapon #num (object *weapon_objp) to home on due to heat.
+ */
 void find_homing_object(object *weapon_objp, int num)
 {
 	object      *objp, *old_homing_objp;
@@ -3839,16 +3729,10 @@ void find_homing_object(object *weapon_objp, int num)
 	for ( objp = GET_FIRST(&obj_used_list); objp !=END_OF_LIST(&obj_used_list); objp = GET_NEXT(objp) ) {
 		if ((objp->type == OBJ_SHIP) || ((objp->type == OBJ_WEAPON) && (Weapon_info[Weapons[objp->instance].weapon_info_index].wi_flags & WIF_CMEASURE)))
 		{
-			//WMC - Countermeasure duds were never implemented fully
-			/*
-			if (objp->type == OBJ_CMEASURE)
-			{
-				if (Cmeasures[objp->instance].flags & CMF_DUD_HEAT)
-					continue;
-			}*/
-
 			//WMC - Spawn weapons shouldn't go for protected ships
-			if((objp->flags & OF_PROTECTED) && (wp->weapon_flags & WF_SPAWNED))
+			// ditto for untargeted heat seekers - niffiwan
+			if ( (objp->flags & OF_PROTECTED) &&
+				((wp->weapon_flags & WF_SPAWNED) || (wip->wi_flags2 & WIF2_UNTARGETED_HEAT_SEEKER)) )
 				continue;
 
 			// Spawned weapons should never home in on their parent - even in multiplayer dogfights where they would pass the iff test below
@@ -3942,7 +3826,9 @@ void find_homing_object(object *weapon_objp, int num)
 	}
 }
 
-//	Scan all countermeasures.  Maybe make weapon_objp home on it.
+/**
+ * Scan all countermeasures.  Maybe make weapon_objp home on it.
+ */
 void find_homing_object_cmeasures_1(object *weapon_objp)
 {
 	object	*objp;
@@ -3990,21 +3876,17 @@ void find_homing_object_cmeasures_1(object *weapon_objp)
 					{
 						if (frand() >= chance) {
 							wp->cmeasure_ignore_objnum = objp->signature;	//	Don't process this countermeasure again.
-						//	mprintf(("Frame %i: Weapon #%i ignoring cmeasure #%i\n", Framecount, OBJ_INDEX(weapon_objp), objp->signature));
 						} else  {
 							wp->cmeasure_chase_objnum = objp->signature;	//	Don't process this countermeasure again.
-						//	mprintf(("Frame %i: Weapon #%i CHASING cmeasure #%i\n", Framecount, OBJ_INDEX(weapon_objp), objp->signature));
 						}
 					}
 				
 					if (objp->signature != wp->cmeasure_ignore_objnum)
 					{
-
 						dot = vm_vec_dot(&vec_to_object, &weapon_objp->orient.vec.fvec);
 
 						if (dot > best_dot)
 						{
-							//nprintf(("Jim", "Frame %i: Weapon #%i homing on cmeasure #%i\n", Framecount, weapon_objp-Objects, objp->signature));
 							best_dot = dot;
 							wp->homing_object = objp;
 							cmeasure_maybe_alert_success(objp);
@@ -4017,13 +3899,13 @@ void find_homing_object_cmeasures_1(object *weapon_objp)
 }
 
 
-//	Someone launched countermeasures.
-//	For all heat-seeking homing objects, see if should favor tracking a countermeasure instead.
+/**
+ * Someone launched countermeasures.
+ * For all heat-seeking homing objects, see if should favor tracking a countermeasure instead.
+ */
 void find_homing_object_cmeasures()
 {
 	object	*weapon_objp;
-
-	// nprintf(("AI", "Scanning for countermeasures in frame %i\n", Framecount));
 
 	if (Cmeasures_homing_check == 0)
 		return;
@@ -4044,7 +3926,9 @@ void find_homing_object_cmeasures()
 
 }
 
-//	Find object with signature "sig" and make weapon home on it.
+/**
+ * Find object with signature "sig" and make weapon home on it.
+ */
 void find_homing_object_by_sig(object *weapon_objp, int sig)
 {
 	ship_obj		*sop;
@@ -4076,7 +3960,9 @@ void find_homing_object_by_sig(object *weapon_objp, int sig)
 	}
 }
 
-//	Make weapon num home.  It's also object *obj.
+/**
+ * Make weapon num home.  It's also object *obj.
+ */
 void weapon_home(object *obj, int num, float frame_time)
 {
 	weapon		*wp;
@@ -4121,15 +4007,6 @@ void weapon_home(object *obj, int num, float frame_time)
 			vm_vec_copy_scale( &obj->phys_info.desired_vel, &obj->orient.vec.fvec, obj->phys_info.speed);
 		}
 
-/*	Removed code that makes bombs drop for a bit.  They looked odd and it was confusing.  People wondered where their weapons went.
-		//	Make bombs drop down for first second of life.
-		if (wip->wi_flags & WIF_BOMB) {
-			if (wip->lifetime - wp->lifeleft < 0.5f) {
-				float	time_scale = wip->lifetime - wp->lifeleft;
-				vm_vec_scale_add2(&obj->phys_info.desired_vel, &obj->orient.vec.uvec, (time_scale - 0.5f) * MAX(10.0f, obj->phys_info.speed/2.0f));
-			}
-		}
-*/
 		return;
 	}
 
@@ -4183,13 +4060,6 @@ void weapon_home(object *obj, int num, float frame_time)
 			return;
 	}
 
-/*
-	if (hobjp->type == OBJ_NONE) {
-		find_homing_object(obj, num);
-		return;
-	}
-*/
-
 	switch (hobjp->type) {
 	case OBJ_NONE:
 		if (wip->wi_flags & WIF_LOCKED_HOMING) {
@@ -4211,7 +4081,7 @@ void weapon_home(object *obj, int num, float frame_time)
 		break;
 	case OBJ_WEAPON:
 		// don't home on countermeasures or non-bombs, that's handled elsewhere
-		if ( (Weapon_info[Weapons[hobjp->instance].weapon_info_index].wi_flags & WIF_CMEASURE) || !(Weapon_info[Weapons[hobjp->instance].weapon_info_index].wi_flags & WIF_BOMB) )
+		if ( ((Weapon_info[Weapons[hobjp->instance].weapon_info_index].wi_flags & WIF_CMEASURE) && !(The_mission.ai_profile->flags2 & AIPF2_ASPECT_LOCK_COUNTERMEASURE)) || !(Weapon_info[Weapons[hobjp->instance].weapon_info_index].wi_flags & WIF_BOMB) )
 			break;
 
 		if (wip->wi_flags & WIF_LOCKED_HOMING) {
@@ -4271,7 +4141,6 @@ void weapon_home(object *obj, int num, float frame_time)
 					//	Make this missile detonate soon.  Not right away, not sure why.  Seems better.
 					if (iff_x_attacks_y(Weapons[hobjp->instance].team, wp->team)) {
 						detonate_nearby_missiles(hobjp);
-						//nprintf(("AI", "Frame %i: Weapon %i hit cmeasure, will die!\n", Framecount, wp-Weapons));
 						return;
 					}
 				}
@@ -4338,7 +4207,6 @@ void weapon_home(object *obj, int num, float frame_time)
 
 				wp->homing_pos = target_pos;
 				Assert( !vm_is_vec_nan(&wp->homing_pos) );
-				// nprintf(("AI", "Attack point = %7.3f %7.3f %7.3f\n", target_pos.xyz.x, target_pos.xyz.y, target_pos.xyz.z));
 			} else
 				target_pos = wp->homing_pos;
 		}
@@ -4383,10 +4251,6 @@ void weapon_home(object *obj, int num, float frame_time)
 			}
 		}
 
-		//nprintf(("AI", "Dot = %7.3f, dist = %7.3f, time_to = %6.3f, deg/sec = %7.3f\n", old_dot, dist_to_target, time_to_target, angles/flFrametime));
-
-		// nprintf(("AI", "Weapon %i, lifeleft = %7.3f, dist = %7.3f, dot = %6.3f\n", num, Weapons[num].lifeleft, vm_vec_dist_quick(&obj->pos, &Weapons[num].homing_object->pos), old_dot));
-
 		//	If a HEAT seeking (rather than ASPECT seeking) homing missile, verify that target is in viewcone.
 		if (wip->wi_flags & WIF_HOMING_HEAT) {
 			if ((old_dot < wip->fov) && (dist_to_target > wip->shockwave.inner_rad*1.1f)) {	//	Delay finding new target one frame to allow detonation.
@@ -4395,9 +4259,6 @@ void weapon_home(object *obj, int num, float frame_time)
 			} else	//	Subtract out life based on how far from target this missile points.
 				if ((wip->fov < 0.95f) && !(wip->wi_flags2 & WIF2_NO_LIFE_LOST_IF_MISSED)) {
 					wp->lifeleft -= flFrametime * (0.95f - old_dot);
-					//Should only happen when time is compressed.
-					//if (flFrametime * (1.0f - old_dot) > 1.0f)
-					//	Int3();
 				}
 		} else if (wip->wi_flags & WIF_LOCKED_HOMING) {	//	subtract life as if max turn is 90 degrees.
 			if ((wip->fov < 0.95f) && !(wip->wi_flags2 & WIF2_NO_LIFE_LOST_IF_MISSED))
@@ -4430,22 +4291,14 @@ void weapon_home(object *obj, int num, float frame_time)
 
 		// turn the missile towards the target only if non-swarm.  Homing swarm missiles choose
 		// a different vector to turn towards, this is done in swarm_update_direction().
-//		if ( !(wip->wi_flags & WIF_SWARM) ) {
 		if ( wp->swarm_index < 0 ) {
-			// nprintf(("AI", "Dot, dist = %7.3f, %7.3f, target pos = %7.3f %7.3f %7.3f\n", old_dot, vm_vec_dist_quick(&obj->pos, &target_pos), target_pos.xyz.x, target_pos.xyz.y, target_pos.xyz.z));
 			ai_turn_towards_vector(&target_pos, obj, frame_time, wip->turn_time, NULL, NULL, 0.0f, 0, NULL);
 			vel = vm_vec_mag(&obj->phys_info.desired_vel);
 
 			vm_vec_copy_scale(&obj->phys_info.desired_vel, &obj->orient.vec.fvec, vel);
 
 		}
-
-/*		//	If this weapon shot past its target, make it detonate.
-		if ((old_dot < 0.0f) && (dist_to_target < 50.0f)) {
-			if (wp->lifeleft > 0.01f)
-				wp->lifeleft = 0.01f;
-		}
-*/	}
+	}
 }
 
 // as Mike K did with ships -- break weapon into process_pre and process_post for code to execute
@@ -4463,12 +4316,6 @@ void weapon_process_pre( object *obj, float frame_time)
 	if((obj->type == OBJ_WEAPON) && (Weapons[obj->instance].cscrew_index >= 0)){
 		cscrew_process_pre(obj);
 	}
-
-	// if the weapon is a flak weapon, maybe detonate it early
-	/*
-	if((wip->wi_flags & WIF_FLAK) && (wp->flak_index >= 0)){
-		flak_maybe_detonate(obj);		
-	}*/
 
 	//WMC - Originally flak_maybe_detonate, moved here.
 	if(wp->det_range > 0.0f)
@@ -4504,14 +4351,11 @@ int	Homing_hits = 0, Homing_misses = 0;
 
 MONITOR( NumWeapons )
 
-// maybe play a "whizz sound" if close enough to view position
+/**
+ * Maybe play a "whizz sound" if close enough to view position
+ */
 void weapon_maybe_play_flyby_sound(object *weapon_objp, weapon *wp)
-{	
-	// do a quick out if not a laser
-	if ( Weapon_info[wp->weapon_info_index].subtype != WP_LASER ) {
-		return;
-	}
-
+{
 	// don't play flyby sounds too close together
 	if ( !timestamp_elapsed(Weapon_flyby_sound_timer) ) {
 		return;
@@ -4547,9 +4391,14 @@ void weapon_maybe_play_flyby_sound(object *weapon_objp, weapon *wp)
 			// ensure that laser is moving in similar direction to fvec
 			dot = vm_vec_dot(&vec_to_weapon, &weapon_objp->orient.vec.fvec);
 			
-//			nprintf(("Alan", "Weapon dot: %.2f\n", dot));
 			if ( (dot < -0.80) && (dot > -0.98) ) {
-				snd_play_3d( &Snds[SND_WEAPON_FLYBY], &weapon_objp->pos, &Eye_position );
+				if(Weapon_info[wp->weapon_info_index].flyby_snd != -1) {
+					snd_play_3d( &Snds[Weapon_info[wp->weapon_info_index].flyby_snd], &weapon_objp->pos, &Eye_position );
+				} else {
+					if ( Weapon_info[wp->weapon_info_index].subtype == WP_LASER ) {
+						snd_play_3d( &Snds[SND_WEAPON_FLYBY], &weapon_objp->pos, &Eye_position );
+					}
+				}
 				Weapon_flyby_sound_timer = timestamp(200);
 				wp->weapon_flags |= WF_PLAYED_FLYBY_SOUND;
 			}
@@ -4603,20 +4452,16 @@ void weapon_process_post(object * obj, float frame_time)
 		if ( wip->subtype & WP_MISSILE ) {
 			if(Game_mode & GM_MULTIPLAYER){				
 				if ( !MULTIPLAYER_CLIENT || (MULTIPLAYER_CLIENT && (wp->lifeleft < -2.0f)) || (MULTIPLAYER_CLIENT && (wip->wi_flags & WIF_CHILD))) {					// don't call this function multiplayer client -- host will send this packet to us
-					// nprintf(("AI", "Frame %i: Weapon %i detonated, dist = %7.3f!\n", Framecount, obj-Objects));
 					weapon_detonate(obj);					
 				}
 			} else {
-				// nprintf(("AI", "Frame %i: Weapon %i detonated, dist = %7.3f!\n", Framecount, obj-Objects));
 				weapon_detonate(obj);									
 			}
 			if (wip->wi_flags & WIF_HOMING) {
 				Homing_misses++;
-				// nprintf(("AI", "Miss!  Hits = %i/%i\n", Homing_hits, (Homing_hits + Homing_misses)));
 			}
 		} else {
 			obj->flags |= OF_SHOULD_BE_DEAD;
-//			demo_do_flag_dead(OBJ_INDEX(obj));
 		}
 
 		return;
@@ -4683,7 +4528,6 @@ void weapon_process_post(object * obj, float frame_time)
 
 				vm_vec_normalized_dir(&tvec, &v0, &Objects[wp->target_num].pos);
 				dot = vm_vec_dot(&tvec, &Objects[wp->target_num].orient.vec.fvec);
-				// nprintf(("AI", "Miss dot = %7.3f, dist = %7.3f, lead_scale = %7.3f\n", dot, cur_dist, lead_scale));
 				wp->target_num = -1;
 
 				//	Learn!  If over-shooting or under-shooting, compensate.
@@ -4714,15 +4558,8 @@ void weapon_process_post(object * obj, float frame_time)
 	// a single player or multiplayer server function -- it affects actual weapon movement.
 	if (wip->wi_flags & WIF_HOMING) {
 		weapon_home(obj, num, frame_time);
-
-/*		if (wip->wi_flags & WIF_BOMB) {
-			if (wip->lifetime - obj->lifeleft < 1.0f) {
-				
-			}
-		}
-*/		
-		// If this is a swarm type missile, 
-//		if ( wip->wi_flags & WIF_SWARM ) 
+		
+		// If this is a swarm type missile,  
 		if ( wp->swarm_index >= 0 ) {
 			swarm_update_direction(obj, frame_time);
 		}
@@ -4735,7 +4572,6 @@ void weapon_process_post(object * obj, float frame_time)
 	//local ssm stuff
 	if (wip->wi_flags2 & WIF2_LOCAL_SSM)
 	{
-
 		//go into subspace if the missile is locked and its time to warpout
 		if ((wp->lssm_stage==1) && (timestamp_elapsed(wp->lssm_warpout_time)))
 		{
@@ -4827,7 +4663,9 @@ void weapon_process_post(object * obj, float frame_time)
 
 }
 
-//	Update weapon tracking information.
+/**
+ * Update weapon tracking information.
+ */
 void weapon_set_tracking_info(int weapon_objnum, int parent_objnum, int target_objnum, int target_is_locked, ship_subsys *target_subsys)
 {
 	object		*parent_objp;
@@ -4947,9 +4785,11 @@ inline size_t* get_pointer_to_weapon_fire_pattern_index(int weapon_type, ship* s
 	return NULL;
 }
 
-// weapon_create() will create a weapon object
-//
-// Returns:  index of weapon in the Objects[] array, -1 if the weapon object was not created
+/**
+ * Create a weapon object
+ *
+ * @return Index of weapon in the Objects[] array, -1 if the weapon object was not created
+ */
 int Weapons_created = 0;
 int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_objnum, int group_id, int is_locked, int is_spawned)
 {
@@ -5001,11 +4841,6 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 
 	num_deleted = 0;
 	if (Num_weapons >= MAX_WEAPONS-5) {
-
-		//No, do remove for AI ships -- MK, 3/12/98  // don't need to try and delete weapons for ai ships
-		//if ( !(Objects[parent_objnum].flags & OF_PLAYER_SHIP) )
-		//	return -1;
-
 		num_deleted = collide_remove_weapons();
 		nprintf(("WARNING", "Deleted %d weapons because of lack of slots\n", num_deleted));
 		if (num_deleted == 0){
@@ -5146,8 +4981,6 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 		// for multiplayer clients, when creating lasers, add some more life to the lasers.  This helps
 		// to overcome some problems associated with lasers dying on client machine before they get message
 		// from server saying it hit something.
-		// removed 1/13/98 -- MWA if ( MULTIPLAYER_CLIENT && (wip->subtype == WP_LASER) )
-		//	removed 1/13/98 -- MWA	wp->lifeleft += 1.5f;
 	}
 
 	//Check if we want to gen a random number
@@ -5262,7 +5095,7 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 
 	// if this is a flak weapon shell, make it so
 	// NOTE : this function will change some fundamental things about the weapon object
-	if ( wip->wi_flags & WIF_FLAK ){
+	if ( (wip->wi_flags & WIF_FLAK) && !(wip->wi_flags2 & WIF2_RENDER_FLAK) ) {
 		obj_set_flags(&Objects[wp->objnum], Objects[wp->objnum].flags & ~(OF_RENDERS));
 	}
 
@@ -5330,10 +5163,24 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 	wp->alpha_current = -1.0f;
 	wp->alpha_backward = 0;
 
+	wp->collisionOccured = false;
+
 	Num_weapons++;
+
+	// reset the damage record fields (for scoring purposes)
+	wp->total_damage_received = 0.0f;
+	for(int i=0;i<MAX_WEP_DAMAGE_SLOTS;i++)
+	{
+		wp->damage_ship[i] = 0.0f;
+		wp->damage_ship_id[i] = -1;
+	}
+
 	return objnum;
 }
-//	Spawn child weapons from object *objp.
+
+/**
+ * Spawn child weapons from object *objp.
+ */
 void spawn_child_weapons(object *objp)
 {
 	int	i, j;
@@ -5428,8 +5275,10 @@ void spawn_child_weapons(object *objp)
 	}
 }
 
-//Figures out whether to play disarmed or armed hit sound, checks that the
-//chosen one exists, and plays it
+/**
+ * Figures out whether to play disarmed or armed hit sound, checks that the
+ * chosen one exists, and plays it
+ */
 void weapon_play_impact_sound(weapon_info *wip, vec3d *hitpos, bool is_armed)
 {
 	if(is_armed)
@@ -5446,17 +5295,15 @@ void weapon_play_impact_sound(weapon_info *wip, vec3d *hitpos, bool is_armed)
 	}
 }
 
-// -----------------------------------------------------------------------
-// weapon_hit_do_sound()
-//
-// Play a sound effect when a weapon hits a ship
-//
-// To elimate the "stereo" effect of two lasers hitting at nearly
-// the same time, and to reduce the number of sound channels used,
-// only play one impact sound if IMPACT_SOUND_DELTA has elapsed
-//
-// Note: Uses Weapon_impact_timer global for timer variable
-//
+/**
+ * Play a sound effect when a weapon hits a ship
+ *
+ * To elimate the "stereo" effect of two lasers hitting at nearly
+ * the same time, and to reduce the number of sound channels used,
+ * only play one impact sound if IMPACT_SOUND_DELTA has elapsed
+ *
+ * @note Uses Weapon_impact_timer global for timer variable
+ */
 void weapon_hit_do_sound(object *hit_obj, weapon_info *wip, vec3d *hitpos, bool is_armed)
 {
 	int	is_hull_hit;
@@ -5547,38 +5394,16 @@ void weapon_hit_do_sound(object *hit_obj, weapon_info *wip, vec3d *hitpos, bool 
 		Weapon_impact_timer = timestamp(IMPACT_SOUND_DELTA);
 	}
 }
-/*
-const float weapon_electronics_scale[MAX_SHIP_TYPE_COUNTS]=
-{
-	0.0f,	//SHIP_TYPE_NONE
-	10.0f,	//SHIP_TYPE_CARGO
-	4.0f,	//SHIP_TYPE_FIGHTER_BOMBER
-	0.9f,	//SHIP_TYPE_CRUISER
-	1.75f,	//SHIP_TYPE_FREIGHTER
-	0.2f,	//SHIP_TYPE_CAPITAL
-	2.0f,	//SHIP_TYPE_TRANSPORT
-	3.5f,	//SHIP_TYPE_REPAIR_REARM
-	10.0f,	//SHIP_TYPE_NAVBUOY
-	10.0f,	//SHIP_TYPE_SENTRYGUN
-	10.0f,	//SHIP_TYPE_ESCAPEPOD
-	0.075f,	//SHIP_TYPE_SUPERCAP
-	4.0f,	//SHIP_TYPE_STEALTH
-	4.0f,	//SHIP_TYPE_FIGHTER
-	4.0f,	//SHIP_TYPE_BOMBER
-	0.5f,	//SHIP_TYPE_DRYDOCK
-	0.8f,	//SHIP_TYPE_AWACS
-	1.0f,	//SHIP_TYPE_GAS_MINER
-	0.3333f,	//SHIP_TYPE_CORVETTE
-	0.10f,	//SHIP_TYPE_KNOSSOS_DEVICE
-};*/
 
 extern bool turret_weapon_has_flags(ship_weapon *swp, int flags);
 
-// distrupt any subsystems that fall into damage sphere of this Electronics missile
-//
-// input:	ship_obj		=>		pointer to ship that holds subsystem
-//				blast_pos	=>		world pos of weapon blast
-//				wi_index		=>		weapon info index of weapon causing blast
+/**
+ * Distrupt any subsystems that fall into damage sphere of this Electronics missile
+ *
+ * @param ship_objp	Pointer to ship that holds subsystem
+ * @param blast_pos	World pos of weapon blast
+ * @param wi_index	Weapon info index of weapon causing blast
+ */
 void weapon_do_electronics_effect(object *ship_objp, vec3d *blast_pos, int wi_index)
 {
 	weapon_info			*wip;
@@ -5653,25 +5478,23 @@ void weapon_do_electronics_effect(object *ship_objp, vec3d *blast_pos, int wi_in
 	}
 }
 
-//	----------------------------------------------------------------------
-//	weapon_area_calc_damage()
-//
-// Calculate teh damage for an object based on the location of an area-effect
-// explosion.
-//
-// input:		objp			=>		object pointer ship receiving blast effect
-//					pos			=>		world pos of blast center
-//					inner_rad	=>		smallest radius at which full damage is done
-//					outer_rad	=>		radius at which no damage is done
-//					max_blast	=>		maximum blast possible from explosion
-//					max_damage	=>		maximum damage possible from explosion
-//					blast			=>		OUTPUT PARAMETER: receives blast value from explosion
-//					damage		=>		OUTPUT PARAMETER: receives damage value from explosion
-//					limit			=>		a limit on the area, needed for shockwave damage
-//
-//	returns:		no damage occurred	=>		-1
-//					damage occured			=>		0
-//
+/**
+ * Calculate teh damage for an object based on the location of an area-effect
+ * explosion.
+ *
+ * @param objp			Object pointer ship receiving blast effect
+ * @param pos			World pos of blast center
+ * @param inner_rad		Smallest radius at which full damage is done
+ * @param outer_rad		Radius at which no damage is done
+ * @param max_blast		Maximum blast possible from explosion
+ * @param max_damage	Maximum damage possible from explosion
+ * @param blast			OUTPUT PARAMETER: receives blast value from explosion
+ * @param damage		OUTPUT PARAMETER: receives damage value from explosion
+ * @param limit			A limit on the area, needed for shockwave damage
+ *
+ * @return		No damage occurred, -1
+ * @return		Damage occured, 0
+ */
 int weapon_area_calc_damage(object *objp, vec3d *pos, float inner_rad, float outer_rad, float max_blast, float max_damage, float *blast, float *damage, float limit)
 {
 	float			dist, max_dist, min_dist;
@@ -5696,27 +5519,21 @@ int weapon_area_calc_damage(object *objp, vec3d *pos, float inner_rad, float out
 		Assert(dist_to_outer_rad_squared <= total_dist_squared);
 		*damage = max_damage * dist_to_outer_rad_squared/total_dist_squared;
 
-
-//		*damage = (min_dist - outer_rad) * max_damage/(inner_rad - outer_rad);
 		*blast =  (min_dist - outer_rad) * max_blast /(inner_rad - outer_rad);
 	}
-
-	// nprintf(("AI", "Frame %i: Damage = %7.3f, %7.3f meters away.\n", Framecount, *damage, dist));
 
 	return 0;
 }
 
-//	----------------------------------------------------------------------
-//	weapon_area_apply_blast()
-//
-// Apply the blast effects of an explosion to a ship
-//
-// input:	force_apply_pos	=>		world pos of where force is applied to object
-//				ship_obj				=>		object pointer of ship receiving the blast
-//				blast_pos			=>		world pos of blast center
-//				blast					=>		force of blast
-//				make_shockwave		=>		boolean, whether to create a shockwave or not
-//
+/**
+ * Apply the blast effects of an explosion to a ship
+ *
+ * @param force_apply_pos	World pos of where force is applied to object
+ * @param ship_obj			Object pointer of ship receiving the blast
+ * @param blast_pos			World pos of blast center
+ * @param blast				Force of blast
+ * @param make_shockwave	Boolean, whether to create a shockwave or not
+ */
 void weapon_area_apply_blast(vec3d *force_apply_pos, object *ship_obj, vec3d *blast_pos, float blast, int make_shockwave)
 {
 	#define	SHAKE_CONST 3000
@@ -5731,7 +5548,6 @@ void weapon_area_apply_blast(vec3d *force_apply_pos, object *ship_obj, vec3d *bl
 	vm_vec_sub(&vec_blast_to_ship, &ship_obj->pos, blast_pos);
 	vm_vec_normalize_safe(&vec_blast_to_ship);
 	vm_vec_copy_scale(&force, &vec_blast_to_ship, blast );
-
 
 	vm_vec_sub(&vec_ship_to_impact, blast_pos, &ship_obj->pos);
 
@@ -5748,15 +5564,14 @@ void weapon_area_apply_blast(vec3d *force_apply_pos, object *ship_obj, vec3d *bl
 	}
 }
 
-//	----------------------------------------------------------------------
-//	weapon_do_area_effect()
-//
-// Do the area effect for a weapon
-//
-// input:	wobjp			=>		object pointer to weapon causing explosion
-//				pos			=>		world pos of explosion center
-//				other_obj	=>		object pointer to ship that weapon impacted on (can be NULL)
-//
+/**
+ * Do the area effect for a weapon
+ *
+ * @param wobjp		Object pointer to weapon causing explosion
+ * @param sci		Shockwave info
+ * @param pos		World pos of explosion center
+ * @param other_obj	Object pointer to ship that weapon impacted on (can be NULL)
+ */
 void weapon_do_area_effect(object *wobjp, shockwave_create_info *sci, vec3d *pos, object *other_obj)
 {
 	weapon_info	*wip;
@@ -5766,7 +5581,7 @@ void weapon_do_area_effect(object *wobjp, shockwave_create_info *sci, vec3d *pos
 
 	wip = &Weapon_info[Weapons[wobjp->instance].weapon_info_index];	
 	wp = &Weapons[wobjp->instance];
-	Assert(sci->inner_rad != 0);	
+	Assertion(sci->inner_rad != 0, "Shockwave info for weapon %s is invalid. Inner Radius needs to be greater than 0./n", wip->name);	
 
 	// only blast ships and asteroids
 	// And (some) weapons
@@ -5778,7 +5593,7 @@ void weapon_do_area_effect(object *wobjp, shockwave_create_info *sci, vec3d *pos
 		if ( objp->type == OBJ_WEAPON ) {
 			// only apply to missiles with hitpoints
 			weapon_info* wip2 = &Weapon_info[Weapons[objp->instance].weapon_info_index];
-			if (wip2->weapon_hitpoints <= 0 || !(wip2->wi_flags2 & WIF2_TAKES_BLAST_DAMAGE))
+			if (wip2->weapon_hitpoints <= 0 || !(wip2->wi_flags2 & WIF2_TAKES_BLAST_DAMAGE) || (wip->wi_flags2 & WIF2_CIWS))
 				continue;
 		}
 
@@ -5796,6 +5611,8 @@ void weapon_do_area_effect(object *wobjp, shockwave_create_info *sci, vec3d *pos
 		// scale damage
 		damage *= weapon_get_damage_scale(wip, wobjp, other_obj);		
 
+		weapon_info* target_wip;
+
 		switch ( objp->type ) {
 		case OBJ_SHIP:
 			ship_apply_global_damage(objp, wobjp, pos, damage);
@@ -5805,6 +5622,10 @@ void weapon_do_area_effect(object *wobjp, shockwave_create_info *sci, vec3d *pos
 			asteroid_hit(objp, NULL, NULL, damage);
 			break;
 		case OBJ_WEAPON:
+			target_wip = &Weapon_info[Weapons[objp->instance].weapon_info_index];
+			if (target_wip->armor_type_idx >= 0)
+				damage = Armor_types[target_wip->armor_type_idx].GetDamage(damage, wip->damage_type_idx);
+
 			objp->hull_strength -= damage;
 			if (objp->hull_strength < 0.0f) {
 				Weapons[objp->instance].lifeleft = 0.01f;
@@ -5878,12 +5699,10 @@ bool weapon_armed(weapon *wp, bool hit_target)
 }
 
 
-//	----------------------------------------------------------------------
-//	weapon_hit()
-//
-// This function is called when a weapon hits something (or, in the case of
-// missiles explodes for any particular reason)
-//
+/**
+ * Called when a weapon hits something (or, in the case of
+ * missiles explodes for any particular reason)
+ */
 void weapon_hit( object * weapon_obj, object * other_obj, vec3d * hitpos, int quadrant )
 {
 	Assert(weapon_obj != NULL);
@@ -5925,7 +5744,6 @@ void weapon_hit( object * weapon_obj, object * other_obj, vec3d * hitpos, int qu
 	// int np_index;
 
 	// if this is the player ship, and is a laser hit, skip it. wait for player "pain" to take care of it
-	// if( ((wip->subtype != WP_LASER) || !MULTIPLAYER_CLIENT) && (Player_obj != NULL) && (other_obj == Player_obj) ){
 	if ((other_obj != Player_obj) || (wip->subtype != WP_LASER) || !MULTIPLAYER_CLIENT) {
 		weapon_hit_do_sound(other_obj, wip, hitpos, armed_weapon);
 	}
@@ -6001,6 +5819,14 @@ void weapon_hit( object * weapon_obj, object * other_obj, vec3d * hitpos, int qu
 					particle_emit(&pe, PARTICLE_BITMAP, expl_ani_handle, 10.0f);
 				}
 			}
+		}
+	}
+
+	// single player and multiplayer masters evaluate the scoring and kill stuff
+	if (!MULTIPLAYER_CLIENT) {
+		//If this is a bomb, set it up for scoring. -Halleck
+		if (wip->wi_flags & WIF_BOMB) {
+			scoring_eval_kill_on_weapon(weapon_obj, other_obj);
 		}
 	}
 
@@ -6085,7 +5911,9 @@ int weapon_create_group_id()
 	return n;
 }
 
-//Call before weapons_page_in to mark a weapon as used
+/**
+ * Call before weapons_page_in to mark a weapon as used
+ */
 void weapon_mark_as_used(int weapon_type)
 {
 	if (weapon_type < 0)
@@ -6158,7 +5986,6 @@ void weapons_page_in()
 				// If it has a model, and the model pof has thrusters, then set
 				// the flags
 				if (pm->n_thrusters > 0) {
-					//mprintf(( "Weapon %s has thrusters!\n", wip->name ));
 					wip->wi_flags |= WIF_THRUSTER;
 				}
 		
@@ -6231,39 +6058,15 @@ void weapons_page_in()
 		bm_page_in_texture(wip->thruster_flame.first_frame);
 		bm_page_in_texture(wip->thruster_glow.first_frame);
 	}
-
-	// Counter measures
-	/*
-	for (i=0; i<Num_cmeasure_types; i++ )	{
-		cmeasure_info *cmeasurep;
-
-		cmeasurep = &Cmeasure_info[i];
-
-		Assert( strlen(cmeasurep->pof_name) );
-
-		cmeasurep->model_num = model_load( cmeasurep->pof_name, 0, NULL );
-
-		if ( cmeasurep->model_num < 0 ) {
-			Error( LOCATION, "Unable to load countermeasure POF for '%s' (%s)", cmeasurep->cmeasure_name, cmeasurep->pof_name);
-		}
-
-		polymodel *pm = model_get( cmeasurep->model_num );
-
-		for (j=0; j<pm->n_textures; j++ )	{
-			int bitmap_num = pm->original_textures[j];
-
-			if ( bitmap_num > -1 )	{
-				bm_page_in_texture( bitmap_num );
-			}
-		}
-	}
-*/
 }
 
-// page_in function for cheaters, grabs all weapons that weren't already in a mission
-// and loads the models for them.  Non-model graphics elements will get loaded when
-// they are rendered for the first time.  Maybe not the best way to do this but faster
-// and a lot less error prone.
+/**
+ * Page_in function for cheaters, grabs all weapons that weren't already in a mission
+ * and loads the models for them.
+ *
+ * Non-model graphics elements will get loaded when they are rendered for the first time.  
+ * Maybe not the best way to do this but faster and a lot less error prone.
+ */
 void weapons_page_in_cheats()
 {
 	int i;
@@ -6297,7 +6100,6 @@ void weapons_page_in_cheats()
 			// If it has a model, and the model pof has thrusters, then set
 			// the flags
 			if ( pm->n_thrusters > 0 )	{
-				//mprintf(( "Weapon %s has thrusters!\n", wip->name ));
 				wip->wi_flags |= WIF_THRUSTER;
 			}
 		}
@@ -6317,25 +6119,11 @@ void weapons_page_in_cheats()
 
 		used_weapons[i]++;
 	}
-/*
-	// Counter measures
-	for (i=0; i<Num_cmeasure_types; i++ )	{
-		cmeasure_info *cmeasurep;
-		
-		cmeasurep = &Cmeasure_info[i];
-		
-		Assert( strlen(cmeasurep->pof_name) );
-		
-		cmeasurep->model_num = model_load( cmeasurep->pof_name, 0, NULL );
-		
-		if ( cmeasurep->model_num < 0 ) {
-			Error( LOCATION, "Unable to load countermeasure POF for '%s' (%s)", cmeasurep->cmeasure_name, cmeasurep->pof_name);
-		}
-	}
-*/
 }
 
-// call to get the "color" of the laser at the given moment (since glowing lasers can cycle colors)
+/**
+ * Get the "color" of the laser at the given moment (since glowing lasers can cycle colors)
+ */
 void weapon_get_laser_color(color *c, object *objp)
 {
 	weapon *wep;
@@ -6393,7 +6181,9 @@ float Weapon_particle_spew_radius = 2.0f;
 float Weapon_particle_spew_lifetime = 0.15f;
 float Weapon_particle_spew_scale = 0.8f;
 
-// for weapons flagged as particle spewers, spew particles. wheee
+/**
+ * For weapons flagged as particle spewers, spew particles. wheee
+ */
 void weapon_maybe_spew_particle(object *obj)
 {
 	weapon *wp;
@@ -6625,7 +6415,9 @@ void weapon_maybe_spew_particle(object *obj)
 	}
 }
 
-// debug console functionality
+/**
+ * Debug console functionality
+ */
 void pspew_display_dcf()
 {
 	dc_printf("Particle spew settings\n\n");
@@ -6697,7 +6489,9 @@ DCF(pspew_scale, "How far away particles are from the weapon path")
 	pspew_display_dcf();
 }
 
-// return a scale factor for damage which should be applied for 2 collisions
+/**
+ * Return a scale factor for damage which should be applied for 2 collisions
+ */
 float weapon_get_damage_scale(weapon_info *wip, object *wep, object *target)
 {
 	weapon *wp;	

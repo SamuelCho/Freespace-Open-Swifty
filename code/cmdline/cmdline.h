@@ -62,7 +62,6 @@ extern float static_point_factor;
 extern float static_tube_factor;
 extern int Cmdline_ambient_factor;
 extern int Cmdline_env;
-extern int Cmdline_mipmap;
 extern int Cmdline_missile_lighting;
 extern int Cmdline_glow;
 extern int Cmdline_nomotiondebris;
@@ -71,10 +70,12 @@ extern int Cmdline_spec;
 extern int Cmdline_normal;
 extern int Cmdline_height;
 extern int Cmdline_enable_3d_shockwave;
+extern int Cmdline_softparticles;
 extern int Cmdline_postprocess;
 extern int Cmdline_bloom_intensity;
 extern bool Cmdline_fxaa;
 extern int Cmdline_fxaa_preset;
+extern bool Cmdline_fb_explosions;
 
 // Game Speed related
 extern int Cmdline_cache_bitmaps;
@@ -120,11 +121,13 @@ extern int Cmdline_no_set_gamma;
 extern int Cmdline_novbo;
 extern int Cmdline_no_fbo;
 extern int Cmdline_noglsl;
+extern int Cmdline_mipmap;
 extern int Cmdline_ati_color_swap;
 extern int Cmdline_no_3d_sound;
 extern int Cmdline_no_glsl_model_rendering;
 extern int Cmdline_no_di_mouse;
 extern int Cmdline_drawelements;
+extern char* Cmdline_keyboard_layout;
 
 // Developer/Testing related
 extern char *Cmdline_start_mission;
@@ -142,8 +145,6 @@ extern int Cmdline_verify_vps;
 #ifdef SCP_UNIX
 extern int Cmdline_no_grab;
 #endif
+extern int Cmdline_reparse_mainhall;
 
-
-
-//extern char FreeSpace_Directory[]; // allievating a cfilesystem problem caused by fred -- Kazan
 #endif

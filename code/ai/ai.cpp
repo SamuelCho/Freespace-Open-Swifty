@@ -7,22 +7,24 @@
  *
 */
 
-// The code in here is just for bookeeping, allocating
-// ai slots and linking them to ships.
-// See AiCode.cpp for the actual AI code.
+/**
+ * @file 
+ * The code in here is just for bookeeping, allocating AI slots and linking them to ships.
+ * See AiCode.cpp for the actual AI code.
+ */
 
 #include "ai/ai.h"
 #include "object/object.h"
 #include "ship/ship.h"
 
 
-int Total_goal_ship_names = 0;
-char Goal_ship_names[MAX_GOAL_SHIP_NAMES][NAME_LENGTH];
+int Total_goal_target_names = 0;
+char Goal_target_names[MAX_GOAL_TARGET_NAMES][NAME_LENGTH];
 ai_info Ai_info[MAX_AI_INFO];
 ai_info *Player_ai;
 
 /**
- * @brief Return index of free AI slot.
+ * @brief Returns index of free AI slot.
  * @return Return -1 if no free slot.
  */
 int ai_get_slot(int shipnum)
@@ -42,8 +44,8 @@ int ai_get_slot(int shipnum)
 }
 
 /**
- * @brief Releases an AI slot to be used by someone else.
- * @details Only modifies in ::Ai_info struct.  Does not modify hook in ship.
+ * @brief Frees a currently used AI slot.
+ * @details Only modifies in ::Ai_info struct. Does not modify hook in ship.
  */
 void ai_free_slot(int ai_index)
 {
@@ -80,20 +82,22 @@ void set_wingnum(int objnum, int wingnum)
 	Ai_info[ai_index].wing = wingnum;
 }
 
-char *ai_get_goal_ship_name(char *name, int *index)
+char *ai_get_goal_target_name(char *name, int *index)
 {
+	Assert(name != NULL);
+	Assert(index != NULL);
 	int i;
 
-	for (i=0; i < Total_goal_ship_names; i++)
-		if (!stricmp(name, Goal_ship_names[i])) {
+	for (i=0; i < Total_goal_target_names; i++)
+		if (!stricmp(name, Goal_target_names[i])) {
 			*index = i;
-			return Goal_ship_names[i];
+			return Goal_target_names[i];
 		}
 
-	Assert(Total_goal_ship_names < MAX_GOAL_SHIP_NAMES);
-	Assertion(strlen(name) < NAME_LENGTH - 1, "Ship name %s is too long. Needs to be 31 characters or less.", name);
-	i = Total_goal_ship_names++;
-	strcpy_s(Goal_ship_names[i], name);
+	Assert(Total_goal_target_names < MAX_GOAL_TARGET_NAMES);
+	Assertion(strlen(name) <= NAME_LENGTH - 1, "Goal target name %s is too long. Needs to be 31 characters or less.", name);
+	i = Total_goal_target_names++;
+	strcpy_s(Goal_target_names[i], name);
 	*index = i;
-	return Goal_ship_names[i];
+	return Goal_target_names[i];
 }

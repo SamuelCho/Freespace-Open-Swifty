@@ -120,6 +120,7 @@ void hud_level_close();
 void hud_update_frame(float frametime);		// updates hud systems not dependant on rendering
 void hud_render_preprocess(float frametime);			// renders 3d dependant gauges
 void hud_render_all();
+void hud_render_gauges(int cockpit_display_num = -1);
 void hud_stop_looped_engine_sounds();
 
 // set the offset values for this render frame
@@ -213,7 +214,8 @@ protected:
 
 	int font_num;
 
-	bool config_override;
+	bool lock_color;
+	bool sexp_lock_color;
 	bool reticle_follow;
 	bool active;
 	bool off_by_default;
@@ -231,6 +233,7 @@ protected:
 	bool custom_gauge;
 	hud_frames custom_frame;
 	int custom_frame_offset;
+	int textoffset_x, textoffset_y;
 	char custom_name[NAME_LENGTH];
 	char custom_text[NAME_LENGTH];
 	char default_text[NAME_LENGTH];
@@ -238,16 +241,13 @@ protected:
 	// Render to texture stuff
 	char texture_target_fname[MAX_FILENAME_LEN];
 	int texture_target;
-	int texture_cache;
-	int cache_w, cache_h;
-	int target_x, target_y;
+	int canvas_w, canvas_h;
 	int target_w, target_h;
-	int textoffset_x, textoffset_y;
 	int display_offset_x, display_offset_y;
 public:
 	// constructors
 	HudGauge();
-	HudGauge(int _gauge_object, int _gauge_config, bool _allow_override, bool _slew, bool _message, int _disabled_views, int r, int g, int b);
+	HudGauge(int _gauge_object, int _gauge_config, bool _slew, bool _message, int _disabled_views, int r, int g, int b);
 	// constructor for custom gauges
 	HudGauge(int _gauge_config, bool _slew, int r, int g, int b, char* _custom_name, char* _custom_text, char* frame_fname, int txtoffset_x, int txtoffset_y);
 
@@ -255,7 +255,7 @@ public:
 	void initBaseResolution(int w, int h);
 	void initSlew(bool slew);
 	void initFont(int font_num);
-	void initCockpitTarget(char* display_name, int _target_x, int _target_y, int _target_w, int _target_h, int canvas_w, int canvas_h);
+	void initCockpitTarget(char* display_name, int _target_x, int _target_y, int _target_w, int _target_h, int _canvas_w, int _canvas_h);
 	void initRenderStatus(bool render);
 
 	int getConfigType();
@@ -263,8 +263,9 @@ public:
 	bool isOffbyDefault();
 	bool isActive();
 	
-	bool configOverride();
-	void updateColor(int r, int g, int b, int a);
+	void updateColor(int r, int g, int b, int a = 255);
+	void lockConfigColor(bool lock);
+	void sexpLockConfigColor(bool lock);
 	void updateActive(bool show);
 	void updatePopUp(bool pop_up_flag);
 	void updateSexpOverride(bool sexp);
@@ -293,13 +294,9 @@ public:
 	virtual void pageIn();
 	virtual void initialize();
 
-	void createRenderCanvas();
-	void clearRenderCanvas();
-	bool setupRenderCanvas();
-	void doneRenderCanvas();
+	bool setupRenderCanvas(int render_target = -1);
 	void setCockpitTarget(cockpit_display *display);
 	void resetCockpitTarget();
-	void renderToCockpit();
 	
 	void setFont();
 	void setGaugeColor(int bright_index = -4);
@@ -315,7 +312,7 @@ public:
 	void renderPrintf(int x, int y, char* format, ...);
 	void renderPrintf(int x, int y, int gauge_id, char* format, ...);
 	void renderLine(int x1, int y1, int x2, int y2);
-	void renderGradientLine(int x1, int y1, int x2, int y2, bool resize = true);
+	void renderGradientLine(int x1, int y1, int x2, int y2);
 	void renderRect(int x, int y, int w, int h);
 	void renderCircle(int x, int y, int diameter);
 

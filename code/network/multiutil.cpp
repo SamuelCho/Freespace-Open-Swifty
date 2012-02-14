@@ -1345,24 +1345,6 @@ int multi_is_builtin_mission()
 // verify that the player has a valid mission file and do 1 of 3 things
 void server_verify_filesig(short player_id, ushort sum_sig, int length_sig)
 {   	
-#if defined(MULTIPLAYER_BETA_BUILD) || defined(FS2_DEMO)
-	net_player *pl;
-   int player;
-
-	player = find_player_id(player_id);
-	Assert(player >= 0);
-	if(player < 0){
-		return;
-	}
-	pl = &Net_players[player];
-
-	// all missions should be builtin, so if we don't have a match, kick the player
-	if((sum_sig != Multi_current_file_checksum) || (length_sig != Multi_current_file_length)){
-		multi_kick_player(player, 0, KICK_REASON_CANT_XFER);
-	} else {
-		pl->flags |= NETINFO_FLAG_MISSION_OK;
-	}
-#else
 	net_player *pl;
    int player;
 	int ok;	
@@ -1423,7 +1405,6 @@ void server_verify_filesig(short player_id, ushort sum_sig, int length_sig)
 			pl->flags |= NETINFO_FLAG_MISSION_OK;			
 		}
 	}
-#endif
 }
 
 // check to see if every client has NETINFO_FLAG_MISSION_OK
@@ -1552,8 +1533,6 @@ void multi_eval_socket_error(PSNET_SOCKET sock, int error)
 		// mwa -- don't go back to main menu.  You don't want host to do this.  Maybe we can ignore it
 		// because of a leaving player.
 		return;
-		//gameseq_post_event(GS_EVENT_MAIN_MENU);
-		// Int3();							// get allender -- something happened to socket connection!!!
 	}
 
 	if ( (error != WSAECONNRESET) && (error != WSAECONNABORTED) && (error != WSAESHUTDOWN) ) {
@@ -2399,7 +2378,7 @@ void multi_file_xfer_notify(int handle)
 
 	// QUICK FIX
 	// check to see if the file is read-only			
-	if((strlen(filename) > 0) && !cf_access(filename, cf_type, 00) && (cf_access(filename, cf_type, 02) == -1)){	
+	if((filename[0] != '\0') && !cf_access(filename, cf_type, 00) && (cf_access(filename, cf_type, 02) == -1)){	
 		multi_xfer_xor_flags(handle, MULTI_XFER_FLAG_REJECT);
 
 		Net_player->flags &= ~(NETINFO_FLAG_DO_NETWORKING);
@@ -2473,7 +2452,7 @@ void multi_process_valid_join_request(join_request *jr, net_addr *who_from, int 
 		}
 
 		// copy his pilot image filename
-		if(strlen(jr->image_filename) > 0){
+		if(jr->image_filename[0] != '\0'){
 			strcpy_s(Net_players[net_player_num].m_player->image_filename, jr->image_filename);
 		} else {
 			strcpy_s(Net_players[net_player_num].m_player->image_filename, "");
@@ -2496,7 +2475,7 @@ void multi_process_valid_join_request(join_request *jr, net_addr *who_from, int 
 		Net_players[net_player_num].tracker_player_id = jr->tracker_id;
 
 		// store pxo info
-		if(strlen(jr->pxo_squad_name) > 0){
+		if(jr->pxo_squad_name[0] != '\0'){
 			strcpy_s(Net_players[net_player_num].p_info.pxo_squad_name, jr->pxo_squad_name);
 		} else {
 			strcpy_s(Net_players[net_player_num].p_info.pxo_squad_name, "");
@@ -2519,7 +2498,7 @@ void multi_process_valid_join_request(join_request *jr, net_addr *who_from, int 
 		}
 		
 		// copy his pilot image filename
-		if(strlen(jr->image_filename) > 0){
+		if(jr->image_filename[0] != '\0'){
 			strcpy_s(Net_players[net_player_num].m_player->image_filename, jr->image_filename);
 		} else {
 			strcpy_s(Net_players[net_player_num].m_player->image_filename, "");
@@ -2542,7 +2521,7 @@ void multi_process_valid_join_request(join_request *jr, net_addr *who_from, int 
 		Net_players[net_player_num].player_id = id_num;
 
 		// store pxo info
-		if(strlen(jr->pxo_squad_name) > 0){
+		if(jr->pxo_squad_name[0] != '\0'){
 			strcpy_s(Net_players[net_player_num].p_info.pxo_squad_name, jr->pxo_squad_name);
 		} else {
 			strcpy_s(Net_players[net_player_num].p_info.pxo_squad_name, "");
@@ -2555,7 +2534,6 @@ void multi_process_valid_join_request(join_request *jr, net_addr *who_from, int 
 		
 		// flag him appropriately if he's doing an ingame join
 		if(MULTI_IN_MISSION){
-	//		Int3(); //-C Ingame stuff
 			Net_players[net_player_num].flags |= NETINFO_FLAG_INGAME_JOIN;
 			Net_players[net_player_num].s_info.ingame_join_flags = 0;
 		}		
@@ -2622,7 +2600,6 @@ void multi_process_valid_join_request(join_request *jr, net_addr *who_from, int 
 
 	// set my ingame joining flag if the new guy is joining ingame
 	if ( Net_players[net_player_num].flags & NETINFO_FLAG_INGAME_JOIN ){
-//		Int3(); //-C Ingame stuff
 		Netgame.flags |= NG_FLAG_INGAME_JOINING;
 	}	
 	

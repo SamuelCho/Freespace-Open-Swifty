@@ -89,7 +89,7 @@ int Multi_common_text_max_display[GR_NUM_RESOLUTIONS] = {
 };
 
 #define MULTI_COMMON_TEXT_META_CHAR				'$'
-#define MULTI_COMMON_TEXT_MAX_LINE_LENGTH		100
+#define MULTI_COMMON_TEXT_MAX_LINE_LENGTH		200
 #define MULTI_COMMON_TEXT_MAX_LINES				20
 #define MULTI_COMMON_MAX_TEXT						(MULTI_COMMON_TEXT_MAX_LINES * MULTI_COMMON_TEXT_MAX_LINE_LENGTH)
 
@@ -191,7 +191,9 @@ void multi_common_split_text()
 	Assert(n_lines != -1);
 
 	for ( i = 0; i < n_lines; i++ ) {
-		Assert(n_chars[i] < MULTI_COMMON_TEXT_MAX_LINE_LENGTH);
+		//The E -- This check is unnecessary, and will break when fonts that aren't bank gothic are used
+		//split_str already ensured that everything will fit in the text window for us already.
+		//Assert(n_chars[i] < MULTI_COMMON_TEXT_MAX_LINE_LENGTH); 
 		strncpy(Multi_common_text[i], p_str[i], n_chars[i]);
 		Multi_common_text[i][n_chars[i]] = 0;
 		drop_leading_white_space(Multi_common_text[i]);		
@@ -678,6 +680,8 @@ int Mj_cd_coords[GR_NUM_RESOLUTIONS] = {
 // NOTE : these numbers are completely empirical
 #define MJ_PING_GREEN				160
 #define MJ_PING_YELLOW				300
+#define MJ_PING_RED					700
+#define MJ_PING_ONE_SECOND			1000
 
 int Mj_list_area_coords[GR_NUM_RESOLUTIONS][4] = {
 	{ // GR_640
@@ -839,9 +843,6 @@ void multi_join_game_init()
 	multi_options_local_load(&Net_player->p_info.options, Net_player);	
 
 	game_flush();
-
-	// set the palette
-	// common_set_interface_palette(MULTI_JOIN_PALETTE);
 
 	// destroy any chatbox contents which previously existed (from another game)
 	chatbox_clear();
@@ -1331,7 +1332,7 @@ void multi_join_display_games()
 			// tack on the actual server name			
 			strcat_s(str," ");
 			strcat_s(str,moveup->name);
-			if(strlen(moveup->mission_name) > 0){
+			if(moveup->mission_name[0] != '\0'){
 				strcat_s(str, " / ");
 				strcat_s(str,moveup->mission_name);
 			} 
@@ -1342,12 +1343,12 @@ void multi_join_display_games()
 
 			// display the ping time
 			if(moveup->ping.ping_avg > 0){
-				if(moveup->ping.ping_avg > 1000){
+				if(moveup->ping.ping_avg > MJ_PING_ONE_SECOND){
 					gr_set_color_fast(&Color_bright_red);
 					strcpy_s(str,XSTR("> 1 sec",761));
 				} else {
 					// set the appropriate ping time color indicator
-					if(moveup->ping.ping_avg > MJ_PING_YELLOW){
+					if(moveup->ping.ping_avg > MJ_PING_RED){
 						gr_set_color_fast(&Color_bright_red);
 					} else if(moveup->ping.ping_avg > MJ_PING_YELLOW){
 						gr_set_color_fast(&Color_bright_yellow);
@@ -1906,10 +1907,10 @@ void multi_join_send_join_request(int as_observer)
 		
 	// fill out the join request struct	
 	strcpy_s(Multi_join_request.callsign,Player->callsign);
-	if(strlen(Player->image_filename) > 0){
+	if(Player->image_filename[0] != '\0'){
 		strcpy_s(Multi_join_request.image_filename, Player->image_filename);
 	}	
-	if(strlen(Player->squad_filename) > 0){
+	if(Player->squad_filename[0] != '\0'){
 		strcpy_s(Multi_join_request.squad_filename, Player->squad_filename);
 	}
 
@@ -3624,12 +3625,6 @@ void multi_create_game_init()
 		Multi_create_sw_checkbox.hide();
 		Multi_create_sw_checkbox.disable();
 	}
-	
-#ifdef FS2_DEMO
-	// disable squad war button in demo
-	Multi_create_sw_checkbox.hide();
-	Multi_create_sw_checkbox.disable();
-#endif
 
 	// initialize the mission type filtering mode
 	Multi_create_filter = MISSION_TYPE_MULTI;
@@ -3695,7 +3690,7 @@ void multi_create_game_do()
 			Netgame.options.respawn = 99; //override anything //for debugging, i often forget this.
 			ng->respawn = Netgame.options.respawn;
 
-			Netgame.campaign_mode = MP_SINGLE; //multiplayer single mission. meaning Single mission, not single player
+			Netgame.campaign_mode = MP_SINGLE_MISSION; //multiplayer single mission. meaning Single mission, not single player
 
 			strncpy(Game_current_mission_filename,almissionname,MAX_FILENAME_LEN ); // copying almissionname to Game_current_mission_filename
 			strncpy(Netgame.mission_name,almissionname,MAX_FILENAME_LEN);// copying almission name to netgame.mission_name
@@ -4099,7 +4094,7 @@ void multi_create_button_pressed(int n)
 	// switch to individual mission mode and load in a list
 	case MC_MISSION_FILTER:
 		if(Multi_create_list_mode != MULTI_CREATE_SHOW_MISSIONS){
-			Netgame.campaign_mode = MP_SINGLE;
+			Netgame.campaign_mode = MP_SINGLE_MISSION;
 
 			gamesnd_play_iface(SND_USER_SELECT);												
 			
@@ -4492,17 +4487,6 @@ void multi_create_list_load_missions()
 		// tack on any necessary file extension
 		filename = cf_add_ext( fname, FS_MISSION_FILE_EXT );
 
-		// for multiplayer beta builds, only accept builtin missions
-#if defined(MULTIPLAYER_BETA_BUILD) || defined(FS2_DEMO)
-		if(game_find_builtin_mission(filename) == NULL){
-			continue;
-		}
-#elif defined(PD_BUILD)
-		if((game_find_builtin_mission(filename) == NULL) && !strstr(filename, "peterdrake")){
-			continue;
-		}
-#endif
-
 		if (Game_mode & GM_STANDALONE_SERVER) {			
 			std_gen_set_text(filename, 2);
 		}
@@ -4587,17 +4571,6 @@ void multi_create_list_load_campaigns()
 		
 		// tack on any necessary file extension
 		filename = cf_add_ext( fname, FS_CAMPAIGN_FILE_EXT );
-
-		// for multiplayer beta builds, only accept builtin missions
-#if defined(MULTIPLAYER_BETA_BUILD) || defined(FS2_DEMO)
-		if(game_find_builtin_mission(filename) == NULL){
-			continue;
-		}
-#elif defined(PD_BUILD)
-		if((game_find_builtin_mission(filename) == NULL) && !strstr(filename, "peterdrake")){
-			continue;
-		}
-#endif
 
 		if (Game_mode & GM_STANDALONE_SERVER) {			
 			std_gen_set_text(filename, 2);
@@ -4977,7 +4950,7 @@ void multi_create_accept_hit()
 	case MULTI_CREATE_SHOW_MISSIONS:	
 		if(Multi_create_list_select != -1){
 			// set the netgame mode
-			Netgame.campaign_mode = MP_SINGLE;
+			Netgame.campaign_mode = MP_SINGLE_MISSION;
 
 			// setup various filenames and mission names
 			multi_create_select_to_filename(Multi_create_list_select,selected_name);
@@ -5312,12 +5285,10 @@ int multi_create_ok_to_commit()
 		if(MULTI_IS_TRACKER_GAME){
 			// don't allow squad war matches to continue
 			if(Netgame.type_flags & NG_TYPE_SW){
-#ifdef RELEASE_REAL
 				// if this is squad war, don't allow it to continue			
 				popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR("One or more players has hacked data files. You cannot play a SquadWar match unless all clients have legal data", 1272));
 
 				return 0;
-#endif
 			}
 			// otherwise, warn the players that stats will not saved
 			else {
@@ -5368,15 +5339,8 @@ int multi_create_ok_to_commit()
 	if(!multi_create_verify_cds()){
 		gamesnd_play_iface(SND_GENERAL_FAIL);
 
-#ifdef MULTIPLAYER_BETA_BUILD
-		popup(PF_BODY_BIG | PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, "You need 1 CD for every player!");			
-#else 
-	#ifdef DVD_MESSAGE_HACK
-			popup(PF_BODY_BIG | PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR("You need 1 DVD for every 4 players!", 794));			
-	#else
-			popup(PF_BODY_BIG | PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR("You need 1 CD for every 4 players!", 794));			
-	#endif
-#endif
+		popup(PF_BODY_BIG | PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR("You need 1 CD for every 4 players!", 794));			
+
 		return 0;
 	}	
 	
@@ -5421,19 +5385,12 @@ int multi_create_verify_cds()
 		}
 	}
 
-	// for the beta, everyone must have a CD
-#ifdef MULTIPLAYER_BETA_BUILD
-	if(multi_cd_count < player_count){
-		return 0;
-	}
-#else
 	// determine if we have enough
 	float ratio = (float)player_count / (float)multi_cd_count;
 	// greater than a 4 to 1 ratio
 	if(ratio > 4.0f){
 		return 0;
 	} 
-#endif
 
 	// we meet the conditions
 	return 1;
@@ -6232,7 +6189,7 @@ void multi_ho_accept_hit()
 
 	// set the netgame respawn count
 	// maybe warn the user that respawns will not be used for a campaign mission
-	if(Netgame.campaign_mode == MP_SINGLE){
+	if(Netgame.campaign_mode == MP_SINGLE_MISSION){
 		Multi_ho_respawns.get_text(resp_str);
 		uint temp_respawn = (uint)atoi(resp_str);
 		// if he currently has no mission selected, let the user set any # of respawns
@@ -6372,9 +6329,9 @@ void multi_ho_get_options()
 	Multi_ho_obs.set_text(resp_str);
 
 	// set the respawn count
-	if(Netgame.campaign_mode == MP_SINGLE){
+	if(Netgame.campaign_mode == MP_SINGLE_MISSION){
 		memset(resp_str,0,10);
-		sprintf(resp_str,"%d",Netgame.respawn);
+		sprintf(resp_str,"%u",Netgame.respawn);
 		Multi_ho_respawns.set_text(resp_str);	
 	}
 
@@ -6860,10 +6817,10 @@ void multi_game_client_setup_do_frame()
 
 	// blit the mission filename if possible
 	if(Netgame.campaign_mode){
-		if(strlen(Netgame.campaign_name) > 0){			
+		if(Netgame.campaign_name[0] != '\0'){			
 			strcpy_s(mission_text,Netgame.campaign_name);
 			
-			if(strlen(Netgame.title) > 0){
+			if(Netgame.title[0] != '\0'){
 				strcat_s(mission_text,", ");
 				strcat_s(mission_text,Netgame.title);
 			}
@@ -6872,10 +6829,10 @@ void multi_game_client_setup_do_frame()
 			gr_string(Mjw_mission_name_coords[gr_screen.res][MJW_X_COORD],Mjw_mission_name_coords[gr_screen.res][MJW_Y_COORD],mission_text);
 		}								
 	} else {
-		if(strlen(Netgame.mission_name) > 0){			
+		if(Netgame.mission_name[0] != '\0'){			
 			strcpy_s(mission_text,Netgame.mission_name);
 
-			if(strlen(Netgame.title) > 0){
+			if(Netgame.title[0] != '\0'){
 				strcat_s(mission_text,", ");
 				strcat_s(mission_text,Netgame.title);
 			}			
@@ -7488,9 +7445,6 @@ void multi_sync_init()
 	// reset all timestamp
 	multi_reset_timestamps();
 
-	//extern int Player_multi_died_check;
-	//Player_multi_died_check = -1;
-
 	if(!(Game_mode & GM_STANDALONE_SERVER)){
 		multi_sync_common_init();
 	}
@@ -7693,9 +7647,6 @@ void multi_sync_common_close()
 	if(!bm_unload(Multi_sync_bitmap)){
 		nprintf(("General","WARNING : could not unload background bitmap %s\n",Multi_sync_bitmap_fname[gr_screen.res]));
 	}	
-
-	//extern int Player_multi_died_check;
-	//Player_multi_died_check = -1;
 	
 	// destroy the UI_WINDOW
 	Multi_sync_window.destroy();
@@ -8749,16 +8700,16 @@ void multi_debrief_close()
 void multi_maybe_set_mission_loop()
 {
 	int cur = Campaign.current_mission;
-	if (Campaign.missions[cur].has_mission_loop) {
+	if (Campaign.missions[cur].flags & CMISSION_FLAG_HAS_LOOP) {
 		Assert(Campaign.loop_mission != CAMPAIGN_LOOP_MISSION_UNINITIALIZED);
 	}
 	bool require_repeat_mission = (Campaign.current_mission == Campaign.next_mission);
 
 	// check for (1) mission loop available, (2) don't have to repeat last mission
-	if ( (Campaign.missions[cur].has_mission_loop && (Campaign.loop_mission != -1)) && !require_repeat_mission ) {
+	if ( (Campaign.missions[cur].flags & CMISSION_FLAG_HAS_LOOP) && (Campaign.loop_mission != -1) && !require_repeat_mission ) {
 
 		char buffer[512];
-		debrief_assemble_optional_mission_popup_text(buffer, Campaign.missions[cur].mission_loop_desc);
+		debrief_assemble_optional_mission_popup_text(buffer, Campaign.missions[cur].mission_branch_desc);
 
 		int choice = popup(0 , 2, POPUP_NO, POPUP_YES, buffer);
 		if (choice == 1) {

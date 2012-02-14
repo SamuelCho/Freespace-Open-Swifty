@@ -31,6 +31,7 @@
 #include "ui/uidefs.h"
 #include "anim/animplay.h"
 #include "ship/ship.h"
+#include "weapon/weapon.h"
 #include "render/3d.h"
 #include "lighting/lighting.h"
 #include "network/multi.h"
@@ -42,7 +43,8 @@
 #include "cutscene/movie.h"
 #include "cutscene/cutscenes.h"
 #include "parse/sexp.h"
-
+#include "graphics/2d.h"
+#include "graphics/gropenglshader.h"
 
 //////////////////////////////////////////////////////////////////
 // Game Globals
@@ -96,6 +98,7 @@ extern void ss_set_team_pointers(int team);
 extern void ss_reset_team_pointers();
 extern void wl_set_team_pointers(int team);
 extern void wl_reset_team_pointers();
+extern int anim_timer_start;
 
 //////////////////////////////////////////////////////////////////
 // UI 
@@ -274,11 +277,6 @@ void common_buttons_init(UI_WINDOW *ui_window)
 		Common_buttons[Current_screen-1][gr_screen.res][COMMON_SS_REGION].button.disable();
 		Common_buttons[Current_screen-1][gr_screen.res][COMMON_WEAPON_REGION].button.disable();
 	}
-
-	#ifdef DEMO // allow for FS2_DEMO
-		Common_buttons[Current_screen-1][gr_screen.res][COMMON_SS_REGION].button.disable();
-		Common_buttons[Current_screen-1][gr_screen.res][COMMON_WEAPON_REGION].button.disable();
-	#endif
 }
 
 void set_active_ui(UI_WINDOW *ui_window)
@@ -466,35 +464,10 @@ void common_select_init()
 	Background_playing = 0;
 	Background_anim = NULL;
 
-	#ifndef DEMO // not for FS2_DEMO
-
-	/*
-	if ( current_detail_level() >= (NUM_DEFAULT_DETAIL_LEVELS-2) ) {
-
-		anim_play_struct aps;
-
-		// Load in the background transition anim
-		if ( Game_mode & GM_MULTIPLAYER )
-			Background_anim = anim_load("BriefTransMulti", CF_TYPE_ANY, 1);	// 1 as last parm means file is mem-mapped
-		else  {
-			Background_anim = anim_load("BriefTrans", CF_TYPE_ANY, 1);	// 1 as last parm means file is mem-mapped
-		}
-
-		Assert( Background_anim != NULL );
-		anim_play_init(&aps, Background_anim, 0, 0);
-		aps.framerate_independent = 1;
-		aps.skip_frames = 0;
-		Background_anim_instance = anim_play(&aps);
-		Background_playing = 1;		// start playing the Background anim
-	}
-	*/
 	Current_screen = Next_screen = ON_BRIEFING_SELECT;
 
 	// load in the icons for the wing slots
 	load_wing_icons(NOX("iconwing01"));
-
-
-	#endif
 
 	Current_screen = Next_screen = ON_BRIEFING_SELECT;
 	
@@ -816,17 +789,13 @@ void common_check_keys(int k)
 				break;
 			}
 
-			#ifndef DEMO // not for FS2_DEMO
-				if ( Current_screen != ON_WEAPON_SELECT && !Background_playing ) {
-					if ( !wss_slots_all_empty() ) {
-						Next_screen = ON_WEAPON_SELECT;
-					} else {
-						common_show_no_ship_error();
-					}
+			if ( Current_screen != ON_WEAPON_SELECT && !Background_playing ) {
+				if ( !wss_slots_all_empty() ) {
+					Next_screen = ON_WEAPON_SELECT;
+				} else {
+					common_show_no_ship_error();
 				}
-			#else
-				gamesnd_play_iface(SND_GENERAL_FAIL);
-			#endif
+			}
 
 			break;
 
@@ -837,13 +806,9 @@ void common_check_keys(int k)
 				break;
 			}
 
-			#ifndef DEMO // not for FS2_DEMO
-				if ( Current_screen != ON_SHIP_SELECT && !Background_playing ) {
-					Next_screen = ON_SHIP_SELECT;
-				}
-			#else
-				gamesnd_play_iface(SND_GENERAL_FAIL);
-			#endif
+			if ( Current_screen != ON_SHIP_SELECT && !Background_playing ) {
+				Next_screen = ON_SHIP_SELECT;
+			}
 
 			break;
 
@@ -854,32 +819,28 @@ void common_check_keys(int k)
 				break;
 			}
 
-			#ifndef DEMO // not for FS2_DEMO
-				if ( !Background_playing ) {
-					switch ( Current_screen ) {
-						case ON_BRIEFING_SELECT:
-							if ( !wss_slots_all_empty() ) {
-								Next_screen = ON_WEAPON_SELECT;
-							} else {
-								common_show_no_ship_error();
-							}
-							break;
+			if ( !Background_playing ) {
+				switch ( Current_screen ) {
+					case ON_BRIEFING_SELECT:
+						if ( !wss_slots_all_empty() ) {
+							Next_screen = ON_WEAPON_SELECT;
+						} else {
+							common_show_no_ship_error();
+						}
+						break;
 
-						case ON_SHIP_SELECT:
-							Next_screen = ON_BRIEFING_SELECT;
-							break;
+					case ON_SHIP_SELECT:
+						Next_screen = ON_BRIEFING_SELECT;
+						break;
 
-						case ON_WEAPON_SELECT:
-							Next_screen = ON_SHIP_SELECT;
-							break;
-						default:
-							Int3();
-							break;
-					}	// end switch
-				}
-			#else
-				gamesnd_play_iface(SND_GENERAL_FAIL);
-			#endif
+					case ON_WEAPON_SELECT:
+						Next_screen = ON_SHIP_SELECT;
+						break;
+					default:
+						Int3();
+						break;
+				}	// end switch
+			}
 
 			break;
 
@@ -890,32 +851,28 @@ void common_check_keys(int k)
 				break;
 			}
 
-			#ifndef DEMO // not for FS2_DEMO
-				if ( !Background_playing ) {
-					switch ( Current_screen ) {
-						case ON_BRIEFING_SELECT:
-							Next_screen = ON_SHIP_SELECT;
-							break;
+			if ( !Background_playing ) {
+				switch ( Current_screen ) {
+					case ON_BRIEFING_SELECT:
+						Next_screen = ON_SHIP_SELECT;
+						break;
 
-						case ON_SHIP_SELECT:
-							if ( !wss_slots_all_empty() ) {
-								Next_screen = ON_WEAPON_SELECT;
-							} else {
-								common_show_no_ship_error();
-							}
-							break;
+					case ON_SHIP_SELECT:
+						if ( !wss_slots_all_empty() ) {
+							Next_screen = ON_WEAPON_SELECT;
+						} else {
+							common_show_no_ship_error();
+						}
+						break;
 
-						case ON_WEAPON_SELECT:
-							Next_screen = ON_BRIEFING_SELECT;
-							break;
-						default:
-							Int3();
-							break;
-					}	// end switch
-				}
-			#else
-				gamesnd_play_iface(SND_GENERAL_FAIL);
-			#endif
+					case ON_WEAPON_SELECT:
+						Next_screen = ON_BRIEFING_SELECT;
+						break;
+					default:
+						Int3();
+						break;
+				}	// end switch
+			}
 
 			break;
 
@@ -1109,11 +1066,17 @@ void wss_direct_restore_loadout()
 		return;
 	}
 
+	// niffiwan: if Starting_wings[] has missing wings, Player_loadout.unit_data
+	// skips the missing wings.  Use a new variable to track the number of valid
+	// wings in Starting_wings[], otherwise mission can crash on restart
+	int valid_wing_index = -1;
+
 	for ( i = 0; i < MAX_WING_BLOCKS; i++ ) {
 
 		if ( Starting_wings[i] < 0 )
 			continue;
 
+		valid_wing_index++;
 		wp = &Wings[Starting_wings[i]];
 
 		// If this wing is still on the arrival list, then update the parse objects
@@ -1121,7 +1084,12 @@ void wss_direct_restore_loadout()
 			p_object *p_objp;
 			j=0;
 			for ( p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp) ) {
-				slot = &Player_loadout.unit_data[i*MAX_WING_SLOTS+j];
+				// niffiwan: don't overrun the array
+				if (j >= MAX_WING_SLOTS) {
+					Warning(LOCATION, "Starting Wing '%s' has more than 'MAX_WING_SLOTS' ships\n", Starting_wing_names[i]);
+					break;
+				}
+				slot = &Player_loadout.unit_data[valid_wing_index*MAX_WING_SLOTS+j];
 				if ( p_objp->wingnum == WING_INDEX(wp) ) {
 					p_objp->ship_class = slot->ship_class;
 					wl_update_parse_object_weapons(p_objp, slot);
@@ -1139,7 +1107,7 @@ void wss_direct_restore_loadout()
 
 			// This wing is already created, so directly update the ships
 			for ( j = 0; j < MAX_WING_SLOTS; j++ ) {
-				slot = &Player_loadout.unit_data[i*MAX_WING_SLOTS+j];
+				slot = &Player_loadout.unit_data[valid_wing_index*MAX_WING_SLOTS+j];
 				shipp = &Ships[wp->ship_index[j]];
 				if ( shipp->ship_info_index != slot->ship_class ) {
 
@@ -1484,16 +1452,17 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 			bs = &pm->submodel[0];
 		}
 
-		vec3d weap_closeup;
+		vec3d weap_closeup = Weapon_info->closeup_pos;
 		float y_closeup;
+		float tm_zoom = Weapon_info->closeup_zoom;
 
 		//Find the center of teh submodel
 		weap_closeup.xyz.x = -(bs->min.xyz.z + (bs->max.xyz.z - bs->min.xyz.z)/2.0f);
 		weap_closeup.xyz.y = -(bs->min.xyz.y + (bs->max.xyz.y - bs->min.xyz.y)/2.0f);
 		//weap_closeup.xyz.z = (weap_closeup.xyz.x/tanf(zoom / 2.0f));
-		weap_closeup.xyz.z = -(bs->rad/tanf(zoom/2.0f));
+		weap_closeup.xyz.z = -(bs->rad/tanf(tm_zoom/2.0f));
 
-		y_closeup = -(weap_closeup.xyz.y/tanf(zoom / 2.0f));
+		y_closeup = -(weap_closeup.xyz.y/tanf(tm_zoom / 2.0f));
 		if(y_closeup < weap_closeup.xyz.z)
 		{
 			weap_closeup.xyz.z = y_closeup;
@@ -1502,8 +1471,7 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 		{
 			weap_closeup.xyz.z = bs->min.xyz.x;
 		}
-//		weap_closeup.xyz.x = bs->min.xyz.x + (bs->max.xyz.x - bs->min.xyz.x)/2.0f;
-		g3_set_view_matrix( &weap_closeup, &vmd_identity_matrix, zoom);
+		g3_set_view_matrix( &weap_closeup, &vmd_identity_matrix, tm_zoom);
 
 		if (!Cmdline_nohtl) {
 			gr_set_proj_matrix(0.5f*Proj_fov, gr_screen.clip_aspect, 0.05f, 1000.0f);
@@ -1524,9 +1492,7 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 		light_dir.xyz.y = 2.0f;
 		light_dir.xyz.z = -2.0f;	
 		light_add_directional(&light_dir, 0.65f, 1.0f, 1.0f, 1.0f);
-		// light_filter_reset();
 		light_rotate_all();
-		// lighting for techroom
 	}
 
 	model_clear_instance(model_id);
@@ -1542,71 +1508,234 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 	gr_reset_clip();
 }
 
-void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *rotation_buffer, vec3d *closeup_pos, float closeup_zoom, float rev_rate, int flags, bool resize)
+void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *rotation_buffer, vec3d *closeup_pos, float closeup_zoom, float rev_rate, int flags, bool resize, int effect)
 {
 	//WMC - Can't draw a non-model
-	if(model_id < 0)
+	if (model_id < 0)
 		return;
 
+	float time = (timer_get_milliseconds()-anim_timer_start)/1000.0f;
 	angles rot_angles, view_angles;
 	matrix model_orient;
 
-	// rotate the ship as much as required for this frame
-	*rotation_buffer += PI2 * flFrametime / rev_rate;
-	while (*rotation_buffer > PI2){
-		*rotation_buffer -= PI2;
-	}
+	if (effect == 2) {  // FS2 Effect; Phase 0 Expand scanline, Phase 1 scan the grid and wireframe, Phase 2 scan up and reveal the ship, Phase 3 tilt the camera, Phase 4 start rotating the ship
+		// rotate the ship as much as required for this frame
+		if (time >= 3.6f) // Phase 4
+			*rotation_buffer += PI2 * flFrametime / rev_rate;
+		else
+			*rotation_buffer = PI; // No rotation before Phase 4
+		while (*rotation_buffer > PI2){
+			*rotation_buffer -= PI2;
+		}
 
-	view_angles.p = -0.6f;
-	view_angles.b = 0.0f;
-	view_angles.h = 0.0f;
-	vm_angles_2_matrix(&model_orient, &view_angles);
+		view_angles.p = -PI_2;
 
-	rot_angles.p = 0.0f;
-	rot_angles.b = 0.0f;
-	rot_angles.h = *rotation_buffer;
-	vm_rotate_matrix_by_angles(&model_orient, &rot_angles);
-	
-	gr_set_clip(x1, y1, x2, y2, resize);
+		if (time >= 3.0f) { // Phase 3
+			if (time >= 3.6f) { // done tilting
+				view_angles.p = -0.6f; 
+			} else {
+				view_angles.p = (PI_2-0.6f)*(time-3.0f)*1.66667f - PI_2; // Phase 3 Tilt animation
+			}
+		}
 
-	// render the ship
-	g3_start_frame(1);
-	if(closeup_pos != NULL)
-	{
-		g3_set_view_matrix(closeup_pos, &vmd_identity_matrix, closeup_zoom);
-	}
-	else
-	{
+		view_angles.b = 0.0f;
+		view_angles.h = 0.0f;
+		vm_angles_2_matrix(&model_orient, &view_angles);
+		rot_angles.p = 0.0f;
+		rot_angles.b = 0.0f;
+		rot_angles.h = *rotation_buffer;
+		vm_rotate_matrix_by_angles(&model_orient, &rot_angles);
+		gr_set_clip(x1, y1, x2, y2, resize);
+		vec3d wire_normal,ship_normal,plane_point;
+
+		// Clip the wireframe below the scanline
+		wire_normal.xyz.x = 0.0f;
+		wire_normal.xyz.y = 1.0f;
+		wire_normal.xyz.z = 0.0f;
+
+		// Clip the ship above the scanline
+		ship_normal.xyz.x = 0.0f;
+		ship_normal.xyz.y = -1.0f;
+		ship_normal.xyz.z = 0.0f;
 		polymodel *pm = model_get(model_id);
-		vec3d pos = { { { 0.0f, 0.0f, -(pm->rad * 1.5f) } } };
-		g3_set_view_matrix(&pos, &vmd_identity_matrix, closeup_zoom);
-	}
 
-	if (!Cmdline_nohtl) {
+		//Make the clipping plane
+		float clip = -pm->rad*0.7f;
+		if (time < 1.5f && time >= 0.5f) // Phase 1 Move down
+			clip = pm->rad*(time-1.0f)*1.4f;
+
+		if (time >= 1.5f)
+			clip = pm->rad*(time-2.0f)*(-1.4f); // Phase 2 Move up
+
+		vm_vec_scale_sub(&plane_point,&vmd_zero_vector,&wire_normal,clip);
+
+		g3_start_frame(1);
+		if ( (closeup_pos != NULL) && (vm_vec_mag(closeup_pos) > 0.0f) ) {
+			g3_set_view_matrix(closeup_pos, &vmd_identity_matrix, closeup_zoom);
+		} else {
+			vec3d pos = { { { 0.0f, 0.0f, -(pm->rad * 1.5f) } } };
+			g3_set_view_matrix(&pos, &vmd_identity_matrix, closeup_zoom);
+		}
+
 		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
 		gr_set_view_matrix(&Eye_position, &Eye_matrix);
-	}
 
-	// lighting for techroom
-	light_reset();
-	vec3d light_dir = vmd_zero_vector;
-	light_dir.xyz.y = 1.0f;	
-	light_add_directional(&light_dir, 0.65f, 1.0f, 1.0f, 1.0f);
-	light_rotate_all();
-	// lighting for techroom
+		vec3d start, stop;
+		float size = pm->rad*0.7f;
+		float start_scale = MIN(time,0.5f)*2.5f;
+		float offset = size*0.5f*MIN(MAX(time-3.0f,0.0f),0.6f)*1.66667f;
+		if ( (time < 1.5f) && (time >= 0.5f) )  // Clip the grid if were in phase 1
+			g3_start_user_clip_plane(&plane_point,&wire_normal);
 
-	model_clear_instance(model_id);
-	model_set_detail_level(0);
-	model_render(model_id, &model_orient, &vmd_zero_vector, flags);
+		g3_start_instance_angles(&vmd_zero_vector,&view_angles);
 
-	if (!Cmdline_nohtl) 
-	{
+		if (time < 0.5f) { // Do the expanding scanline in phase 0
+			gr_set_color(0,255,0);
+			start.xyz.x = size*start_scale;
+			start.xyz.y = 0.0f;
+			start.xyz.z = -clip;
+			stop.xyz.x = -size*start_scale;
+			stop.xyz.y = 0.0f;
+			stop.xyz.z = -clip;
+			g3_draw_htl_line(&start,&stop);
+		}
+		g3_done_instance(true);
+
+		gr_zbuffer_set(false); // Turn of Depthbuffer so we dont get gridlines over the ship or a disappearing scanline 
+		if (time >= 0.5f) { // Phase 1 onward draw the grid
+			int i;
+			start.xyz.y = -offset;
+			start.xyz.z = size+offset*0.5f;
+			stop.xyz.y = -offset;
+			stop.xyz.z = -size+offset*0.5f;
+			gr_set_color(0,200,0);
+			g3_start_instance_angles(&vmd_zero_vector,&view_angles);
+
+			for (i = -3; i < 4; i++) {
+				start.xyz.x = stop.xyz.x = size*0.333f*i;
+				g3_draw_htl_line(&start,&stop);
+			}
+
+			start.xyz.x = size;
+			stop.xyz.x = -size;
+
+			for (i = -3; i < 4; i++) {
+				start.xyz.z = stop.xyz.z = size*0.333f*i+offset*0.5f;
+				g3_draw_htl_line(&start,&stop);
+			}
+
+			g3_done_instance(true);
+
+			// lighting for techroom
+			light_reset();
+			vec3d light_dir = vmd_zero_vector;
+			light_dir.xyz.y = 1.0f;
+			light_add_directional(&light_dir, 0.65f, 1.0f, 1.0f, 1.0f);
+			light_rotate_all();
+			// lighting for techroom
+
+			// render the ships
+			model_clear_instance(model_id);
+			model_set_detail_level(0);
+			gr_set_color(80,49,160);
+			opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS2);
+			opengl_shader_set_animated_timer(-clip);
+
+			if ( (time < 2.5f) && (time >= 0.5f) ) { // Phase 1 and 2 render the wireframe
+				if (time >= 1.5f) // Just clip the wireframe after Phase 1
+					g3_start_user_clip_plane(&plane_point,&wire_normal);
+				
+				model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_ANIMATED_SHADER);
+				g3_stop_user_clip_plane();
+			}
+
+			if (time >= 1.5f) { // Render the ship in Phase 2 onwards
+				g3_start_user_clip_plane(&plane_point,&ship_normal);
+				model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
+				g3_stop_user_clip_plane();
+			}
+
+			if (time < 2.5f) { // Render the scanline in Phase 1 and 2
+				gr_set_color(0,255,0);
+				start.xyz.x = size*1.25f;
+				start.xyz.y = 0.0f;
+				start.xyz.z = -clip;
+				stop.xyz.x = -size*1.25f;
+				stop.xyz.y = 0.0f;
+				stop.xyz.z = -clip;
+				g3_start_instance_angles(&vmd_zero_vector,&view_angles);
+				g3_draw_htl_line(&start,&stop);
+				g3_done_instance(true);
+			}
+		}
+
+		gr_zbuffer_set(true); // Turn of depthbuffer again
 		gr_end_view_matrix();
 		gr_end_proj_matrix();
-	}
+		g3_end_frame();
+		gr_reset_clip();
 
-	g3_end_frame();
-	gr_reset_clip();
+	} else {
+		// rotate the ship as much as required for this frame
+		*rotation_buffer += PI2 * flFrametime / rev_rate;
+		while (*rotation_buffer > PI2){
+			*rotation_buffer -= PI2;
+		}
+
+		view_angles.p = -0.6f;
+		view_angles.b = 0.0f;
+		view_angles.h = 0.0f;
+		vm_angles_2_matrix(&model_orient, &view_angles);
+
+		rot_angles.p = 0.0f;
+		rot_angles.b = 0.0f;
+		rot_angles.h = *rotation_buffer;
+		vm_rotate_matrix_by_angles(&model_orient, &rot_angles);
+
+		gr_set_clip(x1, y1, x2, y2, resize);
+		vec3d normal;
+		normal.xyz.x = 0.0f;
+		normal.xyz.y = 1.0f;
+		normal.xyz.z = 0.0f;
+		g3_start_frame(1);
+
+		// render the wodel
+		if ( (closeup_pos != NULL) && (vm_vec_mag(closeup_pos) > 0.0f) ) {
+			g3_set_view_matrix(closeup_pos, &vmd_identity_matrix, closeup_zoom);
+		} else {
+			polymodel *pm = model_get(model_id);
+			vec3d pos = { { { 0.0f, 0.0f, -(pm->rad * 1.5f) } } };
+			g3_set_view_matrix(&pos, &vmd_identity_matrix, closeup_zoom);
+		}
+
+		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+		gr_set_view_matrix(&Eye_position, &Eye_matrix);
+
+		// lighting for techroom
+		light_reset();
+		vec3d light_dir = vmd_zero_vector;
+		light_dir.xyz.y = 1.0f;
+		light_add_directional(&light_dir, 0.65f, 1.0f, 1.0f, 1.0f);
+		light_rotate_all();
+		// lighting for techroom
+
+		model_clear_instance(model_id);
+		model_set_detail_level(0);
+		gr_set_color(0,128,0);
+
+		if (effect == 1) { // FS1 effect
+			opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS1);
+			opengl_shader_set_animated_timer(MIN(time*0.5f,2.0f));
+			model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
+		} else {
+			model_render(model_id, &model_orient, &vmd_zero_vector, flags);
+		}
+
+		gr_end_view_matrix();
+		gr_end_proj_matrix();
+		g3_end_frame();
+		gr_reset_clip();
+	}
 }
 
 // NEWSTUFF END

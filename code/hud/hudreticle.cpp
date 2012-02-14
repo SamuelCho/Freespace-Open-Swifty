@@ -244,7 +244,7 @@ static int Zero_speed_coords[GR_NUM_RESOLUTIONS][2] = {
 };
 
 HudGaugeReticle::HudGaugeReticle():
-HudGauge(HUD_OBJECT_CENTER_RETICLE, HUD_CENTER_RETICLE, true, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_TOPDOWN | VM_OTHER_SHIP), 255, 255, 255)
+HudGauge(HUD_OBJECT_CENTER_RETICLE, HUD_CENTER_RETICLE, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_TOPDOWN | VM_OTHER_SHIP), 255, 255, 255)
 {
 }
 
@@ -279,15 +279,15 @@ void HudGaugeReticle::render(float frametime)
 			int centerX = position[0] + (ax / 2);
 			int centerY = position[1] + (ay / 2);
 
-			for (uint i = 0; i < fp.size(); i++) {
-				if (fp[i].active == 2)
+			for (SCP_vector<firepoint>::iterator fpi = fp.begin(); fpi != fp.end(); ++fpi) {
+				if (fpi->active == 2)
 					setGaugeColor(HUD_C_BRIGHT);
-				else if (fp[i].active == 1)
+				else if (fpi->active == 1)
 					setGaugeColor(HUD_C_NORMAL);
 				else
 					setGaugeColor(HUD_C_DIM);
 			
-				renderCircle((int) (centerX + (fp[i].xy.x * firepoint_scale_x)), (int) (centerY + (fp[i].xy.y * firepoint_scale_y)), firepoint_size);
+				renderCircle((int) (centerX + (fpi->xy.x * firepoint_scale_x)), (int) (centerY + (fpi->xy.y * firepoint_scale_y)), firepoint_size);
 			}
 		}
 	}
@@ -337,7 +337,7 @@ void HudGaugeReticle::pageIn()
 }
 
 HudGaugeThrottle::HudGaugeThrottle():
-HudGauge(HUD_OBJECT_THROTTLE, HUD_THROTTLE_GAUGE, true, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
+HudGauge(HUD_OBJECT_THROTTLE, HUD_THROTTLE_GAUGE, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
 {
 
 }
@@ -570,7 +570,7 @@ void HudGaugeThrottle::renderThrottleBackground(int y_end)
 }
 
 HudGaugeThreatIndicator::HudGaugeThreatIndicator():
-HudGauge(HUD_OBJECT_THREAT, HUD_THREAT_GAUGE, true, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
+HudGauge(HUD_OBJECT_THREAT, HUD_THREAT_GAUGE, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
 {
 }
 
@@ -611,6 +611,8 @@ void HudGaugeThreatIndicator::initialize()
 
 	lock_warn_timer = timestamp(1);
 	lock_warn_frame = 0;
+
+	HudGauge::initialize();
 }
 
 void HudGaugeThreatIndicator::pageIn()
@@ -684,7 +686,7 @@ void HudGaugeThreatIndicator::renderLockThreat()
 }
 
 HudGaugeWeaponLinking::HudGaugeWeaponLinking():
-HudGauge(HUD_OBJECT_WEAPON_LINKING, HUD_THREAT_GAUGE, true, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
+HudGauge(HUD_OBJECT_WEAPON_LINKING, HUD_THREAT_GAUGE, true, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
 {
 }
 
@@ -914,7 +916,7 @@ void hud_update_reticle( player *pp )
 				Threat_lock_frame = 1;
 			}
 			if ( (Threat_lock_frame == 2) && (Player->threat_flags & THREAT_ATTEMPT_LOCK ) ) {
-				snd_play( &Snds[SND_THREAT_FLASH]);
+				snd_play( &Snds[ship_get_sound(Player_obj, SND_THREAT_FLASH)]);
 			}
 		}
 	} 
