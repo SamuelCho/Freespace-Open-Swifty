@@ -1914,5 +1914,7 @@ void gr_opengl_update_transformation_tex(uint texture_id, int n_entries, float *
 	GL_state.Texture.SetTarget(GL_TEXTURE_1D);
 	GL_state.Texture.Enable(texture_id);
 
-	glTexImage1D(GL_TEXTURE_1D, 0, GL_DEPTH_COMPONENT32, 12*n_entries, 0, GL_DEPTH_COMPONENT, GL_FLOAT, data);
+	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB32F_ARB, 12*n_entries, 0, GL_RGB, GL_FLOAT, data);
+
+	opengl_check_for_errors();
 }

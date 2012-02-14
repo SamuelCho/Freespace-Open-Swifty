@@ -143,6 +143,8 @@ ogl_extension GL_Extensions[NUM_OGL_EXTENSIONS] =
 	// programmable fragment level processing
 	{ false, false, 1, { "GL_ARB_fragment_shader" }, 0, { NULL } },
 
+	{ false, false, 1, { "GL_ARB_texture_float" }, 0, { NULL } },
+
 	// shader version 3.0 detection extensions (if any of these extensions exist then we should have a SM3.0 compatible card, hopefully)
 	{ false, false, 3, { "GL_ARB_shader_texture_lod", "GL_NV_vertex_program3", "GL_ATI_shader_texture_lod" }, 0, { NULL } }
 };
