@@ -4094,13 +4094,7 @@ void interp_pack_vertex_buffers(polymodel *pm, int mn)
 	Assert( pm->vertex_buffer_id >= 0 );
 	Assert( (mn >= 0) && (mn < pm->n_models) );
 
-	vertex_buffer *buffer;
-
-	if ( mn >= 0 ) {
-		buffer = &pm->submodel[mn].buffer;
-	} else {
-		buffer = &pm->main_buffer;
-	}
+	vertex_buffer *buffer = &pm->submodel[mn].buffer;
 
 	if ( !buffer->model_list ) {
 		return;
@@ -4113,7 +4107,25 @@ void interp_pack_vertex_buffers(polymodel *pm, int mn)
 	}
 }
 
-void interp_configure_vertex_buffers(polymodel *pm)
+void interp_pack_detail_vertex_buffers(polymodel *pm, int detail)
+{
+	Assert( pm->vertex_buffer_id >= 0 );
+	Assert( (detail >= 0) && (detail < pm->n_detail_levels) );
+
+	vertex_buffer *buffer = &pm->detail_buffers[detail];
+
+	if ( !buffer->model_list ) {
+		return;
+	}
+
+	bool rval = gr_pack_buffer(pm->vertex_buffer_id, buffer);
+
+	if ( !rval ) {
+		Error( LOCATION, "Unable to pack vertex buffer for '%s'\n", pm->filename );
+	}
+}
+
+void interp_configure_detail_vertex_buffers(polymodel *pm, int detail)
 {
 	size_t i;
 	int first_index;

@@ -82,9 +82,10 @@ static uint Global_checksum = 0;
 
 static int Model_signature = 0;
 
-void interp_configure_vertex_buffers(polymodel*);
+void interp_configure_detail_vertex_buffers(polymodel*);
 void interp_configure_vertex_buffers(polymodel*, int);
-void interp_pack_vertex_buffers(polymodel* pm, int mn = -1);
+void interp_pack_vertex_buffers(polymodel* pm, int mn);
+void interp_pack_detail_vertex_buffers(polymodel *pm, int detail);
 
 void model_set_subsys_path_nums(polymodel *pm, int n_subsystems, model_subsystem *subsystems);
 void model_set_bay_path_nums(polymodel *pm);
@@ -815,7 +816,9 @@ void create_vertex_buffer(polymodel *pm)
 
 	// determine the size and configuration of each buffer segment
 	if ( Use_GLSL ) {
-		interp_configure_vertex_buffers(pm);
+		for (i=0; i<pm->n_detail_levels;i++ )	{
+			interp_configure_detail_vertex_buffers(pm, pm->detail[i]);
+		}
 	} else {
 		for (i = 0; i < pm->n_models; i++) {
 			interp_configure_vertex_buffers(pm, i);
@@ -835,9 +838,11 @@ void create_vertex_buffer(polymodel *pm)
 
 	// now actually fill the buffer with our info ...
 	if ( Use_GLSL ) {
-		interp_pack_vertex_buffers(pm);
+		for ( i = 0; i < pm->n_detail_levels; i++ )	{
+			interp_pack_detail_vertex_buffers(pm, i);
 
-		pm->main_buffer.release();
+			pm->detail_buffers[i].release();
+		}
 	} else {
 		for (i = 0; i < pm->n_models; i++) {
 			interp_pack_vertex_buffers(pm, i);
