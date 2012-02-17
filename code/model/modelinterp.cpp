@@ -4458,24 +4458,85 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 
 void interp_copy_index_buffer(vertex_buffer *src, vertex_buffer *dest)
 {
+	size_t i, j, k;
+	int src_buff_size;
+	int n_verts = 0;
+	buffer_data *src_buffer;
+	buffer_data *dest_buffer;
+	int vert_offset = src->vertex_offset / src->stride; // assuming all submodels have the same stride
 
+	for ( i = 0; i < dest->tex_buf.size(); ++i ) {
+		dest_buffer = &dest->tex_buf[i];
+
+		for ( j = 0; j < src->tex_buf.size(); ++j ) {
+			if ( dest_buffer->texture != src->tex_buf[j].texture ) {
+				continue;
+			}
+
+			src_buffer = &src->tex_buf[j];
+			src_buff_size = src_buffer->n_verts;
+
+			for ( k = 0; k < src_buff_size; ++k ) {
+				dest_buffer->index[n_verts] = src_buffer->index[k] + vert_offset; // take into account the vertex offset.
+				n_verts++;
+			}
+
+			Assert(n_verts <= dest_buffer->n_verts);
+		}
+	}
 }
 
 void interp_create_detail_index_buffer(polymodel *pm, int detail)
 {
-	size_t i;
+	size_t i, j;
 	int model_num;
 	SCP_vector<int> submodel_list;
+	int index_counts[MAX_MODEL_TEXTURES];
+
+	for ( i = 0; i < MAX_MODEL_TEXTURES; ++i ) {
+		index_counts[i] = 0;
+	}
 
 	model_get_submodel_tree_list(&submodel_list, pm, detail);
+
+	size_t num_buffers;
+	int tex_num;
+
+	vertex_buffer *detail_buffer = &pm->detail_buffers[detail];
+
+	detail_buffer->model_list = new(std::nothrow) poly_list;
+	detail_buffer->flags = (VB_FLAG_POSITION | VB_FLAG_NORMAL | VB_FLAG_UV1 | VB_FLAG_NORMAL | VB_FLAG_MODEL_ID);
 
 	// need to first count how many indexes there are in this entire detail model hierarchy
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
+		num_buffers = pm->submodel[model_num].buffer.tex_buf.size();
 
-		pm->submodel[model_num].buffer.tex_buf
+		for ( j = 0; j < num_buffers; ++j ) {
+			tex_num = pm->submodel[model_num].buffer.tex_buf[j].texture;
+
+			index_counts[tex_num] += pm->submodel[model_num].buffer.tex_buf[j].n_verts;
+		}
 	}
 
+	// allocate the respective texture buffers with indexes for our detail buffer
+	for ( i = 0; i < MAX_MODEL_TEXTURES; ++i ) {
+		if ( index_counts[i] <= 0 ) {
+			continue;
+		}
+
+		buffer_data new_buffer;
+		new_buffer.n_verts = index_counts[i];
+		new_buffer.index = (uint*)vm_malloc(sizeof(uint)*index_counts[i]);
+
+		if ( index_counts[i] >= USHRT_MAX ) {
+			new_buffer.flags |= VB_FLAG_LARGE_INDEX;
+		}
+
+		pm->detail_buffers[detail].tex_buf.push_back(new_buffer);
+	}
+
+	// finally copy over the indexes
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
 

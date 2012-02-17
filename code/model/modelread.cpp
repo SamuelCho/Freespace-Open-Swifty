@@ -835,10 +835,6 @@ void create_vertex_buffer(polymodel *pm)
 	if ( Use_GLSL ) {
 		for ( i = 0; i < pm->n_detail_levels; i++ )	{
 			interp_create_detail_index_buffer(pm, pm->detail[i]);
-
-			interp_pack_detail_vertex_buffers(pm, i);
-
-			pm->detail_buffers[i].release();
 		}
 	}
 
