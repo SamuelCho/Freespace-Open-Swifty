@@ -4456,6 +4456,32 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 	}
 }
 
+void interp_copy_index_buffer(vertex_buffer *src, vertex_buffer *dest)
+{
+
+}
+
+void interp_create_detail_index_buffer(polymodel *pm, int detail)
+{
+	size_t i;
+	int model_num;
+	SCP_vector<int> submodel_list;
+
+	model_get_submodel_tree_list(&submodel_list, pm, detail);
+
+	// need to first count how many indexes there are in this entire detail model hierarchy
+	for ( i = 0; i < submodel_list.size(); ++i ) {
+		model_num = submodel_list[i];
+
+		pm->submodel[model_num].buffer.tex_buf
+	}
+
+	for ( i = 0; i < submodel_list.size(); ++i ) {
+		model_num = submodel_list[i];
+
+		interp_copy_index_buffer(&pm->submodel[model_num].buffer, &pm->detail_buffers[detail]);
+	}
+}
 
 inline int in_box(vec3d *min, vec3d *max, vec3d *pos)
 {

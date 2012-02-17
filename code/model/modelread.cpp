@@ -86,6 +86,7 @@ void interp_configure_detail_vertex_buffers(polymodel*);
 void interp_configure_vertex_buffers(polymodel*, int);
 void interp_pack_vertex_buffers(polymodel* pm, int mn);
 void interp_pack_detail_vertex_buffers(polymodel *pm, int detail);
+void interp_create_detail_index_buffer(polymodel *pm, int detail);
 
 void model_set_subsys_path_nums(polymodel *pm, int n_subsystems, model_subsystem *subsystems);
 void model_set_bay_path_nums(polymodel *pm);
@@ -815,14 +816,8 @@ void create_vertex_buffer(polymodel *pm)
 	} // End IBX code
 
 	// determine the size and configuration of each buffer segment
-	if ( Use_GLSL ) {
-		for (i=0; i<pm->n_detail_levels;i++ )	{
-			interp_configure_detail_vertex_buffers(pm, pm->detail[i]);
-		}
-	} else {
-		for (i = 0; i < pm->n_models; i++) {
-			interp_configure_vertex_buffers(pm, i);
-		}
+	for (i = 0; i < pm->n_models; i++) {
+		interp_configure_vertex_buffers(pm, i);
 	}
 	
 	// these must be reset to NULL for the tests to work correctly later
@@ -836,20 +831,23 @@ void create_vertex_buffer(polymodel *pm)
 
 	memset( &ibuffer_info, 0, sizeof(IBX) );
 
-	// now actually fill the buffer with our info ...
+	// create another set of indexes for the detail buffers
 	if ( Use_GLSL ) {
 		for ( i = 0; i < pm->n_detail_levels; i++ )	{
+			interp_create_detail_index_buffer(pm, pm->detail[i]);
+
 			interp_pack_detail_vertex_buffers(pm, i);
 
 			pm->detail_buffers[i].release();
 		}
-	} else {
-		for (i = 0; i < pm->n_models; i++) {
-			interp_pack_vertex_buffers(pm, i);
+	}
 
-			// release temporary memory
-			pm->submodel[i].buffer.release();
-		}
+	// now actually fill the buffer with our info ...
+	for (i = 0; i < pm->n_models; i++) {
+		interp_pack_vertex_buffers(pm, i);
+
+		// release temporary memory
+		pm->submodel[i].buffer.release();
 	}
 
 	// ... and then finalize buffer
@@ -4091,6 +4089,18 @@ void model_get_rotating_submodel_list(SCP_vector<int> *submodel_vector, object *
 
 }
 
+void model_get_submodel_tree_list(SCP_vector<int> *submodel_vector, polymodel* pm, int mn)
+{
+	submodel_vector->push_back(mn);
+
+	int i = pm->submodel[mn].first_child;
+
+	while ( i >= 0 ) {
+		model_get_submodel_tree_list(submodel_vector, pm, i);
+
+		i = pm->submodel[i].next_sibling;
+	}
+}
 
 // Given a direction (pnt) that is in sub_model_num's frame of
 // reference, and given the object's orient and position, 

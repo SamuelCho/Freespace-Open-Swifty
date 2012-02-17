@@ -874,6 +874,9 @@ extern void find_submodel_instance_world_point(vec3d *outpnt, object *ship_obj, 
 // Given a polygon model index, find a list of rotating submodels to be used for collision
 void model_get_rotating_submodel_list(SCP_vector<int> *submodel_vector, object *objp);
 
+// Given a polygon model index, get a list of a model tree starting from that index
+void model_get_submodel_tree_list(SCP_vector<int> *submodel_vector, polymodel* pm, int mn);
+
 // For a rotating submodel, find a point on the axis
 void model_init_submodel_axis_pt(submodel_instance_info *sii, int model_num, int submodel_num);
 
