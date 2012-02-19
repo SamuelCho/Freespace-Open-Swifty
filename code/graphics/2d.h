@@ -438,7 +438,7 @@ typedef struct screen {
 
 	uint (*gf_create_transformation_tex)();
 	void (*gf_destroy_transformation_tex)(uint tex_id);
-	void (*gf_update_transformation_tex)(int tex_id, int n_models, float *data);
+	void (*gf_update_transformation_tex)(uint tex_id, int n_models, float *data);
 } screen;
 
 // handy macro

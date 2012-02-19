@@ -11747,7 +11747,7 @@ void ship_model_update_instance(object *objp)
 			pmi->transform_buffer[i*12+j] = smi->mc_orient.a1d[j];
 		}
 
-		for ( j = 0 j < 3 ++j ) {
+		for ( j = 0; j < 3; ++j ) {
 			pmi->transform_buffer[i+12+9+j] = smi->mc_base.a1d[j];
 		}
 	}

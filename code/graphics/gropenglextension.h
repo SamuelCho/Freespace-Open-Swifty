@@ -73,8 +73,9 @@ extern ogl_function GL_EXT_Special[];
 #define OGL_ARB_VERTEX_SHADER				22
 #define OGL_ARB_FRAGMENT_SHADER				23
 #define OGL_SM30							24
+#define OGL_ARB_FLOATING_POINT_TEXTURES		25
 
-#define NUM_OGL_EXTENSIONS					25
+#define NUM_OGL_EXTENSIONS					26
 
 
 // Functions

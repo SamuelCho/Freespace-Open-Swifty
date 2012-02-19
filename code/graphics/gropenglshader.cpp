@@ -253,7 +253,7 @@ static opengl_shader_file_t GL_shader_file[] = {
 		13, { "sBasemap", "sGlowmap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
 
 	{ "lfnea-v.sdr", "lfbsnea-f.sdr", (SDR_FLAG_LIGHT | SDR_FLAG_FOG | SDR_FLAG_DIFFUSE_MAP | SDR_FLAG_SPEC_MAP | SDR_FLAG_NORMAL_MAP | SDR_FLAG_ENV_MAP | SDR_FLAG_ANIMATED),
-		12, { "sBasemap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } }
+		12, { "sBasemap", "sSpecmap", "sNormalmap", "sEnvmap", "envMatrix", "alpha_spec", "n_lights", "anim_timer", "effect_num", "sFramebuffer", "vpwidth", "vpheight" }, 0, { NULL } },
 
 	// begin the long list of shaders with vertex shader transformations
 	// with diffuse Textures

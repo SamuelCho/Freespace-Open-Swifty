@@ -4097,132 +4097,6 @@ void interp_pack_vertex_buffers(polymodel *pm, int mn)
 	}
 }
 
-void interp_configure_detail_vertex_buffers(polymodel *pm, int detail)
-{
-	size_t i;
-	int first_index;
-	uint total_verts = 0;
-
-	for ( i = 0; i < MAX_MODEL_TEXTURES; ++i ) {
-		polygon_list[i].n_verts = 0;
-		tri_count[i] = 0;
-	}
-
-	// find tri counts for all vertices in all submodels based on texture
-	for ( i = 0; i < pm->n_models; ++i ) {
-		bsp_info *model = &pm->submodel[i];
-
-		find_tri_counts(0, model->bsp_data);
-	}
-
-	for ( i = 0; i < MAX_MODEL_TEXTURES; ++i ) {
-		total_verts += tri_count[i];
-
-		// for the moment we can only support INT_MAX worth of verts per index buffer
-		if (tri_count[i] > INT_MAX) {
-			Error( LOCATION, "Unable to generate vertex buffer data because model '%s' with %i verts is over the maximum of %i verts!\n", pm->filename, tri_count[i], INT_MAX);
-		}
-	}
-
-	if (total_verts < 1) {
-		return;
-	}
-
-	allocate_poly_list();
-
-	// fetch all vertices in all submodels based on texture
-	for ( i = 0; i < pm->n_models; ++i ) {
-		bsp_info *model = &pm->submodel[i];
-
-		parse_bsp(0, model->bsp_data, i);
-	}
-
-	total_verts = 0;
-
-	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
-		total_verts += polygon_list[i].n_verts;
-	}
-
-	poly_list *model_list = new(std::nothrow) poly_list;
-
-	if ( !model_list ) {
-		Error( LOCATION, "Unable to allocate memory for poly_list!\n" );
-	}
-
-	pm->main_buffer.model_list = model_list;
-
-	model_list->allocate( (int)total_verts );
-
-	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
-		if ( !polygon_list[i].n_verts )
-			continue;
-
-		memcpy( (model_list->vert) + model_list->n_verts, polygon_list[i].vert, sizeof(vertex) * polygon_list[i].n_verts );
-		memcpy( (model_list->norm) + model_list->n_verts, polygon_list[i].norm, sizeof(vec3d) * polygon_list[i].n_verts );
-
-		if (Cmdline_normal) {
-			memcpy( (model_list->tsb) + model_list->n_verts, polygon_list[i].tsb, sizeof(tsb_t) * polygon_list[i].n_verts );
-			memcpy( (model_list->submodels) + model_list->n_verts, polygon_list[i].submodels, sizeof(int) * polygon_list[i].n_verts );
-		}
-
-		model_list->n_verts += polygon_list[i].n_verts;
-	}
-
-	SCP_vector<int> vertex_list;
-
-	model_list->make_index_buffer(vertex_list);
-
-	vertex_list.clear();	// done
-
-	int vertex_flags = (VB_FLAG_POSITION | VB_FLAG_NORMAL | VB_FLAG_UV1);
-
-	if (model_list->tsb != NULL) {
-		Assert( Cmdline_normal );
-		vertex_flags |= VB_FLAG_TANGENT;
-	}
-
-	if (model_list->submodels != NULL) {
-		Assert( Use_GLSL );
-		vertex_flags |= VB_FLAG_MODEL_ID;
-	}
-
-	pm->main_buffer.flags = vertex_flags;
-
-	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
-		if ( !polygon_list[i].n_verts )
-			continue;
-
-		buffer_data new_buffer;
-
-		new_buffer.index = new(std::nothrow) uint[polygon_list[i].n_verts];
-		Verify( new_buffer.index != NULL );
-
-		for (j = 0; j < polygon_list[i].n_verts; j++) {
-			first_index = model_list->find_index(&polygon_list[i], j);
-			Assert(first_index != -1);
-
-			new_buffer.index[j] = (uint)first_index;
-		}
-
-		new_buffer.n_verts = polygon_list[i].n_verts;
-		new_buffer.texture = i;
-
-		new_buffer.flags = 0;
-
-		if (polygon_list[i].n_verts >= USHRT_MAX) {
-			new_buffer.flags |= VB_FLAG_LARGE_INDEX;
-		}
-
-		pm->main_buffer.tex_buf.push_back( new_buffer );
-	}
-
-	bool rval = gr_config_buffer(pm->vertex_buffer_id, &pm->main_buffer, false);
-
-	if ( !rval ) {
-		Error( LOCATION, "Unable to configure vertex buffer for '%s'\n", pm->filename );
-	}
-}
-
 void interp_configure_vertex_buffers(polymodel *pm, int mn)
 {
 	int i, j, first_index;
@@ -4671,7 +4545,7 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
 	g3_done_instance(true);
 }
 
-void model_render_buffers(polymodel *pm, int mn, int detail, bool is_child)
+void model_render_buffers(polymodel *pm, int mn, bool is_child)
 {
 	if (pm->vertex_buffer_id < 0)
 		return;
@@ -4698,11 +4572,9 @@ void model_render_buffers(polymodel *pm, int mn, int detail, bool is_child)
 				return;
 		}
 
-	} else if ( detail >= 0 && detail < pm->n_detail_levels ) {
-		bsp_info *model = NULL;
-		buffer = &pm->detail_buffers[detail];
 	} else {
-		return;
+		bsp_info *model = NULL;
+		buffer = &pm->detail_buffers[Interp_detail_level];
 	}
 
 	vec3d scale;
