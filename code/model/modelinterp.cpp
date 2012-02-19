@@ -4157,13 +4157,10 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 
 		if (Cmdline_normal) {
 			memcpy( (model_list->tsb) + model_list->n_verts, polygon_list[i].tsb, sizeof(tsb_t) * polygon_list[i].n_verts );
-			memset( (model_list->submodels) + model_list->n_verts, mn, sizeof(int) * polygon_list[i].n_verts );
 		}
 
 		if ( Use_GLSL >= 3 ) {
-			for ( j = 0; j < polygon_list[i].n_verts; ++j ) {
-				model_list->submodels[model_list->n_verts + i] = mn;
-			}
+			memset( (model_list->submodels) + model_list->n_verts, mn, sizeof(int) * polygon_list[i].n_verts );
 		}
 
 		model_list->n_verts += polygon_list[i].n_verts;
@@ -4220,6 +4217,10 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 
 				if (Cmdline_normal) {
 					tlist->tsb[i] = model_list->tsb[ivert];
+				}
+
+				if ( Use_GLSL >= 3 ) {
+					tlist->submodels[i] = mn;
 				}
 			}
 
@@ -4344,7 +4345,7 @@ void interp_copy_index_buffer(vertex_buffer *src, vertex_buffer *dest)
 	}
 }
 
-void interp_create_detail_index_buffer(polymodel *pm, int detail)
+void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 {
 	size_t i, j;
 	int model_num;
@@ -4355,12 +4356,12 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail)
 		index_counts[i] = 0;
 	}
 
-	model_get_submodel_tree_list(&submodel_list, pm, detail);
+	model_get_submodel_tree_list(&submodel_list, pm, pm->detail[detail_num]);
 
 	size_t num_buffers;
 	int tex_num;
 
-	vertex_buffer *detail_buffer = &pm->detail_buffers[detail];
+	vertex_buffer *detail_buffer = &pm->detail_buffers[detail_num];
 
 	detail_buffer->model_list = new(std::nothrow) poly_list;
 
@@ -4392,17 +4393,17 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail)
 			new_buffer.flags |= VB_FLAG_LARGE_INDEX;
 		}
 
-		pm->detail_buffers[detail].tex_buf.push_back(new_buffer);
+		detail_buffer->tex_buf.push_back(new_buffer);
 	}
 
 	// finally copy over the indexes
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
 
-		interp_copy_index_buffer(&pm->submodel[model_num].buffer, &pm->detail_buffers[detail]);
+		interp_copy_index_buffer(&pm->submodel[model_num].buffer, detail_buffer);
 	}
 
-	gr_config_buffer(pm->vertex_buffer_id, &pm->detail_buffers[detail], true);
+	gr_config_buffer(pm->vertex_buffer_id, detail_buffer, true);
 }
 
 inline int in_box(vec3d *min, vec3d *max, vec3d *pos)

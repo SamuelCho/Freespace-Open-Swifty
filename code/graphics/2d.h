@@ -68,7 +68,7 @@ typedef struct tsb_t {
  * a list of triangles and their associated normals
  */
 struct poly_list {
-	poly_list(): n_verts(0), vert(NULL), norm(NULL), tsb(NULL), currently_allocated(0) {}
+	poly_list(): n_verts(0), vert(NULL), norm(NULL), tsb(NULL), submodels(NULL), currently_allocated(0) {}
 	~poly_list();
 	poly_list& operator = (poly_list&);
 

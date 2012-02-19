@@ -82,10 +82,8 @@ static uint Global_checksum = 0;
 
 static int Model_signature = 0;
 
-void interp_configure_detail_vertex_buffers(polymodel*);
 void interp_configure_vertex_buffers(polymodel*, int);
 void interp_pack_vertex_buffers(polymodel* pm, int mn);
-void interp_pack_detail_vertex_buffers(polymodel *pm, int detail);
 void interp_create_detail_index_buffer(polymodel *pm, int detail);
 
 void model_set_subsys_path_nums(polymodel *pm, int n_subsystems, model_subsystem *subsystems);
@@ -853,7 +851,8 @@ void create_vertex_buffer(polymodel *pm)
 	// create another set of indexes for the detail buffers
 	if ( use_shader_transforms ) {
 		for ( i = 0; i < pm->n_detail_levels; i++ )	{
-			interp_create_detail_index_buffer(pm, pm->detail[i]);
+			pm->detail_buffers[i].clear();
+			interp_create_detail_index_buffer(pm, i);
 		}
 	}
 

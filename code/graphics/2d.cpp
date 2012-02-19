@@ -1277,6 +1277,11 @@ poly_list::~poly_list()
 		vm_free(tsb);
 		tsb = NULL;
 	}
+
+	if ( submodels != NULL ) {
+		vm_free(submodels);
+		submodels = NULL;
+	}
 }
 
 void poly_list::calculate_tangent()
@@ -1415,6 +1420,9 @@ void poly_list::make_index_buffer(SCP_vector<int> &vertex_list)
 
 		if (Cmdline_normal) {
 			buffer_list_internal.tsb[z] = tsb[j];
+		}
+
+		if ( Use_GLSL >= 3 ) {
 			buffer_list_internal.submodels[z] = submodels[j];
 		}
 
@@ -1440,6 +1448,10 @@ poly_list& poly_list::operator = (poly_list &other_list)
 
 	if (Cmdline_normal) {
 		memcpy(tsb, other_list.tsb, sizeof(tsb_t) * other_list.n_verts);
+	}
+
+	if ( Use_GLSL >= 3 ) {
+		memcpy(submodels, other_list.submodels, sizeof(int) * other_list.n_verts);
 	}
 
 	n_verts = other_list.n_verts;
