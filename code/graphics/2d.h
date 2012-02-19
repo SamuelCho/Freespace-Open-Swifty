@@ -376,7 +376,7 @@ typedef struct screen {
 
 	int (*gf_create_buffer)();
 	bool (*gf_pack_buffer)(const int buffer_id, vertex_buffer *vb);
-	bool (*gf_config_buffer)(const int buffer_id, vertex_buffer *vb);
+	bool (*gf_config_buffer)(const int buffer_id, vertex_buffer *vb, bool update_ibuffer_only);
 	void (*gf_destroy_buffer)(int);
 	void (*gf_set_buffer)(int);
 	void (*gf_render_buffer)(int, const vertex_buffer*, int, int);

@@ -831,8 +831,27 @@ void create_vertex_buffer(polymodel *pm)
 
 	memset( &ibuffer_info, 0, sizeof(IBX) );
 
+	bool use_shader_transforms = false;
+
+	if ( Use_GLSL >= 3 ) {
+		bool unequal_stride = false;
+		int stride = pm->submodel[0].buffer.stride;
+
+		// see if all submodel vertices have the same stride.
+		for ( i = 1; i < pm->n_models; ++i ) {
+			if ( stride != pm->submodel[i].buffer.stride ) {
+				unequal_stride = true;
+				break;
+			}
+		}
+
+		if ( !unequal_stride ) {
+			use_shader_transforms = true;
+		}
+	}
+
 	// create another set of indexes for the detail buffers
-	if ( Use_GLSL ) {
+	if ( use_shader_transforms ) {
 		for ( i = 0; i < pm->n_detail_levels; i++ )	{
 			interp_create_detail_index_buffer(pm, pm->detail[i]);
 		}
@@ -844,6 +863,15 @@ void create_vertex_buffer(polymodel *pm)
 
 		// release temporary memory
 		pm->submodel[i].buffer.release();
+	}
+
+	if ( use_shader_transforms ) {
+		// pack the detail index buffers to the vbo.
+		for ( i = 0; i < pm->n_detail_levels; ++i ) {
+			gr_pack_buffer(pm->vertex_buffer_id, &pm->detail_buffers[i]);
+
+			pm->detail_buffers[i].release();
+		}
 	}
 
 	// ... and then finalize buffer

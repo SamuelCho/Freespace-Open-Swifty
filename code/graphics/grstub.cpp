@@ -35,7 +35,7 @@ bool gr_stub_pack_buffer(const int buffer_id, vertex_buffer *vb)
 }
 
 // NOTE: should return a failure
-bool gr_stub_config_buffer(const int buffer_id, vertex_buffer *vb)
+bool gr_stub_config_buffer(const int buffer_id, vertex_buffer *vb, bool update_ibuffer_only)
 {
 	return false;
 }

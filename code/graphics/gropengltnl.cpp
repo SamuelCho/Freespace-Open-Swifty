@@ -200,7 +200,7 @@ int gr_opengl_create_buffer()
 	return (int)(GL_vertex_buffers.size() - 1);
 }
 
-bool gr_opengl_config_buffer(const int buffer_id, vertex_buffer *vb)
+bool gr_opengl_config_buffer(const int buffer_id, vertex_buffer *vb, bool update_ibuffer_only)
 {
 	if (Cmdline_nohtl) {
 		return false;
@@ -227,12 +227,14 @@ bool gr_opengl_config_buffer(const int buffer_id, vertex_buffer *vb)
 	vb->stride = 0;
 
 	// position
-	Verify( vb->model_list->vert != NULL );
+	Verify( vb->model_list->vert != NULL || update_ibuffer_only );
+
 	vb->stride += (3 * sizeof(GLfloat));
 
 	// normals
 	if (vb->flags & VB_FLAG_NORMAL) {
-		Verify( vb->model_list->norm != NULL );
+		Verify( vb->model_list->norm != NULL || update_ibuffer_only );
+
 		vb->stride += (3 * sizeof(GLfloat));
 	}
 
@@ -245,20 +247,24 @@ bool gr_opengl_config_buffer(const int buffer_id, vertex_buffer *vb)
 	if (vb->flags & VB_FLAG_TANGENT) {
 		Assert( Cmdline_normal );
 
-		Verify( vb->model_list->tsb != NULL );
+		Verify( vb->model_list->tsb != NULL || update_ibuffer_only );
 		vb->stride += (4 * sizeof(GLfloat));
 	}
 
 	if (vb->flags & VB_FLAG_MODEL_ID) {
-		Assert( Use_GLSL );
+		Assert( Use_GLSL >= 3 );
 
-		Verify( vb->model_list->submodels != NULL );
+		Verify( vb->model_list->submodels != NULL || update_ibuffer_only );
 		vb->stride += (1 * sizeof(GLfloat));
 	}
 
 	// offsets for this chunk
-	vb->vertex_offset = m_vbp->vbo_size;
-	m_vbp->vbo_size += vb->stride * vb->model_list->n_verts;
+	if ( update_ibuffer_only ) {
+		vb->vertex_offset = 0;
+	} else {
+		vb->vertex_offset = m_vbp->vbo_size;
+		m_vbp->vbo_size += vb->stride * vb->model_list->n_verts;
+	}
 
 	for (size_t idx = 0; idx < vb->tex_buf.size(); idx++) {
 		buffer_data *bd = &vb->tex_buf[idx];
@@ -495,6 +501,13 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 		offset += (4 * sizeof(GLfloat));
 	}
 
+	if (bufferp->flags & VB_FLAG_MODEL_ID) {
+		int attrib_index = opengl_shader_get_attribute("submodel");
+		vglVertexAttribPointerARB(attrib_index, 1, GL_INT, GL_FALSE, bufferp->stride, ptr + offset);
+		vglEnableVertexAttribArrayARB(attrib_index);
+		offset += (1 * sizeof(GLfloat));
+	}
+
 	Assert( bufferp->flags & VB_FLAG_POSITION );
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glVertexPointer(3, GL_FLOAT, bufferp->stride, ptr + offset);
@@ -546,7 +559,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	if (flags & TMAP_ANIMATED_SHADER)
 		shader_flags |= SDR_FLAG_ANIMATED;
 
-	if ( Interp_transform_texture >= 0 )
+	if ( Interp_transform_texture >= 0  && bufferp->flags & VB_FLAG_MODEL_ID )
 		shader_flags |= SDR_FLAG_TRANSFORM;
 
 	if (textured) {
@@ -787,6 +800,12 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 */
 
 	// make sure everthing gets turned back off
+	if ( shader_flags & SDR_FLAG_TRANSFORM ) {
+		int attrib_index = opengl_shader_get_attribute("submodel");
+
+		vglDisableVertexAttribArrayARB(attrib_index);
+	}
+
 	GL_state.Texture.SetShaderMode(GL_FALSE);
 	GL_state.Texture.DisableAll();
 	vglClientActiveTextureARB(GL_TEXTURE1_ARB);

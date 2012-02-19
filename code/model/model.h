@@ -706,7 +706,6 @@ typedef struct polymodel {
 
 	int vertex_buffer_id;			// HTL vertex buffer id
 
-	int detail_vertex_buffer_ids[MAX_MODEL_DETAIL_LEVELS];
 	vertex_buffer detail_buffers[MAX_MODEL_DETAIL_LEVELS];
 } polymodel;
 

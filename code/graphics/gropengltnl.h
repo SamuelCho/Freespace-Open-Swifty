@@ -40,7 +40,7 @@ void gr_opengl_end_clip_plane();
 
 int gr_opengl_create_buffer();
 bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb);
-bool gr_opengl_config_buffer(const int buffer_id, vertex_buffer *vb);
+bool gr_opengl_config_buffer(const int buffer_id, vertex_buffer *vb, bool update_ibuffer_only);
 void gr_opengl_destroy_buffer(int idx);
 void gr_opengl_set_buffer(int idx);
 void gr_opengl_render_buffer(int start, const vertex_buffer *bufferp, int texi, int flags);

@@ -1177,35 +1177,17 @@ int poly_list::find_first_vertex(int idx)
 	vec3d *p_norm = &norm[0];
 	vertex *p_vert = &vert[0];
 
-	int *o_mn;
-	int *p_mn;
-
-	if ( submodels != NULL ) {
-		o_mn = &submodels[idx];
-		p_mn = &submodels[0];
-	}
-
 	// we should always equal ourselves, so just use that as the stopping point
 	for (int i = 0; i < idx; i++) {
 		if ( (*p_norm == *o_norm)
 			&& (p_vert->world == o_vert->world)
 			&& (p_vert->texture_position == o_vert->texture_position) )
 		{
-			if ( submodels == NULL ) {
-				return i;
-			} else {
-				if ( *o_mn == *p_mn ) {
-					return i;
-				}
-			}
+			return i;
 		}
 
 		++p_norm;
 		++p_vert;
-
-		if ( submodels != NULL ) {
-			++p_mn;
-		}
 	}
 
 	return idx;
@@ -1221,34 +1203,16 @@ int poly_list::find_index(poly_list *plist, int idx)
 	vec3d *p_norm = &norm[0];
 	vertex *p_vert = &vert[0];
 
-	int *o_mn;
-	int *p_mn;
-
-	if ( submodels != NULL ) {
-		o_mn = &submodels[idx];
-		p_mn = &submodels[0];
-	}
-
 	for (int i = 0; i < n_verts; i++) {
 		if ( (*p_norm == *o_norm)
 			&& (p_vert->world == o_vert->world)
 			&& (p_vert->texture_position == o_vert->texture_position))
 		{
-			if ( submodels == NULL ) {
-				return i;
-			} else {
-				if ( *o_mn == *p_mn ) {
-					return i;
-				}
-			}
+			return i;
 		}
 
 		++p_vert;
 		++p_norm;
-
-		if ( submodels != NULL ) {
-			++p_mn;
-		}
 	}
 
 	return -1;
@@ -1286,6 +1250,9 @@ void poly_list::allocate(int _verts)
 
 		if (Cmdline_normal) {
 			tsb = (tsb_t*)vm_malloc(sizeof(tsb_t) * _verts);
+		}
+
+		if ( Use_GLSL >= 3 ) {
 			submodels = (int*)vm_malloc(sizeof(int) * _verts);
 		}
 	}

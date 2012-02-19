@@ -3839,9 +3839,8 @@ int check_values(vec3d *N)
 }
 
 int Parse_normal_problem_count = 0;
-void parse_tmap(int offset, ubyte *bsp_data, int mn = -1);
 
-void parse_tmap(int offset, ubyte *bsp_data, int mn)
+void parse_tmap(int offset, ubyte *bsp_data)
 {
 	int pof_tex = w(bsp_data+offset+40);
 	int n_vert = w(bsp_data+offset+36);
@@ -3858,12 +3857,6 @@ void parse_tmap(int offset, ubyte *bsp_data, int mn)
 	int problem_count = 0;
 
 	for (int i = 1; i < (n_vert-1); i++) {
-		if ( polygon_list[pof_tex].submodels != NULL && mn >= 0 ) {
-			polygon_list[pof_tex].submodels[(polygon_list[pof_tex].n_verts)] = mn;
-			polygon_list[pof_tex].submodels[(polygon_list[pof_tex].n_verts)+1] = mn;
-			polygon_list[pof_tex].submodels[(polygon_list[pof_tex].n_verts)+2] = mn;
-		}
-
 		V = &polygon_list[pof_tex].vert[(polygon_list[pof_tex].n_verts)];
 		N = &polygon_list[pof_tex].norm[(polygon_list[pof_tex].n_verts)];
 		v = Interp_verts[(int)tverts[0].vertnum];
@@ -3922,9 +3915,8 @@ void parse_tmap(int offset, ubyte *bsp_data, int mn)
 }
 
 void parse_sortnorm(int offset, ubyte *bsp_data);
-void parse_bsp(int offset, ubyte *bsp_data, int mn = -1);
 
-void parse_bsp(int offset, ubyte *bsp_data, int mn)
+void parse_bsp(int offset, ubyte *bsp_data)
 {
 	int id = w(bsp_data+offset);
 	int size = w(bsp_data+offset+4);
@@ -3940,14 +3932,14 @@ void parse_bsp(int offset, ubyte *bsp_data, int mn)
 				break;
 
 			case OP_SORTNORM:
-				parse_sortnorm(offset, bsp_data, mn);
+				parse_sortnorm(offset, bsp_data);
 				break;
 
 			case OP_FLATPOLY:
 				break;
 
 			case OP_TMAPPOLY:
-				parse_tmap(offset, bsp_data, mn);
+				parse_tmap(offset, bsp_data);
 				break;
 
 			case OP_BOUNDBOX:
@@ -3966,9 +3958,7 @@ void parse_bsp(int offset, ubyte *bsp_data, int mn)
 	}
 }
 
-void parse_sortnorm(int offset, ubyte *bsp_data, int mn = -1);
-
-void parse_sortnorm(int offset, ubyte *bsp_data, int mn)
+void parse_sortnorm(int offset, ubyte *bsp_data)
 {
 	int frontlist, backlist, prelist, postlist, onlist;
 
@@ -3978,11 +3968,11 @@ void parse_sortnorm(int offset, ubyte *bsp_data, int mn)
 	postlist = w(bsp_data+offset+48);
 	onlist = w(bsp_data+offset+52);
 
-	if (prelist) parse_bsp(offset+prelist,bsp_data, mn);
-	if (backlist) parse_bsp(offset+backlist, bsp_data, mn);
-	if (onlist) parse_bsp(offset+onlist, bsp_data, mn);
-	if (frontlist) parse_bsp(offset+frontlist, bsp_data, mn);
-	if (postlist) parse_bsp(offset+postlist, bsp_data, mn);
+	if (prelist) parse_bsp(offset+prelist,bsp_data);
+	if (backlist) parse_bsp(offset+backlist, bsp_data);
+	if (onlist) parse_bsp(offset+onlist, bsp_data);
+	if (frontlist) parse_bsp(offset+frontlist, bsp_data);
+	if (postlist) parse_bsp(offset+postlist, bsp_data);
 }
 
 void find_tmap(int offset, ubyte *bsp_data)
@@ -4094,31 +4084,13 @@ void interp_pack_vertex_buffers(polymodel *pm, int mn)
 	Assert( pm->vertex_buffer_id >= 0 );
 	Assert( (mn >= 0) && (mn < pm->n_models) );
 
-	vertex_buffer *buffer = &pm->submodel[mn].buffer;
+	bsp_info *model = &pm->submodel[mn];
 
-	if ( !buffer->model_list ) {
+	if ( !model->buffer.model_list ) {
 		return;
 	}
 
-	bool rval = gr_pack_buffer(pm->vertex_buffer_id, buffer);
-
-	if ( !rval ) {
-		Error( LOCATION, "Unable to pack vertex buffer for '%s'\n", pm->filename );
-	}
-}
-
-void interp_pack_detail_vertex_buffers(polymodel *pm, int detail)
-{
-	Assert( pm->vertex_buffer_id >= 0 );
-	Assert( (detail >= 0) && (detail < pm->n_detail_levels) );
-
-	vertex_buffer *buffer = &pm->detail_buffers[detail];
-
-	if ( !buffer->model_list ) {
-		return;
-	}
-
-	bool rval = gr_pack_buffer(pm->vertex_buffer_id, buffer);
+	bool rval = gr_pack_buffer(pm->vertex_buffer_id, &model->buffer);
 
 	if ( !rval ) {
 		Error( LOCATION, "Unable to pack vertex buffer for '%s'\n", pm->filename );
@@ -4244,7 +4216,7 @@ void interp_configure_detail_vertex_buffers(polymodel *pm, int detail)
 		pm->main_buffer.tex_buf.push_back( new_buffer );
 	}
 
-	bool rval = gr_config_buffer(pm->vertex_buffer_id, &pm->main_buffer);
+	bool rval = gr_config_buffer(pm->vertex_buffer_id, &pm->main_buffer, false);
 
 	if ( !rval ) {
 		Error( LOCATION, "Unable to configure vertex buffer for '%s'\n", pm->filename );
@@ -4267,6 +4239,7 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 	}
 
 	find_tri_counts(0, model->bsp_data);
+
 
 	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
 		total_verts += tri_count[i];
@@ -4311,6 +4284,12 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 		if (Cmdline_normal) {
 			memcpy( (model_list->tsb) + model_list->n_verts, polygon_list[i].tsb, sizeof(tsb_t) * polygon_list[i].n_verts );
 			memset( (model_list->submodels) + model_list->n_verts, mn, sizeof(int) * polygon_list[i].n_verts );
+		}
+
+		if ( Use_GLSL >= 3 ) {
+			for ( j = 0; j < polygon_list[i].n_verts; ++j ) {
+				model_list->submodels[model_list->n_verts + i] = mn;
+			}
 		}
 
 		model_list->n_verts += polygon_list[i].n_verts;
@@ -4408,6 +4387,11 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 		vertex_flags |= VB_FLAG_TANGENT;
 	}
 
+	if ( model_list->submodels != NULL ) {
+		Assert( Use_GLSL >= 3 );
+		vertex_flags |= VB_FLAG_MODEL_ID;
+	}
+
 	model->buffer.flags = vertex_flags;
 
 	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
@@ -4449,7 +4433,7 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 		model->buffer.tex_buf.push_back( new_buffer );
 	}
 
-	bool rval = gr_config_buffer(pm->vertex_buffer_id, &model->buffer);
+	bool rval = gr_config_buffer(pm->vertex_buffer_id, &model->buffer, false);
 
 	if ( !rval ) {
 		Error( LOCATION, "Unable to configure vertex buffer for '%s'\n", pm->filename );
@@ -4463,7 +4447,7 @@ void interp_copy_index_buffer(vertex_buffer *src, vertex_buffer *dest)
 	int n_verts = 0;
 	buffer_data *src_buffer;
 	buffer_data *dest_buffer;
-	int vert_offset = src->vertex_offset / src->stride; // assuming all submodels have the same stride
+	int vert_offset = src->vertex_offset / src->stride; // assuming all submodels crunched into this index buffer have the same stride
 
 	for ( i = 0; i < dest->tex_buf.size(); ++i ) {
 		dest_buffer = &dest->tex_buf[i];
@@ -4505,12 +4489,13 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail)
 	vertex_buffer *detail_buffer = &pm->detail_buffers[detail];
 
 	detail_buffer->model_list = new(std::nothrow) poly_list;
-	detail_buffer->flags = (VB_FLAG_POSITION | VB_FLAG_NORMAL | VB_FLAG_UV1 | VB_FLAG_NORMAL | VB_FLAG_MODEL_ID);
 
 	// need to first count how many indexes there are in this entire detail model hierarchy
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
 		num_buffers = pm->submodel[model_num].buffer.tex_buf.size();
+
+		detail_buffer->flags |= pm->submodel[model_num].buffer.flags;
 
 		for ( j = 0; j < num_buffers; ++j ) {
 			tex_num = pm->submodel[model_num].buffer.tex_buf[j].texture;
@@ -4542,6 +4527,8 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail)
 
 		interp_copy_index_buffer(&pm->submodel[model_num].buffer, &pm->detail_buffers[detail]);
 	}
+
+	gr_config_buffer(pm->vertex_buffer_id, &pm->detail_buffers[detail], true);
 }
 
 inline int in_box(vec3d *min, vec3d *max, vec3d *pos)
@@ -4684,7 +4671,7 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
 	g3_done_instance(true);
 }
 
-void model_render_buffers(polymodel *pm, int mn, bool is_child)
+void model_render_buffers(polymodel *pm, int mn, int detail, bool is_child)
 {
 	if (pm->vertex_buffer_id < 0)
 		return;
@@ -4711,9 +4698,11 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 				return;
 		}
 
-	} else {
+	} else if ( detail >= 0 && detail < pm->n_detail_levels ) {
 		bsp_info *model = NULL;
-		buffer = &pm->main_buffer;
+		buffer = &pm->detail_buffers[detail];
+	} else {
+		return;
 	}
 
 	vec3d scale;
@@ -4836,7 +4825,7 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		}
 
 		// trying to get transperent textures-Bobboau
-		if (tmap->is_transparent) {
+		if (tmap->is_transparent && model != NULL) {
 			// for special shockwave/warpmap usage
 			alpha = (Interp_warp_alpha != -1.0f) ? Interp_warp_alpha : 0.8f;
 			blend_filter = GR_ALPHABLEND_FILTER;
