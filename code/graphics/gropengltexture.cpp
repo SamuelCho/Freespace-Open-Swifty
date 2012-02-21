@@ -1890,13 +1890,11 @@ uint gr_opengl_create_transformation_tex()
 	glGenTextures(1, &tex_id);
 
 	GL_state.Texture.SetActiveUnit(0);
-	GL_state.Texture.SetTarget(GL_TEXTURE_1D);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(tex_id);
 
-	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 	return tex_id;
 }
@@ -1911,10 +1909,12 @@ void gr_opengl_destroy_transformation_tex(uint texture_id)
 void gr_opengl_update_transformation_tex(uint texture_id, int n_entries, float *data)
 {
 	GL_state.Texture.SetActiveUnit(0);
-	GL_state.Texture.SetTarget(GL_TEXTURE_1D);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(texture_id);
 
-	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB32F_ARB, 12*n_entries, 0, GL_RGB, GL_FLOAT, data);
+	//glTexImage1D(GL_TEXTURE_2D, 0, GL_RGBA32F_ARB, 4*n_entries, 0, GL_RGBA, GL_FLOAT, data);
+	//glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, 4*n_entries, 0, GL_RGBA, GL_FLOAT, data);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F_ARB, 4, n_entries, 0, GL_RGBA, GL_FLOAT, data);
 
 	opengl_check_for_errors();
 }

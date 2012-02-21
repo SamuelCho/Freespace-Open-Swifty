@@ -4315,14 +4315,14 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 	}
 }
 
-void interp_copy_index_buffer(vertex_buffer *src, vertex_buffer *dest)
+void interp_copy_index_buffer(vertex_buffer *src, vertex_buffer *dest, int *index_counts)
 {
 	size_t i, j, k;
 	int src_buff_size;
-	int n_verts = 0;
 	buffer_data *src_buffer;
 	buffer_data *dest_buffer;
-	int vert_offset = src->vertex_offset / src->stride; // assuming all submodels crunched into this index buffer have the same stride
+	uint vert_offset = src->vertex_offset / src->stride; // assuming all submodels crunched into this index buffer have the same stride
+	//int vert_offset = 0;
 
 	for ( i = 0; i < dest->tex_buf.size(); ++i ) {
 		dest_buffer = &dest->tex_buf[i];
@@ -4336,11 +4336,11 @@ void interp_copy_index_buffer(vertex_buffer *src, vertex_buffer *dest)
 			src_buff_size = src_buffer->n_verts;
 
 			for ( k = 0; k < src_buff_size; ++k ) {
-				dest_buffer->index[n_verts] = src_buffer->index[k] + vert_offset; // take into account the vertex offset.
-				n_verts++;
-			}
+				dest_buffer->index[dest_buffer->n_verts] = src_buffer->index[k] + vert_offset; // take into account the vertex offset.
+				dest_buffer->n_verts++;
 
-			Assert(n_verts <= dest_buffer->n_verts);
+				Assert(dest_buffer->n_verts <= index_counts[dest_buffer->texture]);
+			}
 		}
 	}
 }
@@ -4386,8 +4386,9 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 		}
 
 		buffer_data new_buffer;
-		new_buffer.n_verts = index_counts[i];
+		new_buffer.n_verts = 0;
 		new_buffer.index = (uint*)vm_malloc(sizeof(uint)*index_counts[i]);
+		new_buffer.texture = i;
 
 		if ( index_counts[i] >= USHRT_MAX ) {
 			new_buffer.flags |= VB_FLAG_LARGE_INDEX;
@@ -4400,7 +4401,7 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
 
-		interp_copy_index_buffer(&pm->submodel[model_num].buffer, detail_buffer);
+		interp_copy_index_buffer(&pm->submodel[model_num].buffer, detail_buffer, index_counts);
 	}
 
 	gr_config_buffer(pm->vertex_buffer_id, detail_buffer, true);
