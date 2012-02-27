@@ -11746,30 +11746,13 @@ void ship_model_update_instance(object *objp)
 		smi = &pmi->submodel[i];
 
 		// write orientation data to tex buffer
-		/*for ( j = 0; j < 9; ++j ) {
+		for ( j = 0; j < 9; ++j ) {
 			pmi->transform_buffer[i*12+j] = smi->mc_orient.a1d[j];
-		}*/
+		}
 
-		/*for ( j = 0; j < 16; ++j ) {
-			pmi->transform_buffer[i*16+j] = 255;
-		}*/
-
-		pmi->transform_buffer[i*16] = smi->mc_orient.a1d[0];
-		pmi->transform_buffer[i*16+1] = smi->mc_orient.a1d[1];
-		pmi->transform_buffer[i*16+2] = smi->mc_orient.a1d[2];
-		pmi->transform_buffer[i*16+4] = smi->mc_orient.a1d[3];
-		pmi->transform_buffer[i*16+5] = smi->mc_orient.a1d[4];
-		pmi->transform_buffer[i*16+6] = smi->mc_orient.a1d[5];
-		pmi->transform_buffer[i*16+8] = smi->mc_orient.a1d[6];
-		pmi->transform_buffer[i*16+9] = smi->mc_orient.a1d[7];
-		pmi->transform_buffer[i*16+10] = smi->mc_orient.a1d[8];
-
-		pmi->transform_buffer[i*16+12] = smi->mc_base.a1d[0];
-		pmi->transform_buffer[i*16+13] = smi->mc_base.a1d[1];
-		pmi->transform_buffer[i*16+14] = smi->mc_base.a1d[2];
-		/*for ( j = 0; j < 3; ++j ) {
+		for ( j = 0; j < 3; ++j ) {
 			pmi->transform_buffer[i*12+9+j] = smi->mc_base.a1d[j];
-		}*/
+		}
 	}
 
 	gr_update_transform_tex(pmi->transform_tex_id, pm->n_models, pmi->transform_buffer);

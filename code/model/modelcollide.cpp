@@ -973,10 +973,13 @@ void model_collide_preprocess(matrix *orient, int model_instance_num)
 	pmi = model_get_instance(model_instance_num);
 	pm = model_get(pmi->model_num);
 
-	matrix current_orient = *orient;
+	matrix current_orient;
 	vec3d current_pos;
 
-	vm_vec_zero(&current_pos);
+	for ( int i = 0; i < pm->n_detail_levels; ++i ) {
+		current_orient = *orient;
 
-	model_collide_preprocess_subobj(&current_pos, &current_orient, pm, pmi, pm->detail[0]);
+		vm_vec_zero(&current_pos);
+		model_collide_preprocess_subobj(&current_pos, &current_orient, pm, pmi, pm->detail[i]);
+	}
 }

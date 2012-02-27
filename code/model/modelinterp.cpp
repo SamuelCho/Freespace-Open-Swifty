@@ -2677,6 +2677,8 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	// just to be on the safe side
 	Assert( Interp_objnum == objnum );
 
+	Interp_transform_texture = -1;
+
 	if (objnum >= 0) {
 		objp = &Objects[objnum];
 
@@ -2686,8 +2688,6 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 			if ( model_instance_num >= 0 ) {
 				pmi = model_get_instance(model_instance_num);
 				Interp_transform_texture = pmi->transform_tex_id;
-			} else {
-				Interp_transform_texture = -1;
 			}
 
 			if (shipp->flags2 & SF2_GLOWMAPS_DISABLED)
@@ -2961,8 +2961,9 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 		gr_set_buffer(pm->vertex_buffer_id);
 	}
 
-	if ( model_instance_num >= 0 ) {
+	if ( model_instance_num >= 0 && Interp_transform_texture >= 0 ) {
 		model_render_buffers(pm, -1);
+		Interp_transform_texture = -1;
 	} else {
 		// Draw the subobjects	
 		i = pm->submodel[pm->detail[Interp_detail_level]].first_child;
@@ -3156,6 +3157,7 @@ void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * po
 
 	// Turn off engine effect
 	Interp_thrust_scale_subobj=0;
+	Interp_transform_texture = -1;
 
 	if (!Model_texturing)
 		flags |= MR_NO_TEXTURING;
