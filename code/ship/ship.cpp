@@ -11730,9 +11730,26 @@ void ship_model_update_instance(object *objp)
 
 	model_instance_dumb_rotation(model_instance_num);
 
+
+	// preprocess subobject orientations for collision detection
+	model_collide_preprocess(&objp->orient, model_instance_num);
+}
+
+void ship_update_model_transforms(object *objp, int detail_num)
+{
+	ship		*shipp;
+	int model_instance_num;
+
+	Assert(objp != NULL);
+	Assert(objp->instance >= 0);
+	Assert(objp->type == OBJ_SHIP);
+
+	shipp = &Ships[objp->instance];
+	model_instance_num = shipp->model_instance_num;
+
 	// first gather rotation data relative to the ship itself 
 	matrix identity_mat = IDENTITY_MATRIX;
-	model_collide_preprocess(&identity_mat, model_instance_num);
+	model_collide_preprocess(&identity_mat, model_instance_num, detail_num);
 
 	// then copy data into the shader transform buffer
 	ship_info *sip = &Ship_info[shipp->ship_info_index];
@@ -11757,8 +11774,6 @@ void ship_model_update_instance(object *objp)
 
 	gr_update_transform_tex(pmi->transform_tex_id, pm->n_models, pmi->transform_buffer);
 
-	// preprocess subobject orientations for collision detection
-	model_collide_preprocess(&objp->orient, model_instance_num);
 }
 
 /**
