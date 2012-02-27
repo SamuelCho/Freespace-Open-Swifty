@@ -147,11 +147,7 @@ static int Ship_info_coords[GR_NUM_RESOLUTIONS][2] = {
 
 
 // NK: changed from 37 to 51 for new FS2 animations
-#ifdef FS2_DEMO
-#define SHIP_ANIM_LOOP_FRAME	0
-#else
 #define SHIP_ANIM_LOOP_FRAME	51
-#endif
 
 #define MAX_ICONS_ON_SCREEN	4
 
@@ -833,20 +829,10 @@ void maybe_change_selected_wing_ship(int wb_num, int ws_num)
 	}
 
 	ss_slot = &Ss_wings[wb_num].ss_slots[ws_num];
-	switch ( ss_slot->status & ~WING_SLOT_LOCKED ) {
-
-		case WING_SLOT_FILLED:
-		case WING_SLOT_FILLED|WING_SLOT_IS_PLAYER:
-			if ( Selected_ss_class != -1 && Selected_ss_class != Wss_slots[wb_num*MAX_WING_SLOTS+ws_num].ship_class ) {
-				Selected_ss_class = Wss_slots[wb_num*MAX_WING_SLOTS+ws_num].ship_class;
-				start_ship_animation(Selected_ss_class, 1);
-			}
-			break;
-
-		default:
-			// do nothing
-			break;
-	} // end switch
+	if ( Selected_ss_class != -1 && Selected_ss_class != Wss_slots[wb_num*MAX_WING_SLOTS+ws_num].ship_class ) {
+		Selected_ss_class = Wss_slots[wb_num*MAX_WING_SLOTS+ws_num].ship_class;
+		start_ship_animation(Selected_ss_class, 1);
+	}
 }
 
 // ---------------------------------------------------------------------
@@ -1252,7 +1238,7 @@ void ship_select_blit_ship_info()
 		}
 	}
 	
-	if(strlen(Ship_select_ship_info_text) > 0){
+	if(Ship_select_ship_info_text[0] != '\0'){
 		// split the string into multiple lines
 		n_lines = split_str(Ship_select_ship_info_text, gr_screen.res == GR_640 ? 128 : 350, n_chars, p_str, MAX_NUM_SHIP_DESC_LINES, 0);
 
@@ -1785,7 +1771,7 @@ void start_ship_animation(int ship_class, int play_sound)
 		model_page_in_textures(ShipSelectModelNum, ship_class);
 		
 		if (sip->model_num < 0) {
-			mprintf(("Couldn't load model file in missionshipchoice.cpp\n"));
+			mprintf(("Couldn't load model file %s in missionshipchoice.cpp\n", sip->pof_file));
 		}
 	} else {
 		ss_icon_info *ss_icon;
@@ -1997,12 +1983,11 @@ void pick_from_wing(int wb_num, int ws_num)
 		return;
 	}
 
-	switch ( ws->status ) {
-		case WING_SLOT_DISABLED:
-		case WING_SLOT_IGNORE:
-			return;
-			break;
+	if ( ws->status & WING_SLOT_IGNORE_SHIPS) {
+		return;
+	}
 
+	switch ( ws->status ) {
 		case WING_SLOT_EMPTY:
 		case WING_SLOT_EMPTY|WING_SLOT_IS_PLAYER:
 			// TODO: add fail sound
@@ -2041,13 +2026,13 @@ void pick_from_wing(int wb_num, int ws_num)
 //				hot_slot	=>		index of slot that mouse is over
 //				selected_slot	=>	index of slot that is selected
 //				class_select	=>	all ships of this class are drawn selected (send -1 to not use)
-void draw_wing_block(int wb_num, int hot_slot, int selected_slot, int class_select)
+void draw_wing_block(int wb_num, int hot_slot, int selected_slot, int class_select, bool ship_selection )
 {
 	ss_wing_info	*wb;
 	ss_slot_info	*ws;
 	ss_icon_info	*icon;
 	wing				*wp;
-	int				i, w, h, sx, sy, slot_index;
+	int				i, w, h, sx, sy, slot_index, mask;
 	int				bitmap_to_draw = -1;
 	color			*color_to_draw = NULL;
 	//shader			*shader_to_use = NULL;
@@ -2079,7 +2064,16 @@ void draw_wing_block(int wb_num, int hot_slot, int selected_slot, int class_sele
 			icon = NULL;
 		}
 
-		switch(ws->status & ~WING_SLOT_LOCKED ) {
+		mask = ~WING_SLOT_LOCKED; 
+		mask &= ~WING_SLOT_IS_PLAYER;
+		if (ship_selection) {
+			mask &= ~WING_SLOT_WEAPONS_DISABLED;
+		} 
+		else {
+			mask &= ~WING_SLOT_SHIPS_DISABLED;
+		} 
+
+		switch(ws->status & mask ) {
 			case WING_SLOT_FILLED:
 			case WING_SLOT_FILLED|WING_SLOT_IS_PLAYER:
 
@@ -2156,8 +2150,7 @@ void draw_wing_block(int wb_num, int hot_slot, int selected_slot, int class_sele
 				bitmap_to_draw = Wing_slot_empty_bitmap;
 				break;
 
-			case WING_SLOT_DISABLED:
-			case WING_SLOT_IGNORE:
+			default:
 				if ( icon ) {
 					if(icon->model_index == -1)
 						bitmap_to_draw = icon->icon_bmaps[ICON_FRAME_DISABLED];
@@ -2167,11 +2160,6 @@ void draw_wing_block(int wb_num, int hot_slot, int selected_slot, int class_sele
 					bitmap_to_draw = Wing_slot_disabled_bitmap;
 				}
 				break;
-
-			default:
-				Int3();
-				break;
-
 		}	// end switch
 
 		
@@ -2209,7 +2197,7 @@ void ss_make_slot_empty(int slot_index)
 	ws = &wb->ss_slots[slot_num];
 
 	// set the flags
-	ws->status &= ~(WING_SLOT_FILLED | WING_SLOT_DISABLED);
+	ws->status &= ~(WING_SLOT_FILLED | WING_SLOT_SHIPS_DISABLED | WING_SLOT_WEAPONS_DISABLED);
 	ws->status |= WING_SLOT_EMPTY;
 }
 
@@ -2231,7 +2219,7 @@ void ss_make_slot_full(int slot_index)
 	ws = &wb->ss_slots[slot_num];
 
 	// set the flags
-	ws->status &= ~(WING_SLOT_EMPTY | WING_SLOT_DISABLED);
+	ws->status &= ~(WING_SLOT_EMPTY | WING_SLOT_SHIPS_DISABLED | WING_SLOT_WEAPONS_DISABLED);
 	ws->status |= WING_SLOT_FILLED;
 }
 
@@ -2326,65 +2314,53 @@ int create_wings()
 		for ( j = 0; j < MAX_WING_SLOTS; j++ ) {
 			slot_index = i*MAX_WING_SLOTS+j;
 			ws = &wb->ss_slots[j];
-			switch ( ws->status ) {
+			if ((ws->status & WING_SLOT_FILLED ) || (ws->status & WING_SLOT_SHIPS_DISABLED ) || (ws->status & WING_SLOT_WEAPONS_DISABLED )){
+				if ( wp->ship_index[j] >= 0 ) {
+					Assert(Ships[wp->ship_index[j]].objnum >= 0);
+				}
 
-				case WING_SLOT_FILLED:
-				case WING_SLOT_FILLED|WING_SLOT_IS_PLAYER:
-				case WING_SLOT_FILLED|WING_SLOT_LOCKED:
-				case WING_SLOT_FILLED|WING_SLOT_IS_PLAYER|WING_SLOT_LOCKED:
-					if ( wp->ship_index[j] >= 0 ) {
-						Assert(Ships[wp->ship_index[j]].objnum >= 0);
-					}
+				if ( ws->status & WING_SLOT_IS_PLAYER ) {
+					update_player_ship(Wss_slots[slot_index].ship_class);
 
-					if ( ws->status & WING_SLOT_IS_PLAYER ) {
-						update_player_ship(Wss_slots[slot_index].ship_class);
-
-						if ( wl_update_ship_weapons(Ships[Player_obj->instance].objnum, &Wss_slots[i*MAX_WING_SLOTS+j]) == -1 ) {
-							popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR( "Player ship has no weapons", 461));
-							return -1;
-						}
-
-						objnum = OBJ_INDEX(Player_obj);
-						shipnum = Objects[objnum].instance;
-					} else {
-						if ( wb->is_late) {
-							found_pobj = 0;
-							for ( p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp) ) {
-								if ( p_objp->wingnum == WING_INDEX(wp) ) {
-									if ( ws->sa_index == POBJ_INDEX(p_objp) ) {
-										p_objp->ship_class = Wss_slots[slot_index].ship_class;
-										wl_update_parse_object_weapons(p_objp, &Wss_slots[i*MAX_WING_SLOTS+j]);
-										found_pobj = 1;
-										break;
-									}
-								}
-							}
-							Assert(found_pobj);
-						}
-						else {
-							// AL 10/04/97
-							// Change the ship type of the ship if different than current.
-							// NOTE: This will reset the weapons for this ship.  I think this is
-							//       the right thing to do, since the ships may have different numbers
-							//			of weapons and may not have the same allowed weapon types
-							if ( Ships[wp->ship_index[j]].ship_info_index != Wss_slots[slot_index].ship_class )
-								change_ship_type(wp->ship_index[j], Wss_slots[slot_index].ship_class);
-							wl_update_ship_weapons(Ships[wp->ship_index[j]].objnum, &Wss_slots[i*MAX_WING_SLOTS+j]);
-						}
-					}
-
-					break;
-
-				case WING_SLOT_EMPTY:
-				case WING_SLOT_EMPTY|WING_SLOT_IS_PLAYER:
-					if ( ws->status & WING_SLOT_IS_PLAYER ) {						
-						popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR( "Player %s must select a place in player wing", 462), Player->callsign);
+					if ( wl_update_ship_weapons(Ships[Player_obj->instance].objnum, &Wss_slots[i*MAX_WING_SLOTS+j]) == -1 ) {
+						popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR( "Player ship has no weapons", 461));
 						return -1;
 					}
-					break;
 
-				default:
-					break;
+					objnum = OBJ_INDEX(Player_obj);
+					shipnum = Objects[objnum].instance;
+				} else {
+					if ( wb->is_late) {
+						found_pobj = 0;
+						for ( p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp) ) {
+							if ( p_objp->wingnum == WING_INDEX(wp) ) {
+								if ( ws->sa_index == POBJ_INDEX(p_objp) ) {
+									p_objp->ship_class = Wss_slots[slot_index].ship_class;
+									wl_update_parse_object_weapons(p_objp, &Wss_slots[i*MAX_WING_SLOTS+j]);
+									found_pobj = 1;
+									break;
+								}
+							}
+						}
+						Assert(found_pobj);
+					}
+					else {
+						// AL 10/04/97
+						// Change the ship type of the ship if different than current.
+						// NOTE: This will reset the weapons for this ship.  I think this is
+						//       the right thing to do, since the ships may have different numbers
+						//			of weapons and may not have the same allowed weapon types
+						if ( Ships[wp->ship_index[j]].ship_info_index != Wss_slots[slot_index].ship_class )
+							change_ship_type(wp->ship_index[j], Wss_slots[slot_index].ship_class);
+						wl_update_ship_weapons(Ships[wp->ship_index[j]].objnum, &Wss_slots[i*MAX_WING_SLOTS+j]);
+					}
+				}
+			}
+			else if (ws->status & WING_SLOT_EMPTY) {
+				if ( ws->status & WING_SLOT_IS_PLAYER ) {						
+					popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR( "Player %s must select a place in player wing", 462), Player->callsign);
+					return -1;
+				}
 			}
 		}	// end for (wing slot)	
 	}	// end for (wing block)
@@ -2809,8 +2785,6 @@ void ss_load_icons(int ship_class)
 // load all the icons for ships in the pool
 void ss_load_all_icons()
 {
-	#ifndef DEMO // not for FS2_DEMO
-
 	int i, j;
 
 	Assert( (Ss_pool != NULL) && (Ss_icons != NULL) );
@@ -2827,13 +2801,13 @@ void ss_load_all_icons()
 			ss_load_icons(i);
 		}
 	}
-
-	#endif
 }
 
 // determine if the slot is disabled
-int ss_disabled_slot(int slot_num)
+int ss_disabled_slot(int slot_num, bool ship_selection)
 {
+	int status; 
+
 	if ( Wss_num_wings <= 0 ){
 		return 0;
 	}
@@ -2845,7 +2819,14 @@ int ss_disabled_slot(int slot_num)
 		return multi_ts_disabled_slot(slot_num);
 	} 
 
-	return ( Ss_wings[slot_num/MAX_WING_SLOTS].ss_slots[slot_num%MAX_WING_SLOTS].status & WING_SLOT_IGNORE );
+	status = Ss_wings[slot_num/MAX_WING_SLOTS].ss_slots[slot_num%MAX_WING_SLOTS].status;
+
+	if (ship_selection) {
+		return ( status & WING_SLOT_IGNORE_SHIPS );
+	}
+	else {
+		return ( status & WING_SLOT_IGNORE_WEAPONS );
+	}
 }
 
 // Goober5000 - determine if the slot is valid
@@ -2878,7 +2859,7 @@ void ss_clear_slots()
 	for ( i = 0; i < MAX_WING_BLOCKS; i++ ) {
 		for ( j = 0; j < MAX_WING_SLOTS; j++ ) {
 			slot = &Ss_wings[i].ss_slots[j];
-			slot->status = WING_SLOT_DISABLED;
+			slot->status = WING_SLOT_LOCKED;
 			slot->sa_index = -1;
 			slot->original_ship_class = -1;
 		}
@@ -2918,13 +2899,25 @@ void ss_init_wing_info(int wing_num,int starting_wing_num)
 	Wss_num_wings++;
 
 	wp = &Wings[ss_wing->wingnum];
-	ss_wing->num_slots = wp->current_count;
+	// niffiwan: don't overrun the array
+	if (wp->current_count > MAX_WING_SLOTS) {
+		Warning(LOCATION, "Starting Wing '%s' has '%d' ships. Truncating ship selection to 'MAX_WING_SLOTS'\n", Starting_wing_names[ss_wing->wingnum],wp->current_count);
+		ss_wing->num_slots = MAX_WING_SLOTS;
+	} else {
+		ss_wing->num_slots = wp->current_count;
+	}
 
+	// deal with wing arriving after mission start
 	if ( wp->current_count == 0 || wp->ship_index[0] == -1 ) {
 		p_object *p_objp;
 		// Temporarily fill in the current count and initialize the ship list in the wing
 		// This gets cleaned up before the mission is started
 		for ( p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp) ) {
+			// niffiwan: don't overrun the array
+			if (ss_wing->num_slots >= MAX_WING_SLOTS) {
+				Warning(LOCATION, "Starting Wing '%s' has more than 'MAX_WING_SLOTS' ships\n", Starting_wing_names[ss_wing->wingnum]);
+				break;
+			}
 			if ( p_objp->wingnum == WING_INDEX(wp) ) {
 				slot = &ss_wing->ss_slots[ss_wing->num_slots++];
 				slot->sa_index = POBJ_INDEX(p_objp);
@@ -2984,15 +2977,28 @@ void ss_init_units()
 			if ( ss_slot->sa_index == -1 ) {
 				ss_slot->original_ship_class = Ships[wp->ship_index[j]].ship_info_index;
 			}
-	
+
+			//set the lock to the default
+			if (Game_mode & GM_MULTIPLAYER) {
+				ss_slot->status = WING_SLOT_LOCKED;
+			}
+			else {
+				ss_slot->status = 0;
+			}
+
 			// Set the type of slot.  Check if the slot is marked as locked, if so then the player is not
 			// going to be able to modify that ship.
 			if ( ss_slot->sa_index == -1 ) {
 				int objnum;
-				if ( Ships[wp->ship_index[j]].flags & SF_LOCKED ) {
-					ss_slot->status = WING_SLOT_DISABLED;
-					ss_slot->status |= WING_SLOT_LOCKED;
-				} else {
+				if ( Ships[wp->ship_index[j]].flags2 & SF2_SHIP_LOCKED ) {
+					ss_slot->status |= WING_SLOT_SHIPS_DISABLED;
+				} 
+				if ( Ships[wp->ship_index[j]].flags2 & SF2_WEAPONS_LOCKED ) {
+					ss_slot->status |= WING_SLOT_WEAPONS_DISABLED;
+				}  
+
+				// if neither the ship or weapon has been locked, mark the slot as filled
+				if (!(ss_slot->status & WING_SLOT_DISABLED)) {
 					ss_slot->status = WING_SLOT_FILLED;
 				}
 
@@ -3004,16 +3010,21 @@ void ss_init_units()
 						// just unflag it
 						ss_slot->status &= ~(WING_SLOT_LOCKED);
 					}
-					ss_slot->status = WING_SLOT_FILLED;
+					ss_slot->status |= WING_SLOT_FILLED;
 					if ( objnum == OBJ_INDEX(Player_obj) ) {
 						ss_slot->status |= WING_SLOT_IS_PLAYER;
 					}
 				}
 			} else {
-				if ( Parse_objects[ss_slot->sa_index].flags & P_SF_LOCKED ) {
-					ss_slot->status = WING_SLOT_DISABLED;
-					ss_slot->status |= WING_SLOT_LOCKED;
-				} else {
+				if ( Parse_objects[ss_slot->sa_index].flags2 & P2_SF2_SHIP_LOCKED ) {
+					ss_slot->status |= WING_SLOT_SHIPS_DISABLED;
+				} 
+				if ( Parse_objects[ss_slot->sa_index].flags2 & P2_SF2_WEAPONS_LOCKED ) {
+					ss_slot->status |= WING_SLOT_WEAPONS_DISABLED;
+				} 
+				
+				// if the slot is not marked as locked, it's filled
+				if (!(ss_slot->status & WING_SLOT_DISABLED)) {
 					ss_slot->status = WING_SLOT_FILLED;
 				}
 				if ( Parse_objects[ss_slot->sa_index].flags & P_OF_PLAYER_START ) {
@@ -3023,7 +3034,7 @@ void ss_init_units()
 						// just unflag it
 						ss_slot->status &= ~(WING_SLOT_LOCKED);
 					}
-					ss_slot->status = WING_SLOT_FILLED;
+					ss_slot->status |= WING_SLOT_FILLED;
 					ss_slot->status |= WING_SLOT_IS_PLAYER;
 				}
 			}

@@ -22,49 +22,6 @@
 
 
 // -----------------------------------------------------------
-// Data structures
-// -----------------------------------------------------------
-
-typedef struct shockwave_info
-{
-	char filename[MAX_FILENAME_LEN];
-	int	bitmap_id;
-	int model_id;
-	int	num_frames;
-	int	fps;
-
-	shockwave_info()
-		: num_frames( 0 ), fps( 0 )
-	{ 
-		filename[ 0 ] = '\0';
-		bitmap_id = -1; 
-		model_id = -1; 
-	}
-} shockwave_info;
-
-typedef struct shockwave {
-	shockwave	*next, *prev;
-	int			flags;
-	int			objnum;					// index into Objects[] for shockwave
-	int			num_objs_hit;
-	int			obj_sig_hitlist[SW_MAX_OBJS_HIT];
-	float		speed, radius;
-	float		inner_radius, outer_radius, damage;
-	int			weapon_info_index;	// -1 if shockwave not caused by weapon	
-	int			damage_type_idx;			//What type of damage this shockwave does to armor
-	vec3d		pos;
-	float		blast;					// amount of blast to apply
-	int			next_blast;				// timestamp for when to apply next blast damage
-	int			shockwave_info_index;
-	int			current_bitmap;
-	float		time_elapsed;			// in seconds
-	float		total_time;				// total lifetime of animation in seconds
-	int			delay_stamp;			// for delayed shockwaves
-	angles		rot_angles;
-	int			model_id;
-} shockwave;
-
-// -----------------------------------------------------------
 // Module-wide globals
 // -----------------------------------------------------------
 
@@ -78,9 +35,6 @@ shockwave Shockwaves[MAX_SHOCKWAVES];
 shockwave Shockwave_list;
 int Shockwave_inited = 0;
 
-// load a shockwave
-int shockwave_load(char *s_name, bool shock_3D = false);
-
 // -----------------------------------------------------------
 // Function macros
 // -----------------------------------------------------------
@@ -92,34 +46,26 @@ int shockwave_load(char *s_name, bool shock_3D = false);
 extern int Show_area_effect;
 extern int Cmdline_nohtl;
 extern int Cmdline_enable_3d_shockwave;
+extern bool Cmdline_fb_explosions;
 
 
-// ------------------------------------------------------------------------------------
-// shockwave_create()
-//
-// Call to create a shockwave
-//
-//	input:	parent_objnum	=> object number of object spawning the shockwave
-//				pos				=>	vector specifing global position of shockwave center
-//				speed				=>	speed at which shockwave expands (m/s)
-//				inner_radius	=>	radius at which damage applied is at maximum
-//				outer_radius	=> damage decreases linearly to zero from inner_radius to
-//										outer_radius.  Outside outer_radius, damage is 0.
-//				damage			=>	the maximum damage (ie within inner_radius)
-//				blast				=> the maximux blast (within inner_radius)
-//				sw_flag			=> indicates whether shockwave is from weapon or ship explosion
-//				delay          => delay in ms before the shockwave actually starts
-//
-//	return:	success			=>	object number of shockwave
-//				failure			=>	-1
-//
-// Goober5000 - now parent_objnum can be allowed to be -1
+/**
+ * Call to create a shockwave
+ *
+ * @param parent_objnum	object number of object spawning the shockwave
+ * @param pos			vector specifing global position of shockwave center
+ * @param sci			Shockwave info
+ * @param flag			Flag settings
+ * @param delay         delay in ms before the shockwave actually starts
+ *
+ * @return success		object number of shockwave
+ * @return failure		-1
+ */
 int shockwave_create(int parent_objnum, vec3d *pos, shockwave_create_info *sci, int flag, int delay)
 {
 	int				i, objnum, real_parent;
 	int				info_index = -1, model_id = -1;
 	shockwave		*sw;
-//	shockwave_info	*si;
 	matrix			orient;
 
  	for (i = 0; i < MAX_SHOCKWAVES; i++) {
@@ -180,8 +126,6 @@ int shockwave_create(int parent_objnum, vec3d *pos, shockwave_create_info *sci, 
 	sw->rot_angles = sci->rot_angles;
 	sw->damage_type_idx = sci->damage_type_idx;
 
-//	si = &Shockwave_info[sw->shockwave_info_index];
-//	sw->total_time = i2fl(si->num_frames) / si->fps;	// in seconds
 	sw->total_time = sw->outer_radius / sw->speed;
 
 	if ( (parent_objnum != -1) && Objects[parent_objnum].type == OBJ_WEAPON ) {		// Goober5000: allow -1
@@ -193,11 +137,7 @@ int shockwave_create(int parent_objnum, vec3d *pos, shockwave_create_info *sci, 
 
 	orient = vmd_identity_matrix;
 	vm_angles_2_matrix(&orient, &sw->rot_angles);
-//	angles a;
-//	a.p = sw->rot_angle*(PI/180);
-//	a.b = frand_range(0.0f, PI2);
-//	a.h = frand_range(0.0f, PI2);
-//	vm_angles_2_matrix(&orient, &a);
+
 	objnum = obj_create( OBJ_SHOCKWAVE, real_parent, i, &orient, &sw->pos, sw->outer_radius, OF_RENDERS );
 
 	if ( objnum == -1 ){
@@ -211,13 +151,11 @@ int shockwave_create(int parent_objnum, vec3d *pos, shockwave_create_info *sci, 
 	return objnum;
 }
 
-// ------------------------------------------------------------------------------------
-// shockwave_delete()
-//
-// Delete a shockwave
-//
-//	input:	object *objp	=>		pointer to shockwave object
-//
+/**
+ * Delete a shockwave
+ *
+ * @param objp		pointer to shockwave object
+ */
 void shockwave_delete(object *objp)
 {
 	Assert(objp->type == OBJ_SHOCKWAVE);
@@ -228,10 +166,9 @@ void shockwave_delete(object *objp)
 	list_remove(&Shockwave_list, &Shockwaves[objp->instance]);
 }
 
-// ------------------------------------------------------------------------------------
-// shockwave_delete_all()
-//
-//
+/**
+ * Delete whole linked list
+ */
 void shockwave_delete_all()
 {
 	shockwave	*sw, *next;
@@ -245,7 +182,9 @@ void shockwave_delete_all()
 	}
 }
 
-// Set the correct frame of animation for the shockwave
+/**
+ * Set the correct frame of animation for the shockwave
+ */
 void shockwave_set_framenum(int index)
 {
 	int				framenum;
@@ -276,8 +215,10 @@ void shockwave_set_framenum(int index)
 	sw->current_bitmap = si->bitmap_id + framenum;
 }
 
-// given a shockwave index and the number of frames in an animation return what
-// the current frame # should be  (for use with 3d shockwaves)
+/**
+ * Given a shockwave index and the number of frames in an animation return what
+ * the current frame # should be  (for use with 3d shockwaves)
+ */
 int shockwave_get_framenum(int index, int num_frames)
 {
 	int				framenum;
@@ -304,15 +245,14 @@ int shockwave_get_framenum(int index, int num_frames)
 
 	return framenum;
 }
-// ------------------------------------------------------------------------------------
-// shockwave_move()
-//
-//	Simulate a single shockwave.  If the shockwave radius exceeds outer_radius, then
-// delete the shockwave.
-//
-//	input:		ojbp			=>		object pointer that points to shockwave object
-//					frametime	=>		time to simulate shockwave
-//
+
+/**
+ * Simulate a single shockwave.  If the shockwave radius exceeds outer_radius, then
+ * delete the shockwave.
+ *
+ * @param shockwave_objp	object pointer that points to shockwave object
+ * @param frametime			time to simulate shockwave
+ */
 void shockwave_move(object *shockwave_objp, float frametime)
 {
 	shockwave	*sw;
@@ -334,11 +274,6 @@ void shockwave_move(object *shockwave_objp, float frametime)
 	}
 
 	sw->time_elapsed += frametime;
-/*
-	if ( sw->time_elapsed > sw->total_time ) {
-		shockwave_objp->flags |= OF_SHOULD_BE_DEAD;
-	}
-*/
 
 	shockwave_set_framenum(shockwave_objp->instance);
 		
@@ -359,7 +294,7 @@ void shockwave_move(object *shockwave_objp, float frametime)
 		if ( objp->type == OBJ_WEAPON ) {
 			// only apply to missiles with hitpoints
 			weapon_info* wip = &Weapon_info[Weapons[objp->instance].weapon_info_index];
-			if (wip->weapon_hitpoints <= 0 || !(wip->wi_flags2 & WIF2_TAKES_SHOCKWAVE_DAMAGE))
+			if (wip->weapon_hitpoints <= 0 || !(wip->wi_flags2 & WIF2_TAKES_SHOCKWAVE_DAMAGE) || (Weapon_info[sw->weapon_info_index].wi_flags2 & WIF2_CIWS))
 				continue;
 		}
 
@@ -392,6 +327,8 @@ void shockwave_move(object *shockwave_objp, float frametime)
 			sw->num_objs_hit--;
 		}
 
+		weapon_info* wip = NULL;
+
 		switch(objp->type) {
 		case OBJ_SHIP:
 			sw->obj_sig_hitlist[sw->num_objs_hit++] = objp->signature;
@@ -402,6 +339,10 @@ void shockwave_move(object *shockwave_objp, float frametime)
 			asteroid_hit(objp, NULL, NULL, damage);
 			break;
 		case OBJ_WEAPON:
+			wip = &Weapon_info[Weapons[objp->instance].weapon_info_index];
+			if (wip->armor_type_idx >= 0)
+				damage = Armor_types[wip->armor_type_idx].GetDamage(damage, shockwave_get_damage_type_idx(shockwave_objp->instance));
+
 			objp->hull_strength -= damage;
 			if (objp->hull_strength < 0.0f) {
 				Weapons[objp->instance].lifeleft = 0.01f;
@@ -413,7 +354,6 @@ void shockwave_move(object *shockwave_objp, float frametime)
 			break;
 		}
 
-
 		// If this shockwave hit the player, play shockwave impact sound
 		if ( objp == Player_obj ) {
 			snd_play( &Snds[SND_SHOCKWAVE_IMPACT], 0.0f, MAX(0.4f, damage/Weapon_info[sw->weapon_info_index].damage) );
@@ -422,13 +362,11 @@ void shockwave_move(object *shockwave_objp, float frametime)
 	}	// end for
 }
 
-// ------------------------------------------------------------------------------------
-// shockwave_render()
-//
-//	Draw the shockwave identified by handle
-//
-//	input:	objp	=>		pointer to shockwave object
-//
+/**
+ * Draw the shockwave identified by handle
+ *
+ * @param objp	pointer to shockwave object
+ */
 void shockwave_render(object *objp)
 {
 	shockwave		*sw;
@@ -464,26 +402,52 @@ void shockwave_render(object *objp)
 		model_render( sw->model_id, &Objects[sw->objnum].orient, &sw->pos, MR_NO_LIGHTING | MR_NO_FOGGING | MR_NORMAL | MR_CENTER_ALPHA | MR_NO_CULL, sw->objnum);
 
 		model_set_warp_globals();
+		if(Cmdline_fb_explosions)
+		{
+			g3_transfer_vertex(&p, &sw->pos);
+				
+			distortion_add_bitmap_rotated(
+				Shockwave_info[1].bitmap_id+shockwave_get_framenum(objp->instance, 94), 
+				TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD | TMAP_FLAG_DISTORTION, 
+				&p, 
+				fl_radians(sw->rot_angles.p), 
+				sw->radius,
+				((sw->time_elapsed/sw->total_time)>0.9f)?(1.0f-(sw->time_elapsed/sw->total_time))*10.0f:1.0f
+			);
+		}
 	}else{
 		if (!Cmdline_nohtl) {
 			g3_transfer_vertex(&p, &sw->pos);
 		} else {
 			g3_rotate_vertex(&p, &sw->pos);
 		}
-	
-		gr_set_bitmap(sw->current_bitmap, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 1.3f );
-		g3_draw_rotated_bitmap(&p, fl_radians(sw->rot_angles.p), sw->radius, TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT);	
+		if(Cmdline_fb_explosions)
+		{
+			distortion_add_bitmap_rotated(
+				sw->current_bitmap, 
+				TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD | TMAP_FLAG_DISTORTION, 
+				&p, 
+				fl_radians(sw->rot_angles.p), 
+				sw->radius,
+				((sw->time_elapsed/sw->total_time)>0.9f)?(1.0f-(sw->time_elapsed/sw->total_time))*10.0f:1.0f
+			);
+		}
+		batch_add_bitmap_rotated(
+			sw->current_bitmap, 
+			TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD,
+			&p, 
+			fl_radians(sw->rot_angles.p), 
+			sw->radius
+		);
 	}
 }
 
-// ------------------------------------------------------------------------------------
-// shockwave_load()
-//
-// Call to load a shockwave, or add it and then load it
-//
+/**
+ * Call to load a shockwave, or add it and then load it
+ */
 int shockwave_load(char *s_name, bool shock_3D)
 {
-	uint i;
+	size_t i;
 	int s_index = -1;
 	shockwave_info *si = NULL;
 
@@ -535,11 +499,9 @@ int shockwave_load(char *s_name, bool shock_3D)
 	return s_index;
 }
 
-// ------------------------------------------------------------------------------------
-// shockwave_init()
-//
-// Call once at the start of each level (mission)
-//
+/**
+ * Call once at the start of each level (mission)
+ */
 void shockwave_level_init()
 {
 	int i;	
@@ -565,7 +527,7 @@ void shockwave_level_init()
 
 		// next, try the 2d shockwave effect, unless the 3d effect was loaded
 		// chief1983 - added some messages similar to those for the 3d shockwave
-		if (i < 0) {
+		if (i < 0 || Cmdline_fb_explosions) {
 			mprintf(("SHOCKWAVE =>  Loading default shockwave animation... \n"));
 
 			i = shockwave_load( Default_shockwave_2D_filename );
@@ -614,11 +576,9 @@ void shockwave_level_init()
 	Shockwave_inited = 1;
 }
 
-// ------------------------------------------------------------------------------------
-// shockwave_level_close()
-//
-//  Call at the close of each level (mission)
-//
+/**
+ * Call at the close of each level (mission)
+ */
 void shockwave_level_close()
 {
 	if ( !Shockwave_inited )
@@ -626,7 +586,7 @@ void shockwave_level_close()
 
 	shockwave_delete_all();
 	
-	uint i;
+	size_t i;
 
 	// unload default shockwave, and erase all others
 	for (i = 0; i < Shockwave_info.size(); i++) {
@@ -651,22 +611,11 @@ void shockwave_level_close()
 	Shockwave_inited = 0;
 }
 
-// ------------------------------------------------------------------------------------
-// shockwave_close()
-//
-//	Called at game-shutdown to 
-//
-void shockwave_close()
-{
-}
-
-// ------------------------------------------------------------------------------------
-// shockwave_move_all()
-//
-//	Simulate all shockwaves in Shockwave_list
-//
-//	input:	frametime	=>		time for last frame in ms
-//
+/**
+ * Simulate all shockwaves in Shockwave_list
+ *
+ * @param frametime		time for last frame in ms
+ */
 void shockwave_move_all(float frametime)
 {
 	shockwave	*sw, *next;
@@ -680,10 +629,9 @@ void shockwave_move_all(float frametime)
 	}
 }
 
-// ------------------------------------------------------------------------------------
-// shockwave_render_all()
-//
-//
+/**
+ * Render all shockwaves
+ */
 void shockwave_render_all()
 {
 	shockwave	*sw, *next;
@@ -697,38 +645,54 @@ void shockwave_render_all()
 	}
 }
 
-// return the weapon_info_index field for a shockwave
+/**
+ * Return the weapon_info_index field for a shockwave
+ */
 int shockwave_get_weapon_index(int index)
 {
 	Assert( (index >= 0) && (index < MAX_SHOCKWAVES) );
 	return Shockwaves[index].weapon_info_index;
 }
 
-// return the maximum radius for specified shockwave
+/**
+ * Return the maximum radius for specified shockwave
+ */
 float shockwave_get_max_radius(int index)
 {
 	Assert( (index >= 0) && (index < MAX_SHOCKWAVES) );
 	return Shockwaves[index].outer_radius;
 }
 
+/**
+ * Return the minimum radius for specified shockwave
+ */
 float shockwave_get_min_radius(int index)
 {
 	Assert( (index >= 0) && (index < MAX_SHOCKWAVES) );
 	return Shockwaves[index].inner_radius;
 }
 
+/**
+ * Return the damage for specified shockwave
+ */
 float shockwave_get_damage(int index)
 {
 	Assert( (index >= 0) && (index < MAX_SHOCKWAVES) );
 	return Shockwaves[index].damage;
 }
 
+/**
+ * Return the damage type for specified shockwave
+ */
 int shockwave_get_damage_type_idx(int index)
 {
 	Assert( (index >= 0) && (index < MAX_SHOCKWAVES) );
 	return Shockwaves[index].damage_type_idx;
 }
 
+/**
+ * Return the flags for specified shockwave
+ */
 int shockwave_get_flags(int index)
 {
 	Assert( (index >= 0) && (index < MAX_SHOCKWAVES) );
@@ -737,7 +701,7 @@ int shockwave_get_flags(int index)
 
 void shockwave_page_in()
 {
-	uint i;
+	size_t i;
 
 	// load in shockwaves
 	for (i = 0; i < Shockwave_info.size(); i++) {
@@ -754,7 +718,9 @@ void shockwave_page_in()
 	}
 }
 
-// Loads a shockwave in preparation for a mission
+/**
+ * Loads a shockwave in preparation for a mission
+ */
 void shockwave_create_info::load()
 {
 	int i = -1;

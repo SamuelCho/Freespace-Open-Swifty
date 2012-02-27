@@ -281,7 +281,7 @@ void DumpStats::get_background_stats(CString &buffer)
 		}
 
 		// nebula texture
-		if (strlen(Neb2_texture_name) > 0) {
+		if (strlen(Neb2_texture_name) > 0) { //-V805
 			temp.Format("\tNebula texture: %s\r\n", Neb2_texture_name);
 			buffer += temp;
 		}
@@ -385,11 +385,12 @@ void DumpStats::get_object_stats(CString &buffer)
 	// Waypoints
 	int total_waypoints = 0;
 	buffer += "\r\nWAYPOINTS\r\n";
-	for (i=0; i<Num_waypoint_lists; i++) {
-		temp.Format("\tWaypoint: %s, count: %d\r\n", Waypoint_lists[i].name, Waypoint_lists[i].count);
-		buffer += temp;
-		total_waypoints += Waypoint_lists[i].count;
 
+	SCP_list<waypoint_list>::iterator ii;
+	for (ii = Waypoint_lists.begin(); ii != Waypoint_lists.end(); ++ii) {
+		temp.Format("\tWaypoint: %s, count: %d\r\n", ii->get_name(), ii->get_waypoints().size());
+		buffer += temp;
+		total_waypoints += ii->get_waypoints().size();
 	}
 
 	if (total_waypoints > 0) {
@@ -399,13 +400,15 @@ void DumpStats::get_object_stats(CString &buffer)
 
 	// Jumpnodes
 	buffer += "\r\nJUMPNODES\r\n";
-	for ( jump_node *jnp = (jump_node *)Jump_nodes.get_first(); !Jump_nodes.is_end(jnp); jnp = (jump_node *)jnp->get_next() ) {
+
+	SCP_list<jump_node>::iterator jnp;
+	for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
 		temp.Format("\tJumpnode: %s\r\n", jnp->get_name_ptr());
 		buffer += temp;
 	}
 
-	if (Jump_nodes.get_num_elements() > 0) {
-		temp.Format("\ttotal_jumpnodes: %d\r\n", Jump_nodes.get_num_elements());
+	if (Jump_nodes.size() > 0) {
+		temp.Format("\ttotal_jumpnodes: %d\r\n", Jump_nodes.size());
 		buffer += temp;
 	}
 
@@ -482,7 +485,7 @@ void DumpStats::get_objectives_and_goals(CString &buffer)
 
 	// goals
 	for (i=0; i<Num_goals; i++) {
-		temp.Format("\tGoal: %s, text: ", Mission_goals[i].name, Mission_goals[i].message);
+		temp.Format("\tGoal: %s, text: %s", Mission_goals[i].name, Mission_goals[i].message);
 		buffer += temp;
 
 		switch(Mission_goals[i].type & GOAL_TYPE_MASK) {
@@ -569,15 +572,14 @@ void DumpStats::get_species_ship_breakdown(CString &buffer)
 {
 	CString temp;
 	int i;
-	uint species;
+	int species;
 	object *objp;
 	ship *shipp;
 
 	buffer += "\r\nSHIP SPECIES BREAKDOWN\r\n";
 
 
-
-	for (species=0; species < Species_info.size(); species++) {
+	for (species=0; (uint) species < Species_info.size(); species++) {
 		buffer += Species_info[species].species_name;
 		buffer += "\r\n";
 
@@ -750,7 +752,7 @@ void dump_loadout(ship *shipp, CString &loadout)
 void DumpStats::get_default_ship_loadouts(CString &buffer)
 {
 	int i;
-	uint species;
+	int species;
 	object *objp;
 	ship *shipp;
 	CString temp, loadout;
@@ -758,7 +760,7 @@ void DumpStats::get_default_ship_loadouts(CString &buffer)
 	buffer += "\r\nSHIP SPECIES BREAKDOWN\r\n";
 
 
-	for (species=0; species < Species_info.size(); species++) {
+	for (species=0; (uint) species < Species_info.size(); species++) {
 		buffer += Species_info[species].species_name;
 		buffer += "\r\n";
 

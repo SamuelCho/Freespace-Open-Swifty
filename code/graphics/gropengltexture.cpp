@@ -45,7 +45,7 @@ int GL_mipmap_filter = 0;
 GLenum GL_texture_target = GL_TEXTURE_2D;
 GLenum GL_texture_face = GL_TEXTURE_2D;
 GLenum GL_texture_addressing = GL_REPEAT;
-bool GL_rendering_to_framebuffer = false;
+bool GL_rendering_to_texture = false;
 GLint GL_max_renderbuffer_size = 0;
 
 extern int GLOWMAP;
@@ -273,8 +273,10 @@ void opengl_free_texture_slot( int n )
 	opengl_free_texture( &Textures[n] );
 }
 
-// determine if a bitmap is in API memory, so that we can just reuse it rather
-// that having to load it from disk again
+/**
+ * Determine if a bitmap is in API memory, so that we can just reuse it rather
+ * that having to load it from disk again
+ */
 bool opengl_texture_slot_valid(int n, int handle)
 {
 	tcache_slot_opengl *t = &Textures[n];
@@ -297,10 +299,10 @@ bool opengl_texture_slot_valid(int n, int handle)
 int opengl_free_texture(tcache_slot_opengl *t)
 {
 	// Bitmap changed!!     
-	if (/*t->bitmap_handle > -1*/t->texture_id) {
+	if (t->texture_id) {
 		// if I, or any of my children have been used this frame, bail  
 		// can't use bm_get_cache_slot() here since bitmap_id probably isn't valid
-		if ( (t->bitmap_handle >= 0) && Tex_used_this_frame[t->bitmap_handle % MAX_BITMAPS] /*&& (t->bpp == 8)*/ ) {
+		if ( (t->bitmap_handle >= 0) && Tex_used_this_frame[t->bitmap_handle % MAX_BITMAPS] ) {
 			return 0;
 		}
 
@@ -478,7 +480,7 @@ int opengl_create_texture_sub(int bitmap_handle, int bitmap_type, int bmap_w, in
 	}
 
 
-	if ( (bitmap_type == TCACHE_TYPE_CUBEMAP) ) {
+	if ( bitmap_type == TCACHE_TYPE_CUBEMAP ) {
 		t->texture_target = GL_TEXTURE_CUBE_MAP;
 	}
 
@@ -1047,8 +1049,7 @@ int gr_opengl_tcache_set_internal(int bitmap_handle, int bitmap_type, float *u_s
 
 	GL_state.Texture.SetActiveUnit(tex_unit);
 
-	if ( /*(bm_is_render_target(bitmap_handle) != RENDER_TARGET_DYNAMIC) &&*/
-		!bm_is_render_target(bitmap_handle) &&
+	if (!bm_is_render_target(bitmap_handle) &&
 		((t->bitmap_handle < 0) || (bitmap_handle != t->bitmap_handle)) )
 	{
 		ret_val = opengl_create_texture( bitmap_handle, bitmap_type, t );
@@ -1076,7 +1077,6 @@ int gr_opengl_tcache_set_internal(int bitmap_handle, int bitmap_type, float *u_s
 	}
 	// gah
 	else {
-		//Int3();
 		mprintf(("Texturing disabled for texture %s due to internal error.\n", bm_get_filename(bitmap_handle)));
 		GL_state.Texture.Disable();
 
@@ -1092,7 +1092,7 @@ int gr_opengl_tcache_set(int bitmap_handle, int bitmap_type, float *u_scale, flo
 {
 	int rc = 0;
 
-	if (bitmap_handle < 0) {
+	if (bitmap_handle <= 0) {
 		return 0;
 	}
 
@@ -1467,9 +1467,9 @@ int opengl_check_framebuffer()
 
 static fbo_t *opengl_get_fbo(int width, int height)
 {
-	uint rt_size = RenderTarget.size();
+	size_t rt_size = RenderTarget.size();
 
-	for (uint i = 0; i < rt_size; i++) {
+	for (size_t i = 0; i < rt_size; i++) {
 		if ( (RenderTarget[i].width == width) && (RenderTarget[i].height == height) ) {
 			return &RenderTarget[i];
 		}
@@ -1491,7 +1491,7 @@ void opengl_kill_render_target(int slot)
 	}
 
 	tcache_slot_opengl *ts = &Textures[slot];
-	uint idx = 0;
+	size_t idx = 0;
 
 	for (idx = 0; idx < RenderTarget.size(); idx++) {
 		if ( (RenderTarget[idx].width == ts->w) && (RenderTarget[idx].height == ts->h) ) {
@@ -1527,7 +1527,7 @@ void opengl_kill_render_target(int slot)
 
 void opengl_kill_all_render_targets()
 {
-	for (uint i = 0; i < RenderTarget.size(); i++) {
+	for (size_t i = 0; i < RenderTarget.size(); i++) {
 		fbo_t *fbo = &RenderTarget[i];
 
 		if (fbo->framebuffer_id) {
@@ -1553,14 +1553,6 @@ int opengl_set_render_target( int slot, int face, int is_static )
 
 	if (slot < 0) {
 		if ( (render_target != NULL) && (render_target->working_slot >= 0) ) {
-		//	if (Cmdline_mipmap) {
-		//		ts = &Textures[render_target->working_slot];
-
-		//		glBindTexture(ts->texture_target, ts->texture_id);
-		//		vglGenerateMipmapEXT(ts->texture_target);
-		//		glBindTexture(ts->texture_target, 0);
-		//	}
-
 			if (render_target->is_static) {
 				extern void gr_opengl_bm_save_render_target(int slot);
 				gr_opengl_bm_save_render_target(render_target->working_slot);
@@ -1580,7 +1572,7 @@ int opengl_set_render_target( int slot, int face, int is_static )
 		// done with this render target so lets move on
 		render_target = NULL;
 
-		GL_rendering_to_framebuffer = false;
+		GL_rendering_to_texture = false;
 
 		GL_CHECK_FOR_ERRORS("end of set_render_target(0)");
 
@@ -1631,7 +1623,7 @@ int opengl_set_render_target( int slot, int face, int is_static )
 	// save current fbo for later use
 	render_target = fbo;
 
-	GL_rendering_to_framebuffer = true;
+	GL_rendering_to_texture = true;
 
 	GL_CHECK_FOR_ERRORS("end of set_render_target()");
 
@@ -1640,7 +1632,7 @@ int opengl_set_render_target( int slot, int face, int is_static )
 
 int opengl_make_render_target( int handle, int slot, int *w, int *h, ubyte *bpp, int *mm_lvl, int flags )
 {
-	Assert( !GL_rendering_to_framebuffer );
+	Assert( !GL_rendering_to_texture );
 
 	if (slot < 0) {
 		Int3();
@@ -1693,13 +1685,13 @@ int opengl_make_render_target( int handle, int slot, int *w, int *h, ubyte *bpp,
 		if (flags & BMP_FLAG_CUBEMAP) {
 			// if a cubemap then we have to initalize each face
 			for (int i = 0; i < 6; i++) {
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB8, *w, *h, 0, GL_BGR, GL_UNSIGNED_BYTE, NULL);
+				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, *w, *h, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
 			}
 
 			ts->texture_target = GL_TEXTURE_CUBE_MAP;
 		} else {
 			// non-cubemap so just do the normal thing
-			glTexImage2D(GL_state.Texture.GetTarget(), 0, GL_RGB8, *w, *h, 0, GL_BGR, GL_UNSIGNED_BYTE, NULL);
+			glTexImage2D(GL_state.Texture.GetTarget(), 0, GL_RGBA, *w, *h, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
 			ts->texture_target = GL_state.Texture.GetTarget();
 		}
 
@@ -1766,11 +1758,11 @@ int opengl_make_render_target( int handle, int slot, int *w, int *h, ubyte *bpp,
 	if (flags & BMP_FLAG_CUBEMAP) {
 		// if a cubemap then we have to initalize each face
 		for (int i = 0; i < 6; i++) {
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB8, *w, *h, 0, GL_BGR, GL_UNSIGNED_BYTE, NULL);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, *w, *h, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
 		}
 	} else {
 		// non-cubemap so just do the normal thing
-		glTexImage2D(GL_state.Texture.GetTarget(), 0, GL_RGB8, *w, *h, 0, GL_BGR, GL_UNSIGNED_BYTE, NULL);
+		glTexImage2D(GL_state.Texture.GetTarget(), 0, GL_RGBA, *w, *h, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
 	}
 
 /*	if (Cmdline_mipmap) {
@@ -1843,6 +1835,10 @@ int opengl_make_render_target( int handle, int slot, int *w, int *h, ubyte *bpp,
 		*mm_lvl = ts->mipmap_levels;
 	}
 
+	// Clear the new Texture to black with alpha 1.0
+	glClearColor(0.0f,0.0f,0.0f,1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 
 	new_fbo.ref_count++;
@@ -1857,6 +1853,30 @@ int opengl_make_render_target( int handle, int slot, int *w, int *h, ubyte *bpp,
 	GL_CHECK_FOR_ERRORS("end of make_render_target()");
 
 	return 1;
+}
+
+/**
+ * @fn	GLuint opengl_get_rtt_framebuffer()
+ *
+ * @brief	Gets the current RTT framebuffer.
+ * 
+ * Gets the OpenGL framebuffer ID of the currently in use RTT framebuffer.
+ * If there is currently none such framebuffer in use then this function returns
+ * 0 so it can be used in any place where the framebuffer should be reset to the
+ * default drawing surface.
+ *
+ * @author	m!m
+ * @date	14.12.2011
+ *
+ * @return	The current RTT FBO ID or 0 when not doing RTT.
+ */
+
+GLuint opengl_get_rtt_framebuffer()
+{
+	if (render_target == NULL || render_target->working_slot < 0)
+		return 0;
+	else
+		return render_target->framebuffer_id;
 }
 
 //

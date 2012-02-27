@@ -117,7 +117,7 @@ int Cmd_image_center_coords[GR_NUM_RESOLUTIONS][2] =
 
 int Top_cmd_brief_text_line;
 
-int Max_cmdbrief_Lines;
+int Max_cmdbrief_Lines; // Maximum number of lines to be displayed
 
 #define MAX_CMD_BRIEF_BUTTONS	10
 #define MIN_CMD_BRIEF_BUTTONS	8
@@ -509,8 +509,6 @@ void cmd_brief_init(int team)
 {
 	common_music_init(SCORE_BRIEFING);
 
-//#ifndef FS2_DEMO
-
 	int i;
 	ui_button_info *b;
 
@@ -597,8 +595,6 @@ void cmd_brief_init(int team)
 	cmd_brief_new_stage(0);
 	Cmd_brief_paused = 0;
 	Cmd_brief_inited = 1;
-
-//#endif
 }
 
 void cmd_brief_close()
@@ -721,7 +717,7 @@ void cmd_brief_do_frame(float frametime)
 	}
 
 	if (gr_screen.res == 1) {
-		Max_cmdbrief_Lines = 180/gr_get_font_height(); //Make the max number of lines dependent on the font height. 225 and 85 are magic numbers, based on the window size in retail. 
+		Max_cmdbrief_Lines = 166/gr_get_font_height(); //Make the max number of lines dependent on the font height. 225 and 85 are magic numbers, based on the window size in retail. 
 	} else {
 		Max_cmdbrief_Lines = 116/gr_get_font_height();
 	}

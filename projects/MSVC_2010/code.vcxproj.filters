@@ -163,9 +163,6 @@
     <Filter Include="TgaUtils">
       <UniqueIdentifier>{25c68a5e-5388-4000-9e50-06969c08876c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Demo">
-      <UniqueIdentifier>{cc1e07e9-5157-4df2-b909-5918a92fb0ce}</UniqueIdentifier>
-    </Filter>
     <Filter Include="InetFile">
       <UniqueIdentifier>{4b6dadcf-c79a-45df-a025-411a39d9e0fa}</UniqueIdentifier>
     </Filter>
@@ -288,9 +285,6 @@
     <ClCompile Include="..\..\code\DebugConsole\console.cpp">
       <Filter>DebugConsole</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\code\debugconsole\dbugfile.cpp">
-      <Filter>DebugConsole</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\code\debugconsole\timerbar.cpp">
       <Filter>DebugConsole</Filter>
     </ClCompile>
@@ -316,9 +310,6 @@
       <Filter>GameSnd</Filter>
     </ClCompile>
     <ClCompile Include="..\..\code\globalincs\alphacolors.cpp">
-      <Filter>GlobalIncs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\code\globalincs\crypt.cpp">
       <Filter>GlobalIncs</Filter>
     </ClCompile>
     <ClCompile Include="..\..\code\globalincs\def_files.cpp">
@@ -421,9 +412,6 @@
       <Filter>Hud</Filter>
     </ClCompile>
     <ClCompile Include="..\..\code\hud\hudparse.cpp">
-      <Filter>Hud</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\code\hud\hudresource.cpp">
       <Filter>Hud</Filter>
     </ClCompile>
     <ClCompile Include="..\..\code\hud\hudreticle.cpp">
@@ -897,9 +885,6 @@
     <ClCompile Include="..\..\code\TgaUtils\tgautils.cpp">
       <Filter>TgaUtils</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\code\Demo\demo.cpp">
-      <Filter>Demo</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\code\inetfile\cftp.cpp">
       <Filter>InetFile</Filter>
     </ClCompile>
@@ -1109,9 +1094,6 @@
     <ClInclude Include="..\..\code\Debris\debris.h">
       <Filter>Debris</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\code\debugconsole\dbugfile.h">
-      <Filter>DebugConsole</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\code\debugconsole\timerbar.h">
       <Filter>DebugConsole</Filter>
     </ClInclude>
@@ -1152,9 +1134,6 @@
       <Filter>GameSnd</Filter>
     </ClInclude>
     <ClInclude Include="..\..\code\globalincs\alphacolors.h">
-      <Filter>GlobalIncs</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\code\globalincs\crypt.h">
       <Filter>GlobalIncs</Filter>
     </ClInclude>
     <ClInclude Include="..\..\code\globalincs\def_files.h">
@@ -1272,9 +1251,6 @@
       <Filter>Hud</Filter>
     </ClInclude>
     <ClInclude Include="..\..\code\hud\hudparse.h">
-      <Filter>Hud</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\code\hud\hudresource.h">
       <Filter>Hud</Filter>
     </ClInclude>
     <ClInclude Include="..\..\code\hud\hudreticle.h">
@@ -1687,9 +1663,6 @@
     </ClInclude>
     <ClInclude Include="..\..\code\TgaUtils\tgautils.h">
       <Filter>TgaUtils</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\code\Demo\demo.h">
-      <Filter>Demo</Filter>
     </ClInclude>
     <ClInclude Include="..\..\code\inetfile\cftp.h">
       <Filter>InetFile</Filter>

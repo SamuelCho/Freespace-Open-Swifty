@@ -194,11 +194,6 @@ int gr_opengl_create_buffer()
 
 	opengl_vertex_buffer vbuffer;
 
-	// allocate additional blocks if we need them to prevent memory fragmentation, 15 at a time
-	if ( GL_vertex_buffers.size() >= GL_vertex_buffers.capacity() ) {
-		GL_vertex_buffers.reserve( GL_vertex_buffers.size() + 15 );
-	}
-
 	GL_vertex_buffers.push_back( vbuffer );
 	GL_vertex_buffers_in_use++;
 
@@ -331,8 +326,8 @@ bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb)
 
 		// tex coords
 		if (vb->flags & VB_FLAG_UV1) {
-			array[arsize++] = vl->u;
-			array[arsize++] = vl->v;
+			array[arsize++] = vl->texture_position.u;
+			array[arsize++] = vl->texture_position.v;
 		}
 
 		// normals
@@ -353,9 +348,9 @@ bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb)
 		}
 
 		// verts
-		array[arsize++] = vl->x;
-		array[arsize++] = vl->y;
-		array[arsize++] = vl->z;
+		array[arsize++] = vl->world.xyz.x;
+		array[arsize++] = vl->world.xyz.y;
+		array[arsize++] = vl->world.xyz.z;
 	}
 
 	// generate the index array
@@ -506,9 +501,7 @@ int GL_last_shader_index = -1;
 
 static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags);
 
-extern bool Post_in_frame;
-extern GLuint Post_screen_texture_id;
-extern GLuint Post_effect_texture_id;
+extern bool Scene_framebuffer_in_frame;
 extern GLuint Framebuffer_fallback_texture_id;
 static void opengl_render_pipeline_program(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags)
 {
@@ -691,12 +684,14 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	{
 		GL_state.Texture.SetActiveUnit(render_pass);
 		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-		if( Post_in_frame )
-			GL_state.Texture.Enable(Post_effect_texture_id);
+		if( Scene_framebuffer_in_frame )
+		{
+			GL_state.Texture.Enable(Scene_effect_texture);
+			glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+		}
 		else
 			GL_state.Texture.Enable(Framebuffer_fallback_texture_id);
 		vglUniform1iARB( opengl_shader_get_uniform("sFramebuffer"), render_pass );
-		glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 		render_pass++;
 	}
 	// DRAW IT!!
@@ -1190,7 +1185,7 @@ void gr_opengl_set_projection_matrix(float fov, float aspect, float z_near, floa
 
 	GL_CHECK_FOR_ERRORS("start of set_projection_matrix()()");
 	
-	if (GL_rendering_to_framebuffer) {
+	if (GL_rendering_to_texture) {
 		glViewport(gr_screen.offset_x, gr_screen.offset_y, gr_screen.clip_width, gr_screen.clip_height);
 	} else {
 		glViewport(gr_screen.offset_x, (gr_screen.max_h - gr_screen.offset_y - gr_screen.clip_height), gr_screen.clip_width, gr_screen.clip_height);
@@ -1205,7 +1200,7 @@ void gr_opengl_set_projection_matrix(float fov, float aspect, float z_near, floa
 	clip_height = tan( (double)fov * 0.5 ) * z_near;
 	clip_width = clip_height * (GLdouble)aspect;
 
-	if (GL_rendering_to_framebuffer) {
+	if (GL_rendering_to_texture) {
 		glFrustum( -clip_width, clip_width, clip_height, -clip_height, z_near, z_far );
 	} else {
 		glFrustum( -clip_width, clip_width, -clip_height, clip_height, z_near, z_far );
@@ -1232,7 +1227,7 @@ void gr_opengl_end_projection_matrix()
 	glLoadIdentity();
 
 	// the top and bottom positions are reversed on purpose, but RTT needs them the other way
-	if (GL_rendering_to_framebuffer) {
+	if (GL_rendering_to_texture) {
 		glOrtho(0, gr_screen.max_w, 0, gr_screen.max_h, -1.0, 1.0);
 	} else {
 		glOrtho(0, gr_screen.max_w, gr_screen.max_h, 0, -1.0, 1.0);
@@ -1410,7 +1405,7 @@ void gr_opengl_set_2d_matrix(/*int x, int y, int w, int h*/)
 	glLoadIdentity();
 
 	// the top and bottom positions are reversed on purpose, but RTT needs them the other way
-	if (GL_rendering_to_framebuffer) {
+	if (GL_rendering_to_texture) {
 		glOrtho( 0, gr_screen.max_w, 0, gr_screen.max_h, -1, 1 );
 	} else {
 		glOrtho( 0, gr_screen.max_w, gr_screen.max_h, 0, -1, 1 );

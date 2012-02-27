@@ -757,7 +757,6 @@
     <ClCompile Include="..\..\code\cutscene\oggplayer.cpp" />
     <ClCompile Include="..\..\code\Debris\debris.cpp" />
     <ClCompile Include="..\..\code\DebugConsole\console.cpp" />
-    <ClCompile Include="..\..\code\debugconsole\dbugfile.cpp" />
     <ClCompile Include="..\..\code\debugconsole\timerbar.cpp" />
     <ClCompile Include="..\..\code\fireball\fireballs.cpp" />
     <ClCompile Include="..\..\code\fireball\warpineffect.cpp" />
@@ -767,7 +766,6 @@
     <ClCompile Include="..\..\code\gamesnd\eventmusic.cpp" />
     <ClCompile Include="..\..\code\gamesnd\gamesnd.cpp" />
     <ClCompile Include="..\..\code\globalincs\alphacolors.cpp" />
-    <ClCompile Include="..\..\code\globalincs\crypt.cpp" />
     <ClCompile Include="..\..\code\globalincs\def_files.cpp" />
     <ClCompile Include="..\..\code\globalincs\fsmemory.cpp" />
     <ClCompile Include="..\..\code\globalincs\mspdb_callstack.cpp" />
@@ -802,7 +800,6 @@
     <ClCompile Include="..\..\code\hud\hudnavigation.cpp" />
     <ClCompile Include="..\..\code\hud\hudobserver.cpp" />
     <ClCompile Include="..\..\code\hud\hudparse.cpp" />
-    <ClCompile Include="..\..\code\hud\hudresource.cpp" />
     <ClCompile Include="..\..\code\hud\hudreticle.cpp" />
     <ClCompile Include="..\..\code\hud\hudshield.cpp" />
     <ClCompile Include="..\..\code\hud\hudsquadmsg.cpp" />
@@ -961,7 +958,6 @@
     <ClCompile Include="..\..\code\Localization\fhash.cpp" />
     <ClCompile Include="..\..\code\Localization\localize.cpp" />
     <ClCompile Include="..\..\code\TgaUtils\tgautils.cpp" />
-    <ClCompile Include="..\..\code\Demo\demo.cpp" />
     <ClCompile Include="..\..\code\inetfile\cftp.cpp" />
     <ClCompile Include="..\..\code\inetfile\chttpget.cpp" />
     <ClCompile Include="..\..\code\inetfile\inetgetfile.cpp" />
@@ -1032,7 +1028,6 @@
     <ClInclude Include="..\..\code\cutscene\mvelib.h" />
     <ClInclude Include="..\..\code\cutscene\oggplayer.h" />
     <ClInclude Include="..\..\code\Debris\debris.h" />
-    <ClInclude Include="..\..\code\debugconsole\dbugfile.h" />
     <ClInclude Include="..\..\code\debugconsole\timerbar.h" />
     <ClInclude Include="..\..\code\DirectX\vasync.h" />
     <ClInclude Include="..\..\code\DirectX\vdinput.h" />
@@ -1047,7 +1042,6 @@
     <ClInclude Include="..\..\code\gamesnd\eventmusic.h" />
     <ClInclude Include="..\..\code\gamesnd\gamesnd.h" />
     <ClInclude Include="..\..\code\globalincs\alphacolors.h" />
-    <ClInclude Include="..\..\code\globalincs\crypt.h" />
     <ClInclude Include="..\..\code\globalincs\def_files.h" />
     <ClInclude Include="..\..\code\globalincs\fsmemory.h" />
     <ClInclude Include="..\..\code\globalincs\globals.h" />
@@ -1088,7 +1082,6 @@
     <ClInclude Include="..\..\code\hud\hudnavigation.h" />
     <ClInclude Include="..\..\code\hud\hudobserver.h" />
     <ClInclude Include="..\..\code\hud\hudparse.h" />
-    <ClInclude Include="..\..\code\hud\hudresource.h" />
     <ClInclude Include="..\..\code\hud\hudreticle.h" />
     <ClInclude Include="..\..\code\hud\hudshield.h" />
     <ClInclude Include="..\..\code\hud\hudsquadmsg.h" />
@@ -1228,7 +1221,6 @@
     <ClInclude Include="..\..\code\Localization\fhash.h" />
     <ClInclude Include="..\..\code\Localization\localize.h" />
     <ClInclude Include="..\..\code\TgaUtils\tgautils.h" />
-    <ClInclude Include="..\..\code\Demo\demo.h" />
     <ClInclude Include="..\..\code\inetfile\cftp.h" />
     <ClInclude Include="..\..\code\inetfile\chttpget.h" />
     <ClInclude Include="..\..\code\inetfile\inetgetfile.h" />

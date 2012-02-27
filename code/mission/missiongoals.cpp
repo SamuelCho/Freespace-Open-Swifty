@@ -494,9 +494,6 @@ void mission_show_goals_init()
 	Goal_incomplete_bitmap = bm_load("ObjIncomp");
 	Goal_failed_bitmap = bm_load("ObjFail");
 
-
-	// if (Goal_incomplete_bitmap < 0) Int3();
-
 	if (Goals_screen_bg_bitmap < 0) {
 		Warning(LOCATION, "Could not load the background bitmap: ObjectivesBG.pcx");
 	}
@@ -655,8 +652,6 @@ int ML_objectives_init(int x, int y, int w, int h)
 	Goal_complete_bitmap = bm_load("ObjComp");
 	Goal_incomplete_bitmap = bm_load("ObjIncomp");
 	Goal_failed_bitmap = bm_load("ObjFail");
-
-	// if (Goal_incomplete_bitmap < 0) Int3();
 
 	return Goal_text.m_num_lines;
 }
@@ -1008,7 +1003,7 @@ void mission_maybe_play_directive_success_sound()
 
 void mission_eval_goals()
 {
-	int i, result, goal_changed = 0;
+	int i, result;
 
 	// before checking whether or not we should evaluate goals, we should run through the events and
 	// process any whose timestamp is valid and has expired.  This would catch repeating events only
@@ -1037,11 +1032,9 @@ void mission_eval_goals()
 		if (Mission_goals[i].satisfied == GOAL_INCOMPLETE) {
 			result = eval_sexp(Mission_goals[i].formula);
 			if ( Sexp_nodes[Mission_goals[i].formula].value == SEXP_KNOWN_FALSE ) {
-				goal_changed = 1;
 				mission_goal_status_change( i, GOAL_FAILED );
 
 			} else if (result) {
-				goal_changed = 1;
 				mission_goal_status_change(i, GOAL_COMPLETE );
 			} // end if result
 

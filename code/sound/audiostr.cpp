@@ -136,7 +136,7 @@ static int audiostr_read_uint(HMMIO rw, uint *i)
 	if (rc != sizeof(uint))
 		return 0;
 
-	*i = INTEL_INT(*i);
+	*i = INTEL_INT(*i); //-V570
 
 	return 1;
 }
@@ -148,7 +148,7 @@ static int audiostr_read_word(HMMIO rw, WORD *i)
 	if (rc != sizeof(WORD))
 		return 0;
 
-	*i = INTEL_SHORT(*i);
+	*i = INTEL_SHORT(*i); //-V570
 
 	return 1;
 }
@@ -160,7 +160,7 @@ static int audiostr_read_dword(HMMIO rw, DWORD *i)
 	if (rc != sizeof(DWORD))
 		return 0;
 
-	*i = INTEL_INT(*i);
+	*i = INTEL_INT(*i); //-V570
 
 	return 1;
 }
@@ -640,7 +640,6 @@ bool WaveFile::Open(char *pszFilename, bool keep_ext)
 
 			default:
 				nprintf(("SOUND", "SOUND => Not supporting %d format for playing wave files\n", m_pwfmt_original->wFormatTag));
-				//Int3();
 				goto OPEN_ERROR;
 				break;
 
@@ -1914,9 +1913,6 @@ int audiostream_done_reading(int i)
 
 	if ( Audio_streams[i].status == ASF_FREE )
 		return 0;
-
-	int done_reading;
-	done_reading = Audio_streams[i].Is_Past_Limit();
 
 	return Audio_streams[i].Is_Past_Limit();
 }

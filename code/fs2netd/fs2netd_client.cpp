@@ -71,7 +71,7 @@ static int Last_activity = -1;
 static int Login_retry_time = -1;
 
 static SCP_vector<file_record> FS2NetD_file_list;
-static SCP_vector<std::string> FS2NetD_ban_list;
+static SCP_vector<SCP_string> FS2NetD_ban_list;
 
 SCP_vector<crc_valid_status> Table_valid_status;
 
@@ -1183,7 +1183,7 @@ void fs2netd_update_ban_list()
 		CFILE *banlist_cfg = cfopen("banlist.cfg", "wt", CFILE_NORMAL, CF_TYPE_DATA);
 
 		if (banlist_cfg != NULL) {
-			for (SCP_vector<std::string>::iterator bl = FS2NetD_ban_list.begin(); bl != FS2NetD_ban_list.end(); bl++) {
+			for (SCP_vector<SCP_string>::iterator bl = FS2NetD_ban_list.begin(); bl != FS2NetD_ban_list.end(); ++bl) {
 				cfputs( const_cast<char*>(bl->c_str()), banlist_cfg );
 			}
 
@@ -1331,7 +1331,7 @@ int fs2netd_get_valid_missions_do()
 		found = false;
 
 		if (file_index >= 0) {
-			for (SCP_vector<file_record>::iterator fr = FS2NetD_file_list.begin(); fr != FS2NetD_file_list.end() && !found; fr++) {
+			for (SCP_vector<file_record>::iterator fr = FS2NetD_file_list.begin(); fr != FS2NetD_file_list.end() && !found; ++fr) {
 				if ( !stricmp(full_name, fr->name) ) {
 					if (fr->crc32 == checksum) {
 						found = true;
@@ -1378,7 +1378,7 @@ bool fs2netd_get_valid_missions()
 	In_process = false;
 	Local_timeout = -1;
 
-	FS2NetD_file_list.clear();
+	FS2NetD_file_list.clear(); //-V586
 
 	switch (rc) {
 		// canceled by popup
@@ -1511,7 +1511,7 @@ int fs2netd_update_valid_tables()
 	}
 
 	// output the status of table validity to multi.log
-	for (SCP_vector<crc_valid_status>::iterator tvs = Table_valid_status.begin(); tvs != Table_valid_status.end(); tvs++) {
+	for (SCP_vector<crc_valid_status>::iterator tvs = Table_valid_status.begin(); tvs != Table_valid_status.end(); ++tvs) {
 		if (tvs->valid) {
 			ml_printf("FS2NetD Table Check: '%s' -- Valid!", tvs->name);
 		} else {
@@ -1580,9 +1580,7 @@ int fs2netd_get_pilot_info(const char *callsign, player *out_plr, bool first_cal
 		Local_timeout = timer_get_seconds() + 30;
 
 		In_process = true;
-	}
 
-	if (first_call) {
 		ml_printf("FS2NetD MSG: Requesting pilot stats for '%s' ...", callsign);
 	}
 
@@ -1683,7 +1681,7 @@ void fs2netd_spew_table_checksums(char *outfile)
 	count = (int)Table_valid_status.size();
 
 	// do all the checksums
-	for (SCP_vector<crc_valid_status>::iterator tvs = Table_valid_status.begin(); tvs != Table_valid_status.end(); tvs++) {
+	for (SCP_vector<crc_valid_status>::iterator tvs = Table_valid_status.begin(); tvs != Table_valid_status.end(); ++tvs) {
 		offset = 0;
 		p = tvs->name;
 

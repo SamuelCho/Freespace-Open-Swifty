@@ -1239,14 +1239,7 @@ void mc_check_subobj( int mn )
 			
 		// Check shield if we're supposed to
 		if ((Mc->flags & MC_CHECK_SHIELD) && (Mc_pm->shield.ntris > 0 )) {
-		//	Mc->flags &= ~MC_CHECK_SPHERELINE;
-		//	mc_check_shield();
-		//	int ray_num_hits = Mc->num_hits;
-		//	Mc->num_hits = 0;
-		//	Mc->flags |= MC_CHECK_SPHERELINE;
 			mc_check_shield();
-		//	if ( (ray_num_hits > 0)  && (Mc->num_hits == 0))
-		//		Int3();
 			return;
 		}
 
@@ -1279,8 +1272,6 @@ void mc_check_subobj( int mn )
 			//model_collide_sub(sm->bsp_data);
 			model_collide_nodes_iter_breadth(model_get_collision_tree(sm->collision_tree_index));
 		}
-	} else {
-		//Int3();
 	}
 
 NoHit:

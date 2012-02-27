@@ -181,22 +181,6 @@ void multi_xfer_do()
 	}
 }
 
-// close down the file xfer system
-void multi_xfer_close()
-{
-	int idx;
-
-	// go through all active entries and abort them
-	for(idx=0;idx<MAX_XFER_ENTRIES;idx++){
-		if(Multi_xfer_entry[idx].flags & MULTI_XFER_FLAG_USED){
-			multi_xfer_abort(idx);
-		}
-	}
-
-	// now blast all the memory free
-	memset(Multi_xfer_entry,0,sizeof(xfer_entry) * MAX_XFER_ENTRIES);
-}
-
 // reset the xfer system, including shutting down/killing all active xfers
 void multi_xfer_reset()
 {
@@ -339,7 +323,7 @@ void multi_xfer_abort(int handle)
 		xe->file = NULL;
 
 		// delete it if there isn't some problem with the filename
-		if((xe->flags & MULTI_XFER_FLAG_RECV) && (strlen(xe->filename) > 0)){
+		if((xe->flags & MULTI_XFER_FLAG_RECV) && (xe->filename[0] != '\0')){
 			cf_delete(xe->ex_filename, xe->force_dir);
 		}
 	}
@@ -370,7 +354,7 @@ void multi_xfer_release_handle(int handle)
 		xe->file = NULL;
 
 		// delete it if the file was not successfully received
-		if(!(xe->flags & MULTI_XFER_FLAG_SUCCESS) && (xe->flags & MULTI_XFER_FLAG_RECV) && (strlen(xe->filename) > 0)){
+		if(!(xe->flags & MULTI_XFER_FLAG_SUCCESS) && (xe->flags & MULTI_XFER_FLAG_RECV) && (xe->filename[0] != '\0')){
 			cf_delete(xe->ex_filename,xe->force_dir);
 		}
 	}
@@ -627,7 +611,7 @@ void multi_xfer_fail_entry(xfer_entry *xe)
 	}
 
 	// delete the file
-	if((xe->flags & MULTI_XFER_FLAG_RECV) && (strlen(xe->filename) > 0)){
+	if((xe->flags & MULTI_XFER_FLAG_RECV) && (xe->filename[0] != '\0')){
 		cf_delete(xe->ex_filename,xe->force_dir);
 	}
 		
@@ -743,7 +727,6 @@ int multi_xfer_process_packet(unsigned char *data, PSNET_SOCKET_RELIABLE who)
 			}
 #endif
 #endif
-		//	Int3();
 			return offset;
 		}
 	}

@@ -322,8 +322,8 @@ void draw_bounding_brackets_subobject()
 			if (subobj_vertex.flags & PF_OVERFLOW)  // if overflow, no point in drawing brackets
 				return;
 
-			int subobj_x = fl2i(subobj_vertex.sx + 0.5f);
-			int subobj_y = fl2i(subobj_vertex.sy + 0.5f);
+			int subobj_x = fl2i(subobj_vertex.screen.xyw.x + 0.5f);
+			int subobj_y = fl2i(subobj_vertex.screen.xyw.y + 0.5f);
 			int hud_subtarget_w, hud_subtarget_h, bound_rc;
 
 			bound_rc = subobj_find_2d_bound(subsys->system_info->radius, &targetp->orient, &subobj_pos, &x1,&y1,&x2,&y2);
@@ -514,6 +514,7 @@ void draw_bounding_brackets(int x1, int y1, int x2, int y2, int w_correction, in
 		char* tinfo_class = NULL;
 		char temp_name[NAME_LENGTH*2+3];
 		char temp_class[NAME_LENGTH];
+		SCP_list<jump_node>::iterator jnp;
 
 		switch(t_objp->type)
 		{
@@ -560,7 +561,14 @@ void draw_bounding_brackets(int x1, int y1, int x2, int y2, int w_correction, in
 				}
 				break;
 			case OBJ_JUMP_NODE:
-				tinfo_name = t_objp->jnp->get_name_ptr();
+				for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
+					if(jnp->get_obj() == t_objp)
+						break;
+				}
+				
+				strcpy_s(temp_name, jnp->get_name_ptr());
+				end_string_at_first_hash_symbol(temp_name);
+				tinfo_name = temp_name;
 				break;
 		}
 
@@ -582,7 +590,7 @@ void draw_bounding_brackets(int x1, int y1, int x2, int y2, int w_correction, in
 }
 
 HudGaugeBrackets::HudGaugeBrackets():
-HudGauge(HUD_OBJECT_BRACKETS, HUD_OFFSCREEN_INDICATOR, true, false, true, VM_DEAD_VIEW, 255, 255, 255)
+HudGauge(HUD_OBJECT_BRACKETS, HUD_OFFSCREEN_INDICATOR, false, true, VM_DEAD_VIEW, 255, 255, 255)
 {
 }
 
@@ -617,7 +625,7 @@ void HudGaugeBrackets::render(float frametime)
 	if(!in_frame)
 		g3_start_frame(0);
 
-	for(int i = 0; i < (int)target_display_list.size(); i++) {
+	for(size_t i = 0; i < target_display_list.size(); i++) {
 		// make sure this point is projected. Otherwise, skip.
 		if( !(target_display_list[i].target_point.flags & PF_OVERFLOW) ) {
 			if ( target_display_list[i].objp ) {
@@ -640,6 +648,7 @@ void HudGaugeBrackets::renderObjectBrackets(object *targetp, color *clr, int w_c
 	int x1,x2,y1,y2;
 	int draw_box = true;
 	int bound_rc;
+	SCP_list<jump_node>::iterator jnp;
 
 	if ( Player->target_is_dying <= 0 ) {
 		int modelnum;
@@ -662,7 +671,6 @@ void HudGaugeBrackets::renderObjectBrackets(object *targetp, color *clr, int w_c
 			break;
 
 		case OBJ_WEAPON:
-			//Assert(Weapon_info[Weapons[targetp->instance].weapon_info_index].subtype == WP_MISSILE);
 			modelnum = Weapon_info[Weapons[targetp->instance].weapon_info_index].model_num;
 			if (modelnum != -1)
 				bound_rc = model_find_2d_bound_min( modelnum, &targetp->orient, &targetp->pos,&x1,&y1,&x2,&y2 );
@@ -670,8 +678,8 @@ void HudGaugeBrackets::renderObjectBrackets(object *targetp, color *clr, int w_c
 				vertex vtx;
 				g3_rotate_vertex(&vtx,&targetp->pos);
 				g3_project_vertex(&vtx);
-				x1 = x2 = (int) vtx.sx;
-				y1 = y2 = (int) vtx.sy;
+				x1 = x2 = (int) vtx.screen.xyw.x;
+				y1 = y2 = (int) vtx.screen.xyw.y;
 			}
 
 			break;
@@ -686,7 +694,12 @@ void HudGaugeBrackets::renderObjectBrackets(object *targetp, color *clr, int w_c
 			break;
 
 		case OBJ_JUMP_NODE:
-			modelnum = targetp->jnp->get_modelnum();
+			for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
+				if(jnp->get_obj() == targetp)
+					break;
+			}	
+				
+			modelnum = jnp->get_modelnum();
 			bound_rc = model_find_2d_bound_min( modelnum, &targetp->orient, &targetp->pos,&x1,&y1,&x2,&y2 );
 			break;
 
@@ -739,8 +752,8 @@ void HudGaugeBrackets::renderNavBrackets(vec3d* nav_pos, vertex* nav_point, colo
 	int box_scale = 15;
 	int x, y;
 
-	x = int(nav_point->sx);
-	y = int(nav_point->sy);
+	x = int(nav_point->screen.xyw.x);
+	y = int(nav_point->screen.xyw.y);
 
 	// draw this nav bracket based on this gauge's base resolution
 	gr_set_screen_scale(base_w, base_h);
@@ -859,6 +872,7 @@ void HudGaugeBrackets::renderBoundingBrackets(int x1, int y1, int x2, int y2, in
 		char* tinfo_class = NULL;
 		char temp_name[NAME_LENGTH*2+3];
 		char temp_class[NAME_LENGTH];
+		SCP_list<jump_node>::iterator jnp;
 
 		switch(t_objp->type) {
 			case OBJ_SHIP:
@@ -899,7 +913,14 @@ void HudGaugeBrackets::renderBoundingBrackets(int x1, int y1, int x2, int y2, in
 				}
 				break;
 			case OBJ_JUMP_NODE:
-				tinfo_name = t_objp->jnp->get_name_ptr();
+				for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
+					if(jnp->get_obj() == t_objp)
+						break;
+				}
+				
+				strcpy_s(temp_name, jnp->get_name_ptr());
+				end_string_at_first_hash_symbol(temp_name);
+				tinfo_name = temp_name;
 				break;
 		}
 
@@ -909,9 +930,6 @@ void HudGaugeBrackets::renderBoundingBrackets(int x1, int y1, int x2, int y2, in
 		if(tinfo_class && (flags & TARGET_DISPLAY_CLASS)) {
 			gr_string(x2+3, y1+9, tinfo_class);
 		}
-	/*	if(tinfo_callsign) {
-			gr_string(x2+3, y1+18, tinfo_callsign);
-		} */
 	}
 
 	// we're done, so bring the scale back to normal
@@ -945,8 +963,8 @@ void HudGaugeBrackets::renderBoundingBracketsSubobject()
 			if (subobj_vertex.flags & PF_OVERFLOW)  // if overflow, no point in drawing brackets
 				return;
 
-			int subobj_x = fl2i(subobj_vertex.sx + 0.5f);
-			int subobj_y = fl2i(subobj_vertex.sy + 0.5f);
+			int subobj_x = fl2i(subobj_vertex.screen.xyw.x + 0.5f);
+			int subobj_y = fl2i(subobj_vertex.screen.xyw.y + 0.5f);
 			int hud_subtarget_w, hud_subtarget_h, bound_rc;
 
 			bound_rc = subobj_find_2d_bound(subsys->system_info->radius, &targetp->orient, &subobj_pos, &x1,&y1,&x2,&y2);

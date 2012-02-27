@@ -186,7 +186,7 @@ void briefing_editor_dlg::create()
 		box->AddString(Icon_names[i]);
 
 	box = (CComboBox *) GetDlgItem(IDC_TEAM);
-	for (i=0; i<Num_team_names; i++)
+	for (i=0; i<Num_iffs; i++)
 		box->AddString(Iff_info[i].iff_name);
 
 	box = (CComboBox *) GetDlgItem(IDC_SHIP_TYPE);
@@ -916,7 +916,7 @@ void briefing_editor_dlg::OnMakeIcon()
 	iconp = &Briefing->stages[m_cur_stage].icons[m_cur_icon];
 	ship = waypoint = -1;
 	team = 0;
-	jump_node *jnp = NULL;
+	SCP_list<jump_node>::iterator jnp;
 
 	vm_vec_make(&min, 9e19f, 9e19f, 9e19f);
 	vm_vec_make(&max, -9e19f, -9e19f, -9e19f);
@@ -947,7 +947,10 @@ void briefing_editor_dlg::OnMakeIcon()
 					break;
 				
 				case OBJ_JUMP_NODE:
-					jnp = ptr->jnp;
+					for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) { 
+						if(jnp->get_obj() == ptr) 
+							break; 
+					} 
 					break;
 
 				default:
@@ -988,8 +991,12 @@ void briefing_editor_dlg::OnMakeIcon()
 	if (ship >= 0)
 		name = Ships[ship].ship_name;
 	else if (waypoint >= 0)
-		name = Waypoint_lists[waypoint / 65536].name;
-	else if (jnp != NULL)
+	{
+		waypoint_list *wp_list = find_waypoint_list_with_instance(waypoint);
+		Assert(wp_list != NULL);
+		name = wp_list->get_name();
+	}
+	else if (jnp != Jump_nodes.end())
 		name = jnp->get_name_ptr();
 	else
 		return;
@@ -1084,7 +1091,7 @@ void briefing_editor_dlg::OnMakeIcon()
 		}
 	}
 	// jumpnodes
-	else if(jnp != NULL){
+	else if(jnp != Jump_nodes.end()){
 		// find the first navbuoy
 		iconp->ship_class = -1;
 		for (int i = 0; i < Num_ship_classes; i++)

@@ -16,6 +16,8 @@
 #include "globalincs/pstypes.h"
 #include "ship/ship.h"
 #include "ai/aigoals.h"
+#include "jumpnode/jumpnode.h"
+
 
 #define SHIP_FILTER_PLAYERS	(1<<0)  // set: add players to list as well
 #define SHIP_FILTER_FLYABLE	(1<<1)  // set: filter out non-flyable ships
@@ -25,8 +27,8 @@ extern int cur_ship;
 extern int cur_wing;
 extern int cur_wing_index;
 extern int cur_model_index;
-extern int cur_waypoint;
-extern int cur_waypoint_list;
+extern waypoint *cur_waypoint;
+extern waypoint_list *cur_waypoint_list;
 extern int Update_ship;
 extern int Update_wing;
 
@@ -66,8 +68,8 @@ void	deconvert_multiline_string(char *buf, CString &str, int max_len);
 bool	fred_init();
 void	set_physics_controls();
 int	dup_object(object *objp);
-int	create_object_on_grid(int list);
-int	create_object(vec3d *pos, int list = cur_waypoint_list);
+int	create_object_on_grid(int waypoint_instance = -1);
+int	create_object(vec3d *pos, int waypoint_instance = -1);
 int	create_player(int num, vec3d *pos, matrix *orient, int type = -1, int init = 1);
 void	create_new_mission();
 void	reset_mission();

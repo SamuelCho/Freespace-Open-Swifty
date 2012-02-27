@@ -76,8 +76,7 @@ typedef struct scoring_struct {
 	int rank;								// all time rank
 	int medals[MAX_MEDALS];				// all time medal counts
 
-	//ushort kills[MAX_SHIP_CLASSES];		// only valid kills (i.e. not on friendlies).
-	int kills[MAX_SHIP_CLASSES];		//DTP for bumped max_ships
+	int kills[MAX_SHIP_CLASSES];		// only valid kills (i.e. not on friendlies).
 	int assists;							// alltime assists
 	int kill_count;						// total alltime kills
 	int kill_count_ok;					// total valid alltime kills (no friendlies)
@@ -89,7 +88,7 @@ typedef struct scoring_struct {
 
 	unsigned int p_bonehead_hits;		// alltime primary friendly hits
 	unsigned int s_bonehead_hits;		// alltime secondary friendly hits
-   int          bonehead_kills;		// alltime friendly kills
+    int          bonehead_kills;		// alltime friendly kills
 
 	unsigned int missions_flown;		// total # of missions flown
 	unsigned int flight_time;			// total # of flight hours the player has
@@ -102,14 +101,12 @@ typedef struct scoring_struct {
 	int m_promotion_earned;				// was a promotion earned.  Calculated after mission is over
 
 	int m_score;
-	//ushort m_kills[MAX_SHIP_CLASSES];     // this will represent all kills in the mission (bonehead or not)
-	int m_kills[MAX_SHIP_CLASSES];		//DTP max
-	//ushort m_okKills[MAX_SHIP_CLASSES];   // this will be only the "valid" kills the player made
-	int m_okKills[MAX_SHIP_CLASSES];			//DTP max
+	int m_kills[MAX_SHIP_CLASSES];		// this will represent all kills in the mission (bonehead or not)
+	int m_okKills[MAX_SHIP_CLASSES];	// this will be only the "valid" kills the player made
 	int m_kill_count;						// total kills for this mission
 	int m_kill_count_ok;             // total (non-friendly) kills for this mission
 	int m_assists;							// player assits for the mission
-   unsigned int mp_shots_fired;		// primary shots fired for the mission
+    unsigned int mp_shots_fired;		// primary shots fired for the mission
 	unsigned int ms_shots_fired;		// secondary shots fired for the mission
 	unsigned int mp_shots_hit;			// primary shots hit for the mission
 	unsigned int ms_shots_hit;			// secondary shots hit for the mission
@@ -118,9 +115,7 @@ typedef struct scoring_struct {
 	int m_bonehead_kills;				// # of friendly kills for the mission
 	int m_player_deaths;					// player deaths for the mission (really only useful for multiplayer)
 
-	// kills by player for multiplayer dogfight
-	//ushort m_dogfight_kills[MAX_PLAYERS];
-	int m_dogfight_kills[MAX_PLAYERS];//DTP max
+	int m_dogfight_kills[MAX_PLAYERS];	// kills by player for multiplayer dogfight
 
 } scoring_struct;
 
@@ -138,7 +133,9 @@ void scoring_do_accept( scoring_struct *score );
 void scoring_check_medal(scoring_struct *sc);
 
 void scoring_add_damage(object *ship_obj,object *other_obj,float damage);
+void scoring_add_damage_to_weapon(object *weapon_obj,object *other_obj,float damage);
 int scoring_eval_kill(object *ship_obj);
+int scoring_eval_kill_on_weapon(object *weapon_obj, object *other_obj);
 void scoring_eval_assists(ship *sp,int killer_sig, bool enemy_player = false);
 
 // bash the passed player to the specified rank

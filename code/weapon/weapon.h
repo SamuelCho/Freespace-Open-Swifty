@@ -108,6 +108,8 @@ extern int Num_weapon_subtypes;
 #define WIF2_TAKES_BLAST_DAMAGE			(1 << 26)	// This weapon can take blast damage
 #define WIF2_TAKES_SHOCKWAVE_DAMAGE		(1 << 27)	// This weapon can take shockwave damage
 #define WIF2_DONT_SHOW_ON_RADAR			(1 << 28)   // Force a weapon to not show on radar
+#define WIF2_RENDER_FLAK				(1 << 29)	// Even though this is a flak weapon, render the shell
+#define WIF2_CIWS						(1 << 30)	// This weapons' burst and shockwave damage can damage bombs (Basically, a reverse for TAKES_BLAST/SHOCKWAVE_DAMAGE
 
 #define	WIF_HOMING					(WIF_HOMING_HEAT | WIF_HOMING_ASPECT | WIF_HOMING_JAVELIN)
 #define WIF_LOCKED_HOMING           (WIF_HOMING_ASPECT | WIF_HOMING_JAVELIN)
@@ -140,6 +142,7 @@ extern int Num_weapon_subtypes;
 #define PSPEW_PLUME		4			//spewers arrayed within a radius for thruster style effects, may converge or scatter
 
 #define MAX_PARTICLE_SPEWERS	4	//i figure 4 spewers should be enough for now -nuke
+#define MAX_WEP_DAMAGE_SLOTS	32		//Maximum number of ships which can be counted as killer or assits on destroying this weapon
 
 typedef struct weapon {
 	int		weapon_info_index;			// index into weapon_info array
@@ -208,14 +211,17 @@ typedef struct weapon {
 
 	bool collisionOccured;
 	mc_info collisionInfo; // The last collision of this weapon or NULL if it had none
+	//Scoring stuff
+	float total_damage_received;        // total damage received (for scoring purposes)
+	float damage_ship[MAX_WEP_DAMAGE_SLOTS];    // damage applied from each player
+	int   damage_ship_id[MAX_WEP_DAMAGE_SLOTS]; // signature of the damager (corresponds to each entry in damage_ship)
+
 } weapon;
 
 
 // info specific to beam weapons
 typedef struct beam_weapon_section_info {
 	float width;							// width of the section
-	ubyte rgba_inner[4];					// for non-textured beams
-	ubyte rgba_outer[4];					// for non-textured beams
 	float flicker;							// how much it flickers (0.0 to 1.0)
 	float z_add;							// is this necessary?
 	float tile_factor;						// texture tile factor -Bobboau
@@ -287,20 +293,23 @@ typedef struct weapon_info {
 	char	alt_name[NAME_LENGTH];			// alt name of this weapon
 	char	title[WEAPON_TITLE_LEN];		// official title of weapon (used by tooltips)
 	char	*desc;								// weapon's description (used by tooltips)
-	int	subtype;								// one of the WP_* macros above
-	int	render_type;						//	rendering method, laser, pof, avi
+	int		subtype;								// one of the WP_* macros above
+	int		render_type;						//	rendering method, laser, pof, avi
 	char	pofbitmap_name[MAX_FILENAME_LEN];	// Name of the pof representing this if POF, or bitmap filename if bitmap
-	int	model_num;							// modelnum of weapon -- -1 if no model
-	char external_model_name[MAX_FILENAME_LEN];					//the model rendered on the weapon points of a ship
-	int external_model_num;					//the model rendered on the weapon points of a ship
-	int hud_target_lod;						// LOD to use when rendering weapon model to the hud targetbox
-	int num_detail_levels;					// number of LODs defined in table (optional)
+	int		model_num;							// modelnum of weapon -- -1 if no model
+	char	external_model_name[MAX_FILENAME_LEN];					//the model rendered on the weapon points of a ship
+	int		external_model_num;					//the model rendered on the weapon points of a ship
+	int		hud_target_lod;						// LOD to use when rendering weapon model to the hud targetbox
+	int		num_detail_levels;					// number of LODs defined in table (optional)
 	int		detail_distance[MAX_MODEL_DETAIL_LEVELS]; // LOD distances define in table (optional)
 	char	*tech_desc;								// weapon's description (in tech database)
 	char	tech_anim_filename[MAX_FILENAME_LEN];	// weapon's tech room animation
 	char	tech_title[NAME_LENGTH];			// weapon's name (in tech database)
-
 	char	tech_model[MAX_FILENAME_LEN];		//Image to display in the techroom (TODO) or the weapon selection screen if the ANI isn't specified/missing
+
+	vec3d	closeup_pos;						// position for camera to set an offset for viewing the weapon model
+	float	closeup_zoom;						// zoom when using weapon model in closeup view in loadout selection
+
 	char hud_filename[MAX_FILENAME_LEN];			//Name of image to display on HUD in place of text
 	int hud_image_index;					//teh index of the image
 
@@ -326,15 +335,10 @@ typedef struct weapon_info {
 	float arm_dist;
 	float arm_radius;
 	float det_range;
-	float	det_radius;					//How far from target or target subsystem it blows up
-	/*float	blast_force;						// force this weapon exhibits when hitting an object
-	float	inner_radius, outer_radius;	// damage radii for missiles (0 means impact only)
-	float	shockwave_speed;					// speed of shockwave ( 0 means none )*/
-
-	//int		shockwave_info_index;
-	//char	shockwave_name[NAME_LENGTH];
-	//char	shockwave_pof_name[NAME_LENGTH];	// Name of the pof for the shockwave, if useing it's own
-	//int		shockwave_model;					//model for the shock wave -Bobboau
+	float det_radius;					//How far from target or target subsystem it blows up
+	float flak_detonation_accuracy;		//How far away from a target a flak shell will blow up. Standard is 65.0f
+	float flak_targeting_accuracy;		//Determines the amount of jitter applied to flak targeting. USE WITH CAUTION!
+	float untargeted_flak_range_penalty; //Untargeted flak shells detonate after travelling max range - this parameter. Default 20.0f
 
 	float	armor_factor, shield_factor, subsystem_factor;	//	in 0.0..2.0, scale of damage done to type of thing
 	float life_min;
@@ -469,6 +473,9 @@ typedef struct weapon_info {
 	int damage_type_idx;
 	int damage_type_idx_sav;	// stored value from table used to reset damage_type_idx
 
+	int armor_type_idx;	// Weapon armor type
+
+
 	// transparency/alpha info
 	float alpha_max;			// maximum alpha value to use
 	float alpha_min;			// minimum alpha value to use
@@ -496,6 +503,8 @@ typedef struct weapon_info {
 	// the optional pattern of weapons that this weapon will fire
 	SCP_vector<int> weapon_substitution_pattern; //weapon_indexs
 	SCP_vector<SCP_string> weapon_substitution_pattern_names; // weapon names so that we can generate the indexs after sort
+
+	int			score; //Optional score for destroying the weapon
 
 } weapon_info;
 
@@ -552,7 +561,6 @@ extern int Default_cmeasure_index;
 
 extern int Num_player_weapon_precedence;				// Number of weapon types in Player_weapon_precedence
 extern int Player_weapon_precedence[MAX_WEAPON_TYPES];	// Array of weapon types, precedence list for player weapon selection
-extern char	*Weapon_names[MAX_WEAPON_TYPES];
 
 extern int Default_weapon_select_effect;
 

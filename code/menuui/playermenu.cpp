@@ -32,20 +32,6 @@
 #include "network/multi.h"
 
 
-
-// --------------------------------------------------------------------------------------------------------
-// Demo title screen
-#ifdef FS2_DEMO
-#include "io/mouse.h"
-#include "io/timer.h"
-
-static int Demo_title_active = 0;
-static int Demo_title_bitmap = -1;
-static int Demo_title_expire_timestamp = 0;
-static int Demo_title_need_fade_in = 1;
-static char *Demo_title_bitmap_filename = NOX("DemoTitle1");
-#endif
-
 // --------------------------------------------------------------------------------------------------------
 // PLAYER SELECT defines
 //
@@ -216,6 +202,14 @@ void player_select_cancel_create();
 
 extern int delete_pilot_file(char *pilot_name, int single);
 
+/**
+ * Sets Player values to 0/NULL/whatever appropriate default value
+ */
+void zero_player() {
+	player *tmp_Player = new player();
+	memcpy(Player,tmp_Player,sizeof(player));
+	free (tmp_Player);
+}
 
 // basically, gray out all controls (gray == 1), or ungray the controls (gray == 0)
 void player_select_set_controls(int gray)
@@ -245,22 +239,6 @@ void player_select_init()
 
 	Player_select_screen_active = 1;
 
-#ifdef FS2_DEMO
-	/*
-	Demo_title_bitmap = bm_load(Demo_title_bitmap_filename);
-	if ( Demo_title_bitmap >= 0 ) {
-#ifndef HARDWARE_ONLY
-		palette_use_bm_palette(Demo_title_bitmap);
-#endif
-		Demo_title_active = 1;
-		Demo_title_expire_timestamp = timestamp(5000);
-	} else {
-		Demo_title_active = 0;
-	}
-	*/
-	Demo_title_active = 0;
-#endif
-
 	// create the UI window
 	Player_select_window.create(0, 0, gr_screen.max_w_unscaled, gr_screen.max_h_unscaled, 0);
 	Player_select_window.set_mask_bmap(Player_select_background_mask_bitmap[gr_screen.res]);
@@ -270,11 +248,7 @@ void player_select_init()
 		b = &Player_select_buttons[gr_screen.res][i];
 
 		// create the button
-		if ( (i == SCROLL_LIST_UP_BUTTON) || (i == SCROLL_LIST_DOWN_BUTTON) ) {
-			b->button.create(&Player_select_window, NULL, b->x, b->y, 60, 30, 1, 1);
-		} else {
-			b->button.create(&Player_select_window, NULL, b->x, b->y, 60, 30, 1, 1);
-		}
+		b->button.create(&Player_select_window, NULL, b->x, b->y, 60, 30, 1, 1);
 
 		// set its highlight action
 		b->button.set_highlight_action(common_play_highlight_sound);
@@ -319,16 +293,6 @@ void player_select_init()
 	Player_select_buttons[gr_screen.res][ACCEPT_BUTTON].button.set_hotkey(KEY_ENTER);
 	Player_select_buttons[gr_screen.res][CREATE_PILOT_BUTTON].button.set_hotkey(KEY_C);
 
-	// disable the single player button in the multiplayer beta
-#ifdef MULTIPLAYER_BETA_BUILD
-	Player_select_buttons[gr_screen.res][SINGLE_BUTTON].button.hide();
-	Player_select_buttons[gr_screen.res][SINGLE_BUTTON].button.disable();
-#elif defined(E3_BUILD) || defined(PRESS_TOUR_BUILD)
-	Player_select_buttons[gr_screen.res][MULTI_BUTTON].button.hide();
-	Player_select_buttons[gr_screen.res][MULTI_BUTTON].button.disable();
-#endif
-
-
 	// attempt to load in the background bitmap
 	Player_select_background_bitmap = bm_load(Player_select_background_bitmap_name[gr_screen.res]);
 	Assert(Player_select_background_bitmap >= 0);
@@ -347,11 +311,6 @@ void player_select_init()
 //	}
 
 // if we found a pilot
-#if defined(DEMO) || defined(OEM_BUILD) || defined(E3_BUILD) || defined(PRESS_TOUR_BUILD) // not for FS2_DEMO
-	player_select_init_player_stuff(PLAYER_SELECT_MODE_SINGLE);
-#elif defined(MULTIPLAYER_BETA_BUILD)
-	player_select_init_player_stuff(PLAYER_SELECT_MODE_MULTI);
-#else
 	if ( player_select_get_last_pilot_info() ) {
 		if (Player_select_last_is_multi && !Networking_disabled) {
 			player_select_init_player_stuff(PLAYER_SELECT_MODE_MULTI);
@@ -361,51 +320,11 @@ void player_select_init()
 	} else { // otherwise go to the single player mode by default
 		player_select_init_player_stuff(PLAYER_SELECT_MODE_SINGLE);
 	}
-#endif
 
 	if ( (Player_select_num_pilots == 1) && Player_select_input_mode ) {
 		Player_select_autoaccept = 1;
 	}
 }
-
-#ifdef FS2_DEMO
-// Display the demo title screen
-void demo_title_blit()
-{
-	int k;
-
-	Mouse_hidden = 1;
-
-	if ( timestamp_elapsed(Demo_title_expire_timestamp) ) {
-		Demo_title_active = 0;
-	}
-
-	k = game_poll();
-	if ( k > 0 ) {
-		Demo_title_active = 0;
-	}
-
-	if ( Demo_title_need_fade_in ) {
-		gr_fade_out(0);
-	}
-	
-	gr_set_bitmap(Demo_title_bitmap);
-	gr_bitmap(0,0);
-
-	gr_flip();
-
-	if ( Demo_title_need_fade_in ) {
-		gr_fade_in(0);
-		Demo_title_need_fade_in = 0;
-	}
-
-	if ( !Demo_title_active ) {
-		gr_fade_out(0);
-		Mouse_hidden = 0;
-	}
-}
-
-#endif
 
 // no need to reset this to false because we only ever see player_select once per game run
 static bool Startup_warning_dialog_displayed = false;
@@ -421,21 +340,6 @@ void player_select_do()
 		popup(PF_TITLE_BIG | PF_TITLE_RED, 1, POPUP_OK, text);
 		Startup_warning_dialog_displayed = true;
 	}
-
-#ifdef FS2_DEMO
-	if ( Demo_title_active ) {
-		// demo_title_blit();
-		return;
-	}
-#endif
-
-	//if ( !Player_select_palette_set ) {
-	//	Assert(Player_select_palette >= 0);
-//#ifndef HARDWARE_ONLY
-//		palette_use_bm_palette(Player_select_palette);
-//#endif
-//		Player_select_palette_set = 1;
-//	}
 		
 	// set the input box at the "virtual" line 0 to be active so the player can enter a callsign
 	if (Player_select_input_mode) {
@@ -453,9 +357,6 @@ void player_select_do()
 	switch (k) {
 		// switch between single and multiplayer modes
 		case KEY_TAB: {
-#if defined(DEMO) || defined(OEM_BUILD) // not for FS2_DEMO
-			break;
-#else
 			if (Player_select_input_mode) {
 				gamesnd_play_iface(SND_GENERAL_FAIL);
 				break;
@@ -477,7 +378,6 @@ void player_select_do()
 			}
 
 			break;
-#endif
 		}
 
 		case KEY_ESC: {
@@ -525,24 +425,6 @@ void player_select_do()
 	
 	// draw any pending messages on the bottom or middle of the screen
 	player_select_display_all_text();
-
-#ifndef RELEASE_REAL
-	// gr_set_color_fast(&Color_bright_green);
-	// gr_string(0x8000, 10, "Development version - DO NOT RELEASE");
-#endif
-	
-	/*
-	gr_set_color(255, 0, 0);
-	vec3d whee[5];
-	vec3d *arr[5] = {&whee[0], &whee[1], &whee[2], &whee[3], &whee[4]};
-	whee[0].x = 10; whee[0].y = 10; whee[0].z = 0.0f;
-	whee[1].x = 50; whee[1].y = 50; whee[1].z = 0.0f;
-	whee[2].x = 50; whee[2].y = 90; whee[2].z = 0.0f;
-	whee[3].x = 90; whee[3].y = 130; whee[3].z = 0.0f;
-	whee[4].x = 180; whee[4].y = 130; whee[4].z = 0.0f;
-	gr_pline_special(arr, 5, 2);
-	*/
-	
 
 	gr_flip();
 }
@@ -697,16 +579,10 @@ void player_select_button_pressed(int n)
 			if ( !player_select_create_new_pilot() ) {
 				player_select_set_bottom_text(XSTR( "Error creating new pilot file!", 380));
 				Player_select_clone_flag = 0;
-				memset(Player,0,sizeof(player));
+				zero_player();
 				Player = NULL;
 				break;
 			}
-
-			// clear the player out
-			// JH: How do you clone a pilot if you clear out the source you are copying
-			// from?  These next 2 lines are pure stupidity, so I commented them out!
-//			memset(Player,0,sizeof(player));
-//			Player = NULL;
 
 			// display some text on the bottom of the dialog
 			player_select_set_bottom_text(XSTR( "Type Callsign and Press Enter", 381));
@@ -776,9 +652,6 @@ void player_select_button_pressed(int n)
 		player_select_set_bottom_text("");
 
 		Player_select_autoaccept = 0;
-#if defined(DEMO) || defined(OEM_BUILD) // not for FS2_DEMO
-		game_feature_not_in_demo_popup();
-#else
 		if ( Networking_disabled ) {
 			game_feature_disabled_popup();
 			break;
@@ -796,7 +669,6 @@ void player_select_button_pressed(int n)
 		} else {
 			gamesnd_play_iface(SND_GENERAL_FAIL);
 		}
-#endif
 		break;
 	}
 }
@@ -812,12 +684,6 @@ int player_select_create_new_pilot()
 	}
 
 	int play_scroll_sound = 1;
-
-#ifdef FS2_DEMO
-	if ( Demo_title_active ) {
-		play_scroll_sound = 0;
-	}
-#endif
 
 	if ( play_scroll_sound ) {
 		gamesnd_play_iface(SND_SCROLL);
@@ -1211,7 +1077,7 @@ void player_select_process_input(int k)
 		// if this is the first guy, we should set the Player struct
 		if (Player == NULL) {
 			Player = &Players[0];
-			memset(Player, 0, sizeof(player));
+			zero_player();
 			Player->flags |= PLAYER_FLAGS_STRUCTURE_IN_USE;
 		}
 
@@ -1228,7 +1094,7 @@ void player_select_process_input(int k)
 		write_pilot_file(Player);
 
 		// unset the player
-		memset(Player, 0, sizeof(player));
+		zero_player();
 		Player = NULL;
 
 		// make this guy the selected pilot and put him first on the list

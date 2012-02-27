@@ -21,7 +21,7 @@ class ship_select : public CDialog
 {
 // Construction
 public:
-	void update_status();
+	void update_status(bool first_time = false);
 	void OnOK();
 	void create_list();
 	ship_select(CWnd* pParent = NULL);   // standard constructor
@@ -80,6 +80,6 @@ protected:
 private:
 	int activity, list_size, wlist_size, wplist_size;
 	object *obj_index[MAX_OBJECTS];
-	int wing_index[MAX_WINGS + MAX_WAYPOINT_LISTS];
-	int wing_sel_last[MAX_WINGS + MAX_WAYPOINT_LISTS];
+	SCP_vector<int> wing_index;
+	SCP_vector<int> wing_sel_last;
 };

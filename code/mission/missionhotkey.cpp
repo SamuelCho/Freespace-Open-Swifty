@@ -591,14 +591,6 @@ int hotkey_build_team_listing(int enemy_team_mask, int y, bool list_enemies)
 
 	start = Num_lines;
 
-	// next loop used to loop through max ships, comparing team values.  MWA changed this to iterate
-	// through object list.  Seemed safer since it doesn't rely on the team value getting reset to
-	// a bogus value between missions
-	//for (i=0; i<MAX_SHIPS; i++) {
-	//	if ((Ships[i].team == team) && (Ships[i].wingnum < 0)) {
-	//		hotkey_line_add_sorted(Ships[i].ship_name, HOTKEY_LINE_SHIP, i, start);
-	//	}
-
 	for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) {
 		int shipnum;
 
@@ -664,7 +656,6 @@ int hotkey_build_team_listing(int enemy_team_mask, int y, bool list_enemies)
 		}
 	}
 
-	z = HOTKEY_LINE_HEADING;
 	for (i=start; i<Num_lines; i++) {
 		if (Hotkey_lines[i].type == HOTKEY_LINE_SUBSHIP)
 			y += font_height;
@@ -1217,10 +1208,7 @@ void mission_hotkey_do_frame(float frametime)
 			List_buttons[line - Scroll_offset].update_dimensions(Hotkey_list_coords[gr_screen.res][0], y, Hotkey_list_coords[gr_screen.res][0] + Hotkey_list_coords[gr_screen.res][2] - Hotkey_list_coords[gr_screen.res][0], font_height);
 			List_buttons[line - Scroll_offset].enable();
 			if (hotkeys & (1 << Cur_hotkey)) {
-				if (line == Selected_line)
-					gr_set_color_fast(&Color_text_active_hi);
-				else
-					gr_set_color_fast(&Color_text_active);
+				gr_set_color_fast(&Color_text_active);
 
 			} else {
 				if (line == Selected_line)

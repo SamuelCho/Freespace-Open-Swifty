@@ -130,10 +130,10 @@ ogl_extension GL_Extensions[NUM_OGL_EXTENSIONS] =
 	{ false, false, 1, { "GL_ARB_shading_language_100" }, 0, { NULL } },
 
 	// shader objects and program object management
-	{ false, false, 1, { "GL_ARB_shader_objects" }, 17, { "glDeleteObjectARB", "glCreateShaderObjectARB", "glShaderSourceARB",
+	{ false, false, 1, { "GL_ARB_shader_objects" }, 18, { "glDeleteObjectARB", "glCreateShaderObjectARB", "glShaderSourceARB",
 		"glCompileShaderARB", "glGetObjectParameterivARB", "glGetInfoLogARB", "glCreateProgramObjectARB",
 		"glAttachObjectARB", "glLinkProgramARB", "glUseProgramObjectARB", "glValidateProgramARB", "glGetUniformLocationARB",
-		"glGetUniformivARB", "glUniform1fARB", "glUniform3fARB", "glUniform1iARB", "glUniformMatrix4fvARB" } },
+		"glGetUniformivARB", "glUniform1fARB", "glUniform2fARB", "glUniform3fARB", "glUniform1iARB", "glUniformMatrix4fvARB" } },
 
 	// programmable vertex level processing
 	// some of functions are provided by GL_ARB_vertex_program
@@ -367,33 +367,6 @@ void opengl_extensions_init()
 
 	if ( Is_Extension_Enabled(OGL_ARB_PIXEL_BUFFER_OBJECT) ) {
 		Use_PBOs = 1;
-	}
-
-	if ( !Cmdline_noglsl && Is_Extension_Enabled(OGL_ARB_SHADER_OBJECTS) && Is_Extension_Enabled(OGL_ARB_FRAGMENT_SHADER)
-			&& Is_Extension_Enabled(OGL_ARB_VERTEX_SHADER) )
-	{
-		int ver = 0, major = 0, minor = 0;
-		const char *glsl_ver = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION_ARB);
-
-		sscanf(glsl_ver, "%d.%d", &major, &minor);
-		ver = (major * 100) + minor;
-
-		// SM 4.0 compatible or better
-		if (ver >= 400) {
-			Use_GLSL = 4;
-		}
-		// SM 3.0 compatible
-		else if ( ver >= 130 ) {
-			Use_GLSL = 3;
-		}
-		// SM 2.0 compatible
-		else if (ver >= 110) {
-			Use_GLSL = 2;
-		}
-		// we require GLSL 1.10 or higher
-		else if (ver < 110) {
-			Use_GLSL = 0;
-		}
 	}
 
 	// setup the best fog function found

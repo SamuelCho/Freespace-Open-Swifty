@@ -137,6 +137,7 @@ extern int parse_string_flag_list(int *dest, flag_def_list defs[], int defs_size
 extern int stuff_int_list(int *ilp, int max_ints, int lookup_type = RAW_INTEGER_TYPE);
 extern int stuff_float_list(float* flp, int max_floats);
 extern int stuff_vector_list(vec3d *vlp, int max_vecs);
+extern int stuff_vector_list(SCP_vector<vec3d> &vec_list);
 extern int stuff_bool_list(bool *blp, int max_bools);
 extern void stuff_vector(vec3d *vp);
 extern void stuff_matrix(matrix *mp);
@@ -154,6 +155,7 @@ extern void stuff_boolean_flag(int *i, int flag, bool a_to_eol=true);
 extern int check_for_string(char *pstr);
 extern int check_for_string_raw(char *pstr);
 extern int check_for_eof();
+extern int check_for_eoln();
 
 // from aicode.cpp
 extern void parse_float_list(float *plist, int size);
@@ -178,8 +180,13 @@ extern void process_raw_file_text(char *processed_text = NULL, char *raw_text = 
 extern void debug_show_mission_text();
 extern void convert_sexp_to_string(int cur_node, char *outstr, int mode, int max_len);
 char *split_str_once(char *src, int max_pixel_w);
-int split_str(char *src, int max_pixel_w, int *n_chars, char **p_str, int max_lines, char ignore_char = -1);
-int split_str(char *src, int max_pixel_w, SCP_vector<int> *n_chars, SCP_vector<char*> *p_str, char ignore_char);
+int split_str(const char *src, int max_pixel_w, int *n_chars, const char **p_str, int max_lines, char ignore_char = -1);
+int split_str(const char *src, int max_pixel_w, SCP_vector<int> *n_chars, SCP_vector<const char*> *p_str, char ignore_char);
+
+inline int split_str(char *src, int max_pixel_w, int *n_chars, char **p_str, int max_lines, char ignore_char = -1)
+{
+	return split_str((const char*)src,max_pixel_w,n_chars,(const char**)p_str,max_lines,ignore_char);
+}
 
 // fred
 extern int required_string_fred(char *pstr, char *end = NULL);

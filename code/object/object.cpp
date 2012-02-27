@@ -36,7 +36,6 @@
 #include "jumpnode/jumpnode.h"
 #include "weapon/beam.h"
 #include "weapon/swarm.h"
-#include "demo/demo.h"
 #include "radar/radarsetup.h"
 #include "object/objectdock.h"
 #include "mission/missionparse.h" //For 2D Mode
@@ -94,10 +93,10 @@ char *Object_type_names[MAX_OBJECT_TYPES] = {
 	"Point",
 	"Shockwave",
 	"Wing",
-	"Ghost Save",
 	"Observer",
 	"Asteroid",
 	"Jump Node",
+	"Beam",
 //XSTR:ON
 };
 
@@ -515,7 +514,10 @@ void obj_delete(int objnum)
 
 	Assert(objnum >= 0 && objnum < MAX_OBJECTS);
 	objp = &Objects[objnum];
-	Assert(objp->type != OBJ_NONE);	
+	if (objp->type == OBJ_NONE) {
+		mprintf(("obj_delete() called for already deleted object %d.\n", objnum));
+		return;
+	};	
 
 	// Remove all object pairs
 	obj_remove_pairs( objp );
@@ -1054,7 +1056,6 @@ void obj_set_flags( object *obj, uint new_flags )
 
 		// sanity checks
 		if ( (obj->type != OBJ_SHIP) || (obj->instance < 0) ) {
-			// Int3();
 			return;				// return because we really don't want to set the flag
 		}
 
@@ -1105,17 +1106,13 @@ void obj_move_all_pre(object *objp, float frametime)
 		}
 		break;
 	case OBJ_FIREBALL:
-		if (!physics_paused){
-			fireball_process_pre(objp,frametime);
-		}
+		// all fireballs are moved via fireball_process_post()
 		break;
 	case OBJ_SHOCKWAVE:
 		// all shockwaves are moved via shockwave_move_all()
 		break;
 	case OBJ_DEBRIS:
-		if (!physics_paused){
-			debris_process_pre(objp,frametime);
-		}
+		// all debris are moved via debris_process_post()
 		break;
 	case OBJ_ASTEROID:
 		if (!physics_paused){
@@ -1270,8 +1267,9 @@ void obj_move_all_post(object *objp, float frametime)
 						rad = objp->radius;
 					}
 					// P goes from 0 to 1 to 0 over the life of the explosion
-					
-					light_add_point( &objp->pos, rad * 2.0f, rad * 5.0f, intensity, r, g, b, -1 );
+					// Only do this if rad is > 0.0000001f
+					if (rad > 0.0001f)
+						light_add_point( &objp->pos, rad * 2.0f, rad * 5.0f, intensity, r, g, b, -1 );
 				}
 			}
 
@@ -1389,11 +1387,6 @@ void obj_move_all(float frametime)
 			continue;
 		}
 
-		// if we're playing a demo back, only sim stuff that we're supposed to
-		if ((Game_mode & GM_DEMO_PLAYBACK) && !demo_should_sim(objp)) {
-			continue;
-		}
-
 		vec3d cur_pos = objp->pos;			// Save the current position
 
 #ifdef OBJECT_CHECK 
@@ -1441,19 +1434,49 @@ void obj_move_all(float frametime)
 	}
 
 	//	After all objects have been moved, move all docked objects.
-	if (!(Game_mode & GM_DEMO_PLAYBACK)) {
-		for (objp = GET_FIRST(&obj_used_list); objp != END_OF_LIST(&obj_used_list); objp = GET_NEXT(objp)) {
-			dock_move_docked_objects(objp);
+	objp = GET_FIRST(&obj_used_list);
+	while( objp !=END_OF_LIST(&obj_used_list) )	{
+		dock_move_docked_objects(objp);
 
-			// unflag all objects as being updates
-			objp->flags &= ~OF_JUST_UPDATED;
+		//Valathil - Move the screen rotation calculation for billboards here to get the updated orientation matrices caused by docking interpolation
+		vec3d tangles;
+
+		tangles.xyz.x = -objp->phys_info.rotvel.xyz.x*frametime;
+		tangles.xyz.y = -objp->phys_info.rotvel.xyz.y*frametime;
+		tangles.xyz.z = objp->phys_info.rotvel.xyz.z*frametime;
+
+		// If this is the viewer_object, keep track of the
+		// changes in banking so that rotated bitmaps look correct.
+		// This is used by the g3_draw_rotated_bitmap function.
+		extern physics_info *Viewer_physics_info;
+		extern int Physics_viewer_direction;
+		if ( &objp->phys_info == Viewer_physics_info )	{
+			vec3d tangles_r;
+			vm_vec_unrotate(&tangles_r, &tangles, &Eye_matrix);
+			vm_vec_rotate(&tangles, &tangles_r, &objp->orient);
+
+			if(objp->dock_list && objp->dock_list->docked_objp->type == OBJ_SHIP && Ai_info[Ships[objp->dock_list->docked_objp->instance].ai_index].submode == AIS_DOCK_4) {
+				Physics_viewer_bank -= tangles.xyz.z*0.65f;
+			} else {
+				Physics_viewer_bank -= tangles.xyz.z;
+			}
+
+			if ( Physics_viewer_bank < 0.0f ){
+				Physics_viewer_bank += 2.0f * PI; 	 
+			} 	 
+
+			if ( Physics_viewer_bank > 2.0f * PI ){ 	 
+				Physics_viewer_bank -= 2.0f * PI; 	 
+			}
 		}
+
+		// unflag all objects as being updates
+		objp->flags &= ~OF_JUST_UPDATED;
+
+		objp = GET_NEXT(objp);
 	}
 
-	// If any cmeasures fired, maybe steer away homing missiles
-	if (!(Game_mode & GM_DEMO_PLAYBACK)) {
-		find_homing_object_cmeasures();
-	}
+	find_homing_object_cmeasures();	//	If any cmeasures fired, maybe steer away homing missiles	
 
 	// do pre-collision stuff for beam weapons
 	beam_move_all_pre();
@@ -1462,9 +1485,7 @@ void obj_move_all(float frametime)
 		obj_check_all_collisions();		
 	}
 
-	if (!(Game_mode & GM_DEMO_PLAYBACK)) {
-		turret_swarm_check_validity();
-	}
+	turret_swarm_check_validity();
 
 	// do post-collision stuff for beam weapons
 	beam_move_all_post();
@@ -1483,8 +1504,9 @@ MONITOR( NumObjectsRend )
 extern int Cmdline_dis_weapons;
 void obj_render(object *obj)
 {
+	SCP_list<jump_node>::iterator jnp;
+	
 	if ( obj->flags & OF_SHOULD_BE_DEAD ) return;
-//	if ( obj == Viewer_obj ) return;
 
 	MONITOR_INC( NumObjectsRend, 1 );	
 
@@ -1522,12 +1544,14 @@ void obj_render(object *obj)
 			cmeasure_render(obj);
 			break;*/
 		case OBJ_JUMP_NODE:
-			obj->jnp->render(&obj->pos, &Eye_position);
-	//		jumpnode_render(obj, &obj->pos, &Eye_position);
+			for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
+				if(jnp->get_obj() != obj)
+					continue;
+				jnp->render(&obj->pos, &Eye_position);
+			}
 			break;
 		case OBJ_WAYPOINT:
 			if (Show_waypoints)	{
-				//ship_render(obj);
 				gr_set_color( 128, 128, 128 );
 				g3_draw_sphere_ez( &obj->pos, 5.0f );
 			}

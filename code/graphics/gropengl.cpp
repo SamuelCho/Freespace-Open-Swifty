@@ -23,7 +23,6 @@
 #include "ddsutils/ddsutils.h"
 #include "model/model.h"
 #include "debugconsole/timerbar.h"
-#include "debugconsole/dbugfile.h"
 #include "graphics/gropenglbmpman.h"
 #include "graphics/gropengllight.h"
 #include "graphics/gropengltexture.h"
@@ -34,6 +33,7 @@
 #include "graphics/gropenglshader.h"
 #include "graphics/gropenglstate.h"
 #include "graphics/gropenglpostprocessing.h"
+#include "popup/popup.h"
 
 
 #if defined(_WIN32)
@@ -322,7 +322,7 @@ void gr_opengl_clear()
 {
 	glClearColor(gr_screen.current_clear_color.red / 255.0f, 
 		gr_screen.current_clear_color.green / 255.0f, 
-		gr_screen.current_clear_color.blue / 255.0f, 1.0f);
+		gr_screen.current_clear_color.blue / 255.0f, gr_screen.current_clear_color.alpha / 255.0f);
 
 	glClear ( GL_COLOR_BUFFER_BIT );
 }
@@ -346,7 +346,7 @@ void gr_opengl_flip()
 
 	//	opengl_save_mouse_area(mx, my, Gr_cursor_size, Gr_cursor_size);
 
-		if (Gr_cursor != -1) {
+		if (Gr_cursor != -1 && bm_is_valid(Gr_cursor)) {
 			gr_set_bitmap(Gr_cursor);
 			gr_bitmap( mx, my, false);
 		}
@@ -447,7 +447,7 @@ void gr_opengl_set_clip(int x, int y, int w, int h, bool resize)
 	}
 
 	GL_state.ScissorTest(GL_TRUE);
-	if(GL_rendering_to_framebuffer) {
+	if(GL_rendering_to_texture) {
 		glScissor(x, y, w, h);
 	} else {
 		glScissor(x, gr_screen.max_h-y-h, w, h);
@@ -610,16 +610,12 @@ void gr_opengl_cleanup(int minimize)
 #ifdef _WIN32
 	HWND wnd = (HWND)os_get_window();
 
-	DBUGFILE_OUTPUT_0("");
-
 	if (GL_render_context) {
 		if ( !wglMakeCurrent(NULL, NULL) ) {
-			DBUGFILE_OUTPUT_0("");
 			MessageBox(wnd, "SHUTDOWN ERROR", "error", MB_OK);
 		}
 
 		if ( !wglDeleteContext(GL_render_context) ) {
-			DBUGFILE_OUTPUT_0("");
 			MessageBox(wnd, "Unable to delete rendering context", "error", MB_OK);
 		}
 
@@ -627,7 +623,6 @@ void gr_opengl_cleanup(int minimize)
 	}
 #endif
 
-	DBUGFILE_OUTPUT_0("opengl_minimize");
 	opengl_minimize();
 
 	if (minimize) {
@@ -734,10 +729,13 @@ int gr_opengl_zbuffer_set(int mode)
 
 	if (gr_zbuffering_mode == GR_ZBUFF_NONE) {
 		gr_zbuffering = 0;
-		GL_state.DepthTest(GL_FALSE);
+		GL_state.SetZbufferType(ZBUFFER_TYPE_NONE);
+	} else if ( gr_zbuffering_mode == GR_ZBUFF_READ ) {
+		gr_zbuffering = 1;
+		GL_state.SetZbufferType(ZBUFFER_TYPE_READ);
 	} else {
 		gr_zbuffering = 1;
-		GL_state.DepthTest(GL_TRUE);
+		GL_state.SetZbufferType(ZBUFFER_TYPE_FULL);
 	}
 
 	return tmp;
@@ -1342,7 +1340,7 @@ void opengl_setup_viewport()
 	glLoadIdentity();
 
 	// the top and bottom positions are reversed on purpose, but RTT needs them the other way
-	if (GL_rendering_to_framebuffer) {
+	if (GL_rendering_to_texture) {
 		glOrtho(0, gr_screen.max_w, 0, gr_screen.max_h, -1.0, 1.0);
 	} else {
 		glOrtho(0, gr_screen.max_w, gr_screen.max_h, 0, -1.0, 1.0);
@@ -1368,6 +1366,7 @@ void gr_opengl_shutdown()
 	opengl_tcache_shutdown();
 	opengl_light_shutdown();
 	opengl_tnl_shutdown();
+	opengl_scene_texture_shutdown();
 	opengl_post_process_shutdown();
 	opengl_shader_shutdown();
 
@@ -1615,15 +1614,14 @@ int opengl_init_display_device()
 	mprintf(("  Requested WGL Video values = R: %d, G: %d, B: %d, depth: %d, double-buffer: %d\n", Gr_red.bits, Gr_green.bits, Gr_blue.bits, GL_pfd.cColorBits, (GL_pfd.dwFlags & PFD_DOUBLEBUFFER) > 0));
 
 	// now report back as to what we ended up getting
-	int r = 0, g = 0, b = 0, depth = 0, db = 1;
 
 	DescribePixelFormat(GL_device_context, PixelFormat, sizeof(PIXELFORMATDESCRIPTOR), &GL_pfd);
 
-	r = GL_pfd.cRedBits;
-	g = GL_pfd.cGreenBits;
-	b = GL_pfd.cBlueBits;
-	depth = GL_pfd.cColorBits;
-	db = ((GL_pfd.dwFlags & PFD_DOUBLEBUFFER) > 0);
+	int r = GL_pfd.cRedBits;
+	int g = GL_pfd.cGreenBits;
+	int b = GL_pfd.cBlueBits;
+	int depth = GL_pfd.cColorBits;
+	int db = ((GL_pfd.dwFlags & PFD_DOUBLEBUFFER) > 0);
 
 	mprintf(("  Actual WGL Video values    = R: %d, G: %d, B: %d, depth: %d, double-buffer: %d\n", r, g, b, depth, db));
 
@@ -1721,6 +1719,7 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_scaler				= gr_opengl_scaler;
 	gr_screen.gf_tmapper			= gr_opengl_tmapper;
 	gr_screen.gf_render				= gr_opengl_render;
+	gr_screen.gf_render_effect		= gr_opengl_render_effect;
 
 	gr_screen.gf_gradient			= gr_opengl_gradient;
 
@@ -1804,6 +1803,9 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_post_process_begin		= gr_opengl_post_process_begin;
 	gr_screen.gf_post_process_end		= gr_opengl_post_process_end;
 	gr_screen.gf_post_process_save_zbuffer	= gr_opengl_post_process_save_zbuffer;
+
+	gr_screen.gf_scene_texture_begin = gr_opengl_scene_texture_begin;
+	gr_screen.gf_scene_texture_end = gr_opengl_scene_texture_end;
 
 	gr_screen.gf_start_clip_plane	= gr_opengl_start_clip_plane;
 	gr_screen.gf_end_clip_plane		= gr_opengl_end_clip_plane;
@@ -1895,6 +1897,36 @@ bool gr_opengl_init()
 
 	GLint max_texture_units = GL_supported_texture_units;
 
+	if ( !Cmdline_noglsl && Is_Extension_Enabled(OGL_ARB_SHADER_OBJECTS) && Is_Extension_Enabled(OGL_ARB_FRAGMENT_SHADER)
+			&& Is_Extension_Enabled(OGL_ARB_VERTEX_SHADER) ) {
+		int ver = 0, major = 0, minor = 0;
+		const char *glsl_ver = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION_ARB);
+
+		sscanf(glsl_ver, "%d.%d", &major, &minor);
+		ver = (major * 100) + minor;
+
+		// SM 4.0 compatible or better
+		if (ver >= 400) {
+			Use_GLSL = 4;
+		}
+		// SM 3.0 compatible
+		else if ( ver >= 130 ) {
+			Use_GLSL = 3;
+		}
+		// SM 2.0 compatible
+		else if (ver >= 120) {
+			Use_GLSL = 2;
+		}
+		// we require GLSL 1.20 or higher
+		else if (ver < 110) {
+			Use_GLSL = 0;
+			mprintf(("  OpenGL Shading Language version %s is not sufficient to use GLSL mode in FSO. Defaulting to fixed-function renderer.\n", glGetString(GL_SHADING_LANGUAGE_VERSION_ARB) ));
+#ifdef NDEBUG
+			popup(0, 1, POPUP_OK, "GLSL support not available on this GPU. Disabling shader support and defaulting to fixed-function rendering.\n");
+#endif
+		}
+	}
+
 	if (Use_GLSL) {
 		glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS_ARB, &max_texture_units);
 	}
@@ -1916,6 +1948,7 @@ bool gr_opengl_init()
 	opengl_shader_init();
 
 	// post processing effects, after shaders are initialized
+	opengl_setup_scene_textures();
 	opengl_post_process_init();
 
 	// must be called after extensions are setup
@@ -1972,12 +2005,10 @@ bool gr_opengl_init()
 	mprintf(( "  Using %s texture filter.\n", (GL_mipmap_filter) ? NOX("trilinear") : NOX("bilinear") ));
 
 	if (Use_GLSL) {
-		if (Use_GLSL > 1) {
-			mprintf(( "  Using GLSL for model rendering.\n" ));
-		}
-
 		mprintf(( "  OpenGL Shader Version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION_ARB) ));
 	}
+
+
 
 	// This stops fred crashing if no textures are set
 	gr_screen.current_bitmap = -1;

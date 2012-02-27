@@ -28,6 +28,8 @@
 #include "object/objectsnd.h"
 #include "globalincs/pstypes.h"
 #include "graphics/gropenglshader.h"
+#include "graphics/gropengldraw.h"
+#include "hud/hudshield.h"
 
 // flags
 #define LAB_FLAG_NORMAL				(0)		// default
@@ -462,6 +464,7 @@ void labviewer_add_model_thrusters(ship_info *sip)
 	int framenum;
 	int secondary_glow_bitmap = -1;
 	int tertiary_glow_bitmap = -1;
+	static int thruster_distortion_bitmap = -1;
 	generic_anim *flame_anim = NULL, *glow_anim = NULL;
 	species_info *species = &Species_info[0];
 	weapon_info *wip = NULL;
@@ -486,6 +489,7 @@ void labviewer_add_model_thrusters(ship_info *sip)
 		glow_anim = &sip->thruster_glow_info.afterburn;			// select afterburner glow
 		secondary_glow_bitmap = sip->thruster_secondary_glow_info.afterburn.bitmap_id;
 		tertiary_glow_bitmap = sip->thruster_tertiary_glow_info.afterburn.bitmap_id;
+		thruster_distortion_bitmap = sip->thruster_distortion_info.afterburn.bitmap_id;
 
 		rate = 1.5f;		// go at 1.5x faster when afterburners on
 	} else {
@@ -505,6 +509,7 @@ void labviewer_add_model_thrusters(ship_info *sip)
 			glow_anim = &sip->thruster_glow_info.normal;				// select normal glow
 			secondary_glow_bitmap = sip->thruster_secondary_glow_info.normal.bitmap_id;
 			tertiary_glow_bitmap = sip->thruster_tertiary_glow_info.normal.bitmap_id;
+			thruster_distortion_bitmap = sip->thruster_distortion_info.normal.bitmap_id;
 		}
 
 		// If thrust at 0, go at half as fast, full thrust; full framerate
@@ -596,6 +601,7 @@ void labviewer_add_model_thrusters(ship_info *sip)
 	mst.primary_glow_bitmap =thruster_glow_bitmap;
 	mst.secondary_glow_bitmap = secondary_glow_bitmap;
 	mst.tertiary_glow_bitmap = tertiary_glow_bitmap;
+	mst.distortion_bitmap = thruster_distortion_bitmap;
 
 	mst.use_ab = Lab_thrust_afterburn;
 	mst.glow_noise = thruster_glow_noise;
@@ -606,6 +612,9 @@ void labviewer_add_model_thrusters(ship_info *sip)
 		mst.secondary_glow_rad_factor = sip->thruster02_glow_rad_factor;
 		mst.tertiary_glow_rad_factor = sip->thruster03_glow_rad_factor;
 		mst.glow_length_factor = sip->thruster02_glow_len_factor;
+		mst.distortion_length_factor = sip->thruster_dist_len_factor;
+		mst.distortion_rad_factor = sip->thruster_dist_rad_factor;
+		mst.draw_distortion = sip->draw_distortion;
 	}
 
 	if (Lab_mode == LAB_MODE_WEAPON) {
@@ -732,25 +741,7 @@ void labviewer_render_model(float frametime)
 	vec3d light_dir = vmd_zero_vector;
 	light_dir.xyz.y = 1.0f;
 	light_add_directional(&light_dir, 0.65f, 1.0f, 1.0f, 1.0f);
-/*
-	light_add_directional(&light_dir, 0.05f, 0.0f, 0.0f, 1.0f);
 
-	light_add_directional(&light_dir, 0.05f, 0.0f, 0.0f, 1.0f);
-	light_dir = vmd_zero_vector;
-	light_dir.xyz.y = -1.0f;
-	light_add_directional(&light_dir, 0.65f, 1.0f, 0.0f, 0.0f);
-
-	light_add_directional(&light_dir, 0.05f, 1.0f, 0.0f, 0.0f);
-
-	light_add_directional(&light_dir, 0.05f, 1.0f, 0.0f, 0.0f);
-	light_dir = vmd_zero_vector;
-	light_dir.xyz.x = -1.0f;
-	light_dir.xyz.y = 1.0f;
-	light_add_directional(&light_dir, 0.65f, 0.0f, 1.0f, 0.0f);
-
-	light_add_directional(&light_dir, 0.05f, 0.0f, 1.0f, 0.0f);
-*/
-	// light_filter_reset();
 	light_rotate_all();
 	// lighting for techroom
 
@@ -759,11 +750,6 @@ void labviewer_render_model(float frametime)
 	model_set_detail_level(Lab_model_LOD);
 
 	int flagggs = Lab_model_flags;
-
-//	if (sip && sip->flags2 & SIF2_TRANSPARENT) {
-//		flagggs |= MR_ALL_XPARENT;
-//		model_set_alpha(1.0f);
-//	}
 
 	// only render the insignia when the flag is set
 	if (Lab_viewer_flags & LAB_FLAG_SHOW_INSIGNIA) {
@@ -816,6 +802,8 @@ void labviewer_render_model(float frametime)
 		model_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, /*Lab_model_flags*/flagggs, -1, -1);
 	}
 
+	batch_render_all();
+	
 	if ( !Cmdline_nohtl ) {
 		gr_end_view_matrix();
 		gr_end_proj_matrix();
@@ -935,7 +923,8 @@ void labviewer_render_bitmap(float frametime)
 	vm_vec_scale_add(&headp, &vmd_zero_vector, &Lab_viewer_orient.vec.fvec, wip->laser_length);
 
 	gr_set_bitmap(wip->laser_bitmap.first_frame + framenum, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 0.99999f);
-	g3_draw_laser(&headp, wip->laser_head_radius, &vmd_zero_vector, wip->laser_tail_radius, TMAP_FLAG_TEXTURED | TMAP_FLAG_XPARENT | TMAP_HTL_3D_UNLIT);
+	if(wip->laser_length > 0.0001f)
+		g3_draw_laser(&headp, wip->laser_head_radius, &vmd_zero_vector, wip->laser_tail_radius, TMAP_FLAG_TEXTURED | TMAP_FLAG_XPARENT | TMAP_HTL_3D_UNLIT);
 
 
 	// now draw the laser glow bitmap, if there is one, and if we are supposed to
@@ -986,7 +975,8 @@ void labviewer_render_bitmap(float frametime)
 		}
 
 		gr_set_bitmap(wip->laser_glow_bitmap.first_frame + framenum, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, weapon_glow_alpha);
-		g3_draw_laser_rgb(&headp2, wip->laser_head_radius * weapon_glow_scale_f, &tailp, wip->laser_tail_radius * weapon_glow_scale_r, c.red, c.green, c.blue,  TMAP_FLAG_TEXTURED | TMAP_FLAG_XPARENT  | TMAP_FLAG_RGB | TMAP_HTL_3D_UNLIT);
+		if(wip->laser_length > 0.0001f)
+			g3_draw_laser_rgb(&headp2, wip->laser_head_radius * weapon_glow_scale_f, &tailp, wip->laser_tail_radius * weapon_glow_scale_r, c.red, c.green, c.blue,  TMAP_FLAG_TEXTURED | TMAP_FLAG_XPARENT  | TMAP_FLAG_RGB | TMAP_HTL_3D_UNLIT);
 	}
 
 	// clean up and move on ...
@@ -1013,11 +1003,12 @@ void labviewer_do_render(float frametime)
 
 	// render our particular thing
 	if (Lab_model_num >= 0) {
-		gr_post_process_begin();
+		
+		gr_scene_texture_begin();
 
 		labviewer_render_model(frametime);
 
-		gr_post_process_end();
+		gr_scene_texture_end();
 
 		// print out the current pof filename, to help with... something
 		if ( strlen(Lab_model_filename) ) {
@@ -1026,11 +1017,11 @@ void labviewer_do_render(float frametime)
 			gr_string(gr_screen.clip_right - w, gr_screen.clip_bottom - h, Lab_model_filename, false);
 		}
 	} else if (Lab_bitmap_id >= 0) {
-		gr_post_process_begin();
+		gr_scene_texture_begin();
 
 		labviewer_render_bitmap(frametime);
 
-		gr_post_process_end();
+		gr_scene_texture_end();
 
 		// print out the current bitmap filename, to help with... something
 		if ( strlen(Lab_bitmap_filename) ) {
@@ -1243,7 +1234,7 @@ void labviewer_populate_flags_window()
 
 void labviewer_update_flags_window()
 {
-	uint i;
+	size_t i;
 
 	if ( (Lab_selected_index < 0) || (Lab_mode == LAB_MODE_NONE) ) {
 		return;
@@ -1348,7 +1339,7 @@ void labviewer_variables_add(int *Y, char *var_name)
 	// variable
 	Lab_variables_window->AddChild(new Text((var_name), (var_name), 0, y, VAR_POS_LEFTWIDTH));
 	// edit box
-	new_text = (Text*)Lab_variables_window->AddChild(new Text(std::string((var_name)) + std::string("Editbox"), "", VAR_POS_RIGHTX, y, VAR_POS_RIGHTWIDTH, 12, T_EDITTABLE));
+	new_text = (Text*)Lab_variables_window->AddChild(new Text(SCP_string((var_name)) + SCP_string("Editbox"), "", VAR_POS_RIGHTX, y, VAR_POS_RIGHTWIDTH, 12, T_EDITTABLE));
 
 	if (Y) {
 		*Y += new_text->GetHeight() + 2;
@@ -1375,7 +1366,8 @@ void labviewer_populate_variables_window()
 
 	y = 0;
 
-	// ship variables ...
+	// IMPORTANT NOTE: If you add something here, make sure you add it to labviewer_update_variables_window() as well!
+	// ship vFEWfe<ariables ...
 	if (Lab_mode == LAB_MODE_SHIP) {
 		labviewer_variables_add(&y, "Name");
 		labviewer_variables_add(&y, "Species");
@@ -1482,8 +1474,7 @@ void labviewer_populate_variables_window()
 	}	\
 	i++;	\
 }
-
-extern int Hud_shield_filename_count;
+extern SCP_vector<SCP_string> Hud_shield_filenames;
 
 void labviewer_update_variables_window()
 {
@@ -1501,7 +1492,7 @@ void labviewer_update_variables_window()
 		return;
 	}
 
-
+	// IMPORTANT NOTE: If you add something here, make sure you add it to labviewer_populate_variables_window() as well!
 	// ship variables ...
 	if (Lab_mode == LAB_MODE_SHIP) {
 		Assert( Lab_selected_index < Num_ship_classes );
@@ -1525,7 +1516,7 @@ void labviewer_update_variables_window()
 		VAR_SET_VALUE_SAVE(sip->subsys_repair_rate, 0);
 		VAR_SET_VALUE_SAVE(sip->hull_repair_rate, 0);
 		VAR_SET_VALUE_SAVE(sip->cmeasure_max, 0);
-		VAR_SET_VALUE_SAVE(sip->shield_icon_index, Hud_shield_filename_count-1);
+		VAR_SET_VALUE_SAVE(sip->shield_icon_index, Hud_shield_filenames.size()-1);
 
 		VAR_SET_VALUE_SAVE(sip->power_output, 0);
 		VAR_SET_VALUE_SAVE(sip->max_overclocked_speed, 0);
@@ -1571,7 +1562,6 @@ void labviewer_update_variables_window()
 		VAR_SET_VALUE_SAVE(wip->subsystem_factor, 0);
 	
 		VAR_SET_VALUE_SAVE(wip->damage_type_idx, 0);
-		VAR_SET_VALUE_SAVE(wip->damage_type_idx_sav, 0);
 	
 		VAR_SET_VALUE_SAVE(wip->shockwave.speed, 0);
 	
@@ -1824,7 +1814,7 @@ void labviewer_make_ship_window(Button *caller)
 	Lab_species_nodes[Species_info.size()] = cmp->AddItem(NULL, "Other", 0, false);
 
 	// Now add the ships
-	std::string lod_name;
+	SCP_string lod_name;
 	char buf[33];
 
 	for (idx = 0; idx < Num_ship_classes; idx++) {
@@ -2034,7 +2024,7 @@ void labviewer_make_weap_window(Button* caller)
 
 		cwip = cmp->AddItem(stip, Weapon_info[i].name, i, false, labviewer_change_weapon);
 
-		if ( strlen(Weapon_info[i].tech_model) > 0 ) {
+		if (Weapon_info[i].tech_model[0] != '\0') {
 			cmp->AddItem(cwip, "Tech Model", 0, false, labviewer_show_tech_model);
 		}
 	}

@@ -72,18 +72,19 @@ BOOL waypoint_path_dlg::Create()
 void waypoint_path_dlg::OnInitMenu(CMenu* pMenu)
 {
 	int i;
+	SCP_list<waypoint_list>::iterator ii;
+	SCP_list<jump_node>::iterator jnp;
 	CMenu *m;
 
 	m = pMenu->GetSubMenu(0);
 	clear_menu(m);
-	for (i=0; i<Num_waypoint_lists; i++) {
-		if (Waypoint_lists[i].count) {
-			m->AppendMenu(MF_ENABLED | MF_STRING, ID_WAYPOINT_MENU + i, Waypoint_lists[i].name);
-		}
+
+	for (i = 0, ii = Waypoint_lists.begin(); ii != Waypoint_lists.end(); ++i, ++ii) {
+		m->AppendMenu(MF_ENABLED | MF_STRING, ID_WAYPOINT_MENU + i, ii->get_name());
 	}
 
 	i = 0; 
-	for ( jump_node *jnp = (jump_node *)Jump_nodes.get_first(); !Jump_nodes.is_end(jnp); jnp = (jump_node *)jnp->get_next() ) {
+	for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
 		m->AppendMenu(MF_ENABLED | MF_STRING, ID_JUMP_NODE_MENU + i, jnp->get_name_ptr());
 		if (jnp->get_objnum() == cur_object_index) {
 			m->CheckMenuItem(ID_JUMP_NODE_MENU + i,  MF_BYCOMMAND | MF_CHECKED);
@@ -93,8 +94,12 @@ void waypoint_path_dlg::OnInitMenu(CMenu* pMenu)
 	}
 
 	m->DeleteMenu(ID_PLACEHOLDER, MF_BYCOMMAND);
-	if (cur_waypoint_list != -1)
-		m->CheckMenuItem(ID_WAYPOINT_MENU + cur_waypoint_list, MF_BYCOMMAND | MF_CHECKED);
+	if (cur_waypoint_list != NULL)
+	{
+		int index = find_index_of_waypoint_list(cur_waypoint_list);
+		Assert(index >= 0);
+		m->CheckMenuItem(ID_WAYPOINT_MENU + index, MF_BYCOMMAND | MF_CHECKED);
+	}
 
 	CDialog::OnInitMenu(pMenu);
 }
@@ -118,18 +123,26 @@ void waypoint_path_dlg::OnClose()
 void waypoint_path_dlg::initialize_data(int full_update)
 {
 	int enable = TRUE;
+	SCP_list<jump_node>::iterator jnp;
 
 	if (!GetSafeHwnd())
 		return;
 
 	if (query_valid_object() && Objects[cur_object_index].type == OBJ_WAYPOINT)
-		Assert(cur_waypoint_list == (Objects[cur_object_index].instance / 65536));
+	{
+		Assert(cur_waypoint_list == find_waypoint_list_with_instance(Objects[cur_object_index].instance));
+	}
 
-	if (cur_waypoint_list >= 0) {
-		m_name = _T(Waypoint_lists[cur_waypoint_list].name);
+	if (cur_waypoint_list != NULL) {
+		m_name = _T(cur_waypoint_list->get_name());
 
 	} else if (Objects[cur_object_index].type == OBJ_JUMP_NODE) {
-		m_name = _T(Objects[cur_object_index].jnp->get_name_ptr());
+		for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
+			if(jnp->get_obj() == &Objects[cur_object_index])
+				break;
+		}
+		
+		m_name = _T(jnp->get_name_ptr());
 
 	} else {
 		m_name = _T("");
@@ -147,6 +160,7 @@ int waypoint_path_dlg::update_data(int redraw)
 	char *str, old_name[255];
 	int i, z;
 	object *ptr;
+	SCP_list<jump_node>::iterator jnp;
 
 	if (!GetSafeHwnd())
 		return 0;
@@ -155,9 +169,11 @@ int waypoint_path_dlg::update_data(int redraw)
 	UpdateData(TRUE);
 
 	if (query_valid_object() && Objects[cur_object_index].type == OBJ_WAYPOINT)
-		Assert(cur_waypoint_list == (Objects[cur_object_index].instance / 65536));
+	{
+		Assert(cur_waypoint_list == find_waypoint_list_with_instance(Objects[cur_object_index].instance));
+	}
 
-	if (cur_waypoint_list >= 0) {
+	if (cur_waypoint_list != NULL) {
 		for (i=0; i<MAX_WINGS; i++)
 		{
 			if (!stricmp(Wings[i].name, m_name)) {
@@ -171,7 +187,7 @@ int waypoint_path_dlg::update_data(int redraw)
 				if (z == IDCANCEL)
 					return -1;
 
-				m_name = _T(Waypoint_lists[cur_waypoint_list].name);
+				m_name = _T(cur_waypoint_list->get_name());
 				UpdateData(FALSE);
 			}
 		}
@@ -190,7 +206,7 @@ int waypoint_path_dlg::update_data(int redraw)
 					if (z == IDCANCEL)
 						return -1;
 
-					m_name = _T(Waypoint_lists[cur_waypoint_list].name);
+					m_name = _T(cur_waypoint_list->get_name());
 					UpdateData(FALSE);
 				}
 			}
@@ -210,7 +226,7 @@ int waypoint_path_dlg::update_data(int redraw)
 				if (z == IDCANCEL)
 					return -1;
 
-				m_name = _T(Waypoint_lists[cur_waypoint_list].name);
+				m_name = _T(cur_waypoint_list->get_name());
 				UpdateData(FALSE);
 			}
 		}
@@ -227,13 +243,15 @@ int waypoint_path_dlg::update_data(int redraw)
 				if (z == IDCANCEL)
 					return -1;
 
-				m_name = _T(Waypoint_lists[cur_waypoint_list].name);
+				m_name = _T(cur_waypoint_list->get_name());
 				UpdateData(FALSE);
 			}
 		}
 
-		for (i=0; i<MAX_WAYPOINT_LISTS; i++) {
-			if (Waypoint_lists[i].count && !stricmp(Waypoint_lists[i].name, m_name) && (i != cur_waypoint_list)) {
+		SCP_list<waypoint_list>::iterator ii;
+		for (ii = Waypoint_lists.begin(); ii != Waypoint_lists.end(); ++ii)
+		{
+			if (!stricmp(ii->get_name(), m_name) && (&(*ii) != cur_waypoint_list)) {
 				if (bypass_errors)
 					return 1;
 
@@ -244,7 +262,7 @@ int waypoint_path_dlg::update_data(int redraw)
 				if (z == IDCANCEL)
 					return -1;
 
-				m_name = _T(Waypoint_lists[cur_waypoint_list].name);
+				m_name = _T(cur_waypoint_list->get_name());
 				UpdateData(FALSE);
 			}
 		}
@@ -261,7 +279,7 @@ int waypoint_path_dlg::update_data(int redraw)
 			if (z == IDCANCEL)
 				return -1;
 
-			m_name = _T(Waypoint_lists[cur_waypoint_list].name);
+			m_name = _T(cur_waypoint_list->get_name());
 			UpdateData(FALSE);
 		}
 
@@ -276,13 +294,13 @@ int waypoint_path_dlg::update_data(int redraw)
 			if (z == IDCANCEL)
 				return -1;
 
-			m_name = _T(Waypoint_lists[cur_waypoint_list].name);
+			m_name = _T(cur_waypoint_list->get_name());
 			UpdateData(FALSE);
 		}
 
 
-		strcpy_s(old_name, Waypoint_lists[cur_waypoint_list].name);
-		string_copy(Waypoint_lists[cur_waypoint_list].name, m_name, NAME_LENGTH, 1);
+		strcpy_s(old_name, cur_waypoint_list->get_name());
+		string_copy(cur_waypoint_list->get_name(), m_name, NAME_LENGTH, 1);
 
 		str = (char *) (LPCTSTR) m_name;
 		if (strcmp(old_name, str)) {
@@ -292,7 +310,10 @@ int waypoint_path_dlg::update_data(int redraw)
 		}
 
 	} else if (Objects[cur_object_index].type == OBJ_JUMP_NODE) {
-		jump_node *jnp = Objects[cur_object_index].jnp;
+		for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
+			if(jnp->get_obj() == &Objects[cur_object_index])
+				break;
+		}
 
 		for (i=0; i<MAX_WINGS; i++)
 		{
@@ -368,22 +389,20 @@ int waypoint_path_dlg::update_data(int redraw)
 			}
 		}
 
-		for (i=0; i<MAX_WAYPOINT_LISTS; i++)
+		if (find_matching_waypoint_list(const_cast<char *>((const char *) m_name)) != NULL)
 		{
-			if (Waypoint_lists[i].count && !stricmp(Waypoint_lists[i].name, m_name)) {
-				if (bypass_errors)
-					return 1;
+			if (bypass_errors)
+				return 1;
 
-				bypass_errors = 1;
-				z = MessageBox("This jump node name is already being used by a waypoint path\n"
-					"Press OK to restore old name", "Error", MB_ICONEXCLAMATION | MB_OKCANCEL);
+			bypass_errors = 1;
+			z = MessageBox("This jump node name is already being used by a waypoint path\n"
+				"Press OK to restore old name", "Error", MB_ICONEXCLAMATION | MB_OKCANCEL);
 
-				if (z == IDCANCEL)
-					return -1;
+			if (z == IDCANCEL)
+				return -1;
 
-				m_name = _T(jnp->get_name_ptr());
-				UpdateData(FALSE);
-			}
+			m_name = _T(jnp->get_name_ptr());
+			UpdateData(FALSE);
 		}
 
 		if (!stricmp(m_name.Left(1), "<")) {
@@ -401,10 +420,8 @@ int waypoint_path_dlg::update_data(int redraw)
 			UpdateData(FALSE);
 		}
 
-		strcpy_s(old_name, jnp->get_name_ptr());
-		string_copy(jnp->get_name_ptr(), m_name, NAME_LENGTH, 1);
-
-		if(jumpnode_check_for_duplicates())
+		jump_node* found = jumpnode_get_by_name(m_name);
+		if(found != NULL && &(*jnp) != found)
 		{
 			if (bypass_errors)
 				return 1;
@@ -413,14 +430,15 @@ int waypoint_path_dlg::update_data(int redraw)
 			z = MessageBox("This jump node name is already being used by another jump node\n"
 				"Press OK to restore old name", "Error", MB_ICONEXCLAMATION | MB_OKCANCEL);
 
-			strcpy(jnp->get_name_ptr(), old_name);
-
 			if (z == IDCANCEL)
 				return -1;
 
-			m_name = _T(old_name);
+			m_name = _T(jnp->get_name_ptr());
 			UpdateData(FALSE);
 		}
+		
+		strcpy_s(old_name, jnp->get_name_ptr());
+		jnp->set_name(const_cast<char *>((const char *) m_name));
 		
 		str = (char *) (LPCTSTR) m_name;
 		if (strcmp(old_name, str)) {
@@ -441,14 +459,14 @@ BOOL waypoint_path_dlg::OnCommand(WPARAM wParam, LPARAM lParam)
 	object *ptr;
 
 	id = LOWORD(wParam);
-	if ((id >= ID_WAYPOINT_MENU) && (id < ID_WAYPOINT_MENU + MAX_WAYPOINT_LISTS)) {
+	if ((id >= ID_WAYPOINT_MENU) && (id < ID_WAYPOINT_MENU + (int) Waypoint_lists.size())) {
 		if (!update_data()) {
 			point = id - ID_WAYPOINT_MENU;
 			unmark_all();
 			ptr = GET_FIRST(&obj_used_list);
 			while (ptr != END_OF_LIST(&obj_used_list)) {
 				if (ptr->type == OBJ_WAYPOINT)
-					if ((ptr->instance / 65536) == point)
+					if (calc_waypoint_list_index(ptr->instance) == point)
 						mark_object(OBJ_INDEX(ptr));
 
 				ptr = GET_NEXT(ptr);
@@ -458,7 +476,7 @@ BOOL waypoint_path_dlg::OnCommand(WPARAM wParam, LPARAM lParam)
 		}
 	}
 
-	if ((id >= ID_JUMP_NODE_MENU) && (id < ID_JUMP_NODE_MENU + Jump_nodes.get_num_elements())) {
+	if ((id >= ID_JUMP_NODE_MENU) && (id < ID_JUMP_NODE_MENU + (int) Jump_nodes.size())) {
 		if (!update_data()) {
 			point = id - ID_JUMP_NODE_MENU;
 			unmark_all();

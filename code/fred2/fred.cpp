@@ -25,7 +25,6 @@
 #include "CampaignTreeWnd.h"
 #include "CampaignTreeView.h"
 #include "CampaignEditorDlg.h"
-#include "debugconsole/dbugfile.h"
 #include "globalincs/mspdb_callstack.h"
 
 #include "AFXADV.H"
@@ -98,7 +97,6 @@ CFREDApp::CFREDApp()
 {
 	app_init = 0;
 
-	DBUGFILE_INIT();
 	SCP_mspdbcs_Initialise( );
 
 #ifndef NDEBUG
@@ -109,7 +107,6 @@ CFREDApp::CFREDApp()
 CFREDApp::~CFREDApp()
 {
 	SCP_mspdbcs_Cleanup( );
-	DBUGFILE_DEINIT();
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -257,7 +254,15 @@ BOOL CFREDApp::InitInstance()
 
 	m_nCmdShow = Main_wnd_data.p.showCmd;
 
-	OnFileNew();
+	//if we're opening a file, actually open it instead of just a new window
+	if(cmdInfo.m_nShellCommand == CCommandLineInfo::FileOpen)
+	{
+		AfxGetApp()->OpenDocumentFile((LPCTSTR)cmdInfo.m_strFileName);
+	}
+	else
+	{
+		OnFileNew();
+	}
 
 	if(m_pMainWnd == NULL) return FALSE;
 
@@ -706,3 +711,6 @@ int CFREDApp::ExitInstance()
 // Empty functions to make fred link with the sexp_mission_set_subspace
 void game_start_subspace_ambient_sound() {}
 void game_stop_subspace_ambient_sound() {} 
+
+// Variables to make fred.ccp more like freespace2.cpp so fred will link
+float Sun_spot = 0.0f;
