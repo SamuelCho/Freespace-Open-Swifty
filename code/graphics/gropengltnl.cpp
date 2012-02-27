@@ -258,6 +258,13 @@ bool gr_opengl_config_buffer(const int buffer_id, vertex_buffer *vb, bool update
 		vb->stride += (1 * sizeof(GLfloat));
 	}
 
+	int i = 0;
+	while ( vb->stride > i*32 ) {
+		i++;
+	}
+
+	vb->stride = i*32;
+
 	// offsets for this chunk
 	if ( update_ibuffer_only ) {
 		vb->vertex_offset = 0;
@@ -336,6 +343,7 @@ bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb)
 		Assert( ((arsize * sizeof(GLfloat)) + vb->stride) <= (m_vbp->vbo_size - vb->vertex_offset) );
 
 		// NOTE: UV->NORM->TSB->VERT, This array order *must* be preserved!!
+		int prev_arsize = arsize;
 
 		// tex coords
 		if (vb->flags & VB_FLAG_UV1) {
@@ -368,6 +376,13 @@ bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb)
 		array[arsize++] = vl->world.xyz.x;
 		array[arsize++] = vl->world.xyz.y;
 		array[arsize++] = vl->world.xyz.z;
+
+		int pad_size = (vb->stride/sizeof(GLfloat) - (arsize - prev_arsize));
+		pad_size += arsize;
+
+		while ( pad_size > arsize ) {
+			array[arsize++] = 0.0f;
+		}
 	}
 
 	// generate the index array
