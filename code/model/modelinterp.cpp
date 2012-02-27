@@ -4577,7 +4577,7 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		}
 
 	} else {
-		bsp_info *model = NULL;
+		model = NULL;
 		buffer = &pm->detail_buffers[Interp_detail_level];
 	}
 
