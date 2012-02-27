@@ -28,10 +28,6 @@
 #define	GM_STATS_TRANSFER				(1 << 9)				// in the process of stats transfer
 #define	GM_CAMPAIGN_MODE				(1 << 10)			// are we currently in a campaign.
 
-#define	GM_DEMO_RECORD					(1 << 11)			// recording a demo
-#define	GM_DEMO_PLAYBACK				(1 << 12)			// playing a demo back
-#define	GM_DEMO							(GM_DEMO_RECORD | GM_DEMO_PLAYBACK)			// true whenever a demo is being recorded or played back
-
 #define	VM_EXTERNAL						(1 << 0)				//	Set if not viewing from player position.
 #define	VM_TRACK						(1 << 1)				//	Set if viewer is tracking target.
 #define	VM_DEAD_VIEW					(1 << 2)				//	Set if viewer is watching from dead view.
@@ -62,11 +58,15 @@ extern int Cutscene_bar_flags;
 //-----Fadein stuff
 struct shader;
 extern shader Viewer_shader;
-#define FI_NONE					0
-#define FI_FADEIN				1
-#define FI_FADEOUT				2
-extern float Fade_delta_time;
-extern int Fade_type;
+
+enum FadeType {
+	FI_NONE,
+	FI_FADEIN,
+	FI_FADEOUT
+};
+extern FadeType Fade_type;
+extern int Fade_start_timestamp;
+extern int Fade_end_timestamp;
 
 
 typedef struct vei {

@@ -37,8 +37,8 @@ inline bool sorted_obj::operator < (const sorted_obj &other)
 }
 
 
-std::list<sorted_obj> Sorted_objects;
-
+SCP_list<sorted_obj> Sorted_objects;
+SCP_vector<object*> effect_ships; 
 
 // Used to (fairly) quicky find the 8 extreme
 // points around an object.
@@ -63,55 +63,29 @@ vec3d check_offsets[8] = {
 int obj_in_view_cone( object * objp )
 {
 	int i;
-	vec3d tmp,pt; 
+	vec3d tmp,pt;
 	ubyte codes;
 
-// Use this to hack out player for testing.
-// if ( objp == Player_obj ) return 0;
-
-// OLD INCORRECT CODE!!!
-//	g3_rotate_vector(&tmp,&objp->pos);
-//	codes=g3_code_vector_radius(&tmp, objp->radius);
-//	if ( !codes )	{
-//		return 1;		// center is in, so return 1
-//	}
-//	return 0;
-
-// This I commented out because it will quickly out for
-// objects in the center, but cause one more rotation
-// for objects outside the center.  So I figured it
-// would be best to slow down objects inside by a bit
-// and not penalize the offscreen ones, which require
-// 8 rotatations to throw out.
-//	g3_rotate_vector(&tmp,&objp->pos);
-//	codes=g3_code_vector(&tmp);
-//	if ( !codes )	{
-//		//mprintf(( "Center is in, so render it\n" ));
-//		return 1;		// center is in, so return 1
-//	}
-
 	// Center isn't in... are other points?
-
 	ubyte and_codes = 0xff;
 
-	for (i=0; i<8; i++ )	{
+	for (i=0; i<8; i++ ) {
 		vm_vec_scale_add( &pt, &objp->pos, &check_offsets[i], objp->radius );
-		g3_rotate_vector(&tmp,&pt);
-		codes=g3_code_vector(&tmp);
-		if ( !codes )	{
+		codes=g3_rotate_vector(&tmp,&pt);
+		if ( !codes ) {
 			//mprintf(( "A point is inside, so render it.\n" ));
 			return 1;		// this point is in, so return 1
 		}
 		and_codes &= codes;
 	}
 
-	if (and_codes)	{
+	if (and_codes) {
 		//mprintf(( "All points offscreen, so don't render it.\n" ));
 		return 0;	//all points off screen
 	}
 
 	//mprintf(( "All points inside, so render it, but doesn't need clipping.\n" ));
-	return 1;	
+	return 1;
 }
 
 
@@ -192,7 +166,7 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 	gr_zbuffer_set( GR_ZBUFF_FULL );	
 
 	// now draw them
-	std::list<sorted_obj>::iterator os;
+	SCP_list<sorted_obj>::iterator os;
 	for (os = Sorted_objects.begin(); os != Sorted_objects.end(); ++os) {
 		object *obj = os->obj;
 
@@ -211,7 +185,7 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 		// if we're fullneb, fire up the fog - this also generates a fog table
 		if((The_mission.flags & MISSION_FLAG_FULLNEB) && (Neb2_render_mode != NEB2_RENDER_NONE) && !Fred_running){
 			// get the fog values
-			neb2_get_fog_values(&fog_near, &fog_far, obj);
+			neb2_get_adjusted_fog_values(&fog_near, &fog_far, obj);
 
 			// only reset fog if the fog mode has changed - since regenerating a fog table takes
 			// a bit of time
@@ -224,8 +198,10 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 				continue;
 			}
 		}
-
-		(*render_function)(obj);
+		if( (obj->type == OBJ_SHIP) && Ships[obj->instance].shader_effect_active )
+			effect_ships.push_back(obj);
+		else
+			(*render_function)(obj);
 	}
 
 	Sorted_objects.clear();
@@ -239,15 +215,6 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 		gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
 	}
 
-//	if(!Cmdline_nohtl)gr_set_lighting(false,false);
-	// lasers have to be drawn without fog! - taylor
-	batch_render_lasers();
-
-/*	Show spheres where wingmen should be flying
-	{
-		extern void render_wing_phantoms_all();
-		render_wing_phantoms_all();
-	}
-	*/
+	batch_render_all();
 }
 

@@ -282,7 +282,6 @@ void mission_log_add_entry(int type, char *pname, char *sname, int info_index)
 					if ( index == -1 ) {
 						index = ship_find_exited_ship_by_name( sname );
 						if ( index == -1 ) {
-						//	Int3();		// get allender.  name of object who killed ship appears to be bogus!!!
 							break;
 						}
 						team = Ships_exited[index].team;
@@ -452,8 +451,15 @@ int mission_log_get_time_indexed( int type, char *pname, char *sname, int count,
 					continue;
 				}
 
-				if ( (sname == NULL) || !stricmp(sname, entry->sname) ) {
-					found = 1;
+				// if we are looking for a subsystem entry, the subsystem names must be compared
+				if ((type == LOG_SHIP_SUBSYS_DESTROYED || type == LOG_CAP_SUBSYS_CARGO_REVEALED)) {
+					if ( (sname == NULL) || !subsystem_stricmp(sname, entry->sname) ) {
+						found = 1;
+					}
+				} else {
+					if ( (sname == NULL) || !stricmp(sname, entry->sname) ) {
+						found = 1;
+					}
 				}
 			}
 

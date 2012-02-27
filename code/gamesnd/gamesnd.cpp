@@ -16,16 +16,9 @@
 #include "sound/ds.h"
 #include <limits.h>
 
-
-SCP_vector<game_snd> Snds;
-
-SCP_vector<game_snd> Snds_iface;
-SCP_vector<int> Snds_iface_handle;
-
-#define GAME_SND	0
-#define IFACE_SND	1
-
-void gamesnd_add_sound_slot(int type, int num);
+SCP_vector<game_snd>	Snds;
+SCP_vector<game_snd>	Snds_iface;
+SCP_vector<int>			Snds_iface_handle;
 
 void gamesnd_play_iface(int n)
 {
@@ -39,20 +32,46 @@ void gamesnd_play_iface(int n)
 int gamesnd_get_by_name(char* name)
 {
 	Assert( Snds.size() <= INT_MAX );
-	for(int i = 0; i < (int)Snds.size(); i++)
+	int i = 0;
+	for(SCP_vector<game_snd>::iterator snd = Snds.begin(); snd != Snds.end(); ++snd)
 	{
-		char *p = strrchr( Snds[i].filename, '.' );
+		char *p = strrchr( snd->filename, '.' );
 		if(p == NULL)
 		{
-			if(!stricmp(Snds[i].filename, name))
+			if(!stricmp(snd->filename, name))
 			{
 				return i;
 			}
 		}
-		else if(!strnicmp(Snds[i].filename, name, p-Snds[i].filename))
+		else if(!strnicmp(snd->filename, name, p-snd->filename))
 		{
 			return i;
 		}
+		i++;
+	}
+	return -1;
+}
+
+int gamesnd_get_by_iface_name(char* name)
+{
+	Assert( Snds_iface.size() <= INT_MAX );
+	Assert( Snds_iface.size() == Snds_iface_handle.size() );
+	int i = 0;
+	for(SCP_vector<game_snd>::iterator snd = Snds_iface.begin(); snd != Snds_iface.end(); ++snd)
+	{
+		char *p = strrchr( snd->filename, '.' );
+		if(p == NULL)
+		{
+			if(!stricmp(snd->filename, name))
+			{
+				return i;
+			}
+		}
+		else if(!strnicmp(snd->filename, name, p-snd->filename))
+		{
+			return i;
+		}
+		i++;
 	}
 	return -1;
 }
@@ -63,124 +82,210 @@ int gamesnd_get_by_tbl_index(int index)
 	if (index == -1)
 		return -1;
 	Assert( Snds.size() <= INT_MAX );
-	for(int i = 0; i < (int)Snds.size(); i++) {
-		if ( Snds[i].sig == index )
+	int i = 0;
+	for(SCP_vector<game_snd>::iterator snd = Snds.begin(); snd != Snds.end(); ++snd) {
+		if ( snd->sig == index )
 		{
 			return i;
 		}
+		i++;
 	}
 	return -1;
 }
 
 int gamesnd_get_by_iface_tbl_index(int index)
 {
+	//if we get passed -1, don't bother trying to look it up.
+	if (index == -1)
+		return -1;
 	Assert( Snds_iface.size() <= INT_MAX );
 	Assert( Snds_iface.size() == Snds_iface_handle.size() );
-	for(int i = 0; i < (int)Snds_iface.size(); i++) {
-		if ( Snds_iface[i].sig == index )
+	int i = 0;
+	for(SCP_vector<game_snd>::iterator snd = Snds_iface.begin(); snd != Snds_iface.end(); ++snd) {
+		if ( snd->sig == index )
 		{
 			return i;
 		}
+		i++;
 	}
 	return -1;
 }
 
-//Takes a tag, a sound index destination, and the object name being parsed
-//tag and object_name are mostly so that we can debug stuff
-//This also means you shouldn't use optional_string or required_string,
-//just make sure the destination sound index can handle -1 if things
-//don't work out.
-void parse_sound(char* tag, int *idx_dest, char* object_name)
+/**
+ * Helper function for parse_sound and parse_sound_list. Do not use directly.
+ * 
+ * @param tag Tag 
+ * @param idx_dest Sound index destination
+ * @param object_name Object name being parsed
+ * @param buf Buffer holding string to be parsed
+ * @param flags See the parse_sound_flags enum
+ *
+ */
+void parse_sound_core(char* tag, int *idx_dest, char* object_name, char* buf, parse_sound_flags flags)
 {
-	char buf[MAX_FILENAME_LEN];
 	int idx;
 
+	if(flags & PARSE_SOUND_INTERFACE_SOUND)
+		idx = gamesnd_get_by_iface_name(buf);
+	else
+		idx = gamesnd_get_by_name(buf);
+
+	if(idx != -1)
+	{
+		(*idx_dest) = idx;
+	}
+	else
+	{
+		if(flags & PARSE_SOUND_INTERFACE_SOUND)
+			idx = gamesnd_get_by_iface_tbl_index(atoi(buf));
+		else
+			idx = gamesnd_get_by_tbl_index(atoi(buf));
+
+		if (idx != -1)
+			(*idx_dest) = idx;
+	}
+
+	int size_to_check = 0;
+	
+	if(flags & PARSE_SOUND_INTERFACE_SOUND)
+	{
+		size_to_check = Snds_iface.size();
+		Assert( Snds_iface.size() == Snds_iface_handle.size() );
+	}
+	else
+	{
+		size_to_check = Snds.size();
+	}
+
+	Assert( size_to_check <= INT_MAX );
+
+	//Ensure sound is in range
+	if((*idx_dest) < -1 || (*idx_dest) >= (int)size_to_check)
+	{
+		(*idx_dest) = -1;
+		Warning(LOCATION, "%s sound index out of range on '%s'. Must be between 0 and %d. Forcing to -1 (Nonexistent sound).\n", tag, object_name, size_to_check);
+	}
+}
+
+/**
+ * Parse a sound. When using this function for a table entry, 
+ * required_string and optional_string aren't needed, as this function deals with 
+ * that as its tag parameter, just make sure that the destination sound index can 
+ * handle -1 if things don't work out.
+ *
+ * @param tag Tag 
+ * @param idx_dest Sound index destination
+ * @param object_name Object name being parsed
+ * @param flags See the parse_sound_flags enum
+ *
+ */
+void parse_sound(char* tag, int *idx_dest, char* object_name, parse_sound_flags flags)
+{
 	if(optional_string(tag))
 	{
+		char buf[MAX_FILENAME_LEN];
 		stuff_string(buf, F_NAME, MAX_FILENAME_LEN);
-		idx = gamesnd_get_by_name(buf);
-		if(idx != -1)
-			(*idx_dest) = idx;
-		else
+
+		parse_sound_core(tag, idx_dest, object_name, buf, flags);
+	}
+}
+
+/**
+ * CommanderDJ - Parse a list of sounds. When using this function for a table entry, 
+ * required_string and optional_string aren't needed, as this function deals with 
+ * that as its tag parameter, just make sure that the destination sound index(es) can 
+ * handle -1 if things don't work out.
+ *
+ * @param destination Vector where sound indexes are to be stored
+ * @param tag Tag 
+ * @param object_name Name of object being parsed
+ * @param flags See the parse_sound_flags enum
+ *
+ */
+void parse_sound_list(char* tag, SCP_vector<int>& destination, char* object_name, parse_sound_flags flags)
+{
+	if(optional_string(tag))
+	{
+		int check=0;
+
+		//if we're using the old format, parse the first entry separately
+		if(!(flags & PARSE_SOUND_SCP_SOUND_LIST))
 		{
-			idx = gamesnd_get_by_tbl_index(atoi(buf));
-			if (idx != -1)
-				(*idx_dest) = idx;
+			stuff_int(&check);
 		}
 
-		Assert( Snds.size() <= INT_MAX );
-		//Ensure sound is in range
-		if((*idx_dest) < -1 || (*idx_dest) >= (int)Snds.size())
+		//now read the rest of the entries on the line
+		for(int i=0;!check_for_eoln();i++)
 		{
-			(*idx_dest) = -1;
-			Warning(LOCATION, "%s sound index out of range on '%s'. Must be between 0 and %d. Forcing to -1 (Nonexistant sound).\n", tag, object_name, Snds.size());
+			char buf[MAX_FILENAME_LEN];
+			stuff_string_white(buf, MAX_FILENAME_LEN);
+
+			//we do this conditionally to avoid adding needless entries when reparsing
+			if(destination.size() <= (unsigned)i)
+			{
+				destination.push_back(-1);
+			}
+
+			parse_sound_core(tag, &destination.at(i), object_name, buf, flags);
+		}
+
+		//if we're using the old format, double check the size)
+		if(!(flags & PARSE_SOUND_SCP_SOUND_LIST) && (destination.size() != (unsigned)check))
+		{
+			mprintf(("%s in '%s' has %i entries. This does not match entered size of %i.", tag, object_name, destination.size(), check));
 		}
 	}
 }
 
-// load in sounds that we expect will get played
-//
-// The method currently used is to load all those sounds that have the hardware flag
-// set.  This works well since we don't want to try and load hardware sounds in on the
-// fly (too slow).
+/**
+ * Load in sounds that we expect will get played
+ *
+ * The method currently used is to load all those sounds that have the hardware flag
+ * set.  This works well since we don't want to try and load hardware sounds in on the
+ * fly (too slow).
+ */
 void gamesnd_preload_common_sounds()
 {
-	int		i;
-	game_snd	*gs;
-
 	if ( !Sound_enabled )
 		return;
 
 	Assert( Snds.size() <= INT_MAX );
-	for ( i = 0; i < (int)Snds.size(); i++ ) {
-		gs = &Snds[i];
+	for (SCP_vector<game_snd>::iterator gs = Snds.begin(); gs != Snds.end(); ++gs) {
 		if ( gs->filename[0] != 0 && strnicmp(gs->filename, NOX("none.wav"), 4) ) {
 			if ( gs->preload ) {
 				game_busy( NOX("** preloading common game sounds **") );	// Animate loading cursor... does nothing if loading screen not active.
-				gs->id = snd_load(gs);
+				gs->id = snd_load(&(*gs));
 			}
 		}
 	}
 }
 
-// -------------------------------------------------------------------------------------------------
-// gamesnd_load_gameplay_sounds()
-//
-// Load the ingame sounds into memory
-//
+/**
+ * Load the ingame sounds into memory
+ */
 void gamesnd_load_gameplay_sounds()
 {
-	int		i;
-	game_snd	*gs;
-
 	if ( !Sound_enabled )
 		return;
 
 	Assert( Snds.size() <= INT_MAX );
-	for ( i = 0; i < (int)Snds.size(); i++ ) {
-		gs = &Snds[i];
+	for (SCP_vector<game_snd>::iterator gs = Snds.begin(); gs != Snds.end(); ++gs) {
 		if ( gs->filename[0] != 0 && strnicmp(gs->filename, NOX("none.wav"), 4) ) {
 			if ( !gs->preload ) { // don't try to load anything that's already preloaded
 				game_busy( NOX("** preloading gameplay sounds **") );		// Animate loading cursor... does nothing if loading screen not active.
-				gs->id = snd_load(gs);
+				gs->id = snd_load(&(*gs));
 			}
 		}
 	}
 }
 
-// -------------------------------------------------------------------------------------------------
-// gamesnd_unload_gameplay_sounds()
-//
-// Unload the ingame sounds from memory
-//
+/**
+ * Unload the ingame sounds from memory
+ */
 void gamesnd_unload_gameplay_sounds()
 {
-	int		i;
-	game_snd	*gs;
-
 	Assert( Snds.size() <= INT_MAX );
-	for ( i = 0; i < (int)Snds.size(); i++ ) {
-		gs = &Snds[i];
+	for (SCP_vector<game_snd>::iterator gs = Snds.begin(); gs != Snds.end(); ++gs) {
 		if ( gs->id != -1 ) {
 			snd_unload( gs->id );
 			gs->id = -1;
@@ -188,54 +293,40 @@ void gamesnd_unload_gameplay_sounds()
 	}	
 }
 
-// -------------------------------------------------------------------------------------------------
-// gamesnd_load_interface_sounds()
-//
-// Load the interface sounds into memory
-//
+/**
+ * Load the interface sounds into memory
+ */
 void gamesnd_load_interface_sounds()
 {
-	int		i;
-	game_snd	*gs;
-
 	if ( !Sound_enabled )
 		return;
 
 	Assert( Snds_iface.size() < INT_MAX );
-	for ( i = 0; i < (int)Snds_iface.size(); i++ ) {
-		gs = &Snds_iface[i];
-		if ( gs->filename[0] != 0 && strnicmp(gs->filename, NOX("none.wav"), 4) ) {
-			gs->id = snd_load(gs);
+	for (SCP_vector<game_snd>::iterator si = Snds_iface.begin(); si != Snds_iface.end(); ++si) {
+		if ( si->filename[0] != 0 && strnicmp(si->filename, NOX("none.wav"), 4) ) {
+			si->id = snd_load(&(*si));
 		}
 	}
 }
 
-// -------------------------------------------------------------------------------------------------
-// gamesnd_unload_interface_sounds()
-//
-// Unload the interface sounds from memory
-//
+/**
+ * Unload the interface sounds from memory
+ */
 void gamesnd_unload_interface_sounds()
 {
-	int		i;
-	game_snd	*gs;
-
 	Assert( Snds_iface.size() < INT_MAX );
-	for ( i = 0; i < (int)Snds_iface.size(); i++ ) {
-		gs = &Snds_iface[i];
-		if ( gs->id != -1 ) {
-			snd_unload( gs->id );
-			gs->id = -1;
-			gs->id_sig = -1;
+	for (SCP_vector<game_snd>::iterator si = Snds_iface.begin(); si != Snds_iface.end(); ++si) {
+		if ( si->id != -1 ) {
+			snd_unload( si->id );
+			si->id = -1;
+			si->id_sig = -1;
 		}
 	}
 }
 
-// -------------------------------------------------------------------------------------------------
-// gamesnd_parse_line()
-//
-// Parse a sound effect line
-//
+/**
+ * Parse a sound effect line
+ */
 void gamesnd_parse_line(game_snd *gs, char *tag)
 {
 	int is_3d;
@@ -263,22 +354,17 @@ void gamesnd_parse_line(game_snd *gs, char *tag)
 	advance_to_eoln(NULL);
 }
 
-// -------------------------------------------------------------------------------------------------
-// gamesnd_parse_soundstbl() will parse the sounds.tbl file, and load the specified sounds.
-//
-//
+/**
+ * Parse the sounds.tbl file, and load the specified sounds.
+ */
 void gamesnd_parse_soundstbl()
 {
 	int		rval;
-	int		num_game_sounds = 0;
-	int		num_iface_sounds = 0;
-	int		i;
+	size_t	i;
 	char	cstrtemp[NAME_LENGTH+3];
 	char	*missing_species_names = NULL;
 	ubyte	*missing_species = NULL;
 	int		sanity_check = 0;
-
-	gamesnd_init_sounds();
 
 	// open localization
 	lcl_ext_open();
@@ -295,22 +381,20 @@ void gamesnd_parse_soundstbl()
 	// Parse the gameplay sounds section
 	required_string("#Game Sounds Start");
 	while (required_string_either("#Game Sounds End","$Name:")) {
-		Assert( Snds.size() < INT_MAX );
-		Assert( num_game_sounds < (int)Snds.size() );
-		gamesnd_parse_line( &Snds[num_game_sounds], "$Name:" );
-		num_game_sounds++;
-		gamesnd_add_sound_slot( GAME_SND, num_game_sounds );
+		game_snd tempSound;
+		gamesnd_parse_line( &tempSound, "$Name:" );
+		Snds.push_back(game_snd(tempSound));
 	}
 	required_string("#Game Sounds End");
 
 	// Parse the interface sounds section
 	required_string("#Interface Sounds Start");
 	while (required_string_either("#Interface Sounds End","$Name:")) {
-		Assert( Snds_iface_handle.size() < INT_MAX );
-		Assert( num_iface_sounds < (int)Snds_iface.size() );
-		gamesnd_parse_line(&Snds_iface[num_iface_sounds], "$Name:");
-		num_iface_sounds++;
-		gamesnd_add_sound_slot( IFACE_SND, num_iface_sounds );
+		game_snd tempSound;
+		gamesnd_parse_line( &tempSound, "$Name:");
+
+		Snds_iface.push_back(game_snd(tempSound));
+		Snds_iface_handle.push_back(-1);
 	}
 	required_string("#Interface Sounds End");
 
@@ -325,7 +409,7 @@ void gamesnd_parse_soundstbl()
 
 	while ( !check_for_string("#Flyby Sounds End") && (sanity_check <= (int)Species_info.size()) )
 	{
-		for (i = 0; i < (int)Species_info.size(); i++) {
+		for (i = 0; i < Species_info.size(); i++) {
 			species_info *species = &Species_info[i];
 
 			sprintf(cstrtemp, "$%s:", species->species_name);
@@ -342,7 +426,7 @@ void gamesnd_parse_soundstbl()
 	}
 
 	// if we are missing any species then report it
-	for (i = 0; i < (int)Species_info.size(); i++) {
+	for (i = 0; i < Species_info.size(); i++) {
 		if ( missing_species[i] ) {
 			strcat(missing_species_names, Species_info[i].species_name);
 			strcat(missing_species_names, "\n");
@@ -502,54 +586,9 @@ void gamesnd_parse_soundstbl()
 	lcl_ext_close();
 }
 
-
-// -------------------------------------------------------------------------------------------------
-// gamesnd_init_struct()
-//
-void gamesnd_init_struct(game_snd *gs)
-{
-	gs->sig = -1;
-	gs->filename[0] = 0;
-	gs->id = -1;
-	gs->id_sig = -1;
-//	gs->is_3d = 0;
-//	gs->use_ds3d = 0;
-	gs->flags = 0;
-}
-
-// -------------------------------------------------------------------------------------------------
-// gamesnd_init_sounds() will initialize the Snds[] and Snds_iface[] arrays
-//
-void gamesnd_init_sounds()
-{
-	int		i;
-
-	Snds.clear();
-	Snds.resize(MIN_GAME_SOUNDS);
-
-	Assert( Snds.size() > 0 );
-
-	Assert( Snds.size() <= INT_MAX );
-	// init the gameplay sounds
-	for ( i = 0; i < (int)Snds.size(); i++ ) {
-		gamesnd_init_struct(&Snds[i]);
-	}
-
-	Snds_iface.clear();
-	Snds_iface.resize(MIN_INTERFACE_SOUNDS);
-	Snds_iface_handle.resize(MIN_INTERFACE_SOUNDS);
-	
-	Assert( Snds_iface.size() > 0 );
-
-	Assert( Snds_iface.size() < INT_MAX );
-	// init the interface sounds
-	for ( i = 0; i < (int)Snds_iface.size(); i++ ) {
-		gamesnd_init_struct(&Snds_iface[i]);
-		Snds_iface_handle[i] = -1;
-	}
-}
-
-// close out gamesnd,  ONLY CALL FROM game_shutdown()!!!!
+/**
+ * Close out gamesnd, ONLY CALL FROM game_shutdown()!!!!
+ */
 void gamesnd_close()
 {
 	Snds.clear();
@@ -557,60 +596,18 @@ void gamesnd_close()
 	Snds_iface_handle.clear();
 }
 
-// callback function for the UI code to call when the mouse first goes over a button.
+/**
+ * Callback function for the UI code to call when the mouse first goes over a button.
+ */
 void common_play_highlight_sound()
 {
 	gamesnd_play_iface(SND_USER_OVER);
 }
 
+/**
+ * Callback function for the UI code to call when an error beep needed.
+ */
 void gamesnd_play_error_beep()
 {
 	gamesnd_play_iface(SND_GENERAL_FAIL);
-}
-
-void gamesnd_add_sound_slot(int type, int num)
-{
-	const int increase_by = 5;
-	int i;
-
-	switch (type) {
-		case GAME_SND:
-		{
-			Assert( Snds.size() <= INT_MAX );
-			Assert( num < ((int)Snds.size() + increase_by) );
-
-			if (num >= (int)Snds.size()) {
-				Snds.resize(Snds.size() + increase_by);
-
-				// default all new entries
-				for (i = ((int)Snds.size() - increase_by); i < (int)Snds.size(); i++) {
-					gamesnd_init_struct(&Snds[i]);
-				}
-			}
-		}
-		break;
-
-		case IFACE_SND:
-		{
-			Assert( Snds_iface.size() < INT_MAX );
-			Assert( num < ((int)Snds_iface.size() + increase_by) );
-
-			if (num >= (int)Snds_iface.size()) {
-				Snds_iface.resize(Snds_iface.size() + increase_by);
-
-				Snds_iface_handle.resize(Snds_iface.size());
-				Assert( Snds_iface.size() < INT_MAX );
-
-				// default all new entries
-				for (i = ((int)Snds_iface_handle.size() - increase_by); i < (int)Snds_iface_handle.size(); i++) {
-					gamesnd_init_struct(&Snds_iface[i]);
-					Snds_iface_handle[i] = -1;
-				}
-			}
-		}
-		break;
-
-		default:
-			Int3();
-	}
 }

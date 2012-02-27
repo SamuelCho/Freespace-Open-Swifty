@@ -19,11 +19,6 @@
 #define BMPMAN_NDEBUG
 #endif
 
-
-// this is causing problems - let's UP IT -- Kazan
-// bumped from 3500 to 4500 2004/09/21 - taylor
-// bumped to 4750 2005/02/03 - taylor
-//#define MAX_BITMAPS 3500			// How many bitmaps the game can handle
 #define MAX_BITMAPS 4750			// How many bitmaps the game can handle
 // NOTE:  MAX_BITMAPS shouldn't need to be bumped again.  With the fixed bm_release() and it's
 // proper use even the largest missions should stay under this number.  With the largest retail
@@ -94,6 +89,7 @@ extern int bm_texture_ram;
 // the bitmap.   On success, it returns the bitmap
 // number.
 int bm_load(char * filename);
+int bm_load(const SCP_string& filename);
 
 // special load function. basically allows you to load a bitmap which already exists (by filename). 
 // this is useful because in some cases we need to have a bitmap which is locked in screen format
@@ -159,9 +155,6 @@ int bm_get_info( int bitmapnum, int *w=NULL, int * h=NULL, ubyte * flags=NULL, i
 
 // get filename
 extern void bm_get_filename(int bitmapnum, char *filename);	 
-
-// resyncs all the bitmap palette
-extern void bm_update();
 
 // call to load all data for all bitmaps that have been requested to be loaded
 extern void bm_gfx_load_all();

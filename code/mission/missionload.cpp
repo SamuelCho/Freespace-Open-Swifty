@@ -272,7 +272,6 @@ void mission_load_menu_do()
 		} else if ( Campaign_filter_index == 1 ) {
 			mlm_mission_list.set_new_list(jtmp_nfiles, jtmp_missions); 
 		}
-		mlm_current = 0;
 	}
 
 	mlm_current = mlm_mission_list.current();
@@ -332,18 +331,9 @@ void mission_load_menu_do()
 		}
 
 		// go
-#ifdef PD_BUILD
-		// if this valid
-		if((game_find_builtin_mission(mission_name_final) != NULL) || strstr(mission_name_final, "peterdrake")){
-			strcpy_s(Game_current_mission_filename, mission_name_final);
-			mprintf(( "Selected '%s'\n", Game_current_mission_filename ));
-			gameseq_post_event(GS_EVENT_START_GAME);			
-		}
-#else
 		strcpy_s(Game_current_mission_filename, mission_name_final);
 		mprintf(( "Selected '%s'\n", Game_current_mission_filename ));
 		gameseq_post_event(GS_EVENT_START_GAME);			
-#endif
 	}
 
 	gr_clear();

@@ -311,9 +311,9 @@ void get_join_request(ubyte *data, int *size, join_request *jr)
 
 	GET_DATA(*jr);
 
-	jr->tracker_id = INTEL_INT(jr->tracker_id);
-	jr->player_options.flags = INTEL_INT(jr->player_options.flags);
-	jr->player_options.obj_update_level = INTEL_INT(jr->player_options.obj_update_level);
+	jr->tracker_id = INTEL_INT(jr->tracker_id); //-V570
+	jr->player_options.flags = INTEL_INT(jr->player_options.flags); //-V570
+	jr->player_options.obj_update_level = INTEL_INT(jr->player_options.obj_update_level); //-V570
 
 	*size = offset;
 }
@@ -339,8 +339,8 @@ void get_net_addr(ubyte *data, int *size, net_addr *addr)
 
 	GET_DATA(*addr);
 
-	addr->type = INTEL_INT(addr->type);
-	addr->port = INTEL_SHORT(addr->port);
+	addr->type = INTEL_INT(addr->type); //-V570
+	addr->port = INTEL_SHORT(addr->port); //-V570
 
 	*size = offset;
 }
@@ -1115,7 +1115,7 @@ void process_new_player_packet(ubyte* data, header* hinfo)
 		}
 
 		// copy in the filename
-		if(strlen(new_player_image) > 0){
+		if(new_player_image[0] != '\0'){
 			strcpy_s(Net_players[new_player_num].m_player->image_filename, new_player_image);
 		} else {
 			strcpy_s(Net_players[new_player_num].m_player->image_filename, "");
@@ -2780,7 +2780,7 @@ void send_ship_depart_packet( object *objp, int method )
 
 	BUILD_HEADER(SHIP_DEPART);
 	ADD_USHORT( signature );
-	ADD_SHORT( (short) method); 
+	ADD_INT( method ); 
 	
 	multi_io_send_to_all_reliable(data, packet_size);
 }
@@ -2791,11 +2791,11 @@ void process_ship_depart_packet( ubyte *data, header *hinfo )
 	int offset;
 	object *objp;
 	ushort signature;
-	short s_method; 
+	int s_method; 
 
 	offset = HEADER_LENGTH;
 	GET_USHORT( signature );
-	GET_SHORT(s_method); 
+	GET_INT(s_method); 
 	PACKET_SET_SIZE();
 
 	// find the object which is departing
@@ -2966,8 +2966,6 @@ void send_secondary_fired_packet( ship *shipp, ushort starting_sig, int starting
 	ADD_USHORT( starting_sig );
 	
 	// add a couple of bits for swarm missiles and dual fire secondary weapons
-	sinfo = 0;
-
 	sinfo = current_bank;
 
 	if ( allow_swarm ){
@@ -4067,7 +4065,9 @@ void process_netplayer_slot_packet(ubyte *data, header *hinfo)
 			// being careful not to muck with the standalone object
 			if(!((player_num == 0) && (Game_mode & GM_STANDALONE_SERVER))){
 				objp = multi_get_network_object(net_sig);
-				Assert(objp != NULL);
+				if (objp == NULL) {
+					Error(LOCATION, "Could not retrieve net object for signature %d!\n", net_sig);
+				}
 				multi_assign_player_ship( player_num, objp, ship_class );
 				Net_players[player_num].p_info.ship_index = ship_index;
 				objp->flags &= ~(OF_COULD_BE_PLAYER);
@@ -4797,9 +4797,6 @@ void process_jump_into_mission_packet(ubyte *data, header *hinfo)
 		}		
 	}
 
-	//extern int Player_multi_died_check;
-	//Player_multi_died_check = -1;
-
 	// recalc all object pairs now	
 	extern void obj_reset_all_collisions();
 	obj_reset_all_collisions();
@@ -5007,8 +5004,8 @@ void send_ai_info_update_packet( object *objp, char what, object * other_objp )
 		ADD_INT( aigp->ai_submode );
 
 		shipnum = -1;
-		if ( aigp->ship_name != NULL )
-			shipnum = ship_name_lookup( aigp->ship_name );
+		if ( aigp->target_name != NULL )
+			shipnum = ship_name_lookup( aigp->target_name );
 
 		// the ship_name member of the goals structure may or may not contain a real shipname.  If we don't
 		// have a valid shipnum, then don't sweat it since it may not really be a ship.
@@ -5123,7 +5120,7 @@ void process_ai_info_update_packet( ubyte *data, header *hinfo)
 			// get a pointer to the shipname in question.  Use the ship_name value in the
 			// ship.  We are only using this for HUD display, so I think that using this
 			// method will be fine.
-			aigp->ship_name = Ships[other_objp->instance].ship_name;
+			aigp->target_name = ai_get_goal_target_name(Ships[other_objp->instance].ship_name, &aigp->target_name_index);
 
 			// special case for destroy subsystem -- get the ai_info pointer to our target ship
 			// so that we can properly set up what subsystem this ship is attacking.
@@ -7840,7 +7837,7 @@ void process_NEW_countermeasure_fired_packet(ubyte *data, header *hinfo)
 	ship_launch_countermeasure( objp, rand_val );			
 }
 
-void send_beam_fired_packet(object *shooter, ship_subsys *turret, object *target, int beam_info_index, beam_info *override, ubyte fighter_beam, int bank_point)
+void send_beam_fired_packet(object *shooter, ship_subsys *turret, object *target, int beam_info_index, beam_info *override, int bfi_flags, int bank_point)
 {
 	ubyte data[MAX_PACKET_SIZE];
 	int packet_size = 0;	
@@ -7860,7 +7857,7 @@ void send_beam_fired_packet(object *shooter, ship_subsys *turret, object *target
 		return;
 	}
 
-	if (!fighter_beam) {
+	if (!(bfi_flags & BFIF_IS_FIGHTER_BEAM)) {
 		Assert(target != NULL);
 		if (target == NULL) {
 			return;
@@ -7871,7 +7868,7 @@ void send_beam_fired_packet(object *shooter, ship_subsys *turret, object *target
 
 	u_beam_info = (short)beam_info_index;
 
-	if (fighter_beam) {
+	if (bfi_flags & BFIF_IS_FIGHTER_BEAM) {
 		Assert( (bank_point >= 0) && (bank_point < UCHAR_MAX) );
 		subsys_index = (char)bank_point;
 	} else {
@@ -7906,7 +7903,8 @@ void send_beam_fired_packet(object *shooter, ship_subsys *turret, object *target
 	ADD_USHORT(target_sig);
 	ADD_SHORT(u_beam_info);
 	ADD_DATA(b_info);  // FIXME: This is still wrong, we shouldn't be sending an entire struct over the wire - taylor
-//	ADD_DATA(fighter_beam);  // this breaks the protocol but is here in case we decided to do that in the future - taylor
+//	ADD_DATA(bfi_flags);	// this breaks the protocol but is here in case we decided to do that in the future - taylor
+//	ADD_DATA(target_pos);	// ditto - Goober5000
 
 	// send to all clients	
 	multi_io_send_to_all_reliable(data, packet_size);
@@ -7963,7 +7961,6 @@ void process_beam_fired_packet(ubyte *data, header *hinfo)
 	fire_info.target = multi_get_network_object(target_sig);
 	fire_info.beam_info_override = &b_info;
 	fire_info.accuracy = 1.0f;
-	fire_info.fighter_beam = /*(fighter_beam) ? true :*/ false;
 
 	if((fire_info.shooter == NULL) || (fire_info.shooter->type != OBJ_SHIP) || (fire_info.shooter->instance < 0) || (fire_info.shooter->instance > MAX_SHIPS)){
 		nprintf(("Network", "Couldn't get shooter info for BEAM weapon!\n"));
@@ -7977,17 +7974,17 @@ void process_beam_fired_packet(ubyte *data, header *hinfo)
 		// make sure the beam is a primary weapon and not attached to a turret or something
 		for (i = 0; i < shipp->weapons.num_primary_banks; i++) {
 			if ( shipp->weapons.primary_bank_weapons[i] == fire_info.beam_info_index ) {
-				fire_info.fighter_beam = true;
+				fire_info.bfi_flags |= BFIF_IS_FIGHTER_BEAM;
 			}
 		}
 	}
 
-	if ( !fire_info.fighter_beam && (fire_info.target == NULL) ) {
+	if ( !(fire_info.bfi_flags & BFIF_IS_FIGHTER_BEAM) && (fire_info.target == NULL) ) {
 		nprintf(("Network", "Couldn't get target info for BEAM weapon!\n"));
 		return;
 	}
 
-	if (fire_info.fighter_beam) {
+	if (fire_info.bfi_flags & BFIF_IS_FIGHTER_BEAM) {
 		polymodel *pm = model_get( Ship_info[shipp->ship_info_index].model_num );
 		float field_of_fire = Weapon_info[fire_info.beam_info_index].field_of_fire;
 
@@ -8097,7 +8094,7 @@ void process_event_update_packet(ubyte *data, header *hinfo)
 		mission_event_set_directive_special(u_event);
 	}
 	// if we went directive special to non directive special
-	else if((store_flags & MEF_DIRECTIVE_SPECIAL) & !(Mission_events[u_event].flags & MEF_DIRECTIVE_SPECIAL)){
+	else if((store_flags & MEF_DIRECTIVE_SPECIAL) && !(Mission_events[u_event].flags & MEF_DIRECTIVE_SPECIAL)){
 		mission_event_unset_directive_special(u_event);
 	}	
 }

@@ -194,11 +194,6 @@ int gr_opengl_create_buffer()
 
 	opengl_vertex_buffer vbuffer;
 
-	// allocate additional blocks if we need them to prevent memory fragmentation, 15 at a time
-	if ( GL_vertex_buffers.size() >= GL_vertex_buffers.capacity() ) {
-		GL_vertex_buffers.reserve( GL_vertex_buffers.size() + 15 );
-	}
-
 	GL_vertex_buffers.push_back( vbuffer );
 	GL_vertex_buffers_in_use++;
 
@@ -331,8 +326,8 @@ bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb)
 
 		// tex coords
 		if (vb->flags & VB_FLAG_UV1) {
-			array[arsize++] = vl->u;
-			array[arsize++] = vl->v;
+			array[arsize++] = vl->texture_position.u;
+			array[arsize++] = vl->texture_position.v;
 		}
 
 		// normals
@@ -353,9 +348,9 @@ bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb)
 		}
 
 		// verts
-		array[arsize++] = vl->x;
-		array[arsize++] = vl->y;
-		array[arsize++] = vl->z;
+		array[arsize++] = vl->world.xyz.x;
+		array[arsize++] = vl->world.xyz.y;
+		array[arsize++] = vl->world.xyz.z;
 	}
 
 	// generate the index array
@@ -496,13 +491,18 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 }
 
 #define DO_RENDER()	\
-	vglDrawRangeElements(GL_TRIANGLES, start, end, count, element_type, ibuffer + (datap->index_offset + start))
+	if (Cmdline_drawelements) \
+		glDrawElements(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start)); \
+	else \
+		vglDrawRangeElements(GL_TRIANGLES, start, end, count, element_type, ibuffer + (datap->index_offset + start));
 
 int GL_last_shader_flags = -1;
 int GL_last_shader_index = -1;
 
 static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags);
 
+extern bool Scene_framebuffer_in_frame;
+extern GLuint Framebuffer_fallback_texture_id;
 static void opengl_render_pipeline_program(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags)
 {
 	float u_scale, v_scale;
@@ -522,9 +522,6 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 
 	int textured = ((flags & TMAP_FLAG_TEXTURED) && (bufferp->flags & VB_FLAG_UV1));
 
-	// init lights
-	opengl_change_active_lights(0);
-
 	// setup shader flags for the things that we want/need
 	if (lighting_is_enabled) {
 		shader_flags |= SDR_FLAG_LIGHT;
@@ -533,6 +530,9 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	if ( GL_state.Fog() ) {
 		shader_flags |= SDR_FLAG_FOG;
 	}
+
+	if (flags & TMAP_ANIMATED_SHADER)
+		shader_flags |= SDR_FLAG_ANIMATED;
 
 	if (textured) {
 		if ( !Basemap_override ) {
@@ -616,6 +616,13 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		ibuffer = (GLubyte*)vbp->index_list;
 	}
 
+	if(flags & TMAP_ANIMATED_SHADER)
+	{
+		vglUniform1fARB( opengl_shader_get_uniform("anim_timer"), opengl_shader_get_animated_timer() );
+		vglUniform1iARB( opengl_shader_get_uniform("effect_num"), opengl_shader_get_animated_effect() );
+		vglUniform1fARB( opengl_shader_get_uniform("vpwidth"), 1.0f/gr_screen.max_w );
+		vglUniform1fARB( opengl_shader_get_uniform("vpheight"), 1.0f/gr_screen.max_h );
+	}
 	int n_lights = MIN(Num_active_gl_lights, GL_max_lights) - 1;
 	vglUniform1iARB( opengl_shader_get_uniform("n_lights"), n_lights );
 
@@ -673,6 +680,20 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		}
 	}
 
+	if ((shader_flags & SDR_FLAG_ANIMATED))
+	{
+		GL_state.Texture.SetActiveUnit(render_pass);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		if( Scene_framebuffer_in_frame )
+		{
+			GL_state.Texture.Enable(Scene_effect_texture);
+			glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+		}
+		else
+			GL_state.Texture.Enable(Framebuffer_fallback_texture_id);
+		vglUniform1iARB( opengl_shader_get_uniform("sFramebuffer"), render_pass );
+		render_pass++;
+	}
 	// DRAW IT!!
 	DO_RENDER();
 /*
@@ -794,8 +815,6 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 
 	render_pass = 0;
 
-	// init lights
-	opengl_change_active_lights(0);
 	opengl_default_light_settings( !GL_center_alpha, (Interp_light > 0.25f), (using_spec) ? 0 : 1 );
 	gr_opengl_set_center_alpha(GL_center_alpha);
 
@@ -1166,7 +1185,7 @@ void gr_opengl_set_projection_matrix(float fov, float aspect, float z_near, floa
 
 	GL_CHECK_FOR_ERRORS("start of set_projection_matrix()()");
 	
-	if (GL_rendering_to_framebuffer) {
+	if (GL_rendering_to_texture) {
 		glViewport(gr_screen.offset_x, gr_screen.offset_y, gr_screen.clip_width, gr_screen.clip_height);
 	} else {
 		glViewport(gr_screen.offset_x, (gr_screen.max_h - gr_screen.offset_y - gr_screen.clip_height), gr_screen.clip_width, gr_screen.clip_height);
@@ -1181,7 +1200,7 @@ void gr_opengl_set_projection_matrix(float fov, float aspect, float z_near, floa
 	clip_height = tan( (double)fov * 0.5 ) * z_near;
 	clip_width = clip_height * (GLdouble)aspect;
 
-	if (GL_rendering_to_framebuffer) {
+	if (GL_rendering_to_texture) {
 		glFrustum( -clip_width, clip_width, clip_height, -clip_height, z_near, z_far );
 	} else {
 		glFrustum( -clip_width, clip_width, -clip_height, clip_height, z_near, z_far );
@@ -1208,7 +1227,7 @@ void gr_opengl_end_projection_matrix()
 	glLoadIdentity();
 
 	// the top and bottom positions are reversed on purpose, but RTT needs them the other way
-	if (GL_rendering_to_framebuffer) {
+	if (GL_rendering_to_texture) {
 		glOrtho(0, gr_screen.max_w, 0, gr_screen.max_h, -1.0, 1.0);
 	} else {
 		glOrtho(0, gr_screen.max_w, gr_screen.max_h, 0, -1.0, 1.0);
@@ -1386,7 +1405,7 @@ void gr_opengl_set_2d_matrix(/*int x, int y, int w, int h*/)
 	glLoadIdentity();
 
 	// the top and bottom positions are reversed on purpose, but RTT needs them the other way
-	if (GL_rendering_to_framebuffer) {
+	if (GL_rendering_to_texture) {
 		glOrtho( 0, gr_screen.max_w, 0, gr_screen.max_h, -1, 1 );
 	} else {
 		glOrtho( 0, gr_screen.max_w, gr_screen.max_h, 0, -1, 1 );

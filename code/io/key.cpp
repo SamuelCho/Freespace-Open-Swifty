@@ -26,6 +26,7 @@
 #include "io/timer.h"
 #include "localization/localize.h"
 #include "parse/scripting.h"
+#include "cmdline/cmdline.h"
 
 #define THREADED	// to use the proper set of macros
 #include "osapi/osapi.h"
@@ -102,18 +103,53 @@ int Cheats_enabled = 0;
 int Key_normal_game = 0;
 
 #ifdef SCP_UNIX
+/**
+ * Keyboard layouts
+ */
+enum KeyboardLayout {
+	KEYBOARD_LAYOUT_DEFAULT, //!< American
+	KEYBOARD_LAYOUT_QWERTZ,  //!< German
+	KEYBOARD_LAYOUT_AZERTY   //!< French
+};
+
 void FillSDLArray ()
 {
-	SDLtoFS2[SDLK_0] = KEY_0;
-	SDLtoFS2[SDLK_1] = KEY_1;
-	SDLtoFS2[SDLK_2] = KEY_2;
-	SDLtoFS2[SDLK_3] = KEY_3;
-	SDLtoFS2[SDLK_4] = KEY_4;
-	SDLtoFS2[SDLK_5] = KEY_5;
-	SDLtoFS2[SDLK_6] = KEY_6;
-	SDLtoFS2[SDLK_7] = KEY_7;
-	SDLtoFS2[SDLK_8] = KEY_8;
-	SDLtoFS2[SDLK_9] = KEY_9;
+	KeyboardLayout layout = KEYBOARD_LAYOUT_DEFAULT;
+	
+	if (Cmdline_keyboard_layout) {
+		if (!strcmp(Cmdline_keyboard_layout, "qwertz")) {
+			layout = KEYBOARD_LAYOUT_QWERTZ;
+		}
+		
+		if (!strcmp(Cmdline_keyboard_layout, "azerty")) {
+			layout = KEYBOARD_LAYOUT_AZERTY;
+		}
+
+	}
+
+	if(layout == KEYBOARD_LAYOUT_AZERTY) {
+		SDLtoFS2[SDLK_WORLD_64] = KEY_0;
+		SDLtoFS2[SDLK_AMPERSAND] = KEY_1;
+		SDLtoFS2[SDLK_WORLD_73] = KEY_2;
+		SDLtoFS2[SDLK_QUOTEDBL] = KEY_3;
+		SDLtoFS2[SDLK_QUOTE] = KEY_4;
+		SDLtoFS2[SDLK_LEFTPAREN] = KEY_5;
+		SDLtoFS2[SDLK_MINUS] = KEY_6;
+		SDLtoFS2[SDLK_WORLD_72] = KEY_7;
+		SDLtoFS2[SDLK_UNDERSCORE] = KEY_8;
+		SDLtoFS2[SDLK_WORLD_71] = KEY_9;
+	} else {
+		SDLtoFS2[SDLK_0] = KEY_0;
+		SDLtoFS2[SDLK_1] = KEY_1;
+		SDLtoFS2[SDLK_2] = KEY_2;
+		SDLtoFS2[SDLK_3] = KEY_3;
+		SDLtoFS2[SDLK_4] = KEY_4;
+		SDLtoFS2[SDLK_5] = KEY_5;
+		SDLtoFS2[SDLK_6] = KEY_6;
+		SDLtoFS2[SDLK_7] = KEY_7;
+		SDLtoFS2[SDLK_8] = KEY_8;
+		SDLtoFS2[SDLK_9] = KEY_9;
+	}
 
 	SDLtoFS2[SDLK_a] = KEY_A;
 	SDLtoFS2[SDLK_b] = KEY_B;
@@ -142,21 +178,7 @@ void FillSDLArray ()
 	SDLtoFS2[SDLK_y] = KEY_Y;
 	SDLtoFS2[SDLK_z] = KEY_Z;
 
-	if (Lcl_gr) {
-		SDLtoFS2[SDLK_WORLD_63] = KEY_MINUS;
-		SDLtoFS2[SDLK_WORLD_20] = KEY_EQUAL;
-		SDLtoFS2[SDLK_MINUS] = KEY_DIVIDE;
-		SDLtoFS2[SDLK_HASH] = KEY_SLASH;
-		SDLtoFS2[SDLK_COMMA] = KEY_COMMA;
-		SDLtoFS2[SDLK_PERIOD] = KEY_PERIOD;
-		SDLtoFS2[SDLK_WORLD_86] = KEY_SEMICOL;
-
-		SDLtoFS2[SDLK_WORLD_92] = KEY_LBRACKET;
-		SDLtoFS2[SDLK_PLUS] = KEY_RBRACKET;
-
-		SDLtoFS2[SDLK_CARET] = KEY_LAPOSTRO;
-		SDLtoFS2[SDLK_WORLD_68] = KEY_RAPOSTRO;
-	} else {
+	if(layout == KEYBOARD_LAYOUT_DEFAULT) {
 		SDLtoFS2[SDLK_MINUS] = KEY_MINUS;
 		SDLtoFS2[SDLK_EQUALS] = KEY_EQUAL;
 		SDLtoFS2[SDLK_SLASH] = KEY_DIVIDE; // No idea - DDOI
@@ -171,6 +193,38 @@ void FillSDLArray ()
 
 		SDLtoFS2[SDLK_BACKQUOTE] = KEY_LAPOSTRO;
 		SDLtoFS2[SDLK_QUOTE] = KEY_RAPOSTRO;
+	}
+
+	if(layout == KEYBOARD_LAYOUT_QWERTZ) {
+		SDLtoFS2[SDLK_WORLD_63] = KEY_MINUS;
+		SDLtoFS2[SDLK_WORLD_20] = KEY_EQUAL;
+		SDLtoFS2[SDLK_MINUS] = KEY_DIVIDE;
+		SDLtoFS2[SDLK_HASH] = KEY_SLASH;
+		SDLtoFS2[SDLK_COMMA] = KEY_COMMA;
+		SDLtoFS2[SDLK_PERIOD] = KEY_PERIOD;
+		SDLtoFS2[SDLK_WORLD_86] = KEY_SEMICOL;
+
+		SDLtoFS2[SDLK_WORLD_92] = KEY_LBRACKET;
+		SDLtoFS2[SDLK_PLUS] = KEY_RBRACKET;
+
+		SDLtoFS2[SDLK_CARET] = KEY_LAPOSTRO;
+		SDLtoFS2[SDLK_WORLD_68] = KEY_RAPOSTRO;
+	}
+
+	if(layout == KEYBOARD_LAYOUT_AZERTY) {
+		SDLtoFS2[SDLK_RIGHTPAREN] = KEY_MINUS;
+		SDLtoFS2[SDLK_EQUALS] = KEY_EQUAL;
+		SDLtoFS2[SDLK_EXCLAIM] = KEY_DIVIDE;
+		SDLtoFS2[SDLK_ASTERISK] = KEY_SLASH;
+		SDLtoFS2[SDLK_COMMA] = KEY_COMMA;
+		SDLtoFS2[SDLK_COLON] = KEY_PERIOD;
+		SDLtoFS2[SDLK_SEMICOLON] = KEY_SEMICOL;
+
+		SDLtoFS2[SDLK_CARET] = KEY_LBRACKET;
+		SDLtoFS2[SDLK_DOLLAR] = KEY_RBRACKET;
+
+		SDLtoFS2[SDLK_WORLD_18] = KEY_LAPOSTRO;
+		SDLtoFS2[SDLK_WORLD_89] = KEY_RAPOSTRO;
 	}
 
 	SDLtoFS2[SDLK_ESCAPE] = KEY_ESC;
@@ -656,53 +710,12 @@ void key_mark( uint code, int state, uint latency )
 		code = KEY_SLASH;
 	}
 
-	if(Lcl_fr){
-		switch (code) {
-		case KEY_A:
-			code = KEY_Q;
-			break;
-
-		case KEY_M:
-			code = KEY_COMMA;
-			break;
-
-		case KEY_Q:
-			code = KEY_A;
-			break;
-
-		case KEY_W:
-			code = KEY_Z;
-			break;
-
-		case KEY_Z:
-			code = KEY_W;
-			break;
-
-		case KEY_SEMICOL:
-			code = KEY_M;
-			break;
-
-		case KEY_COMMA:
-			code = KEY_SEMICOL;
-			break;
-		}
-#if defined(SCP_UNIX) && !defined(__APPLE__)
-	} else if(Lcl_gr){
-		switch (code) {
-		case KEY_Y:
-			code = KEY_Z;
-			break;
-
-		case KEY_Z:
-			code = KEY_Y;
-			break;
-		}
-#endif
-	}
+#ifndef SCP_UNIX
 
 	if ( (code == 0xc5) && !Key_running_NT ) {
 		key_turn_off_numlock();
 	}
+#endif
 
 	Assert( code < NUM_KEYS );	
 
@@ -755,12 +768,6 @@ void key_mark( uint code, int state, uint latency )
 			key_data.NumDowns[scancode]++;
 			key_data.down_check[scancode]++;
 
-//			mprintf(( "Scancode = %x\n", scancode ));
-
-//			if ( scancode == KEY_BREAK )
-//				Int3();
-
-
 			//WMC - For scripting
 			Current_key_down = scancode;
 			if ( keyd_pressed[KEY_LSHIFT] || keyd_pressed[KEY_RSHIFT] )
@@ -794,12 +801,6 @@ void key_mark( uint code, int state, uint latency )
 #ifndef NDEBUG
 			if ( keyd_pressed[KEY_DEBUG_KEY] )
 				keycode |= KEY_DEBUGGED;
-//			if ( keycode == (KEY_BACKSP + KEY_DEBUGGED) )	{
-//				keycode = 0;
-//				keyd_pressed[KEY_DEBUG_KEY] = 0;
-//				keyd_pressed[KEY_BACKSP] = 0;
-//				Int3();
-//			}
 #else
 			if ( keyd_pressed[KEY_DEBUG_KEY] ) {
 				mprintf(("Cheats_enabled = %i, Key_normal_game = %i\n", Cheats_enabled, Key_normal_game));

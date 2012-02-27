@@ -9,7 +9,6 @@
 
 
 
-
 #include "ship/afterburner.h"
 #include "io/joy_ff.h"
 #include "gamesnd/gamesnd.h"
@@ -20,8 +19,6 @@
 #include "hud/hudets.h"
 #include "freespace2/freespace.h"
 #include "network/multi.h"
-
-
 
 // ----------------------------------------------------------
 // Global to file
@@ -49,11 +46,9 @@ static int		Player_afterburner_start_time;
 #define DISENGAGE_TIME								1500	// time in ms to play faded loop sound when afterburner disengages
 
 
-// ----------------------------------------------------------------------------
-// afterburner_level_init()
-//          
-//	call at the start of a mission
-//
+/**
+ * Call at the start of a mission
+ */
 void afterburner_level_init()
 {
 	Player_disengage_timer = 1;
@@ -62,13 +57,13 @@ void afterburner_level_init()
 	Player_afterburner_start_time = 0;
 }
 
-// ----------------------------------------------------------------------------
-// afterburners_start() will be called when a ship engages the afterburners.
-// This function should only be called once when afterburners first start.  This is
-// to start an appropriate sound effect and do any one-time initializations.
-//
-// parameters:   *objp        ==> pointer to the object starting afterburners
-//          
+/**
+ * Called when a ship engages the afterburners.
+ * This function should only be called once when afterburners first start.  This is
+ * to start an appropriate sound effect and do any one-time initializations.
+ *
+ * @param *objp pointer to the object starting afterburners
+ */          
 void afterburners_start(object *objp)
 {
 	ship_info	*sip;
@@ -97,7 +92,7 @@ void afterburners_start(object *objp)
 		now = timer_get_milliseconds();
 
 		if ( (now - Player_afterburner_start_time) < 1300 ) {
-			snd_play( &Snds[SND_ABURN_FAIL] );
+			snd_play( &Snds[ship_get_sound(objp, SND_ABURN_FAIL)] );
 			return;
 		}
 
@@ -121,7 +116,7 @@ void afterburners_start(object *objp)
 	// Check if there is enough afterburner fuel
 	if ( (shipp->afterburner_fuel < MIN_AFTERBURNER_FUEL_TO_ENGAGE) && !MULTIPLAYER_CLIENT ) {
 		if ( objp == Player_obj ) {
-			snd_play( &Snds[SND_ABURN_FAIL] );
+			snd_play( &Snds[ship_get_sound(objp, SND_ABURN_FAIL)] );
 		}
 		return;
 	}
@@ -147,27 +142,24 @@ void afterburners_start(object *objp)
 			Player_afterburner_loop_delay = 0;
 		}
 
-		snd_play( &Snds[SND_ABURN_ENGAGE], 0.0f, 1.0f, SND_PRIORITY_MUST_PLAY );
+		snd_play( &Snds[ship_get_sound(objp, SND_ABURN_ENGAGE)], 0.0f, 1.0f, SND_PRIORITY_MUST_PLAY );
 		joy_ff_afterburn_on();
 	} else {
-		snd_play_3d( &Snds[SND_ABURN_ENGAGE], &objp->pos, &View_position, objp->radius );
+		snd_play_3d( &Snds[ship_get_sound(objp, SND_ABURN_ENGAGE)], &objp->pos, &View_position, objp->radius );
 	}
 	
 	objp->phys_info.flags |= PF_AFTERBURNER_WAIT;
 }
 
-// ----------------------------------------------------------------------------
-// afterburners_update()
-//
-//	Update the state of the afterburner fuel remaining for an object using the
-//	afterburner.  
-//
-// for the player ship, key_up_time() is called for the afterburner key to
-// detect when afterburners disengage.
-//
-// input:		*objp				=> pointer to the object starting afterburners
-//					fl_frametime	=> time in seconds of the last frame
-//
+/**
+ * Update the state of the afterburner fuel remaining for an object using the afterburner.  
+ *
+ * For the player ship, key_up_time() is called for the afterburner key to
+ * detect when afterburners disengage.
+ *
+ * @param *objp			pointer to the object starting afterburners
+ * @param fl_frametime	time in seconds of the last frame
+ */
 void afterburners_update(object *objp, float fl_frametime)
 {
 	Assert( objp != NULL );
@@ -255,9 +247,8 @@ void afterburners_update(object *objp, float fl_frametime)
 			Player_afterburner_vol = AFTERBURNER_DEFAULT_VOL;
 			Player_afterburner_loop_delay = 0;
 			if ( Player_afterburner_loop_id == -1 ) {
-				Player_afterburner_loop_id = snd_play_looping( &Snds[SND_ABURN_LOOP], 0.0f , -1, -1);
+				Player_afterburner_loop_id = snd_play_looping( &Snds[ship_get_sound(objp, SND_ABURN_LOOP)], 0.0f , -1, -1);
 				snd_set_volume(Player_afterburner_loop_id, Player_afterburner_vol);
-//				nprintf(("Alan","PLAY LOOPING SOUND\n"));
 			}
 		}
 
@@ -274,14 +265,12 @@ void afterburners_update(object *objp, float fl_frametime)
 	}
 }
 
-// ----------------------------------------------------------------------------
-// afterburners_stop() will be called when a ship disengages the afterburners.
-//
-// parameters:   *objp				=> pointer to the object starting afterburners
-//						key_released	=>	OPTIONAL parameter (default value 0)
-//												This is only used for the player object, to
-//												manage starting/stopping
-//
+/**
+ * Called when a ship disengages the afterburners.
+ *
+ * @param *objp			pointer to the object starting afterburners
+ * @param key_released	OPTIONAL parameter (default value 0) This is only used for the player object, to manage starting/stopping
+ */
 void afterburners_stop(object *objp, int key_released)
 {
 	Assert( objp != NULL );
@@ -309,8 +298,6 @@ void afterburners_stop(object *objp, int key_released)
 	}
 
 	objp->phys_info.flags &= ~PF_AFTERBURNER_ON;
-	float percent_left;
-	percent_left = shipp->afterburner_fuel / sip->afterburner_fuel_capacity;
 
 	//Do anim
 	model_anim_start_type(shipp, TRIGGER_TYPE_AFTERBURNER, ANIMATION_SUBTYPE_ALL, -1);
@@ -318,7 +305,7 @@ void afterburners_stop(object *objp, int key_released)
 	if ( objp == Player_obj ) {
 
 		if ( !key_released ) {
-			snd_play( &Snds[SND_ABURN_FAIL] );
+			snd_play( &Snds[ship_get_sound(objp, SND_ABURN_FAIL)] );
 		}
 
 		if ( Player_afterburner_loop_id > -1 )	{
@@ -329,17 +316,14 @@ void afterburners_stop(object *objp, int key_released)
 	}
 }
 
-// ----------------------------------------------------------------------------
-// afterburner_stop_sounds() 
-//
-// Terminates any looping afterburner sounds.
-// This should only be called when the game decides to stop all looping sounds.
-//
+/**
+ * Terminates any looping afterburner sounds.
+ * This should only be called when the game decides to stop all looping sounds.
+ */
 void afterburner_stop_sounds()
 {
 	if ( Player_afterburner_loop_id != -1 ) {
 		snd_stop(Player_afterburner_loop_id);
-//		nprintf(("Alan","STOP LOOPING SOUND\n"));
 	}
 
 	Player_afterburner_loop_id = -1;

@@ -14,29 +14,11 @@
 
 struct ship_subsys;
 struct ship;
+class waypoint_list;
 
 // bumped to 30 by Goober5000
 #define	OPERATOR_LENGTH	30  // if this ever exceeds TOKEN_LENGTH, let JasonH know!
 #define	TOKEN_LENGTH		32
-
-/*
-#ifdef FS2_DEMO
-	#define	MAX_SEXP_NODES	1600
-#else
-	#define	MAX_SEXP_NODES	4000			// Reduced from 2000 to 1200 by MK on 4/1/98.
-											// Most used nodes is 698 in sm1-10a.  Sandeep thinks that's the most complex mission.
-											// AL 2-4-98: upped to 1600, btm03 ran out of sexps, since campaign took a bunch
-											// DA 12/15 bumped up to 2000 - Dan ran out
-											// DaveB 9/02/99 bumped to 2200
-											// Goober5000 01/20/2004 bumped to 3000
-											// WMCoolmon 06/15/2004 bumped to 3500
-											// Goober5000 04/14/2005 bumped to 4000 for WCS
-											// Goober5000 04/17/2005 reduced to 3000, now that we solved the root problem
-											// taylor 03/11/2006 bumped to 4000, it's going dynamic soon so it should be ok to leave it this high
-											//                                   until then.
-											// Goober5000 10/8/2006 made dynamic :)
-#endif
-*/
 
 #define MAX_SEXP_VARIABLES 250
 
@@ -113,7 +95,7 @@ struct ship;
 #define OPF_SUBSYSTEM_TYPE		66		// Goober5000 - a generic subsystem type (navigation, engines, etc.) rather than a specific subsystem
 #define OPF_POST_EFFECT			67		// Hery - type of post-processing effect
 #define OPF_TARGET_PRIORITIES	68		// FUBAR - Target priority groups
-#define OPF_ARMOR_TYPES			69		// FUBAR - Armor type or <none>
+#define OPF_ARMOR_TYPE			69		// FUBAR - Armor type or <none>
 #define OPF_FONT				70		// Goober5000 - a FreeSpace font
 #define OPF_HUD_ELEMENT			71		// A magic name of a specific HUD element
 #define OPF_SOUND_ENVIRONMENT	72		// Goober5000 - one of EFX_presets, per Taylor
@@ -123,7 +105,9 @@ struct ship;
 #define OPF_WEAPON_BANK_NUMBER	76		// Karajorma - The number of a primary/secondary/tertiary weapon bank or all of them
 #define OPF_MESSAGE_OR_STRING	77		// Goober5000 - provides a list of messages like OPF_MESSAGE, but also allows entering arbitrary strings
 #define OPF_HUD_GAUGE			78		// The E
-#define OPF_DAMAGE_TYPES		79		// FUBAR - Damage type or <none>
+#define OPF_DAMAGE_TYPE			79		// FUBAR - Damage type or <none>
+#define OPF_SHIP_EFFECT			80		// The E - per-ship effects, as defined in post-processing.tbl
+#define OPF_ANIMATION_TYPE		81		// Goober5000 - as defined in modelanim.h
 
 // Operand return types
 #define	OPR_NUMBER				1	// returns number
@@ -205,13 +189,13 @@ struct ship;
 #define CHANGE_SUBCATEGORY_BACKGROUND_AND_NEBULA			(0x000d | OP_CATEGORY_CHANGE)
 #define CHANGE_SUBCATEGORY_NAV								(0x000e | OP_CATEGORY_CHANGE)
 
-#define STATUS_SUBCATEGORY_MULTIPLAYER_AND_MISSION_CONFIG	(0x000e | OP_CATEGORY_STATUS)
-#define STATUS_SUBCATEGORY_SHIELDS_ENGINES_AND_WEAPONS		(0x000f | OP_CATEGORY_STATUS)
-#define STATUS_SUBCATEGORY_CARGO							(0x0010 | OP_CATEGORY_STATUS)
-#define STATUS_SUBCATEGORY_SHIP_STATUS						(0x0011 | OP_CATEGORY_STATUS)
-#define STATUS_SUBCATEGORY_DAMAGE							(0x0012 | OP_CATEGORY_STATUS)
-#define STATUS_SUBCATEGORY_DISTANCE_AND_COORDINATES			(0x0013 | OP_CATEGORY_STATUS)
-#define STATUS_SUBCATEGORY_KILLS_AND_SCORING				(0x0014 | OP_CATEGORY_STATUS)
+#define STATUS_SUBCATEGORY_MULTIPLAYER_AND_MISSION_CONFIG	(0x0000 | OP_CATEGORY_STATUS)
+#define STATUS_SUBCATEGORY_SHIELDS_ENGINES_AND_WEAPONS		(0x0001 | OP_CATEGORY_STATUS)
+#define STATUS_SUBCATEGORY_CARGO							(0x0002 | OP_CATEGORY_STATUS)
+#define STATUS_SUBCATEGORY_SHIP_STATUS						(0x0003 | OP_CATEGORY_STATUS)
+#define STATUS_SUBCATEGORY_DAMAGE							(0x0004 | OP_CATEGORY_STATUS)
+#define STATUS_SUBCATEGORY_DISTANCE_AND_COORDINATES			(0x0005 | OP_CATEGORY_STATUS)
+#define STATUS_SUBCATEGORY_KILLS_AND_SCORING				(0x0006 | OP_CATEGORY_STATUS)
 
 
 #define	OP_PLUS								(0x0000 | OP_CATEGORY_ARITHMETIC)
@@ -234,6 +218,7 @@ struct ship;
 #define OP_SET_BIT							(0x0010 | OP_CATEGORY_ARITHMETIC)	// Goober5000
 #define OP_UNSET_BIT						(0x0011 | OP_CATEGORY_ARITHMETIC)	// Goober5000
 #define OP_IS_BIT_SET						(0x0012 | OP_CATEGORY_ARITHMETIC)	// Goober5000
+#define OP_SIGNUM							(0x0013 | OP_CATEGORY_ARITHMETIC)	// Goober5000
 
 
 #define	OP_TRUE								(0x0000 | OP_CATEGORY_LOGICAL)
@@ -267,6 +252,8 @@ struct ship;
 #define	OP_PREVIOUS_EVENT_FALSE				(0x0007 | OP_CATEGORY_GOAL_EVENT)
 #define	OP_PREVIOUS_GOAL_TRUE				(0x0009 | OP_CATEGORY_GOAL_EVENT)
 #define	OP_PREVIOUS_GOAL_FALSE				(0x000a | OP_CATEGORY_GOAL_EVENT)
+#define	OP_EVENT_TRUE_MSECS_DELAY			(0x000b | OP_CATEGORY_GOAL_EVENT | OP_NONCAMPAIGN_FLAG)
+#define	OP_EVENT_FALSE_MSECS_DELAY			(0x000c | OP_CATEGORY_GOAL_EVENT | OP_NONCAMPAIGN_FLAG)
 
 #define	OP_IS_DESTROYED_DELAY				(0x0000 | OP_CATEGORY_OBJECTIVE | OP_NONCAMPAIGN_FLAG)
 #define	OP_IS_SUBSYSTEM_DESTROYED_DELAY		(0x0001 | OP_CATEGORY_OBJECTIVE | OP_NONCAMPAIGN_FLAG)
@@ -369,15 +356,17 @@ struct ship;
 #define OP_HAS_PRIMARY_WEAPON				(0x0040 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
 #define OP_HAS_SECONDARY_WEAPON				(0x0041 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
 #define OP_STRING_TO_INT					(0x0042 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
-#define OP_GET_OBJECT_SPEED_X				(0x0043 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)
-#define OP_GET_OBJECT_SPEED_Y				(0x0044 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)
-#define OP_GET_OBJECT_SPEED_Z				(0x0045 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)
-#define OP_NAV_DISTANCE						(0x0046 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Kazan
-#define OP_NAV_ISLINKED						(0x0047 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Kazan
-#define OP_IS_FACING						(0x0048 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // The E
-#define OP_DIRECTIVE_IS_VARIABLE			(0x0049 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
-#define OP_GET_NUM_COUNTERMEASURES			(0x004a | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
-#define OP_IS_IN_BOX					    (0x004b | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Sushi
+#define OP_STRING_GET_LENGTH				(0x0043 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Goober5000
+#define OP_GET_OBJECT_SPEED_X				(0x0044 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)
+#define OP_GET_OBJECT_SPEED_Y				(0x0045 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)
+#define OP_GET_OBJECT_SPEED_Z				(0x0046 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)
+#define OP_NAV_DISTANCE						(0x0047 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Kazan
+#define OP_NAV_ISLINKED						(0x0048 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Kazan
+#define OP_IS_FACING						(0x0049 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // The E
+#define OP_DIRECTIVE_VALUE					(0x004a | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
+#define OP_GET_NUM_COUNTERMEASURES			(0x004b | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
+#define OP_IS_IN_BOX					    (0x004c | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Sushi
+#define OP_IS_IN_MISSION					(0x004d | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Goober5000
 
 
 
@@ -677,15 +666,19 @@ struct ship;
 
 // 0x00ff is the last remaining sexp in the CHANGE category!  Future change sexps should go under CHANGE2
 
-#define OP_SET_NUM_COUNTERMEASURES			(0x0000 | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG) // Karajorma
+#define OP_STRING_GET_SUBSTRING				(0x0000 | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG)	// Goober5000
+#define OP_STRING_SET_SUBSTRING				(0x0001 | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG)	// Goober5000
+#define OP_SET_NUM_COUNTERMEASURES			(0x0002 | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG) // Karajorma
+#define OP_ADD_TO_COLGROUP					(0x0003 | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG) // The E
+#define OP_REMOVE_FROM_COLGROUP				(0x0004 | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG) // The E
+#define OP_GET_COLGROUP_ID					(0x0005 | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG) // The E
+#define OP_SHIP_EFFECT						(0x0006 | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG) // Valathil
+#define OP_CLEAR_SUBTITLES					(0x0007 | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG) // The E
+#define OP_BEAM_FIRE_COORDS					(0x0008 | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG)	// Goober5000
+#define OP_SET_DOCKED						(0x0009 | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG) // Sushi
+#define OP_SET_THRUSTERS					(0x000a	| OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG) // The E
+#define OP_TRIGGER_SUBMODEL_ANIMATION		(0x000b | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG)	// Goober5000
 
-
-
-
-/* made obsolete by Goober5000
-// debugging sexpressions
-#define	OP_INT3									(0x0000 | OP_CATEGORY_DEBUG)
-*/
 
 // defined for AI goals
 #define OP_AI_CHASE							(0x0000 | OP_CATEGORY_AI | OP_NONCAMPAIGN_FLAG)
@@ -757,6 +750,7 @@ struct ship;
 #define OP_RESET_ORDERS						(0x0013 | OP_CATEGORY_TRAINING) // Karajorma
 #define OP_QUERY_ORDERS						(0x0014 | OP_CATEGORY_TRAINING) // Karajorma
 #define OP_NODE_TARGETED					(0x0015 | OP_CATEGORY_TRAINING) // FUBAR
+#define OP_IGNORE_KEY						(0x0016 | OP_CATEGORY_TRAINING) // Karajorma
 
 // defines for string constants
 #define SEXP_HULL_STRING			"Hull"
@@ -933,6 +927,14 @@ char *CTEXT(int n);
 #define SEXP_CHECK_INVALID_SOUND_ENVIRONMENT	-144
 #define SEXP_CHECK_INVALID_SOUND_ENVIRONMENT_OPTION	-145
 #define SEXP_CHECK_INVALID_EXPLOSION_OPTION		-146
+#define SEXP_CHECK_INVALID_SHIP_EFFECT			-147
+#define SEXP_CHECK_INVALID_TURRET_TARGET_ORDER	-148
+#define SEXP_CHECK_INVALID_ARMOR_TYPE			-149
+#define SEXP_CHECK_INVALID_DAMAGE_TYPE			-150
+#define SEXP_CHECK_INVALID_TARGET_PRIORITIES	-151
+#define SEXP_CHECK_INVALID_AUDIO_VOLUME_OPTION	-152
+#define SEXP_CHECK_INVALID_HUD_GAUGE			-153
+#define SEXP_CHECK_INVALID_ANIMATION_TYPE		-154
 
 #define TRAINING_CONTEXT_SPEED		(1<<0)
 #define TRAINING_CONTEXT_FLY_PATH	(1<<1)
@@ -985,7 +987,7 @@ class arg_item
 		int flags;
 		int nesting_level;
 
-		arg_item() : flags(0), nesting_level(0), text(NULL), next(NULL) {}
+		arg_item() : text(NULL), next(NULL), flags(0), nesting_level(0) {}
 		void add_data(char *str);
 		void add_data_dup(char *str);
 		void add_data_set_dup(char *str);
@@ -1020,7 +1022,7 @@ extern int Training_context_speed_min;
 extern int Training_context_speed_max;
 extern int Training_context_speed_set;
 extern int Training_context_speed_timestamp;
-extern int Training_context_path;
+extern waypoint_list *Training_context_path;
 extern int Training_context_goal_waypoint;
 extern int Training_context_at_waypoint;
 extern float Training_context_distance;
@@ -1076,7 +1078,6 @@ int special_argument_appears_in_sexp_list(int node);
 // functions to change the attributes of an sexpression tree to persistent or not persistent
 extern void sexp_unmark_persistent( int n );
 extern void sexp_mark_persistent( int n );
-extern int waypoint_lookup(char *name);
 extern int verify_sexp_tree(int node);
 extern int query_sexp_ai_goal_valid(int sexp_ai_goal, int ship);
 int query_node_in_sexp(int node, int sexp);
@@ -1109,6 +1110,9 @@ void set_secondary_ammo (int ship_index, int requested_bank, int requested_ammo,
 
 
 // menu and category stuff
+extern int get_sexp_id(char *sexp_name);
+extern int get_category(int sexp_id);
+extern int category_of_subcategory(int subcategory_id);
 extern int get_subcategory(int sexp_id);
 
 // Goober5000
@@ -1165,5 +1169,8 @@ variable:
 \sa sexp_hud_display_warpout
 */
 extern int Sexp_hud_display_warpout;
+
+//Needed for scripting access to ship effects
+int get_effect_from_name(char* name);
 
 #endif

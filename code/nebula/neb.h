@@ -38,6 +38,10 @@ extern int Neb2_render_mode;
 // the AWACS suppresion level for the nebula
 extern float Neb2_awacs;
 
+// The visual render distance multipliers for the nebula
+extern float Neb2_fog_near_mult;
+extern float Neb2_fog_far_mult;
+
 #define MAX_NEB2_POOFS				6
 
 // poof names and flags (for fred)
@@ -65,6 +69,19 @@ typedef struct cube_poof {
 } cube_poof;
 #define MAX_CPTS		5		// should always be <= slices
 extern cube_poof Neb2_cubes[MAX_CPTS][MAX_CPTS][MAX_CPTS];
+
+// nebula detail level
+typedef struct neb2_detail {
+	float max_alpha_glide;		// max alpha for this detail level in Glide
+	float max_alpha_d3d;		// max alpha for this detail level in D3d
+	float break_alpha;			// break alpha (below which, poofs don't draw). this affects the speed and visual quality a lot
+	float break_x, break_y;		// x and y alpha fade/break values. adjust alpha on the polys as they move offscreen
+	float cube_dim;				// total dimension of player poof cube
+	float cube_inner;			// inner radius of the player poof cube
+	float cube_outer;			// outer radius of the player pood cube
+	float prad;					// radius of the poofs
+	float wj, hj, dj;			// width, height, depth jittering. best left at 1.0
+} neb2_detail;
 
 
 // --------------------------------------------------------------------------------------------------------
@@ -116,6 +133,9 @@ void neb2_eye_changed();
 
 // get near and far fog values based upon object type and rendering mode
 void neb2_get_fog_values(float *fnear, float *ffar, object *obj = NULL);
+
+// get adjusted near and far fog values (allows mission-specific fog adjustments)
+void neb2_get_adjusted_fog_values(float *fnear, float *ffar, object *obj = NULL);
 
 // given a position in space, return a value from 0.0 to 1.0 representing the fog level 
 float neb2_get_fog_intensity(object *obj);

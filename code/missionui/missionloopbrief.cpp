@@ -102,13 +102,8 @@ void loop_brief_button_pressed(int i)
 {	
 	switch(i){
 	case LOOP_BRIEF_DECLINE:		
-		// CD CHECK
-		if(game_do_cd_mission_check(Game_current_mission_filename)){
-			gameseq_post_event(GS_EVENT_START_GAME);
-			gamesnd_play_iface(SND_USER_SELECT);
-		} else {
-			gameseq_post_event(GS_EVENT_MAIN_MENU);
-		}		
+		gameseq_post_event(GS_EVENT_START_GAME);
+		gamesnd_play_iface(SND_USER_SELECT);
 		break;
 
 	case LOOP_BRIEF_ACCEPT:
@@ -116,14 +111,9 @@ void loop_brief_button_pressed(int i)
 		Campaign.loop_enabled = 1;
 		Campaign.loop_reentry = Campaign.next_mission;			// save reentry pt, so we can break out of loop
 		Campaign.next_mission = Campaign.loop_mission;		
-		
-		// CD CHECK
-		if(game_do_cd_mission_check(Game_current_mission_filename)){
-			gameseq_post_event(GS_EVENT_START_GAME);
-			gamesnd_play_iface(SND_USER_SELECT);
-		} else {
-			gameseq_post_event(GS_EVENT_MAIN_MENU);
-		}		
+
+		gameseq_post_event(GS_EVENT_START_GAME);
+		gamesnd_play_iface(SND_USER_SELECT);
 		break;
 	}
 }
@@ -160,8 +150,8 @@ void loop_brief_init()
 	// load animation if any
 	Loop_anim = NULL;
 	Loop_anim_instance = NULL;
-	if(Campaign.missions[Campaign.current_mission].mission_loop_brief_anim != NULL){
-		Loop_anim = anim_load(Campaign.missions[Campaign.current_mission].mission_loop_brief_anim);
+	if(Campaign.missions[Campaign.current_mission].mission_branch_brief_anim != NULL){
+		Loop_anim = anim_load(Campaign.missions[Campaign.current_mission].mission_branch_brief_anim);
 	} else {
 		Loop_anim = anim_load("CB_default");
 	}
@@ -178,16 +168,16 @@ void loop_brief_init()
 	}
 
 	// init brief text
-	if(Campaign.missions[Campaign.current_mission].mission_loop_desc != NULL){
-		brief_color_text_init(Campaign.missions[Campaign.current_mission].mission_loop_desc, Loop_brief_text_coords[gr_screen.res][2]);
+	if(Campaign.missions[Campaign.current_mission].mission_branch_desc != NULL){
+		brief_color_text_init(Campaign.missions[Campaign.current_mission].mission_branch_desc, Loop_brief_text_coords[gr_screen.res][2]);
 	}
 
 	bool sound_played = false;
 
 
 	// open sound
-	if(Campaign.missions[Campaign.current_mission].mission_loop_brief_sound != NULL){
-		Loop_sound = audiostream_open(Campaign.missions[Campaign.current_mission].mission_loop_brief_sound, ASF_VOICE);
+	if(Campaign.missions[Campaign.current_mission].mission_branch_brief_sound != NULL){
+		Loop_sound = audiostream_open(Campaign.missions[Campaign.current_mission].mission_branch_brief_sound, ASF_VOICE);
 
 		if(Loop_sound != -1){
 			audiostream_play(Loop_sound, Master_voice_volume, 0);
@@ -197,7 +187,7 @@ void loop_brief_init()
 
 	if(sound_played == false) {
 		fsspeech_play(FSSPEECH_FROM_BRIEFING, 
-			Campaign.missions[Campaign.current_mission].mission_loop_desc);
+			Campaign.missions[Campaign.current_mission].mission_branch_desc);
 
 	}
 

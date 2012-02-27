@@ -33,15 +33,10 @@
 
 
 #define MAX_TRAINING_MESSAGE_LINES		10
-//#define TRAINING_MESSAGE_WINDOW_X			174
-//#define TRAINING_MESSAGE_WINDOW_Y			40
 #define TRAINING_MESSAGE_WINDOW_WIDTH	266
 #define TRAINING_LINE_WIDTH			250  // width in pixels of actual text
 #define TRAINING_TIMING					150  // milliseconds per character to display messages
 #define TRAINING_TIMING_BASE			1000  // Minimum milliseconds to display any message
-//#define TRAINING_OBJ_WND_X				0		// offset of left edge of window
-//#define TRAINING_OBJ_WND_Y				180	// offset of top edge of window
-//#define TRAINING_OBJ_WND_Y				187	// offset of top edge of window
 #define TRAINING_OBJ_WND_WIDTH		170	// number of pixels wide window is.
 #define TRAINING_OBJ_LINE_WIDTH		150	// number of pixels wide text can be
 #define TRAINING_OBJ_LINES				50		// number of lines to track in objective list
@@ -148,7 +143,7 @@ static int Directive_coords[GR_NUM_RESOLUTIONS][NUM_DIRECTIVE_COORDS][2] =
 };
 
 HudGaugeDirectives::HudGaugeDirectives():
-HudGauge(HUD_OBJECT_DIRECTIVES, HUD_DIRECTIVES_VIEW, true, false, true, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
+HudGauge(HUD_OBJECT_DIRECTIVES, HUD_DIRECTIVES_VIEW, false, true, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
 {
 }
 
@@ -194,11 +189,15 @@ void HudGaugeDirectives::initBitmaps(char *fname_top, char *fname_middle, char *
 
 bool HudGaugeDirectives::canRender()
 {
-	if(hud_disabled_except_messages()) {
+	if (sexp_override) {
 		return false;
 	}
 
-	if (hud_disabled()) {
+	if(hud_disabled_except_messages() && !message_gauge) {
+		return false;
+	}
+
+	if (hud_disabled() && !hud_disabled_except_messages()) {
 		return false;
 	}
 
@@ -216,6 +215,12 @@ bool HudGaugeDirectives::canRender()
 
 	if(pop_up) {
 		if(!popUpActive()) {
+			return false;
+		}
+	}
+
+	if (gauge_config == HUD_ETS_GAUGE) {
+		if (Ships[Player_obj->instance].flags2 & SF2_NO_ETS) {
 			return false;
 		}
 	}
@@ -240,11 +245,6 @@ void HudGaugeDirectives::render(float frametime)
 		return;
 	}
 
-	// don't ever display directives display in multiplayer missions
-	// if ( Game_mode & GM_MULTIPLAYER ){
-	// 	return;
-	// }
-
 	height = gr_get_font_height();
 
 	offset = 0;
@@ -255,17 +255,13 @@ void HudGaugeDirectives::render(float frametime)
 	}
 
 	// draw top of objective display
-	// hud_set_default_color();
 	setGaugeColor();
 
 	renderBitmap(directives_top.first_frame, position[0], position[1]);
-	// gr_set_bitmap(Directive_gauge[0].first_frame);
-	// gr_aabitmap(Directive_coords[DIRECTIVE_COORDS_TOP][0]+fl2i(HUD_offset_x), Directive_coords[DIRECTIVE_COORDS_TOP][1]+fl2i(HUD_offset_y));
 
 	// print out title
-	renderPrintf(position[0] + header_offsets[0], position[1] + header_offsets[0], EG_OBJ_TITLE, XSTR( "directives", 422));
-	// gr_printf(Directive_coords[DIRECTIVE_COORDS_TITLE][0]+fl2i(HUD_offset_x), Directive_coords[DIRECTIVE_COORDS_TITLE][1]+fl2i(HUD_offset_y), XSTR( "directives", 422));
-	
+	renderPrintf(position[0] + header_offsets[0], position[1] + header_offsets[1], EG_OBJ_TITLE, XSTR( "directives", 422));
+
 	bx = position[0];
 	by = position[1] + middle_frame_offset_y;
 
@@ -278,7 +274,6 @@ void HudGaugeDirectives::render(float frametime)
 		c = &Color_normal;
 		if (Training_obj_lines[i + offset] & TRAINING_OBJ_LINES_KEY) {
 			message_translate_tokens(buf, Mission_events[z].objective_key_text);  // remap keys
-//			gr_set_color_fast(&Color_normal);
 			c = &Color_bright_green;
 		} else {
 			strcpy_s(buf, Mission_events[z].objective_text);
@@ -295,17 +290,14 @@ void HudGaugeDirectives::render(float frametime)
 
 			switch (mission_get_event_status(z)) {
 			case EVENT_CURRENT:
-//				gr_set_color_fast(&Color_bright_white);
 				c = &Color_bright_white;
 				break;
 
 			case EVENT_FAILED:
-//				gr_set_color_fast(&Color_bright_red);
 				c = &Color_bright_red;
 				break;
 
 			case EVENT_SATISFIED:
-//				gr_set_color_fast(&Color_bright_blue);
 				t = Mission_events[z].satisfied_time;
 				if (t + i2f(2) > Missiontime) {
 					if (Missiontime % fl2f(.4f) < fl2f(.2f)){
@@ -325,19 +317,14 @@ void HudGaugeDirectives::render(float frametime)
 		Assert( second_line != buf );
 
 		// blit the background frames
-		// hud_set_default_color();
 		setGaugeColor();
 
 		renderBitmap(directives_middle.first_frame, bx, by);
-		// gr_set_bitmap(Directive_gauge[1].first_frame);
-		// gr_aabitmap(bx, by);
 		
 		by += text_h;
 
 		if ( second_line ) {
 			renderBitmap(directives_middle.first_frame, bx, by);
-			// gr_set_bitmap(Directive_gauge[1].first_frame);
-			// gr_aabitmap(bx, by);
 			
 			by += text_h;
 		}
@@ -346,7 +333,6 @@ void HudGaugeDirectives::render(float frametime)
 		gr_set_color_fast(c);
 		
 		renderString(x, y, EG_OBJ1 + i, buf);
-		// gr_printf(x, y, buf);
 		
 		y_count++;
 
@@ -354,22 +340,20 @@ void HudGaugeDirectives::render(float frametime)
 			y = position[1] + text_start_offsets[1] + y_count * text_h;
 			
 			renderString(x+12, y, EG_OBJ1 + i + 1, second_line);
-			// gr_printf(x+12, y, second_line);
 			
 			y_count++;
 		}
 	}
 
 	// draw the bottom of objective display
-	// hud_set_default_color();
 	setGaugeColor();
 
 	renderBitmap(directives_bottom.first_frame, bx, by);
-	// gr_set_bitmap(Directive_gauge[2].first_frame);
-	// gr_aabitmap(bx, by);
 }
 
-// mission initializations (called once before a new mission is started)
+/**
+ * Mission initializations (called once before a new mission is started)
+ */
 void training_mission_init()
 {
 	int i;
@@ -388,17 +372,9 @@ void training_mission_init()
 	for (i = 0; i < TRAINING_MESSAGE_QUEUE_MAX; i++)
 		Training_message_queue[i].special_message = NULL;
 
-	if ( !Directive_frames_loaded ) {
-		for ( i = 0; i < NUM_DIRECTIVE_GAUGES; i++ ) {
-			Directive_gauge[i].first_frame = bm_load_animation(Directive_fnames[i], &Directive_gauge[i].num_frames);
-			if ( Directive_gauge[i].first_frame < 0 ) {
-				Warning(LOCATION,"Cannot load hud ani: %s\n", Directive_fnames[i]);
-			}
-		}
-
-		Directive_frames_loaded = 1;
-	}
-
+	// The E: This is now handled by the new HUD code. No need to check here.
+	Directive_frames_loaded = 1;
+	
 	// only clear player flags if this is actually a training mission
 	if ( The_mission.game_type & MISSION_TYPE_TRAINING ) {
 		Player->flags &= ~(PLAYER_FLAGS_MATCH_TARGET | PLAYER_FLAGS_MSG_MODE | PLAYER_FLAGS_AUTO_TARGETING | PLAYER_FLAGS_AUTO_MATCH_SPEED | PLAYER_FLAGS_LINK_PRIMARY | PLAYER_FLAGS_LINK_SECONDARY );
@@ -427,8 +403,11 @@ int comp_training_lines_by_born_on_date(const void *m1, const void *m2)
 }
 
 
-// now sort list of events
-// sort on EVENT_CURRENT and born on date, for other events (EVENT_SATISFIED, EVENT_FAILED) sort on born on date
+/**
+ * Sort list of training events
+ *
+ * Sort on EVENT_CURRENT and born on date, for other events (EVENT_SATISFIED, EVENT_FAILED) sort on born on date
+ */
 #define MIN_SATISFIED_TIME		5
 #define MIN_FAILED_TIME			7
 void sort_training_objectives()
@@ -507,7 +486,7 @@ void sort_training_objectives()
 			if (f2i(Missiontime - Mission_events[TRAINING_OBJ_LINES_MASK(i)].satisfied_time) < MIN_FAILED_TIME) {
 				Training_obj_lines[i] |= TRAINING_OBJ_STATUS_UNKNOWN;
 			} else {
-				Training_obj_lines[i] |= TRAINING_OBJ_STATUS_UNKNOWN;
+				Training_obj_lines[i] |= TRAINING_OBJ_STATUS_KNOWN;
 			}
 		}
 	}
@@ -551,8 +530,13 @@ void sort_training_objectives()
 	}
 }
 
-// called at same rate as goals/events are evaluated.  Maintains the objectives listing, adding,
-// removing and updating items
+#define DIRECTIVE_WAIT	0
+
+/**
+ * Maintains the objectives listing, adding, removing and updating items
+ *
+ * Called at same rate as goals/events are evaluated.  
+ */
 void training_check_objectives()
 {
 	int i, event_idx, event_status;
@@ -560,7 +544,7 @@ void training_check_objectives()
 	Training_obj_num_lines = 0;
 	for (event_idx=0; event_idx<Num_mission_events; event_idx++) {
 		event_status = mission_get_event_status(event_idx);
-		if ( (event_status != EVENT_UNBORN) && Mission_events[event_idx].objective_text && (timestamp() > Mission_events[event_idx].born_on_date + 3000) ) {
+		if ( (event_status != EVENT_UNBORN) && Mission_events[event_idx].objective_text && (timestamp() > Mission_events[event_idx].born_on_date + DIRECTIVE_WAIT) ) {
 			if (!Training_failure || !strnicmp(Mission_events[event_idx].name, XSTR( "Training failed", 423), 15)) {
 
 				// check for the actual objective
@@ -628,7 +612,9 @@ void training_check_objectives()
 	sort_training_objectives();
 }
 
-// called to do cleanup when leaving a mission
+/**
+ * Do cleanup when leaving a mission
+ */
 void training_mission_shutdown()
 {
 	int i;
@@ -658,7 +644,9 @@ void training_mission_shutdown()
 	*Training_buf = 0;
 }
 
-// translates special tokens.  Handles one token only.
+/**
+ * Translates special tokens.  Handles one token only.
+ */
 char *translate_message_token(char *str)
 {
 	if (!stricmp(str, NOX("wp"))) {
@@ -669,7 +657,9 @@ char *translate_message_token(char *str)
 	return NULL;
 }
 
-// translates all special tokens in a message, producing the new finalized message to be displayed
+/**
+ * Translates all special tokens in a message, producing the new finalized message to be displayed
+ */
 void message_translate_tokens(char *buf, char *text)
 {
 	char temp[40], *toke1, *toke2, *ptr, *orig_buf;
@@ -751,9 +741,12 @@ void message_translate_tokens(char *buf, char *text)
 	return;
 }
 
-// plays the voice file associated with a training message.  Automatically streams the file
-// from disk if it's over 100k, otherwise plays it as a normal file in memory.  Returns -1
-// if it didn't play, otherwise index of voice
+/**
+ * Plays the voice file associated with a training message.
+ *
+ * Automatically streams the file from disk if it's over 100k, otherwise plays it as 
+ * a normal file in memory.  Returns -1 if it didn't play, otherwise index of voice
+ */
 int message_play_training_voice(int index)
 {
 	int len;
@@ -798,7 +791,6 @@ int message_play_training_voice(int index)
 					Training_voice_handle = audiostream_open(Message_waves[index].name, ASF_VOICE);
 					if (Training_voice_handle < 0) {
 						nprintf(("Warning", "Unable to load voice file %s\n", Message_waves[index].name));
-					//	Warning(LOCATION, "Unable to load voice file %s\n", Message_waves[index].name);
 					}
 				}
 			}  // Training_voice should be valid and loaded now
@@ -841,9 +833,12 @@ int message_play_training_voice(int index)
 	return Training_voice;
 }
 
-// one time initializations done when we want to display a new training mission.  This does
-// all the processing and setup required to actually display it, including starting the
-// voice file playing
+/** 
+ * One time initializations done when we want to display a new training mission.
+ * 
+ * This does all the processing and setup required to actually display it, including 
+ * starting the voice file playing
+ */
 void message_training_setup(int m, int length, char *special_message)
 {
 	if ((m < 0) || !Messages[m].message[0]) {  // remove current message from the screen
@@ -876,22 +871,9 @@ void message_training_setup(int m, int length, char *special_message)
 		Training_message_timestamp = 0;
 }
 
-// adds simple text to the directives display
-/*id message_training_add_simple( char *text )
-{
-	int i;
-
-	training_process_message(text);
-	HUD_add_to_scrollback(Training_buf, HUD_SOURCE_TRAINING);
-	Training_num_lines = split_str(Training_buf, TRAINING_LINE_WIDTH, Training_line_sizes, Training_lines, MAX_TRAINING_MESSAGE_LINES);
-	Assert(Training_num_lines > 0);
-	for (i=0; i<Training_num_lines; i++)
-		Training_lines[i][Training_line_sizes[i]] = 0;
-
-	Training_message_timestamp = timestamp(5000);
-} */
-
-// add a message to the queue to be sent later.
+/**
+ * Add a message to the queue to be sent later
+ */
 void message_training_queue(char *text, int timestamp, int length)
 {
 	int m;
@@ -932,7 +914,9 @@ void message_training_queue(char *text, int timestamp, int length)
 	}
 }
 
-// Goober5000 - removes current message from the queue
+/**
+ * Removes current message from the queue
+ */
 void message_training_remove_from_queue(int idx)
 {
 	// we're overwriting all messages with the next message, but to
@@ -955,16 +939,15 @@ void message_training_remove_from_queue(int idx)
 	Training_message_queue[Training_message_queue_count].special_message = NULL;	// not a memory leak because we copied the pointer
 }
 
-// check the training message queue to see if we should play a new message yet or not.
-// Goober5000: removed stipulation of instructor being present
+/**
+ * Check the training message queue to see if we should play a new message yet or not.
+ */
 void message_training_queue_check()
 {
 	int i, iship_num;
 
 	// get the instructor's ship.
 	iship_num = ship_name_lookup(NOX("instructor"));
-//	if ( iship_num == -1 )	// commented out by Goober5000
-//		return;
 
 	// if the instructor is dying or departing, do nothing
 	if ( iship_num != -1 )	// added by Goober5000
@@ -1036,7 +1019,7 @@ void message_training_update_frame()
 }
 
 HudGaugeTrainingMessages::HudGaugeTrainingMessages():
-HudGauge(HUD_OBJECT_TRAINING_MESSAGES, HUD_DIRECTIVES_VIEW, true, false, true, VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP, 255, 255, 255)
+HudGauge(HUD_OBJECT_TRAINING_MESSAGES, HUD_DIRECTIVES_VIEW, false, true, VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP, 255, 255, 255)
 {
 }
 
@@ -1067,7 +1050,9 @@ void HudGaugeTrainingMessages::pageIn()
 {
 }
 
-// displays (renders) the training message to the screen
+/**
+ * Displays (renders) the training message to the screen
+ */
 void HudGaugeTrainingMessages::render(float frametime)
 {
 	char *str, buf[256];
@@ -1127,16 +1112,11 @@ void HudGaugeTrainingMessages::render(float frametime)
 			renderPrintf(x, y, "%s", buf);
 		}
 	}
-
-//	if (Training_message_method) {
-//		char *message = "Press a key to continue";
-
-//		gr_get_string_size(&i, NULL, message);
-//		gr_printf(TRAINING_MESSAGE_WINDOW_X + TRAINING_MESSAGE_WINDOW_WIDTH / 2 - i / 2, TRAINING_MESSAGE_WINDOW_Y + (Training_num_lines + 2) * height, message);
-//	}
 }
 
-// processes a new training message to get hilighting information and store it in internal structures.
+/**
+ * Processes a new training message to get hilighting information and store it in internal structures.
+ */
 void training_process_message(char *message)
 {
 	int count;

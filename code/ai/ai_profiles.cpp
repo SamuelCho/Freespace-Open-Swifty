@@ -12,6 +12,8 @@
 #include "ai/ai_profiles.h"
 #include "parse/parselo.h"
 #include "localization/localize.h"
+#include "weapon/weapon.h"
+#include "ship/ship.h"
 
 
 // global stuff
@@ -260,8 +262,8 @@ void parse_ai_profiles_tbl(char *filename)
 				//While we're at it, verify the range
 				for (i = 0; i < NUM_SKILL_LEVELS; i++) {
 					if (profile->glide_attack_percent[i] < 0.0f || profile->glide_attack_percent[i] > 100.0f) {
-						profile->glide_attack_percent[i] = 0.0f;
 						Warning(LOCATION, "$Glide Attack Percent should be between 0 and 100.0 (read %f). Setting to 0.", profile->glide_attack_percent[i]);
+						profile->glide_attack_percent[i] = 0.0f;
 					}
 					profile->glide_attack_percent[i] /= 100.0;
 				}
@@ -273,8 +275,8 @@ void parse_ai_profiles_tbl(char *filename)
 				//While we're at it, verify the range
 				for (i = 0; i < NUM_SKILL_LEVELS; i++) {
 					if (profile->circle_strafe_percent[i] < 0.0f || profile->circle_strafe_percent[i] > 100.0f) {
-						profile->circle_strafe_percent[i] = 0.0f;
 						Warning(LOCATION, "$Circle Strafe Percent should be between 0 and 100.0 (read %f). Setting to 0.", profile->circle_strafe_percent[i]);
+						profile->circle_strafe_percent[i] = 0.0f;
 					}
 					profile->circle_strafe_percent[i] /= 100.0;
 				}
@@ -286,8 +288,8 @@ void parse_ai_profiles_tbl(char *filename)
 				//While we're at it, verify the range
 				for (i = 0; i < NUM_SKILL_LEVELS; i++) {
 					if (profile->glide_strafe_percent[i] < 0.0f || profile->glide_strafe_percent[i] > 100.0f) {
-						profile->glide_strafe_percent[i] = 0.0f;
 						Warning(LOCATION, "$Glide Strafe Percent should be between 0 and 100.0 (read %f). Setting to 0.", profile->glide_strafe_percent[i]);
+						profile->glide_strafe_percent[i] = 0.0f;
 					}
 					profile->glide_strafe_percent[i] /= 100.0;
 				}
@@ -299,8 +301,8 @@ void parse_ai_profiles_tbl(char *filename)
 				//While we're at it, verify the range
 				for (i = 0; i < NUM_SKILL_LEVELS; i++) {
 					if (profile->random_sidethrust_percent[i] < 0.0f || profile->random_sidethrust_percent[i] > 100.0f) {
-						profile->random_sidethrust_percent[i] = 0.0f;
 						Warning(LOCATION, "$Random Sidethrust Percent should be between 0 and 100.0 (read %f). Setting to 0.", profile->random_sidethrust_percent[i]);
+						profile->random_sidethrust_percent[i] = 0.0f;
 					}
 					profile->random_sidethrust_percent[i] /= 100.0;
 				}
@@ -344,6 +346,24 @@ void parse_ai_profiles_tbl(char *filename)
 
 			if (optional_string("$Turret Max Aim Update Delay:"))
 				parse_float_list(profile->turret_max_aim_update_delay, NUM_SKILL_LEVELS);
+
+			if (optional_string("$Player Autoaim FOV:"))
+			{
+				float fov_list[NUM_SKILL_LEVELS];
+				parse_float_list(fov_list, NUM_SKILL_LEVELS);
+				for (i = 0; i < NUM_SKILL_LEVELS; i++)
+				{
+					//Enforce range
+					if (fov_list[i] < 0.0f || fov_list[i] >= 360.0f)
+					{
+						Warning(LOCATION, "$Player Autoaim FOV should be >= 0 and < 360.0 (read %f). Setting to 0.", fov_list[i]);
+						fov_list[i] = 0.0f;
+					}
+
+					//Convert units
+					profile->player_autoaim_fov[i] = fov_list[i] * PI / 180.0f;
+				}
+			}
 
 			if (optional_string("$Detail Distance Multiplier:"))
 				parse_float_list(profile->detail_distance_mult, NUM_SKILL_LEVELS);
@@ -430,6 +450,8 @@ void parse_ai_profiles_tbl(char *filename)
 
 			set_flag(profile, "$disable weapon damage scaling for player:", AIPF2_PLAYER_WEAPON_SCALE_FIX, AIP_FLAG2);
 
+			set_flag(profile, "$countermeasures affect aspect seekers:", AIPF2_ASPECT_LOCK_COUNTERMEASURE, AIP_FLAG2);
+
 			profile->ai_path_mode = AI_PATH_MODE_NORMAL;
 			if(optional_string("$ai path mode:"))
 			{
@@ -442,9 +464,36 @@ void parse_ai_profiles_tbl(char *filename)
 				}
 			}
 
+			if (optional_string("$Default weapon select effect:")) {
+				char effect[NAME_LENGTH];
+				stuff_string(effect, F_NAME, NAME_LENGTH);
+				if (!stricmp(effect, "FS1"))
+					Default_weapon_select_effect = 1;
+				if (!stricmp(effect, "off"))
+					Default_weapon_select_effect = 0;
+			}
+
+			if (optional_string("$Default ship select effect:")) {
+				char effect[NAME_LENGTH];
+				stuff_string(effect, F_NAME, NAME_LENGTH);
+				if (!stricmp(effect, "FS1"))
+					Default_ship_select_effect = 1;
+				if (!stricmp(effect, "off"))
+					Default_ship_select_effect = 0;
+			}
+
+			set_flag(profile, "$no warp camera:", AIPF2_NO_WARP_CAMERA, AIP_FLAG2);
+
 			// if we've been through once already and are at the same place, force a move
 			if ( saved_Mp && (saved_Mp == Mp) )
+			{
+				char buf[60];
+				memset(buf, 0, 60);
+				strncpy(buf, Mp, 59);
+				mprintf(("WARNING: Unrecognized parameter in ai_profiles: %s\n", buf));
+
 				Mp++;
+			}
 
 			// find next valid option
 			skip_to_start_of_string_either("$", "#");

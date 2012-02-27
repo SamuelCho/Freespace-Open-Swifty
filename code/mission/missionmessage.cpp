@@ -25,7 +25,6 @@
 #include "ship/subsysdamage.h"
 #include "weapon/emp.h"
 #include "localization/localize.h"
-#include "demo/demo.h"
 #include "hud/hudconfig.h"
 #include "sound/fsspeech.h"
 #include "species_defs/species_defs.h"
@@ -104,13 +103,8 @@ SCP_vector<message_extra> Message_waves;
 
 #define MAX_PLAYING_MESSAGES		2
 
-#ifdef FS2_DEMO
-	#define MAX_WINGMAN_HEADS			1
-	#define MAX_COMMAND_HEADS			1
-#else
 #define MAX_WINGMAN_HEADS			2
 #define MAX_COMMAND_HEADS			3
-#endif
 
 //XSTR:OFF
 #define HEAD_PREFIX_STRING			"head-"
@@ -137,6 +131,7 @@ int Num_messages_playing;						// number of is a message currently playing?
 pmessage Playing_messages[MAX_PLAYING_MESSAGES];
 
 int Message_shipnum;						// ship number of who is sending message to player -- used outside this module
+int Message_expire;							// timestamp to extend the duration of message brackets when not using voice files
 
 // variables to control message queuing.  All new messages to the player are queued.  The array
 // will be ordered by priority, then time submitted.
@@ -477,7 +472,7 @@ void parse_msgtbl()
 	Num_builtin_waves = Num_message_waves;
 
 	
-	memset(Valid_builtin_message_types, 0, sizeof(int)); 
+	memset(Valid_builtin_message_types, 0, sizeof(int)*MAX_BUILTIN_MESSAGE_TYPES); 
 	// now cycle through the messages to determine which type of builtins we have messages for
 	for (i = 0; i < Num_builtin_messages; i++) {
 		for (j = 0; j < MAX_BUILTIN_MESSAGE_TYPES; j++) {
@@ -536,6 +531,7 @@ void parse_msgtbl()
 	lcl_ext_close();
 }
 
+extern bool Sexp_Messages_Scrambled;
 // this is called at the start of each level
 void messages_init()
 {
@@ -609,7 +605,10 @@ void messages_init()
 	//wipe all the non-builtin messages
 	Messages.erase((Messages.begin()+Num_builtin_messages), Messages.end()); 
 	Message_avis.erase((Message_avis.begin()+Num_builtin_avis), Message_avis.end()); 
-	Message_waves.erase((Message_waves.begin()+Num_builtin_waves), Message_waves.end()); 
+	Message_waves.erase((Message_waves.begin()+Num_builtin_waves), Message_waves.end());
+
+	// stop scrambling messages
+	Sexp_Messages_Scrambled = false;
 }
 
 // free a loaded avi
@@ -1046,7 +1045,7 @@ void message_play_anim( message_q *q )
 {
 	message_extra	*anim_info;
 	int				is_death_scream=0, persona_index=-1, rand_index=0;
-	char				ani_name[MAX_FILENAME_LEN], *p;
+	char				ani_name[MAX_FILENAME_LEN], temp[MAX_FILENAME_LEN], *p;
 	MissionMessage	*m;
 
 	// don't even bother with this stuff if the gauge is disabled - taylor
@@ -1099,7 +1098,8 @@ void message_play_anim( message_q *q )
 				} else {
 					rand_index = ((int) Missiontime % MAX_WINGMAN_HEADS);
 				}
-				sprintf(ani_name, "%s%c", ani_name, 'a'+rand_index);
+				strcpy_s(temp, ani_name);
+				sprintf(ani_name, "%s%c", temp, 'a'+rand_index);
 				subhead_selected = TRUE;
 			} else if ( Personas[persona_index].flags & (PERSONA_FLAG_COMMAND | PERSONA_FLAG_LARGE) ) {
 				// get a random head
@@ -1112,7 +1112,8 @@ void message_play_anim( message_q *q )
 					rand_index = ((int) Missiontime % MAX_COMMAND_HEADS);
 				}
 
-				sprintf(ani_name, "%s%c", ani_name, 'a'+rand_index);
+				strcpy_s(temp, ani_name);
+				sprintf(ani_name, "%s%c", temp, 'a'+rand_index);
 				subhead_selected = TRUE;
 			} else {
 				mprintf(("message '%s' uses an unrecognized persona type\n", m->name));
@@ -1122,7 +1123,8 @@ void message_play_anim( message_q *q )
 		if (!subhead_selected) {
 			// choose between a and b
 			rand_index = ((int) Missiontime % MAX_WINGMAN_HEADS);
-			sprintf(ani_name, "%s%c", ani_name, 'a'+rand_index);
+			strcpy_s(temp, ani_name);
+			sprintf(ani_name, "%s%c", temp, 'a'+rand_index);
 			mprintf(("message '%s' with invalid head.  Fix by assigning persona to the message.\n", m->name));
 		}
 		nprintf(("Messaging", "playing head %s for %s\n", ani_name, q->who_from));
@@ -1239,7 +1241,7 @@ void message_queue_process()
 
 			// if both ani and wave are done, mark internal variable so we can do next message on queue, and
 			// global variable to clear voice brackets on hud
-			if ( wave_done && ani_done ) {
+			if ( wave_done && ani_done && ( timestamp_elapsed(Message_expire) || (Playing_messages[Num_messages_playing].wave != -1) || (Playing_messages[i].shipnum == -1) ) ) {
 				nprintf(("messaging", "Message %d is done playing\n", i));
 				Message_shipnum = -1;
 				Num_messages_playing--;
@@ -1415,6 +1417,7 @@ void message_queue_process()
 	else
 		message_translate_tokens(buf, q->special_message);
 
+	Message_expire = timestamp(42 * strlen(buf));
 	// AL: added 07/14/97.. only play avi/sound if in gameplay
 	if ( gameseq_get_state() != GS_STATE_GAME_PLAY )
 		goto all_done;
@@ -1437,9 +1440,7 @@ void message_queue_process()
 	}
 
 	// play animation for head
-	#ifndef DEMO // do we want this for FS2_DEMO
-		message_play_anim(q);
-	#endif
+	message_play_anim(q);
 	
 	// distort the message if comms system is damaged
 	message_maybe_distort_text(buf);
@@ -1764,11 +1765,6 @@ void message_send_unique_to_player( char *id, void *data, int m_source, int prio
 				message_queue_message( i, priority, MESSAGE_TIME_ANYTIME, who_from, source, group, delay );
 			}
 
-			// record to the demo if necessary
-			if(Game_mode & GM_DEMO_RECORD){
-				demo_POST_unique_message(id, who_from, m_source, priority);
-			}
-
 			// send a message packet to a player if destined for everyone or only a specific person
 			if ( MULTIPLAYER_MASTER ){
 				send_mission_message_packet( i, who_from, priority, MESSAGE_TIME_SOON, source, -1, -1, -1, delay);
@@ -1950,11 +1946,6 @@ void message_send_builtin_to_player( int type, ship *shipp, int priority, int ti
 		// if this filter matches mine
 		if( (multi_team_filter < 0) || !(Netgame.type_flags & NG_TYPE_TEAM) || ((Net_player != NULL) && (Net_player->p_info.team == multi_team_filter)) ){
 			message_queue_message( message_index, priority, timing, who_from, source, group, delay, type );
-
-			// post a builtin message
-			if(Game_mode & GM_DEMO_RECORD){
-				demo_POST_builtin_message(type, shipp, priority, timing);
-			}
 		}
 	}
 
@@ -1996,7 +1987,6 @@ int message_persona_name_lookup( char *name )
 	return -1;
 }
 
-extern bool Sexp_Messages_Scrambled;
 // Blank out portions of the audio playback for the sound identified by Message_wave
 // This works by using the same Distort_pattern[][] that was used to distort the associated text
 void message_maybe_distort()
@@ -2018,9 +2008,7 @@ void message_maybe_distort()
 
 		was_muted = 0;
 
-		// added check to see if EMP effect was active
-		// 8/24/98 - DB
-		if ( (hud_communications_state(Player_ship) != COMM_OK) || emp_active_local() || Sexp_Messages_Scrambled ) {
+		if ( (hud_communications_state(Player_ship) != COMM_OK) ) {
 			was_muted = Message_wave_muted;
 			if ( timestamp_elapsed(Next_mute_time) ) {
 				Next_mute_time = fl2i(Distort_patterns[Distort_num][Distort_next++] * Message_wave_duration);
@@ -2055,7 +2043,7 @@ void message_maybe_distort_text(char *text)
 {
 	int i, j, len, run, curr_offset, voice_duration, next_distort;
 
-	if ( (hud_communications_state(Player_ship) == COMM_OK) && !emp_active_local() && !Sexp_Messages_Scrambled ) { 
+	if ( (hud_communications_state(Player_ship) == COMM_OK) ) { 
 		return;
 	}
 

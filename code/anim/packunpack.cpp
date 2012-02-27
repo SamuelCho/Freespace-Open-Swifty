@@ -49,6 +49,7 @@ anim_instance *init_anim_instance(anim *ptr, int bpp)
 	ptr->instance_count++;
 	inst = (anim_instance *) vm_malloc(sizeof(anim_instance));
 	Assert(inst);
+	memset(inst, 0, sizeof(anim_instance));
 	inst->frame_num = -1;
 	inst->last_frame_num = -1;
 	inst->parent = ptr;
@@ -543,7 +544,7 @@ int unpack_pixel(anim_instance *ai, ubyte *data, ubyte pix, int aabitmap, int bp
 				}
 			} else {
 				// stuff the 24 bit value
-				memcpy(&bit_24, &ai->parent->palette[pix * 3], 3);
+				memcpy(&bit_24, &ai->parent->palette[pix * 3], 3); //-V512
 
 				// convert to 16 bit
 				convert_24_to_16(bit_24, &bit_16);
@@ -627,7 +628,7 @@ int unpack_pixel_count(anim_instance *ai, ubyte *data, ubyte pix, int count = 0,
 				}
 			} else {
 				// stuff the 24 bit value
-				memcpy(&bit_24, &ai->parent->palette[pix * 3], 3);
+				memcpy(&bit_24, &ai->parent->palette[pix * 3], 3); //-V512
 				
 				// convert to 16 bit
 				convert_24_to_16(bit_24, &bit_16);
@@ -659,6 +660,7 @@ int unpack_pixel_count(anim_instance *ai, ubyte *data, ubyte pix, int count = 0,
 /**
  * @brief Unpack frame
  *
+ * @param ai Animation instance
  * @param ptr Packed data to unpack
  * @param frame Where to store unpacked data to
  * @param size Total number of unpacked pixels requested
@@ -848,7 +850,7 @@ ubyte	*unpack_frame(anim_instance *ai, ubyte *ptr, ubyte *frame, int size, ubyte
 /**
  * @brief Unpack frame from file
  *
- * @param ptr Packed data to unpack
+ * @param ai Animation instance
  * @param frame Where to store unpacked data to
  * @param size Total number of unpacked pixels requested
  * @param pal_translate Color translation lookup table (NULL if no palette translation desired)

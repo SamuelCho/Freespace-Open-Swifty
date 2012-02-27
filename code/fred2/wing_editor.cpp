@@ -405,7 +405,7 @@ void wing_editor::initialize_data_safe(int full_update)
 		for (i=0; i<Wings[cur_wing].wave_count; i++)
 			ptr->AddString(Ships[Wings[cur_wing].ship_index[i]].ship_name);
 
-		m_threshold_spin.SetRange(0, Wings[cur_wing].wave_count - 1);
+		m_threshold_spin.SetRange(0, (short) Wings[cur_wing].wave_count - 1);
 		for (i=0; i<Num_reinforcements; i++)
 			if (!stricmp(Reinforcements[i].name, Wings[cur_wing].name))
 				break;
@@ -625,21 +625,20 @@ int wing_editor::update_data(int redraw)
 			}
 		}
 
-		for (i=0; i<MAX_WAYPOINT_LISTS; i++) {
-			if (Waypoint_lists[i].count && !stricmp(Waypoint_lists[i].name, m_wing_name)) {
-				if (bypass_errors)
-					return 1;
+		if (find_matching_waypoint_list(const_cast<char *>((const char *) m_wing_name)) != NULL)
+		{
+			if (bypass_errors)
+				return 1;
 
-				bypass_errors = 1;
-				z = MessageBox("This wing name is already being used by a waypoint path\n"
-					"Press OK to restore old name", "Error", MB_ICONEXCLAMATION | MB_OKCANCEL);
+			bypass_errors = 1;
+			z = MessageBox("This wing name is already being used by a waypoint path\n"
+				"Press OK to restore old name", "Error", MB_ICONEXCLAMATION | MB_OKCANCEL);
 
-				if (z == IDCANCEL)
-					return -1;
+			if (z == IDCANCEL)
+				return -1;
 
-				m_wing_name = _T(Wings[cur_wing].name);
-				UpdateData(FALSE);
-			}
+			m_wing_name = _T(Wings[cur_wing].name);
+			UpdateData(FALSE);
 		}
 
 		if(jumpnode_get_by_name(m_wing_name) != NULL)

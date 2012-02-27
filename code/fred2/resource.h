@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
-// Microsoft Developer Studio generated include file.
-// Used by FRED.rc
+// Microsoft Visual C++ generated include file.
+// Used by fred.rc
 //
 #define IDC_SAVE_DEFAULT_PREFS          3
 #define ID_DELETE_VARIABLE              3
@@ -915,9 +915,10 @@
 #define IDC_EXACT_PLAYERS               1455
 #define IDC_HEADING                     1456
 #define IDC_NO_ARRIVAL_MESSAGE          1457
-#define IDC_LOCKED                      1458
 #define IDC_NO_MUSIC                    1459
 #define ID_UPDATE                       1460
+#define IDC_SHIP_LOCKED                 1461
+#define IDC_WEAPONS_LOCKED              1462
 #define IDC_INITIAL_LIST                1464
 #define IDC_FULL_WAR                    1465
 #define IDC_NEW_MSG                     1466
@@ -1148,6 +1149,11 @@
 #define IDC_INCLUDE_SENDER              1629
 #define IDC_DISABLE_ETS                 1630
 #define IDC_IMMOBILE                    1631
+#define IDC_DISABLE_ETS2                1632
+#define IDC_CLOAKED                     1632
+#define IDC_NEB_NEAR_MULTIPLIER         1632
+#define IDC_EDIT6                       1633
+#define IDC_NEB_FAR_MULTIPLIER          1634
 #define ID_FILE_MISSIONNOTES            32771
 #define ID_DUPLICATE                    32774
 #define ID_VIEW_ROTATE                  32775
@@ -1441,7 +1447,7 @@
 #define _APS_3D_CONTROLS                     1
 #define _APS_NEXT_RESOURCE_VALUE        320
 #define _APS_NEXT_COMMAND_VALUE         33098
-#define _APS_NEXT_CONTROL_VALUE         1632
+#define _APS_NEXT_CONTROL_VALUE         1635
 #define _APS_NEXT_SYMED_VALUE           105
 #endif
 #endif

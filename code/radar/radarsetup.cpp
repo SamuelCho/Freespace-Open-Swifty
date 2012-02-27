@@ -154,8 +154,9 @@ void radar_plot_object( object *objp )
 	vec3d pos, tempv;
 	float awacs_level, dist, max_radar_dist;
 	vec3d world_pos = objp->pos;
+	SCP_list<jump_node>::iterator jnp;
 
-		// don't process anything here.  Somehow, a jumpnode object caused this function
+	// don't process anything here.  Somehow, a jumpnode object caused this function
 	// to get entered on server side.
 	if( Game_mode & GM_STANDALONE_SERVER ){
 		return;
@@ -196,8 +197,13 @@ void radar_plot_object( object *objp )
 		
 		case OBJ_JUMP_NODE:
 		{
+			for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
+				if(jnp->get_obj() == objp)
+					break;
+			}
+			
 			// don't plot hidden jump nodes
-			if ( objp->jnp->is_hidden() )
+			if ( jnp->is_hidden() )
 				return;
 
 			// filter jump nodes here if required
@@ -262,9 +268,6 @@ void radar_plot_object( object *objp )
 
 	if (N_blips >= MAX_BLIPS)
 	{
-		// out of blips, don't plot
-		//Gahhh, this is bloody annoying -WMC
-		//Int3();
 		return;
 	}
 
@@ -361,12 +364,12 @@ void radar_frame_init()
 }
 
 HudGaugeRadar::HudGaugeRadar():
-HudGauge(HUD_OBJECT_RADAR_STD, HUD_RADAR, true, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
+HudGauge(HUD_OBJECT_RADAR_STD, HUD_RADAR, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
 {
 }
 
-HudGaugeRadar::HudGaugeRadar(int _gauge_object, bool n_allow_override, int r, int g, int b):
-HudGauge(_gauge_object, HUD_RADAR, n_allow_override, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), r, g, b)
+HudGaugeRadar::HudGaugeRadar(int _gauge_object, int r, int g, int b):
+HudGauge(_gauge_object, HUD_RADAR, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), r, g, b)
 {
 }
 
@@ -437,6 +440,8 @@ void HudGaugeRadar::initialize()
 	gr_get_string_size( &w, &h, Large_blip_string );
 	Large_blip_offset_x = -w/2;
 	Large_blip_offset_y = -h/2;
+
+	HudGauge::initialize();
 }
 
 void HudGaugeRadar::drawRange()

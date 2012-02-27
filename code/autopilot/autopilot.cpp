@@ -54,7 +54,7 @@ int camMovingTime;
 //float CameraSpeed;
 bool CinematicStarted, CameraMoving;
 vec3d cameraPos, cameraTarget;
-std::map<int,int> autopilot_wings;
+SCP_map<int,int> autopilot_wings;
 
 int AutopilotMinEnemyDistance;
 int AutopilotMinAsteroidDistance;
@@ -67,14 +67,7 @@ int start_dist;
 void autopilot_ai_waypoint_goal_fixup(ai_goal* aigp)
 {
 	// this function sets wp_index properly;
-	for (int i = 0; i < Num_waypoint_lists; i++)
-	{
-		if (!stricmp(aigp->ship_name, Waypoint_lists[i].name))
-		{
-			aigp->wp_index = i;
-			return;
-		}
-	}
+	aigp->wp_list = find_matching_waypoint_list(aigp->target_name);
 }
 
 
@@ -119,7 +112,9 @@ vec3d *NavPoint::GetPosition()
 {
 	if (flags & NP_WAYPOINT)
 	{
-		return &((waypoint_list*) target_obj)->waypoints[waypoint_num-1];
+		waypoint *wpt = find_waypoint_at_index((waypoint_list*) target_obj, waypoint_num-1);
+		Assert(wpt != NULL);
+		return wpt->get_pos();
 	}
 	else
 	{
@@ -134,9 +129,9 @@ char* NavPoint::GetInternalName()
 
 	if (flags & NP_WAYPOINT)
 	{
-		NavName = new char[strlen(((waypoint_list*)target_obj)->name)+5];
-		memset(NavName, 0, strlen(((waypoint_list*)target_obj)->name)+5);
-		strcpy(NavName, ((waypoint_list*)target_obj)->name);
+		NavName = new char[strlen(((waypoint_list*)target_obj)->get_name())+5];
+		memset(NavName, 0, strlen(((waypoint_list*)target_obj)->get_name())+5);
+		strcpy(NavName, ((waypoint_list*)target_obj)->get_name());
 
 		strcat(NavName, ":");
 		sprintf(strtmp, "%d", waypoint_num);
@@ -372,8 +367,7 @@ bool StartAutopilot()
 			{
 				capshipPresent = true;
 
-				capIndexes.resize(capIndexes.size()+1);
-				capIndexes[capIndexes.size()-1] = i;
+				capIndexes.push_back(i);
 				// ok.. what size class
 
 				if (Ship_info[Ships[i].ship_info_index].flags & (SIF_CAPITAL | SIF_SUPERCAP))
@@ -478,7 +472,7 @@ bool StartAutopilot()
 			{ 
 				if (Navs[CurrentNav].flags & NP_WAYPOINT)
 				{
-					ai_add_ship_goal_player( AIG_TYPE_PLAYER_SHIP, AI_GOAL_WAYPOINTS_ONCE, 0, ((waypoint_list*)Navs[CurrentNav].target_obj)->name, &Ai_info[Ships[i].ai_index] );
+					ai_add_ship_goal_player( AIG_TYPE_PLAYER_SHIP, AI_GOAL_WAYPOINTS_ONCE, 0, ((waypoint_list*)Navs[CurrentNav].target_obj)->get_name(), &Ai_info[Ships[i].ai_index] );
 					//fixup has to wait until after wing goals
 				}
 				else
@@ -507,7 +501,7 @@ bool StartAutopilot()
 				if (Navs[CurrentNav].flags & NP_WAYPOINT)
 				{
 					
-					ai_add_wing_goal_player( AIG_TYPE_PLAYER_WING, AI_GOAL_WAYPOINTS_ONCE, 0, ((waypoint_list*)Navs[CurrentNav].target_obj)->name, i );
+					ai_add_wing_goal_player( AIG_TYPE_PLAYER_WING, AI_GOAL_WAYPOINTS_ONCE, 0, ((waypoint_list*)Navs[CurrentNav].target_obj)->get_name(), i );
 
 					// "fix up" the goal
 					for (j = 0; j < MAX_AI_GOALS; j++)
@@ -559,13 +553,13 @@ bool StartAutopilot()
 			// position capships
 
 			vec3d right, front, up, offset;
-			for (i = 0; i < (int)capIndexes.size(); i++)
+			for (SCP_vector<int>::iterator idx = capIndexes.begin(); idx != capIndexes.end(); ++idx)
 			{
 				vm_vec_add(&right, &Autopilot_flight_leader->orient.vec.rvec, &zero);
 				vm_vec_add(&front, &Autopilot_flight_leader->orient.vec.fvec, &zero);
 				vm_vec_add(&up, &Autopilot_flight_leader->orient.vec.uvec, &zero);
 				vm_vec_add(&offset, &zero, &zero);
-				if (Ship_info[Ships[capIndexes[i]].ship_info_index].flags & (SIF_CAPITAL | SIF_SUPERCAP))
+				if (Ship_info[Ships[*idx].ship_info_index].flags & (SIF_CAPITAL | SIF_SUPERCAP))
 				{
 					//0 - below - three lines of position
 
@@ -599,7 +593,7 @@ bool StartAutopilot()
 
 					capship_placed[0]++;
 				}
-				else if (Ship_info[Ships[capIndexes[i]].ship_info_index].flags & SIF_CORVETTE)
+				else if (Ship_info[Ships[*idx].ship_info_index].flags & SIF_CORVETTE)
 				{
 					//1 above - 3 lines of position
 					// front/back to zero
@@ -708,7 +702,7 @@ bool StartAutopilot()
 				// global scale the position by 50%
 				//vm_vec_scale(&offset, 1.5);
 
-				vm_vec_add(&Objects[Ships[capIndexes[i]].objnum].pos, &Autopilot_flight_leader->pos, &offset);
+				vm_vec_add(&Objects[Ships[*idx].objnum].pos, &Autopilot_flight_leader->pos, &offset);
 
 				if (vm_vec_dist_quick(&Autopilot_flight_leader->pos, &Objects[Ships[i].objnum].pos) > distance)
 				{
@@ -890,7 +884,7 @@ void EndAutoPilot()
 	if (Navs[CurrentNav].flags & NP_WAYPOINT)
 	{
 		goal = AI_GOAL_WAYPOINTS_ONCE;
-		goal_name = ((waypoint_list*)Navs[CurrentNav].target_obj)->name;
+		goal_name = ((waypoint_list*)Navs[CurrentNav].target_obj)->get_name();
 	}
 	else
 	{
@@ -923,7 +917,7 @@ void EndAutoPilot()
 			{
 				ai_goal *aigp = &Ai_info[Ships[i].ai_index].goals[j];
 	
-				if ( ((aigp->ship_name != NULL) && !stricmp(aigp->ship_name, goal_name))
+				if ( ((aigp->target_name != NULL) && !stricmp(aigp->target_name, goal_name))
 							&& (aigp->ai_mode == goal) )
 				{
 					ai_remove_ship_goal(&Ai_info[Ships[i].ai_index], j);
@@ -936,7 +930,7 @@ void EndAutoPilot()
 				{
 					ai_goal *aigp = &Wings[Ships[i].wingnum].ai_goals[j];
 
-					if ( ((aigp->ship_name != NULL) && !stricmp(aigp->ship_name, goal_name))
+					if ( ((aigp->target_name != NULL) && !stricmp(aigp->target_name, goal_name))
 							&& (aigp->ai_mode == goal) )
 					{
 						aigp->ai_mode = AI_GOAL_NONE;
@@ -960,7 +954,7 @@ void EndAutoPilot()
 				{
 					ai_goal *aigp = &Wings[i].ai_goals[j];
 
-					if ( ((aigp->ship_name != NULL) && !stricmp(aigp->ship_name, goal_name))
+					if ( ((aigp->target_name != NULL) && !stricmp(aigp->target_name, goal_name))
 							&& (aigp->ai_mode == goal) )
 					{
 						aigp->ai_mode = AI_GOAL_NONE;
@@ -1223,11 +1217,11 @@ void send_autopilot_msg(char *msg, char *snd)
 		audio_handle = -1;
 	}
 
-	if (strlen(msg) != 0 && strcmp(msg, "none"))
+	if (msg[0] != '\0' && strcmp(msg, "none"))
 		change_message("autopilot builtin message", msg, -1, 0);
 
 	// load sound
-	if (snd != NULL || strlen(snd) == 0 || !strcmp(snd, "none"))
+	if ((snd != NULL) && (snd[0] != '\0' && !strcmp(snd, "none")))
 	{
 		audio_handle = audiostream_open(snd, ASF_MENUMUSIC );
 	}
@@ -1238,7 +1232,7 @@ void send_autopilot_msg(char *msg, char *snd)
 		audiostream_play(audio_handle, (Master_event_music_volume * aav_music_volume), 0);
 	}
 
-	if (strlen(msg) != 0 && strcmp(msg, "none"))
+	if (msg[0] != '\0' && strcmp(msg, "none"))
 		message_training_queue("autopilot builtin message", timestamp(0), 5); // display message for five seconds
 }
 
@@ -1265,7 +1259,7 @@ void NavSystem_Init()
 void parse_autopilot_table(char *filename)
 {
 	int rval;
-	SCP_vector<std::string> lines;
+	SCP_vector<SCP_string> lines;
 
 	// open localization
 	lcl_ext_open();
@@ -1458,15 +1452,7 @@ bool AddNav_Waypoint(char *Nav, char *WP_Path, int node, int flags)
 
 	Assert(!(tnav.flags & NP_SHIP));
 
-
-	for (i = 0; i < Num_waypoint_lists; i++)
-	{
-		if (!stricmp(WP_Path, Waypoint_lists[i].name))
-		{
-			tnav.target_obj = (void *)&Waypoint_lists[i];		
-		}
-	}
-
+	tnav.target_obj = find_matching_waypoint_list(WP_Path);
 	tnav.waypoint_num = node;
 
 	// copy it into it's location

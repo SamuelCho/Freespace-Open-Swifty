@@ -1360,11 +1360,11 @@ void debrief_accept(int ok_to_post_start_game_event)
 			if(!(Game_mode & GM_MULTIPLAYER)){
 				int cur = Campaign.current_mission;
 				bool require_repeat_mission = (Campaign.current_mission == Campaign.next_mission);
-				if (Campaign.missions[cur].has_mission_loop) {
+				if (Campaign.missions[cur].flags & CMISSION_FLAG_HAS_LOOP) {
 					Assert(Campaign.loop_mission != CAMPAIGN_LOOP_MISSION_UNINITIALIZED);
 				}
 
-				if ( (Campaign.missions[cur].has_mission_loop && (Campaign.loop_mission != -1)) && !require_repeat_mission ) {
+				if ( (Campaign.missions[cur].flags & CMISSION_FLAG_HAS_LOOP) && (Campaign.loop_mission != -1) && !require_repeat_mission ) {
 					/*
 					char buffer[512];
 					debrief_assemble_optional_mission_popup_text(buffer, Campaign.missions[cur].mission_loop_desc);
@@ -1396,19 +1396,10 @@ void debrief_accept(int ok_to_post_start_game_event)
 
 				// check if campaign is over
 				if ( Campaign.next_mission == -1 ) {
-	#if defined(FS2_DEMO) || defined(OEM_BUILD)
-					gameseq_post_event(GS_EVENT_END_DEMO);
-	#else
 					gameseq_post_event(GS_EVENT_MAIN_MENU);
-	#endif
 				} else {
 					if ( ok_to_post_start_game_event ) {
-						// CD CHECK
-						if(game_do_cd_mission_check(Game_current_mission_filename)){
-							gameseq_post_event(GS_EVENT_START_GAME);
-						} else {
-							gameseq_post_event(GS_EVENT_MAIN_MENU);
-						}
+						gameseq_post_event(GS_EVENT_START_GAME);
 					} else {
 						play_commit_sound = 0;
 					}
@@ -2024,7 +2015,6 @@ void debrief_init()
 	Current_mode = -1;
 	New_mode = DEBRIEF_TAB;
 	Recommend_active = Award_active = 0;
-	Current_stage = 0;
 
 	Current_stage = -1;
 	New_stage = 0;
@@ -2576,7 +2566,7 @@ void debrief_do_frame(float frametime)
 	gr_force_fit_string(buf, 255, Debrief_title_coords[gr_screen.res][2]);
 	gr_string(Debrief_title_coords[gr_screen.res][0], Debrief_title_coords[gr_screen.res][1], buf);	
 
-#if !defined(NDEBUG) || defined(INTERPLAYQA)
+#if !defined(NDEBUG)
 	gr_set_color_fast(&Color_normal);
 	gr_printf(Debrief_title_coords[gr_screen.res][0], Debrief_title_coords[gr_screen.res][1] - 10, NOX("[name: %s, mod: %s]"), Mission_filename, The_mission.modified);
 #endif

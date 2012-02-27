@@ -26,6 +26,7 @@
 #include "gamesnd/gamesnd.h"
 #include "hud/hudsquadmsg.h"
 #include "hud/hudtargetbox.h"
+#include "hud/hudmessage.h"
 #include "ship/subsysdamage.h"
 #include "weapon/emp.h"
 #include "weapon/weapon.h"
@@ -1192,7 +1193,7 @@ int hud_squadmsg_send_ship_command( int shipnum, int command, int send_message, 
 
 			ai_mode = AI_GOAL_IGNORE_NEW;
 			ai_submode = 0;
-			message = MESSAGE_YESSIR;
+			message = MESSAGE_IGNORE;
 			break;
 		
 		case FORMATION_ITEM:
@@ -1445,7 +1446,7 @@ int hud_squadmsg_send_wing_command( int wingnum, int command, int send_message, 
 
 			ai_mode = AI_GOAL_IGNORE_NEW;
 			ai_submode = 0;	//	actually, a don't care.
-			message = MESSAGE_YESSIR;
+			message = MESSAGE_IGNORE;
 			break;
 
 		case FORMATION_ITEM:
@@ -1858,7 +1859,7 @@ void hud_squadmsg_reinforcement_select()
 			rp = &Reinforcements[i];
 
 			// don't put reinforcements onto the list that have already been used up.
-			if ( (rp->num_uses == rp->uses) ){
+			if ( rp->num_uses == rp->uses ){
 				continue;
 			}
 
@@ -2024,7 +2025,7 @@ void hud_squadmsg_ship_command()
 		Assert ( k < Num_menu_items );
 		// when messaging all fighters or ignoring target, call the send_to_all_fighters routine
 		// Goober5000 - ignore no longer sends to all fighters
-		if ((Msg_instance == MESSAGE_ALL_FIGHTERS)/* || (MsgItems[k].instance == IGNORE_TARGET_ITEM)*/)
+		if (Msg_instance == MESSAGE_ALL_FIGHTERS)
 			hud_squadmsg_send_to_all_fighters(MsgItems[k].instance);
 		else
 			hud_squadmsg_send_ship_command(Msg_instance, MsgItems[k].instance, 1, SQUADMSG_HISTORY_ADD_ENTRY);
@@ -2190,7 +2191,8 @@ void hud_enemymsg_toggle()
 void hud_squadmsg_shortcut( int command )
 {
 	// check if the communications system is capable of sending a message
-	if ( (hud_communications_state(Player_ship, 1) != COMM_OK) && (command != REARM_REPAIR_ME_ITEM) ) {
+	if ( (hud_communications_state(Player_ship) != COMM_OK) && (command != REARM_REPAIR_ME_ITEM) ) {
+		HUD_sourced_printf(HUD_SOURCE_HIDDEN, XSTR( "Messaging is restricted due to communications damage", 331));
 		return;
 	}
 
@@ -2496,7 +2498,7 @@ int hud_query_order_issued(char *to, char *order_name, char *target_name, int ti
 }
 
 HudGaugeSquadMessage::HudGaugeSquadMessage():
-HudGauge(HUD_OBJECT_SQUAD_MSG, HUD_MESSAGE_BOX, true, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
+HudGauge(HUD_OBJECT_SQUAD_MSG, HUD_MESSAGE_BOX, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
 {
 }
 
@@ -2505,6 +2507,8 @@ void HudGaugeSquadMessage::initialize()
 	flash_timer[0] = timestamp(1);
 	flash_timer[1] = timestamp(1);
 	flash_flag = false;
+
+	HudGauge::initialize();
 }
 
 void HudGaugeSquadMessage::initHeaderOffsets(int x, int y)

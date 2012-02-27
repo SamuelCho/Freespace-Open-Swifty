@@ -35,6 +35,7 @@
 #include "weapon/weapon.h"
 #include "object/object.h"
 #include "parse/parselo.h"
+#include "mission/missionparse.h"
 
 
 // ------------------------------------------------------------------------------------------------------
@@ -487,9 +488,6 @@ void multi_ts_init()
 	// use the common interface palette
 	multi_common_set_palette();
 
-	// set the interface palette
-	// common_set_interface_palette(MULTI_TS_PALETTE);
-
 	Net_player->state = NETPLAYER_STATE_SHIP_SELECT;
 
 	Current_screen = ON_SHIP_SELECT;
@@ -839,11 +837,19 @@ void multi_ts_assign_players_all()
 	// this is valid for coop games as well because the first starting wing
 	// and the first tvt wing must have the same name
 	memset(name_lookup,0,100);
-	if(Netgame.type_flags & NG_TYPE_TEAM){
-		sprintf(name_lookup, "%s 1", TVT_wing_names[Netgame.host->p_info.team]);
-	} else {
-		sprintf(name_lookup, "%s 1", TVT_wing_names[0]);
+
+	// To account for cases where <Wingname> 1 is not a player ship
+	for (int i = 0; i < MAX_SHIPS_PER_WING; i++) {
+		if(Netgame.type_flags & NG_TYPE_TEAM) {
+			sprintf(name_lookup, "%s %d", TVT_wing_names[Netgame.host->p_info.team], i + 1);
+		} else {
+			sprintf(name_lookup, "%s %d", TVT_wing_names[0], i + 1);
+		}
+
+		if (!stricmp(name_lookup, Player_start_shipname))
+			break;
 	}
+		
 	shipnum = ship_name_lookup(name_lookup);
 	
 	// if we couldn't find the ship for the host
@@ -1015,21 +1021,6 @@ void multi_ts_handle_player_drop()
 void multi_ts_set_status_bar_mode(int m)
 {
 	Multi_ts_status_bar_mode = m;
-}
-
-// blit the proper "locked" button - used for weapon select and briefing screens
-void multi_ts_blit_locked_button()
-{		
-	// if we're locked down and we have a valid bitmap
-	if((Multi_ts_team[Net_player->p_info.team].multi_players_locked) && (Multi_ts_locked_bitmaps[2] != -1)){
-		gr_set_bitmap(Multi_ts_locked_bitmaps[2]);
-		gr_bitmap(Multi_ts_buttons[gr_screen.res][MULTI_TS_LOCK].x, Multi_ts_buttons[gr_screen.res][MULTI_TS_LOCK].y);
-	}
-	// draw as "not locked" if possible
-	else if(Multi_ts_locked_bitmaps[0] != -1){
-		gr_set_bitmap(Multi_ts_locked_bitmaps[0]);
-		gr_bitmap( Multi_ts_buttons[gr_screen.res][MULTI_TS_LOCK].x, Multi_ts_buttons[gr_screen.res][MULTI_TS_LOCK].y);
-	}
 }
 
 // the "lock" button has been pressed
@@ -2033,11 +2024,6 @@ int multi_ts_can_perform(int from_type,int from_index,int to_type,int to_index,i
 		if(Multi_ts_team[pl->p_info.team].multi_ts_flag[to_index] == MULTI_TS_FLAG_NONE){
 			return 0;
 		}
-
-		// if the slot he's trying to drop it on is "permanently" empty
-		if(Multi_ts_team[pl->p_info.team].multi_ts_flag[to_index] == MULTI_TS_FLAG_NONE){
-			return 0;
-		}
 		break;
 
 	case TS_SWAP_SLOT_SLOT:
@@ -2047,11 +2033,6 @@ int multi_ts_can_perform(int from_type,int from_index,int to_type,int to_index,i
 		}
 
 		// if the slot we're taking from is invalid
-		if(Multi_ts_team[pl->p_info.team].multi_ts_flag[to_index] == MULTI_TS_FLAG_NONE){
-			return 0;
-		}
-
-		// if the slot he's trying to drop it on is "permanently" empty
 		if(Multi_ts_team[pl->p_info.team].multi_ts_flag[to_index] == MULTI_TS_FLAG_NONE){
 			return 0;
 		}
@@ -2644,7 +2625,7 @@ void multi_ts_select_ship()
 			}
 		}
 	
-		if(strlen(Multi_ts_ship_info_text) > 0){
+		if(Multi_ts_ship_info_text[0] != '\0'){
 			// split the string into multiple lines
 			n_lines = split_str(Multi_ts_ship_info_text, Multi_ts_ship_info_coords[gr_screen.res][MULTI_TS_W_COORD], n_chars, p_str, MULTI_TS_SHIP_INFO_MAX_LINES, 0);	
 

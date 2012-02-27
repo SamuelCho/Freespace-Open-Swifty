@@ -144,11 +144,10 @@ int reject_obj_pair_on_parent(object *A, object *B)
 
 int reject_due_collision_groups(object *A, object *B)
 {
-	if(A->collision_group_id != 0) {
-		if(A->collision_group_id & B->collision_group_id)
-			return 1;
-	}
-	return 0;
+	if (A->collision_group_id == 0 || B->collision_group_id == 0)
+		return 0;
+
+	return (A->collision_group_id & B->collision_group_id);
 }
 
 // Adds the pair to the pair list
@@ -763,7 +762,7 @@ int weapon_will_never_hit( object *obj_weapon, object *other, obj_pair * current
 		//Assumes that weapons which don't home don't change speed, which is currently the case.
 		if (!(wip->wi_flags & WIF_TURNS))
 			max_vel_weapon = obj_weapon->phys_info.speed;
-		else if ((wp->lssm_stage==5))
+		else if (wp->lssm_stage==5)
 			max_vel_weapon = wip->lssm_stage5_vel;
 		else
 			max_vel_weapon = wp->weapon_max_vel;
