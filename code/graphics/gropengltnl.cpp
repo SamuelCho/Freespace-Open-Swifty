@@ -270,7 +270,8 @@ bool gr_opengl_config_buffer(const int buffer_id, vertex_buffer *vb, bool update
 		buffer_data *bd = &vb->tex_buf[idx];
 
 		bd->index_offset = m_vbp->ibo_size;
-		m_vbp->ibo_size += bd->n_verts * ((bd->flags & VB_FLAG_LARGE_INDEX) ? sizeof(uint) : sizeof(ushort));
+		//m_vbp->ibo_size += bd->n_verts * ((bd->flags & VB_FLAG_LARGE_INDEX) ? sizeof(uint) : sizeof(ushort));
+		m_vbp->ibo_size += bd->n_verts * sizeof(uint);
 	}
 
 	return true;
@@ -379,7 +380,9 @@ bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb)
 		// bump to our spot in the buffer
 		GLubyte *ibuf = m_vbp->index_list + offset;
 
-		if (vb->tex_buf[j].flags & VB_FLAG_LARGE_INDEX) {
+		memcpy(ibuf, index, n_verts * sizeof(uint));
+		vb->tex_buf[j].flags |= VB_FLAG_LARGE_INDEX;
+		/*if (vb->tex_buf[j].flags & VB_FLAG_LARGE_INDEX) {
 			memcpy(ibuf, index, n_verts * sizeof(uint));
 		} else {
 			ushort *mybuf = (ushort*)ibuf;
@@ -387,7 +390,7 @@ bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb)
 			for (i = 0; i < n_verts; i++) {
 				mybuf[i] = (ushort)index[i];
 			}
-		}
+		}*/
 	}
 	
 	return true;

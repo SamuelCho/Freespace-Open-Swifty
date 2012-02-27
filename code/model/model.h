@@ -1076,7 +1076,7 @@ typedef struct mc_info {
 
 int model_collide(mc_info * mc_info);
 
-void model_collide_preprocess(matrix *orient, int model_instance_num);
+void model_collide_preprocess(matrix *orient, int model_instance_num, int detail = 0);
 
 // Sets the submodel instance data in a submodel
 // If show_damaged is true it shows only damaged submodels.

@@ -2829,6 +2829,10 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 		Interp_detail_level = 0;
 	}
 
+	if ( model_instance_num >= 0 && Interp_transform_texture >= 0 ) {
+		ship_update_model_transforms(objp, Interp_detail_level);
+	}
+
 #ifndef NDEBUG
 	if ( Interp_detail_level == 0 )	{
 		MONITOR_INC( NumHiModelsRend, 1 );
@@ -4725,6 +4729,10 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		{
 			if (forced_blend_filter != GR_ALPHABLEND_NONE) {
 				blend_filter = forced_blend_filter;
+			}
+
+			if ( tmap->is_transparent ) {
+				blend_filter = GR_ALPHABLEND_FILTER;
 			}
 
 			gr_set_bitmap(texture, blend_filter, GR_BITBLT_MODE_NORMAL, alpha);

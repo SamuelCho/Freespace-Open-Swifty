@@ -965,7 +965,7 @@ void model_collide_preprocess_subobj(vec3d *pos, matrix *orient, polymodel *pm, 
 	}
 }
 
-void model_collide_preprocess(matrix *orient, int model_instance_num)
+void model_collide_preprocess(matrix *orient, int model_instance_num, int detail_num)
 {
 	polymodel_instance	*pmi;
 	polymodel *pm;
@@ -976,10 +976,9 @@ void model_collide_preprocess(matrix *orient, int model_instance_num)
 	matrix current_orient;
 	vec3d current_pos;
 
-	for ( int i = 0; i < pm->n_detail_levels; ++i ) {
-		current_orient = *orient;
+	current_orient = *orient;
 
-		vm_vec_zero(&current_pos);
-		model_collide_preprocess_subobj(&current_pos, &current_orient, pm, pmi, pm->detail[i]);
-	}
+	vm_vec_zero(&current_pos);
+
+	model_collide_preprocess_subobj(&current_pos, &current_orient, pm, pmi, pm->detail[detail_num]);
 }
