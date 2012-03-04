@@ -182,7 +182,7 @@ int weapon_explosions::Load(char *filename, int expected_lods)
 	}
 
 	// 2 chars for the lod, 4 for the extension that gets added automatically
-	if ( MAX_FILENAME_LEN - (strlen(filename) > 6) ) {
+	if ( (MAX_FILENAME_LEN - strlen(filename)) > 6 ) {
 		for (idx = 1; idx < expected_lods; idx++) {
 			sprintf(name_tmp, "%s_%d", filename, idx);
 
@@ -1190,7 +1190,7 @@ int parse_weapon(int subtype, bool replace)
 		stuff_string(wip->tech_model, F_NAME, MAX_FILENAME_LEN);
 
 		if (optional_string("+Closeup_pos:")) {
-			stuff_vector(&wip->closeup_pos);
+			stuff_vec3d(&wip->closeup_pos);
 		}
 
 		if (optional_string("+Closeup_zoom:")) {
@@ -2392,11 +2392,11 @@ int parse_weapon(int subtype, bool replace)
 				}
 
 				if (optional_string("+Offset:")) {
-					stuff_vector(&wip->particle_spewers[spew_index].particle_spew_offset);
+					stuff_vec3d(&wip->particle_spewers[spew_index].particle_spew_offset);
 				}
 
 				if (optional_string("+Initial Velocity:")) {
-					stuff_vector(&wip->particle_spewers[spew_index].particle_spew_velocity);
+					stuff_vec3d(&wip->particle_spewers[spew_index].particle_spew_velocity);
 				}
 
 				if (optional_string("+Bitmap:")) {
