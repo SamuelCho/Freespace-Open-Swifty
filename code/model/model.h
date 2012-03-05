@@ -1075,6 +1075,25 @@ void model_collide_preprocess(matrix *orient, int model_instance_num);
 // If it is false it shows only undamaged submodels.
 void model_show_damaged(int model_num, int show_damaged);
 
+class ModelCollideTask
+{
+	mc_info				mc;
+
+	polymodel			*pm;
+	polymodel_instance	*pmi;
+	bool				*submodel_check;
+	matrix				orient;
+	vec3d				base;
+	float				mag;
+	float				edge_time;
+
+	void querySubModel(int mn);
+	void querySubModelTri(void *ptr);
+public:
+	ModelCollideTask(mc_info *mc);
+	void query();
+	bool hit();
+};
 
 //=========================== MODEL OCTANT STUFF ================================
 
