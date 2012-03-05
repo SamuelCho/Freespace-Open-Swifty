@@ -1087,8 +1087,17 @@ class ModelCollideTask
 	float				mag;
 	float				edge_time;
 
+	vec3d				p0;
+	vec3d				p1;
+	vec3d				direction;
+	int					submodel;
+
 	void querySubModel(int mn);
-	void querySubModelTri(void *ptr);
+	void querySubModelTris(void *ptr);
+	void queryShield();
+	void queryShieldSLDC();
+	void queryShieldCommon();
+	void queryRayBoundingbox();
 public:
 	ModelCollideTask(mc_info *mc);
 	void query();

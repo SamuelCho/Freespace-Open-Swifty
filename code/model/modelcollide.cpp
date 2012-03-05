@@ -1110,65 +1110,64 @@ void ModelCollideTask::querySubModel(int mn)
 	int i;
 
 	Assert( mn >= 0 );
-	Assert( mn < Mc_pm->n_models );
+	Assert( mn < this->pm->n_models );
 
-	if ( (mn < 0) || (mn>=Mc_pm->n_models) ) return;
+	if ( (mn < 0) || (mn >= this->pm->n_models) ) return;
 
-	sm = &Mc_pm->submodel[mn];
-	if (sm->no_collisions) return; // don't do collisions
-	if (sm->nocollide_this_only) goto NoHit; // Don't collide for this model, but keep checking others
+	sm = &this->pm->submodel[mn];
+	if ( sm->no_collisions ) return; // don't do collisions
+	if ( sm->nocollide_this_only ) goto NoHit; // Don't collide for this model, but keep checking others
 
 	// Rotate the world check points into the current subobject's 
 	// frame of reference.
 	// After this block, Mc_p0, Mc_p1, Mc_direction, and Mc_mag are correct
 	// and relative to this subobjects' frame of reference.
-	vm_vec_sub(&tempv, Mc->p0, &Mc_base);
-	vm_vec_rotate(&Mc_p0, &tempv, &Mc_orient);
+	vm_vec_sub(&tempv, this->mc.p0, &this->base);
+	vm_vec_rotate(&this->p0, &tempv, &this->orient);
 
-	vm_vec_sub(&tempv, Mc->p1, &Mc_base);
-	vm_vec_rotate(&Mc_p1, &tempv, &Mc_orient);
-	vm_vec_sub(&Mc_direction, &Mc_p1, &Mc_p0);
+	vm_vec_sub(&tempv, this->mc.p1, &this->base);
+	vm_vec_rotate(&this->p1, &tempv, &this->orient);
+	vm_vec_sub(&this->direction, &this->p1, &this->p0);
 
 	// If we are checking the root submodel, then we might want
 	// to check the shield at this point
-	if (Mc_pm->detail[0] == mn)	{
-
+	if ( this->pm->detail[0] == mn ) {
 		// Do a quick out on the entire bounding box of the object
-		if (!mc_ray_boundingbox( &Mc_pm->mins, &Mc_pm->maxs, &Mc_p0, &Mc_direction, NULL))	{
+		if ( !mc_ray_boundingbox(&this->pm->mins, &this->pm->maxs, &this->p0, &this->direction, NULL) )	{
 			return;
 		}
 
 		// Check shield if we're supposed to
-		if ((Mc->flags & MC_CHECK_SHIELD) && (Mc_pm->shield.ntris > 0 )) {
+		if ( ( this->mc.flags & MC_CHECK_SHIELD ) && ( this->pm->shield.ntris > 0 ) ) {
 			mc_check_shield();
 			return;
 		}
 
 	}
 
-	if(!(Mc->flags & MC_CHECK_MODEL)) return;
+	if( !( this->mc.flags & MC_CHECK_MODEL ) ) return;
 
-	Mc_submodel = mn;
+	this->submodel = mn;
 
 	// Check if the ray intersects this subobject's bounding box 	
-	if (mc_ray_boundingbox(&sm->min, &sm->max, &Mc_p0, &Mc_direction, &hitpt))	{
+	if (mc_ray_boundingbox(&sm->min, &sm->max, &Mc_p0, &this->direction, &hitpt))	{
 
 		// The ray interects this bounding box, so we have to check all the
 		// polygons in this submodel.
-		if ( Mc->flags & MC_ONLY_BOUND_BOX )	{
-			float dist = vm_vec_dist( &Mc_p0, &hitpt );
+		if ( this->mc.flags & MC_ONLY_BOUND_BOX )	{
+			float dist = vm_vec_dist( &this->p0, &hitpt );
 
 			if ( dist < 0.0f ) goto NoHit; // If the ray is behind the plane there is no collision
-			if ( !(Mc->flags & MC_CHECK_RAY) && (dist > Mc_mag) ) goto NoHit; // The ray isn't long enough to intersect the plane
+			if ( !(this->mc.flags & MC_CHECK_RAY) && (dist > this->mag) ) goto NoHit; // The ray isn't long enough to intersect the plane
 
 			// If the ray hits, but a closer intersection has already been found, return
-			if ( Mc->num_hits && (dist >= Mc->hit_dist ) ) goto NoHit;	
+			if ( this->mc.num_hits && (dist >= this->mc.hit_dist ) ) goto NoHit;	
 
-			Mc->hit_dist = dist;
-			Mc->hit_point = hitpt;
-			Mc->hit_submodel = Mc_submodel;
-			Mc->hit_bitmap = -1;
-			Mc->num_hits++;
+			this->mc.hit_dist = dist;
+			this->mc.hit_point = hitpt;
+			this->mc.hit_submodel = Mc_submodel;
+			this->mc.hit_bitmap = -1;
+			this->mc.num_hits++;
 		} else {
 			model_collide_sub(sm->bsp_data);
 		}
@@ -1177,7 +1176,7 @@ void ModelCollideTask::querySubModel(int mn)
 NoHit:
 
 	// If we're only checking one submodel, return
-	if (Mc->flags & MC_SUBMODEL)	{
+	if ( this->mc.flags & MC_SUBMODEL ) {
 		return;
 	}
 
@@ -1186,8 +1185,8 @@ NoHit:
 	if ( sm->num_children < 1 ) return;
 
 	// Save instance (Mc_orient, Mc_base, Mc_point_base)
-	matrix saved_orient = Mc_orient;
-	vec3d saved_base = Mc_base;
+	matrix saved_orient = this->orient;
+	vec3d saved_base = this->base;
 
 	// Check all of this subobject's children
 	i = sm->first_child;
@@ -1195,12 +1194,12 @@ NoHit:
 		angles angs;
 		bool blown_off;
 		bool collision_checked;
-		bsp_info * csm = &Mc_pm->submodel[i];
+		bsp_info * csm = &this->pm->submodel[i];
 
-		if ( Mc_pmi ) {
-			angs = Mc_pmi->submodel[i].angs;
-			blown_off = Mc_pmi->submodel[i].blown_off;
-			collision_checked = Mc_pmi->submodel[i].collision_checked;
+		if ( this->pmi ) {
+			angs = this->pmi->submodel[i].angs;
+			blown_off = this->pmi->submodel[i].blown_off;
+			collision_checked = this->pmi->submodel[i].collision_checked;
 		} else {
 			angs = csm->angs;
 			blown_off = csm->blown_off ? true : false;
@@ -1210,16 +1209,16 @@ NoHit:
 		// Don't check it or its children if it is destroyed
 		// or if it's set to no collision
 		if ( !blown_off && !collision_checked && !csm->no_collisions )	{
-			if ( Mc_pmi ) {
-				Mc_orient = Mc_pmi->submodel[i].mc_orient;
-				Mc_base = Mc_pmi->submodel[i].mc_base;
-				vm_vec_add2(&Mc_base, Mc->pos);
+			if ( this->pmi ) {
+				this->orient = this->pmi->submodel[i].mc_orient;
+				this->base = this->pmi->submodel[i].mc_base;
+				vm_vec_add2(&this->base, this->mc.pos);
 			} else {
 				//instance for this subobject
 				matrix tm = IDENTITY_MATRIX;
 
-				vm_vec_unrotate(&Mc_base, &csm->offset, &saved_orient );
-				vm_vec_add2(&Mc_base, &saved_base );
+				vm_vec_unrotate(&this->base, &csm->offset, &saved_orient );
+				vm_vec_add2(&this->base, &saved_base );
 
 				if( vm_matrix_same(&tm, &csm->orientation)) {
 					// if submodel orientation matrix is identity matrix then don't bother with matrix ops
@@ -1234,14 +1233,19 @@ NoHit:
 					vm_matrix_x_matrix(&tm, &rotation_matrix, &inv_orientation);
 				}
 
-				vm_matrix_x_matrix(&Mc_orient, &saved_orient, &tm);
+				vm_matrix_x_matrix(&this->orient, &saved_orient, &tm);
 			}
 
-			mc_check_subobj( i );
+			querySubModel(i);
 		}
 
 		i = csm->next_sibling;
 	}
+
+}
+
+void ModelCollideTask::querySubModelTris(void *ptr)
+{
 
 }
 
