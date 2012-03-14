@@ -104,6 +104,11 @@ char *Default_mod_table = "\
 ;; Mod.tbl should be used for settings which affect the entire mod and	\n\
 ;; only very rarely need to be changed (if ever).						\n\
 																		\n\
+#CAMPAIGN SETTINGS														\n\
+																		\n\
+;; Sets default campaign file the game will look for with new pilots	\n\
+$Default Campaign File Name: FreeSpace2									\n\
+																		\n\
 #HUD SETTINGS															\n\
 																		\n\
 ;; Sets the delay before a directive will appear on the screen (ms)		\n\
@@ -115,6 +120,11 @@ $directive wait time: 3000												\n\
 ;; before it moves on to the next argument. Default behaviour is the 	\n\
 ;; exact opposite, each SEXP is called for all arguments.				\n\
 $Loop SEXPs Then Arguments:	NO											\n\
+																		\n\
+#OTHER SETTINGS															\n\
+																		\n\
+;; The percentage chance that a pilot will brag about his kills			\n\
+$Self Praise Percentage: 10												\n\
 																		\n\
 #END																	\n\
 ";

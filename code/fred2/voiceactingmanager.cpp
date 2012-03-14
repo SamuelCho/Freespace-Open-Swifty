@@ -428,7 +428,7 @@ void VoiceActingManager::OnGenerateScript()
 
 			cmd_brief_stage *stage = &Cmd_briefs[0].stage[i];
 			entry.Replace("$filename", stage->wave_filename);
-			entry.Replace("$message", stage->text);
+			entry.Replace("$message", stage->text.c_str());
 			entry.Replace("$persona", "<no persona specified>");
 			entry.Replace("$sender", "<no sender specified>");
 
@@ -447,7 +447,7 @@ void VoiceActingManager::OnGenerateScript()
 
 			brief_stage *stage = &Briefings[0].stages[i];
 			entry.Replace("$filename", stage->voice);
-			entry.Replace("$message", stage->new_text);
+			entry.Replace("$message", stage->text.c_str());
 			entry.Replace("$persona", "<no persona specified>");
 			entry.Replace("$sender", "<no sender specified>");
 
@@ -466,7 +466,7 @@ void VoiceActingManager::OnGenerateScript()
 
 			debrief_stage *stage = &Debriefings[0].stages[i];
 			entry.Replace("$filename", stage->voice);
-			entry.Replace("$message", stage->new_text);
+			entry.Replace("$message", stage->text.c_str());
 			entry.Replace("$persona", "<no persona specified>");
 			entry.Replace("$sender", "<no sender specified>");
 	
@@ -711,15 +711,14 @@ void VoiceActingManager::OnChangeNoReplace()
 
 int VoiceActingManager::fout(char *format, ...)
 {
-	char str[16384];
+	SCP_string str;
 	va_list args;
 	
 	va_start(args, format);
 	vsprintf(str, format, args);
 	va_end(args);
-	Assert(strlen(str) < 16384);
 
-	cfputs(str, fp);
+	cfputs(const_cast<char*>(str.c_str()), fp);
 	return 0;
 }
 

@@ -150,11 +150,21 @@ void string_copy(char *dest, CString &src, int max_len, int modify)
 	dest[len] = 0;
 }
 
+void string_copy(SCP_string &dest, CString &src, int modify)
+{
+	if (modify)
+		if (strcmp(src, dest.c_str()))
+			set_modified();
+
+	dest = src;
+}
+
 // converts a multiline string (one with newlines in it) into a windows format multiline
 // string (newlines changed to '\r\n').
-CString convert_multiline_string(char *src)
+CString convert_multiline_string(const char *src)
 {
-	char *ptr, buf[256];
+	const char *ptr;
+	char buf[256];
 	int i;
 	static CString str;
 
@@ -219,6 +229,13 @@ void deconvert_multiline_string(char *buf, CString &str, int max_len)
 	//if (*(ptr - 1) != '\n')
 	//	*ptr++ = '\n';
 	*ptr = 0;
+}
+
+// ditto for SCP_string
+void deconvert_multiline_string(SCP_string &buf, CString &str)
+{
+	buf = str;
+	replace_all(buf, "\r\n", "\n");
 }
 
 // medal_stuff Medals[NUM_MEDALS];
@@ -922,7 +939,8 @@ void clear_mission()
 				Team_data[i].ship_list[count] = j;
 				strcpy_s(Team_data[i].ship_list_variables[count], "");
 				Team_data[i].ship_count[count] = 5;
-				strcpy_s(Team_data[i].ship_count_variables[count++], "");
+				strcpy_s(Team_data[i].ship_count_variables[count], "");
+				count++;
 			}
 		}
 		Team_data[i].num_ship_choices = count;
@@ -937,8 +955,10 @@ void clear_mission()
 				}
 				Team_data[i].weaponry_pool[count] = j; 
 				strcpy_s(Team_data[i].weaponry_pool_variable[count], "");
-				strcpy_s(Team_data[i].weaponry_amount_variable[count++], "");
-			} 
+				strcpy_s(Team_data[i].weaponry_amount_variable[count], "");
+				count++;
+			}
+			Team_data[i].weapon_required[j] = false;
 		}
 		Team_data[i].num_weapon_choices = count; 
 	}
@@ -1977,7 +1997,7 @@ int get_ship_from_obj(object *objp)
 	return 0;
 }
 
-void ai_update_goal_references(int type, char *old_name, char *new_name)
+void ai_update_goal_references(int type, const char *old_name, const char *new_name)
 {
 	int i;
 
@@ -2660,7 +2680,7 @@ void stuff_special_arrival_anchor_name(char *buf, int anchor_num, int retail_for
 }
 
 // Goober5000
-void update_texture_replacements(char *old_name, char *new_name)
+void update_texture_replacements(const char *old_name, const char *new_name)
 {
 	int i;
 
