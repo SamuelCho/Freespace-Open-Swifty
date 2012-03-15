@@ -3004,7 +3004,7 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	}
 
 	// Draw the thruster subobjects
-	if (draw_thrusters) {
+	/*if (draw_thrusters) {
 		i = pm->submodel[pm->detail[Interp_detail_level]].first_child;
 
 		while( i >= 0 ) {
@@ -3021,7 +3021,7 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 			}
 			i = pm->submodel[i].next_sibling;
 		}
-	}
+	}*/
 
 	// Valathil - now draw the saved transparent objects
 	SCP_vector<transparent_submodel>::iterator ts;
@@ -4403,7 +4403,8 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
 
-		interp_copy_index_buffer(&pm->submodel[model_num].buffer, detail_buffer, index_counts);
+		if ( !pm->submodel[model_num].is_damaged )
+			interp_copy_index_buffer(&pm->submodel[model_num].buffer, detail_buffer, index_counts);
 	}
 
 	gr_config_buffer(pm->vertex_buffer_id, detail_buffer, true);
