@@ -4836,6 +4836,68 @@ void model_set_warp_globals(float scale_x, float scale_y, float scale_z, int bit
 	Interp_warp_alpha = alpha;
 }
 
+void model_interp_preprocess_subobj(vec3d *pos, matrix *orient, polymodel *pm,  polymodel_instance *pmi, int subobj_num, bool moving_submodels_only)
+{
+	submodel_instance *smi = &pmi->submodel_render[subobj_num];
+
+	smi->mc_base = *pos;
+	smi->mc_orient = *orient;
+
+	int i = pm->submodel[subobj_num].first_child;
+
+	while ( i >= 0 ) {
+		bsp_info * csm = &pm->submodel[i];
+
+		if ( csm->can_move || !moving_submodels_only ) {
+			angles angs = pmi->submodel_render[i].angs;
+			matrix tm = IDENTITY_MATRIX;
+
+			vm_vec_unrotate(pos, &csm->offset, &smi->mc_orient );
+			vm_vec_add2(pos, &smi->mc_base);
+
+			if( vm_matrix_same(&tm, &csm->orientation)) {
+				// if submodel orientation matrix is identity matrix then don't bother with matrix ops
+				vm_angles_2_matrix(&tm, &angs);
+			} else {
+				matrix rotation_matrix = csm->orientation;
+				vm_rotate_matrix_by_angles(&rotation_matrix, &angs);
+
+				matrix inv_orientation;
+				vm_copy_transpose_matrix(&inv_orientation, &csm->orientation);
+
+				vm_matrix_x_matrix(&tm, &rotation_matrix, &inv_orientation);
+			}
+
+			vm_matrix_x_matrix(orient, &smi->mc_orient, &tm);
+		} else {
+			*pos = pmi->submodel_render[i].mc_base;
+			*orient = pmi->submodel_render[i].mc_orient;
+		}
+
+		model_interp_preprocess_subobj(pos, orient, pm, pmi, i, moving_submodels_only);
+
+		i = csm->next_sibling;
+	}
+}
+
+void model_interp_preprocess(matrix *orient, int model_instance_num, int detail_num, bool moving_submodels_only)
+{
+	polymodel_instance	*pmi;
+	polymodel *pm;
+
+	pmi = model_get_instance(model_instance_num);
+	pm = model_get(pmi->model_num);
+
+	matrix current_orient;
+	vec3d current_pos;
+
+	current_orient = *orient;
+
+	vm_vec_zero(&current_pos);
+
+	model_interp_preprocess_subobj(&current_pos, &current_orient, pm, pmi, pm->detail[detail_num], moving_submodels_only);
+}
+
 //********************-----CLASS: texture_info-----********************//
 texture_info::texture_info()
 {

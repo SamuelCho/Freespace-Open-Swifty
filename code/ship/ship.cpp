@@ -11824,7 +11824,7 @@ void ship_update_model_transforms(object *objp, int detail_num)
 
 	// first gather rotation data relative to the ship itself 
 	matrix identity_mat = IDENTITY_MATRIX;
-	model_collide_preprocess(&identity_mat, model_instance_num, detail_num);
+	model_interp_preprocess(&identity_mat, model_instance_num, detail_num, true);
 
 	// then copy data into the shader transform buffer
 	ship_info *sip = &Ship_info[shipp->ship_info_index];
@@ -11835,7 +11835,7 @@ void ship_update_model_transforms(object *objp, int detail_num)
 	submodel_instance *smi;
 
 	for ( i = 0; i < pm->n_models; ++i ) {
-		smi = &pmi->submodel[i];
+		smi = &pmi->submodel_render[i];
 
 		// write orientation data to tex buffer
 		for ( j = 0; j < 9; ++j ) {

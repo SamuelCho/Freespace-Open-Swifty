@@ -95,6 +95,7 @@ typedef struct polymodel_instance {
 	int model_num;					// global model num index, same as polymodel->id
 	int root_submodel_num;			// unused?
 	submodel_instance *submodel;	// array of submodel instances; mirrors the polymodel->submodel array
+	submodel_instance *submodel_render; // array of submodel instances for the rendering system; mirrors the polymodel->submodel array
 	uint transform_tex_id;
 	float *transform_buffer;
 } polymodel_instance;
@@ -1080,6 +1081,8 @@ typedef struct mc_info {
 int model_collide(mc_info * mc_info);
 
 void model_collide_preprocess(matrix *orient, int model_instance_num, int detail = 0);
+
+void model_interp_preprocess(matrix *orient, int model_instance_num, int detail_num, bool moving_submodels_only);
 
 // Sets the submodel instance data in a submodel
 // If show_damaged is true it shows only damaged submodels.

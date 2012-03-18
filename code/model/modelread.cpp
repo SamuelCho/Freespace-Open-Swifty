@@ -2660,9 +2660,11 @@ int model_create_instance(int model_num, int submodel_num)
 	polymodel *pm = model_get(model_num);
 
 	pmi->submodel = (submodel_instance*)vm_malloc( sizeof(submodel_instance)*pm->n_models );
+	pmi->submodel_render = (submodel_instance*)vm_malloc( sizeof(submodel_instance)*pm->n_models );
 
 	for ( i = 0; i < pm->n_models; i++ ) {
 		model_clear_submodel_instance( &pmi->submodel[i] );
+		model_clear_submodel_instance( &pmi->submodel_render[i] );
 	}
 
 	pmi->model_num = model_num;
@@ -2679,6 +2681,12 @@ int model_create_instance(int model_num, int submodel_num)
 	// create transform texture buffer. allocate 12 floats per submodel. 3*3 for the orientation matrix. Plus another 3 for the offset.
 	pmi->transform_buffer = (float*)vm_malloc( sizeof(float)*pm->n_models*12 );
 
+	// pre-populate all model batches with initial orientations
+	for ( i = 0; i < pm->n_detail_levels; ++i ) {
+		matrix identity_mat = IDENTITY_MATRIX;
+		model_interp_preprocess(&identity_mat, open_slot, i, false);
+	}
+
 	return open_slot;
 }
 
@@ -2692,6 +2700,10 @@ void model_delete_instance(int model_instance_num)
 
 	if ( pmi->submodel ) {
 		vm_free(pmi->submodel);
+	}
+
+	if ( pmi->submodel_render ) {
+		vm_free(pmi->submodel_render);
 	}
 
 	gr_destroy_transform_tex(pmi->transform_tex_id);
