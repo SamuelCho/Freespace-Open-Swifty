@@ -2679,13 +2679,15 @@ int model_create_instance(int model_num, int submodel_num)
 	pmi->transform_tex_id = gr_create_transform_tex();
 	
 	// create transform texture buffer. allocate 12 floats per submodel. 3*3 for the orientation matrix. Plus another 3 for the offset.
-	pmi->transform_buffer = (float*)vm_malloc( sizeof(float)*pm->n_models*12 );
+	pmi->transform_buffer = (float*)vm_malloc( sizeof(float)*pm->n_models*16 );
 
 	// pre-populate all model batches with initial orientations
 	for ( i = 0; i < pm->n_detail_levels; ++i ) {
 		matrix identity_mat = IDENTITY_MATRIX;
-		model_interp_preprocess(&identity_mat, open_slot, i, false);
+		model_interp_preprocess(&identity_mat, open_slot, i, true);
 	}
+
+	pmi->rendered = false;
 
 	return open_slot;
 }
@@ -4283,6 +4285,7 @@ void model_clear_submodel_instance( submodel_instance *sm_instance )
 	sm_instance->angs.h = 0.0f;
 	sm_instance->blown_off = false;
 	sm_instance->collision_checked = false;
+	sm_instance->moved_this_frame = false;
 }
 
 void model_clear_submodel_instances( int model_instance_num )
@@ -4380,6 +4383,7 @@ void model_update_instance(int model_instance_num, int sub_model_num, submodel_i
 	if ( sub_model_num >= pm->n_models ) return;
 
 	submodel_instance *smi = &pmi->submodel[sub_model_num];
+	submodel_instance *smi_r = &pmi->submodel_render[sub_model_num];
 	bsp_info *sm = &pm->submodel[sub_model_num];
 
 	// Set the "blown out" flags	
@@ -4390,18 +4394,28 @@ void model_update_instance(int model_instance_num, int sub_model_num, submodel_i
 			pmi->submodel[sm->my_replacement].blown_off = false;
 			pmi->submodel[sm->my_replacement].angs = sii->angs;
 			pmi->submodel[sm->my_replacement].prev_angs = sii->prev_angs;
+
+			pmi->submodel_render[sm->my_replacement].blown_off = false;
+			pmi->submodel_render[sm->my_replacement].angs = sii->angs;
+			pmi->submodel_render[sm->my_replacement].prev_angs = sii->prev_angs;
 		}
 	} else {
 		// If submodel isn't yet blown off and has a -destroyed replacement model, we prevent
 		// the replacement model from being drawn by marking it as having been blown off
 		if ( sm->my_replacement > -1 && sm->my_replacement != sub_model_num)	{
 			pmi->submodel[sm->my_replacement].blown_off = true;
+			pmi->submodel_render[sm->my_replacement].blown_off = true;
 		}
 	}
 
 	// Set the angles
 	smi->angs = sii->angs;
 	smi->prev_angs = sii->prev_angs;
+
+	smi_r->angs = sii->angs;
+	smi_r->prev_angs = sii->prev_angs;
+
+	smi->moved_this_frame = true;
 
 	// For all the detail levels of this submodel, set them also.
 	for (i=0; i<sm->num_details; i++ )	{
@@ -4415,24 +4429,30 @@ void model_instance_dumb_rotation_sub(polymodel_instance * pmi, polymodel *pm, i
 
 		bsp_info * sm = &pm->submodel[mn];
 		submodel_instance *smi = &pmi->submodel[mn];
+		submodel_instance *smi_r = &pmi->submodel_render[mn];
 
 		if ( sm->movement_type == MSS_FLAG_DUM_ROTATES ){
 			float *ang;
+			float *ang_r;
 			int axis = sm->movement_axis;
 			switch ( axis ) {
 			case MOVEMENT_AXIS_X:
 				ang = &smi->angs.p;
+				ang_r = &smi_r->angs.p;
 					break;
 			case MOVEMENT_AXIS_Z:
 				ang = &smi->angs.b;
+				ang_r = &smi_r->angs.b;
 					break;
 			default:
 			case MOVEMENT_AXIS_Y:
 				ang = &smi->angs.h;
+				ang_r = &smi_r->angs.h;
 					break;
 			}
 			*ang = sm->dumb_turn_rate * float(timestamp())/1000.0f;
 			*ang = ((*ang/(PI*2.0f))-float(int(*ang/(PI*2.0f))))*(PI*2.0f);
+			*ang_r = *ang;
 			//this keeps ang from getting bigger than 2PI
 		}
 

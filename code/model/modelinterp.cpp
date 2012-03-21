@@ -4403,8 +4403,7 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
 
-		if ( !pm->submodel[model_num].is_damaged )
-			interp_copy_index_buffer(&pm->submodel[model_num].buffer, detail_buffer, index_counts);
+		interp_copy_index_buffer(&pm->submodel[model_num].buffer, detail_buffer, index_counts);
 	}
 
 	gr_config_buffer(pm->vertex_buffer_id, detail_buffer, true);
@@ -4836,45 +4835,42 @@ void model_set_warp_globals(float scale_x, float scale_y, float scale_z, int bit
 	Interp_warp_alpha = alpha;
 }
 
-void model_interp_preprocess_subobj(vec3d *pos, matrix *orient, polymodel *pm,  polymodel_instance *pmi, int subobj_num, bool moving_submodels_only)
+void model_interp_preprocess_subobj(vec3d *pos, matrix *orient, polymodel *pm,  polymodel_instance *pmi, int subobj_num, bool redo_rotations)
 {
 	submodel_instance *smi = &pmi->submodel_render[subobj_num];
+	submodel_instance *smi_r = &pmi->submodel[subobj_num];
 
-	smi->mc_base = *pos;
-	smi->mc_orient = *orient;
+	if ( smi_r->moved_this_frame || redo_rotations ) {
+		bsp_info *submodel = &pm->submodel[subobj_num];
+		angles angs = pmi->submodel_render[subobj_num].angs;
+		matrix tm = IDENTITY_MATRIX;
+
+		vm_vec_unrotate(&smi->mc_base, &submodel->offset, orient);
+		vm_vec_add2(&smi->mc_base, pos);
+
+		if( vm_matrix_same(&tm, &submodel->orientation)) {
+			// if submodel orientation matrix is identity matrix then don't bother with matrix ops
+			vm_angles_2_matrix(&tm, &angs);
+		} else {
+			matrix rotation_matrix = submodel->orientation;
+			vm_rotate_matrix_by_angles(&rotation_matrix, &angs);
+
+			matrix inv_orientation;
+			vm_copy_transpose_matrix(&inv_orientation, &submodel->orientation);
+
+			vm_matrix_x_matrix(&tm, &rotation_matrix, &inv_orientation);
+		}
+
+		vm_matrix_x_matrix(&smi->mc_orient, orient, &tm);
+		redo_rotations = true;
+	}
 
 	int i = pm->submodel[subobj_num].first_child;
 
 	while ( i >= 0 ) {
 		bsp_info * csm = &pm->submodel[i];
 
-		if ( csm->can_move || !moving_submodels_only ) {
-			angles angs = pmi->submodel_render[i].angs;
-			matrix tm = IDENTITY_MATRIX;
-
-			vm_vec_unrotate(pos, &csm->offset, &smi->mc_orient );
-			vm_vec_add2(pos, &smi->mc_base);
-
-			if( vm_matrix_same(&tm, &csm->orientation)) {
-				// if submodel orientation matrix is identity matrix then don't bother with matrix ops
-				vm_angles_2_matrix(&tm, &angs);
-			} else {
-				matrix rotation_matrix = csm->orientation;
-				vm_rotate_matrix_by_angles(&rotation_matrix, &angs);
-
-				matrix inv_orientation;
-				vm_copy_transpose_matrix(&inv_orientation, &csm->orientation);
-
-				vm_matrix_x_matrix(&tm, &rotation_matrix, &inv_orientation);
-			}
-
-			vm_matrix_x_matrix(orient, &smi->mc_orient, &tm);
-		} else {
-			*pos = pmi->submodel_render[i].mc_base;
-			*orient = pmi->submodel_render[i].mc_orient;
-		}
-
-		model_interp_preprocess_subobj(pos, orient, pm, pmi, i, moving_submodels_only);
+		model_interp_preprocess_subobj(&smi->mc_base, &smi->mc_orient, pm, pmi, i, redo_rotations);
 
 		i = csm->next_sibling;
 	}

@@ -11824,7 +11824,7 @@ void ship_update_model_transforms(object *objp, int detail_num)
 
 	// first gather rotation data relative to the ship itself 
 	matrix identity_mat = IDENTITY_MATRIX;
-	model_interp_preprocess(&identity_mat, model_instance_num, detail_num, true);
+	model_interp_preprocess(&identity_mat, model_instance_num, detail_num, false);
 
 	// then copy data into the shader transform buffer
 	ship_info *sip = &Ship_info[shipp->ship_info_index];
@@ -11838,17 +11838,31 @@ void ship_update_model_transforms(object *objp, int detail_num)
 		smi = &pmi->submodel_render[i];
 
 		// write orientation data to tex buffer
-		for ( j = 0; j < 9; ++j ) {
-			pmi->transform_buffer[i*12+j] = smi->mc_orient.a1d[j];
+		/*for ( j = 0; j < 9; ++j ) {
+			pmi->transform_buffer[i*16+j] = smi->mc_orient.a1d[j];
 		}
 
 		for ( j = 0; j < 3; ++j ) {
-			pmi->transform_buffer[i*12+9+j] = smi->mc_base.a1d[j];
-		}
+			pmi->transform_buffer[i*16+12+j] = smi->mc_base.a1d[j];
+		}*/
+
+		pmi->transform_buffer[i*16] = smi->mc_orient.a1d[0];
+		pmi->transform_buffer[i*16+1] = smi->mc_orient.a1d[1];
+		pmi->transform_buffer[i*16+2] = smi->mc_orient.a1d[2];
+		pmi->transform_buffer[i*16+4] = smi->mc_orient.a1d[3];
+		pmi->transform_buffer[i*16+5] = smi->mc_orient.a1d[4];
+		pmi->transform_buffer[i*16+6] = smi->mc_orient.a1d[5];
+		pmi->transform_buffer[i*16+8] = smi->mc_orient.a1d[6];
+		pmi->transform_buffer[i*16+9] = smi->mc_orient.a1d[7];
+		pmi->transform_buffer[i*16+10] = smi->mc_orient.a1d[8];
+
+		pmi->transform_buffer[i*16+12] = smi->mc_base.a1d[0];
+		pmi->transform_buffer[i*16+13] = smi->mc_base.a1d[1];
+		pmi->transform_buffer[i*16+14] = smi->mc_base.a1d[2];
+		pmi->transform_buffer[i*16+15] = smi->blown_off ? 1.0f : 0.0f;
 	}
 
 	gr_update_transform_tex(pmi->transform_tex_id, pm->n_models, pmi->transform_buffer);
-
 }
 
 /**
