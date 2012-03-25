@@ -1095,9 +1095,10 @@ class ModelCollideTask
 	void querySubModel(int mn);
 	void querySubModelTris(void *ptr);
 	void queryShield();
-	void queryShieldSLDC();
-	void queryShieldCommon();
-	void queryRayBoundingbox();
+	bool queryShieldSLDC(int offset);
+	bool queryShieldCommon(shield_tri *tri);
+	void querySpherelineFace(int nv, vec3d **verts, vec3d *plane_pnt, float face_rad, vec3d *plane_norm, uv_pair *uvl_list, int ntmap, ubyte *poly);
+	int queryRayBoundingbox(vec3d *min, vec3d *max, vec3d * p0, vec3d *pdir, vec3d *hitpos)
 public:
 	ModelCollideTask(mc_info *mc);
 	void query();
