@@ -11810,7 +11810,7 @@ void ship_model_update_instance(object *objp)
 	model_collide_preprocess(&objp->orient, model_instance_num);
 }
 
-void ship_update_model_transforms(object *objp, int detail_num)
+void ship_update_model_transforms(object *objp, int detail_num, float thruster_scale)
 {
 	ship		*shipp;
 	int model_instance_num;
@@ -11860,6 +11860,16 @@ void ship_update_model_transforms(object *objp, int detail_num)
 		pmi->transform_buffer[i*16+13] = smi->mc_base.a1d[1];
 		pmi->transform_buffer[i*16+14] = smi->mc_base.a1d[2];
 		pmi->transform_buffer[i*16+15] = smi->blown_off ? 1.0f : 0.0f;
+
+		if ( pm->submodel[i].is_thruster ) {
+			pmi->transform_buffer[i*16+3] = 1.0f;
+			pmi->transform_buffer[i*16+7] = 1.0f;
+			pmi->transform_buffer[i*16+11] = thruster_scale;
+		} else {
+			pmi->transform_buffer[i*16+3] = 1.0f;
+			pmi->transform_buffer[i*16+7] = 1.0f;
+			pmi->transform_buffer[i*16+11] = 1.0f;
+		}
 	}
 
 	gr_update_transform_tex(pmi->transform_tex_id, pm->n_models, pmi->transform_buffer);

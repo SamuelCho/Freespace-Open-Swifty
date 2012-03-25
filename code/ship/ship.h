@@ -1608,7 +1608,7 @@ int ship_is_shield_up( object *obj, int quadrant );
 extern void ship_model_start(object *objp);
 extern void ship_model_stop(object *objp);
 void ship_model_update_instance(object *objp);
-void ship_update_model_transforms(object *objp, int detail_num);
+void ship_update_model_transforms(object *objp, int detail_num, float thruster_scale);
 
 //============================================
 extern int ship_find_num_crewpoints(object *objp);

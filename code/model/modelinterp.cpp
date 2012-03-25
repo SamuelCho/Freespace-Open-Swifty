@@ -170,6 +170,7 @@ static int FULLCLOAK = -1;
 
 // current transformation texture
 int Interp_transform_texture = -1;
+int Interp_transparent_textures_only = 0;
 
 // forward references
 int model_interp_sub(void *model_ptr, polymodel * pm, bsp_info *sm, int do_box_check);
@@ -2829,7 +2830,7 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	}
 
 	if ( model_instance_num >= 0 && Interp_transform_texture >= 0 ) {
-		ship_update_model_transforms(objp, Interp_detail_level);
+		ship_update_model_transforms(objp, Interp_detail_level, Interp_thrust_scale);
 	}
 
 #ifndef NDEBUG
@@ -2964,8 +2965,29 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 		gr_set_buffer(pm->vertex_buffer_id);
 	}
 
-	if ( model_instance_num >= 0 && Interp_transform_texture >= 0 ) {
+	if ( model_instance_num >= 0 && Interp_transform_texture >= 0) {
 		model_render_buffers(pm, -1);
+
+		if ( pm->use_thruster_buffers && (Interp_flags & MR_SHOW_THRUSTERS) ) {
+			uint fl = Interp_flags;
+
+			Interp_flags |= MR_NO_LIGHTING;
+			Interp_thrust_scale_subobj = 1;
+			gr_set_lighting(false, false);
+
+			model_render_buffers(pm, -1);
+
+			Interp_thrust_scale_subobj = 0;
+			gr_set_lighting(true, true);
+
+			Interp_flags = fl;
+		}
+		Interp_transparent_textures_only = 1;
+		//draw_thrusters = true;
+
+		//model_render_buffers(pm, -1);
+
+		Interp_transparent_textures_only = 0;
 		Interp_transform_texture = -1;
 	} else {
 		// Draw the subobjects	
@@ -3001,27 +3023,27 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 		} else {
 			model_interp_subcall(pm, pm->detail[Interp_detail_level], Interp_detail_level);
 		}
-	}
 
-	// Draw the thruster subobjects
-	/*if (draw_thrusters) {
-		i = pm->submodel[pm->detail[Interp_detail_level]].first_child;
+		// Draw the thruster subobjects
+		if (draw_thrusters) {
+			i = pm->submodel[pm->detail[Interp_detail_level]].first_child;
 
-		while( i >= 0 ) {
-			if (pm->submodel[i].is_thruster) {
-				// When in htl mode render with htl method unless its a jump node
-				if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-					transparent_submodel ts;
-					ts.is_submodel = false;
-					transparent_submodels.push_back(ts);
-					model_render_children_buffers( pm, i, Interp_detail_level );
-				} else {
-					model_interp_subcall( pm, i, Interp_detail_level );
+			while( i >= 0 ) {
+				if (pm->submodel[i].is_thruster) {
+					// When in htl mode render with htl method unless its a jump node
+					if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
+						transparent_submodel ts;
+						ts.is_submodel = false;
+						transparent_submodels.push_back(ts);
+						model_render_children_buffers( pm, i, Interp_detail_level );
+					} else {
+						model_interp_subcall( pm, i, Interp_detail_level );
+					}
 				}
+				i = pm->submodel[i].next_sibling;
 			}
-			i = pm->submodel[i].next_sibling;
 		}
-	}*/
+	}
 
 	// Valathil - now draw the saved transparent objects
 	SCP_vector<transparent_submodel>::iterator ts;
@@ -4321,7 +4343,7 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 void interp_copy_index_buffer(vertex_buffer *src, vertex_buffer *dest, int *index_counts)
 {
 	size_t i, j, k;
-	int src_buff_size;
+	size_t src_buff_size;
 	buffer_data *src_buffer;
 	buffer_data *dest_buffer;
 	uint vert_offset = src->vertex_offset / src->stride; // assuming all submodels crunched into this index buffer have the same stride
@@ -4336,7 +4358,7 @@ void interp_copy_index_buffer(vertex_buffer *src, vertex_buffer *dest, int *inde
 			}
 
 			src_buffer = &src->tex_buf[j];
-			src_buff_size = src_buffer->n_verts;
+			src_buff_size = (size_t)src_buffer->n_verts;
 
 			for ( k = 0; k < src_buff_size; ++k ) {
 				dest_buffer->assign(dest_buffer->n_verts, src_buffer->get_index()[k] + vert_offset); // take into account the vertex offset.
@@ -4354,9 +4376,11 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 	int model_num;
 	SCP_vector<int> submodel_list;
 	int index_counts[MAX_MODEL_TEXTURES];
+	int thruster_index_counts[MAX_MODEL_TEXTURES];
 
 	for ( i = 0; i < MAX_MODEL_TEXTURES; ++i ) {
 		index_counts[i] = 0;
+		thruster_index_counts[i] = 0;
 	}
 
 	model_get_submodel_tree_list(&submodel_list, pm, pm->detail[detail_num]);
@@ -4365,8 +4389,10 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 	int tex_num;
 
 	vertex_buffer *detail_buffer = &pm->detail_buffers[detail_num];
+	vertex_buffer *thruster_buffer = &pm->thruster_buffers[detail_num];
 
 	detail_buffer->model_list = new(std::nothrow) poly_list;
+	thruster_buffer->model_list = new(std::nothrow) poly_list;
 
 	// need to first count how many indexes there are in this entire detail model hierarchy
 	for ( i = 0; i < submodel_list.size(); ++i ) {
@@ -4374,11 +4400,17 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 		num_buffers = pm->submodel[model_num].buffer.tex_buf.size();
 
 		detail_buffer->flags |= pm->submodel[model_num].buffer.flags;
+		thruster_buffer->flags |= pm->submodel[model_num].buffer.flags;
 
 		for ( j = 0; j < num_buffers; ++j ) {
 			tex_num = pm->submodel[model_num].buffer.tex_buf[j].texture;
 
-			index_counts[tex_num] += pm->submodel[model_num].buffer.tex_buf[j].n_verts;
+			if ( pm->submodel[model_num].is_thruster ) {
+				thruster_index_counts[tex_num] += pm->submodel[model_num].buffer.tex_buf[j].n_verts;
+				pm->use_thruster_buffers = true;
+			} else {
+				index_counts[tex_num] += pm->submodel[model_num].buffer.tex_buf[j].n_verts;
+			}
 		}
 	}
 
@@ -4399,14 +4431,38 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 		detail_buffer->tex_buf.push_back(new_buffer);
 	}
 
+	for ( i = 0; i < MAX_MODEL_TEXTURES; ++i ) {
+		if ( thruster_index_counts[i] <= 0 ) {
+			continue;
+		}
+
+		buffer_data new_buffer(thruster_index_counts[i]);
+		new_buffer.n_verts = 0;
+		new_buffer.texture = i;
+
+		if ( thruster_index_counts[i] >= USHRT_MAX )  {
+			new_buffer.flags |= VB_FLAG_LARGE_INDEX;
+		}
+
+		thruster_buffer->tex_buf.push_back(new_buffer);
+	}
+
 	// finally copy over the indexes
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
-
-		interp_copy_index_buffer(&pm->submodel[model_num].buffer, detail_buffer, index_counts);
+		
+		if ( pm->submodel[model_num].is_thruster ) {
+			interp_copy_index_buffer(&pm->submodel[model_num].buffer, thruster_buffer, thruster_index_counts);
+		} else {
+			interp_copy_index_buffer(&pm->submodel[model_num].buffer, detail_buffer, index_counts);
+		}
 	}
 
 	gr_config_buffer(pm->vertex_buffer_id, detail_buffer, true);
+
+	if ( pm->use_thruster_buffers ) {
+		gr_config_buffer(pm->vertex_buffer_id, thruster_buffer, true);
+	}
 }
 
 inline int in_box(vec3d *min, vec3d *max, vec3d *pos)
@@ -4578,7 +4634,11 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 
 	} else {
 		model = NULL;
-		buffer = &pm->detail_buffers[Interp_detail_level];
+		if ( Interp_thrust_scale_subobj ) {
+			buffer = &pm->thruster_buffers[Interp_detail_level];
+		} else {
+			buffer = &pm->detail_buffers[Interp_detail_level];
+		}
 	}
 
 	vec3d scale;
@@ -4587,6 +4647,7 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		scale.xyz.x = 1.0f;
 		scale.xyz.y = 1.0f;
 		scale.xyz.z = Interp_thrust_scale;
+		scale.xyz.z = 1.0f;
 	} else {
 		scale.xyz.x = Interp_warp_scale_x;
 		scale.xyz.y = Interp_warp_scale_y;
@@ -4701,7 +4762,7 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		}
 
 		// trying to get transperent textures-Bobboau
-		if (tmap->is_transparent && model != NULL) {
+		if ( tmap->is_transparent && model != NULL ) {
 			// for special shockwave/warpmap usage
 			alpha = (Interp_warp_alpha != -1.0f) ? Interp_warp_alpha : 0.8f;
 			blend_filter = GR_ALPHABLEND_FILTER;
@@ -4720,9 +4781,7 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 			tobj.tmap_flags = Interp_tmap_flags;
 			memcpy(&tobj.scale,&scale,sizeof(vec3d));
 			transparent_submodels.back().transparent_objects.push_back(tobj);
-		}
-		else
-		{
+		} else {
 			if (forced_blend_filter != GR_ALPHABLEND_NONE) {
 				blend_filter = forced_blend_filter;
 			}
@@ -4730,6 +4789,18 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 			if ( tmap->is_transparent ) {
 				blend_filter = GR_ALPHABLEND_FILTER;
 			}
+
+			/*if ( tmap->is_transparent ) {
+				if ( Interp_transparent_textures_only && model == NULL ) {
+					blend_filter = GR_ALPHABLEND_FILTER;
+				} else if ( !Interp_transparent_textures_only && model == NULL ){
+					GLOWMAP = -1;
+					SPECMAP = -1;
+					NORMMAP = -1;
+					HEIGHTMAP = -1;
+					continue;
+				}
+			}*/
 
 			gr_set_bitmap(texture, blend_filter, GR_BITBLT_MODE_NORMAL, alpha);
 

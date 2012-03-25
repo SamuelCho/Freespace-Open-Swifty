@@ -88,6 +88,7 @@ typedef struct submodel_instance {
 	matrix mc_orient;
 	bool collision_checked;
 	bool blown_off;
+	bool moved_this_frame;
 } submodel_instance;
 
 // Data specific to a particular instance of a model.
@@ -709,6 +710,8 @@ typedef struct polymodel {
 	int vertex_buffer_id;			// HTL vertex buffer id
 
 	vertex_buffer detail_buffers[MAX_MODEL_DETAIL_LEVELS];
+	vertex_buffer thruster_buffers[MAX_MODEL_DETAIL_LEVELS];
+	bool use_thruster_buffers;
 } polymodel;
 
 // Call once to initialize the model system
