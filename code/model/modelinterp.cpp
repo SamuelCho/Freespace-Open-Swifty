@@ -2830,7 +2830,7 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	}
 
 	if ( model_instance_num >= 0 && Interp_transform_texture >= 0 ) {
-		ship_update_model_transforms(objp, Interp_detail_level, Interp_thrust_scale);
+		model_interp_update_transforms(objp, Interp_detail_level);
 	}
 
 #ifndef NDEBUG
@@ -2968,6 +2968,7 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	if ( model_instance_num >= 0 && Interp_transform_texture >= 0) {
 		model_render_buffers(pm, -1);
 
+		Interp_transparent_textures_only = 1;
 		if ( pm->use_thruster_buffers && (Interp_flags & MR_SHOW_THRUSTERS) ) {
 			uint fl = Interp_flags;
 
@@ -2982,10 +2983,8 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 
 			Interp_flags = fl;
 		}
-		Interp_transparent_textures_only = 1;
-		//draw_thrusters = true;
 
-		//model_render_buffers(pm, -1);
+		model_render_buffers(pm, -1);
 
 		Interp_transparent_textures_only = 0;
 		Interp_transform_texture = -1;
@@ -4424,10 +4423,6 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 		new_buffer.n_verts = 0;
 		new_buffer.texture = i;
 
-		if ( index_counts[i] >= USHRT_MAX ) {
-			new_buffer.flags |= VB_FLAG_LARGE_INDEX;
-		}
-
 		detail_buffer->tex_buf.push_back(new_buffer);
 	}
 
@@ -4439,10 +4434,6 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 		buffer_data new_buffer(thruster_index_counts[i]);
 		new_buffer.n_verts = 0;
 		new_buffer.texture = i;
-
-		if ( thruster_index_counts[i] >= USHRT_MAX )  {
-			new_buffer.flags |= VB_FLAG_LARGE_INDEX;
-		}
 
 		thruster_buffer->tex_buf.push_back(new_buffer);
 	}
@@ -4458,9 +4449,22 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 		}
 	}
 
+	// check which buffers need to have the > USHORT flag
+	for ( i = 0; i < detail_buffer->tex_buf.size(); ++i ) {
+		if ( detail_buffer->tex_buf[i].i_last >= USHRT_MAX ) {
+			detail_buffer->tex_buf[i].flags |= VB_FLAG_LARGE_INDEX;
+		}
+	}
+
 	gr_config_buffer(pm->vertex_buffer_id, detail_buffer, true);
 
 	if ( pm->use_thruster_buffers ) {
+		for ( i = 0; i < thruster_buffer->tex_buf.size(); ++i ) {
+			if ( thruster_buffer->tex_buf[i].i_last >= USHRT_MAX ) {
+				thruster_buffer->tex_buf[i].flags |= VB_FLAG_LARGE_INDEX;
+			}
+		}
+
 		gr_config_buffer(pm->vertex_buffer_id, thruster_buffer, true);
 	}
 }
@@ -4612,6 +4616,7 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 
 	vertex_buffer *buffer;
 	bsp_info *model;
+	vec3d scale;
 
 	if ( (mn >= 0) && (mn < pm->n_models) ) {
 		model = &pm->submodel[mn];
@@ -4632,29 +4637,26 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 				return;
 		}
 
+		if (Interp_thrust_scale_subobj) {
+			scale.xyz.x = 1.0f;
+			scale.xyz.y = 1.0f;
+			scale.xyz.z = Interp_thrust_scale;
+		} else {
+			scale.xyz.x = Interp_warp_scale_x;
+			scale.xyz.y = Interp_warp_scale_y;
+			scale.xyz.z = Interp_warp_scale_z;
+		}
+
+		gr_push_scale_matrix(&scale);
 	} else {
 		model = NULL;
+
 		if ( Interp_thrust_scale_subobj ) {
 			buffer = &pm->thruster_buffers[Interp_detail_level];
 		} else {
 			buffer = &pm->detail_buffers[Interp_detail_level];
 		}
 	}
-
-	vec3d scale;
-
-	if (Interp_thrust_scale_subobj) {
-		scale.xyz.x = 1.0f;
-		scale.xyz.y = 1.0f;
-		scale.xyz.z = Interp_thrust_scale;
-		scale.xyz.z = 1.0f;
-	} else {
-		scale.xyz.x = Interp_warp_scale_x;
-		scale.xyz.y = Interp_warp_scale_y;
-		scale.xyz.z = Interp_warp_scale_z;
-	}
-
-	gr_push_scale_matrix(&scale);
 
 	texture_info tex_replace[TM_NUM_TYPES];
 
@@ -4786,21 +4788,17 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 				blend_filter = forced_blend_filter;
 			}
 
-			if ( tmap->is_transparent ) {
-				blend_filter = GR_ALPHABLEND_FILTER;
-			}
-
-			/*if ( tmap->is_transparent ) {
-				if ( Interp_transparent_textures_only && model == NULL ) {
+			if ( model == NULL && tmap->is_transparent ) {
+				if ( Interp_transparent_textures_only ) {
 					blend_filter = GR_ALPHABLEND_FILTER;
-				} else if ( !Interp_transparent_textures_only && model == NULL ){
+				} else if ( !Interp_transparent_textures_only ) {
 					GLOWMAP = -1;
 					SPECMAP = -1;
 					NORMMAP = -1;
 					HEIGHTMAP = -1;
 					continue;
-				}
-			}*/
+				} 
+			}
 
 			gr_set_bitmap(texture, blend_filter, GR_BITBLT_MODE_NORMAL, alpha);
 
@@ -4813,7 +4811,9 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		HEIGHTMAP = -1;
 	}
 
-	gr_pop_scale_matrix();
+	if ( model != NULL ) {
+		gr_pop_scale_matrix();
+	}
 }
 
 // returns 1 if the thruster should be drawn
@@ -4963,6 +4963,80 @@ void model_interp_preprocess(matrix *orient, int model_instance_num, int detail_
 	vm_vec_zero(&current_pos);
 
 	model_interp_preprocess_subobj(&current_pos, &current_orient, pm, pmi, pm->detail[detail_num], moving_submodels_only);
+}
+
+
+void model_interp_update_transforms(object *objp, int detail_num)
+{
+	ship		*shipp;
+	int model_instance_num;
+
+	Assert(objp != NULL);
+	Assert(objp->instance >= 0);
+	Assert(objp->type == OBJ_SHIP);
+
+	shipp = &Ships[objp->instance];
+	model_instance_num = shipp->model_instance_num;
+
+	// first gather rotation data relative to the ship itself 
+	matrix identity_mat = IDENTITY_MATRIX;
+	model_interp_preprocess(&identity_mat, model_instance_num, detail_num, false);
+
+	// then copy data into the shader transform buffer
+	ship_info *sip = &Ship_info[shipp->ship_info_index];
+
+	polymodel *pm = model_get(sip->model_num);
+	polymodel_instance *pmi = model_get_instance(model_instance_num);
+	int i, j;
+	submodel_instance *smi;
+
+	for ( i = 0; i < pm->n_models; ++i ) {
+		smi = &pmi->submodel_render[i];
+
+		pmi->transform_buffer[i*16] = smi->mc_orient.a1d[0];
+		pmi->transform_buffer[i*16+1] = smi->mc_orient.a1d[1];
+		pmi->transform_buffer[i*16+2] = smi->mc_orient.a1d[2];
+		pmi->transform_buffer[i*16+4] = smi->mc_orient.a1d[3];
+		pmi->transform_buffer[i*16+5] = smi->mc_orient.a1d[4];
+		pmi->transform_buffer[i*16+6] = smi->mc_orient.a1d[5];
+		pmi->transform_buffer[i*16+8] = smi->mc_orient.a1d[6];
+		pmi->transform_buffer[i*16+9] = smi->mc_orient.a1d[7];
+		pmi->transform_buffer[i*16+10] = smi->mc_orient.a1d[8];
+
+		pmi->transform_buffer[i*16+12] = smi->mc_base.a1d[0];
+		pmi->transform_buffer[i*16+13] = smi->mc_base.a1d[1];
+		pmi->transform_buffer[i*16+14] = smi->mc_base.a1d[2];
+
+		bool do_not_render = false;
+
+		// if using detail boxes or spheres, check that we are valid for the range
+		if ( !(Interp_flags & MR_FULL_DETAIL) && pm->submodel[i].use_render_box ) {
+			vm_vec_copy_scale(&Interp_render_box_min, &pm->submodel[i].render_box_min, Interp_box_scale);
+			vm_vec_copy_scale(&Interp_render_box_max, &pm->submodel[i].render_box_max, Interp_box_scale);
+
+			if ( (-pm->submodel[i].use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &pm->submodel[i].offset)) )
+				do_not_render = true;
+		} else if ( !(Interp_flags & MR_FULL_DETAIL) && pm->submodel[i].use_render_sphere ) {
+			Interp_render_sphere_radius = pm->submodel[i].render_sphere_radius * Interp_box_scale;
+
+			if ( (-pm->submodel[i].use_render_sphere + in_sphere(&pm->submodel[i].offset, Interp_render_sphere_radius)) )
+				do_not_render = true;
+		}
+
+		pmi->transform_buffer[i*16+15] = smi->blown_off || do_not_render ? 1.0f : 0.0f;
+
+		if ( pm->submodel[i].is_thruster ) {
+			pmi->transform_buffer[i*16+3] = 1.0f;
+			pmi->transform_buffer[i*16+7] = 1.0f;
+			pmi->transform_buffer[i*16+11] = Interp_thrust_scale;
+		} else {
+			pmi->transform_buffer[i*16+3] = Interp_warp_scale_x;
+			pmi->transform_buffer[i*16+7] = Interp_warp_scale_y;
+			pmi->transform_buffer[i*16+11] = Interp_warp_scale_z;
+		}
+	}
+
+	gr_update_transform_tex(pmi->transform_tex_id, pm->n_models, pmi->transform_buffer);
 }
 
 //********************-----CLASS: texture_info-----********************//

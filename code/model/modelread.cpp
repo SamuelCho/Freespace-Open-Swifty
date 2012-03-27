@@ -833,7 +833,7 @@ void create_vertex_buffer(polymodel *pm)
 
 	if ( Use_GLSL >= 3 ) {
 		bool unequal_stride = false;
-		int stride = pm->submodel[0].buffer.stride;
+		uint stride = pm->submodel[0].buffer.stride;
 
 		// see if all submodel vertices have the same stride.
 		for ( i = 1; i < pm->n_models; ++i ) {
@@ -870,6 +870,12 @@ void create_vertex_buffer(polymodel *pm)
 			gr_pack_buffer(pm->vertex_buffer_id, &pm->detail_buffers[i]);
 
 			pm->detail_buffers[i].release();
+
+			if ( pm->use_thruster_buffers ) {
+				gr_pack_buffer(pm->vertex_buffer_id, &pm->thruster_buffers[i]);
+
+				pm->thruster_buffers->release();
+			}
 		}
 	}
 
@@ -2406,6 +2412,7 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 	
 	memset(pm, 0, sizeof(polymodel));
 
+	pm->use_thruster_buffers = false;
 	pm->n_paths = 0;
 	pm->paths = NULL;
 
@@ -2688,6 +2695,8 @@ int model_create_instance(int model_num, int submodel_num)
 	}
 
 	pmi->rendered = false;
+
+	gr_update_transform_tex(pmi->transform_tex_id, pm->n_models, pmi->transform_buffer);
 
 	return open_slot;
 }

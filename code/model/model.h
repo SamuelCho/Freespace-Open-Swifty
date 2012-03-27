@@ -1087,6 +1087,8 @@ void model_collide_preprocess(matrix *orient, int model_instance_num, int detail
 
 void model_interp_preprocess(matrix *orient, int model_instance_num, int detail_num, bool moving_submodels_only);
 
+void model_interp_update_transforms(object *objp, int detail_num);
+
 // Sets the submodel instance data in a submodel
 // If show_damaged is true it shows only damaged submodels.
 // If it is false it shows only undamaged submodels.
