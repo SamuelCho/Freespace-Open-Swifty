@@ -2685,7 +2685,7 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 		if (objp->type == OBJ_SHIP) {
 			shipp = &Ships[objp->instance];
 
-			if ( model_instance_num >= 0 ) {
+			if ( model_instance_num >= 0 && Cmdline_merged_ibos ) {
 				pmi = model_get_instance(model_instance_num);
 				Interp_transform_texture = pmi->transform_tex_id;
 			}
@@ -4245,7 +4245,7 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 					tlist->tsb[i] = model_list->tsb[ivert];
 				}
 
-				if ( Use_GLSL >= 3 ) {
+				if ( Cmdline_merged_ibos ) {
 					tlist->submodels[i] = mn;
 				}
 			}

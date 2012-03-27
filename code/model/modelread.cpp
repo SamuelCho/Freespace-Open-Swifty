@@ -831,7 +831,7 @@ void create_vertex_buffer(polymodel *pm)
 
 	bool use_shader_transforms = false;
 
-	if ( Use_GLSL >= 3 ) {
+	if ( Cmdline_merged_ibos ) {
 		bool unequal_stride = false;
 		uint stride = pm->submodel[0].buffer.stride;
 
@@ -2683,20 +2683,20 @@ int model_create_instance(int model_num, int submodel_num)
 		pmi->root_submodel_num = submodel_num;
 	}
 
-	pmi->transform_tex_id = gr_create_transform_tex();
+	if ( Cmdline_merged_ibos ) {
+		pmi->transform_tex_id = gr_create_transform_tex();
 	
-	// create transform texture buffer. allocate 12 floats per submodel. 3*3 for the orientation matrix. Plus another 3 for the offset.
-	pmi->transform_buffer = (float*)vm_malloc( sizeof(float)*pm->n_models*16 );
+		// create transform texture buffer. allocate 12 floats per submodel. 3*3 for the orientation matrix. Plus another 3 for the offset.
+		pmi->transform_buffer = (float*)vm_malloc( sizeof(float)*pm->n_models*16 );
 
-	// pre-populate all model batches with initial orientations
-	for ( i = 0; i < pm->n_detail_levels; ++i ) {
-		matrix identity_mat = IDENTITY_MATRIX;
-		model_interp_preprocess(&identity_mat, open_slot, i, true);
+		// pre-populate all model batches with initial orientations
+		for ( i = 0; i < pm->n_detail_levels; ++i ) {
+			matrix identity_mat = IDENTITY_MATRIX;
+			model_interp_preprocess(&identity_mat, open_slot, i, true);
+		}
+
+		gr_update_transform_tex(pmi->transform_tex_id, pm->n_models, pmi->transform_buffer);
 	}
-
-	pmi->rendered = false;
-
-	gr_update_transform_tex(pmi->transform_tex_id, pm->n_models, pmi->transform_buffer);
 
 	return open_slot;
 }
@@ -2717,10 +2717,12 @@ void model_delete_instance(int model_instance_num)
 		vm_free(pmi->submodel_render);
 	}
 
-	gr_destroy_transform_tex(pmi->transform_tex_id);
+	if ( Cmdline_merged_ibos ) {
+		gr_destroy_transform_tex(pmi->transform_tex_id);
 
-	if ( pmi->transform_buffer ) {
-		vm_free(pmi->transform_buffer);
+		if ( pmi->transform_buffer ) {
+			vm_free(pmi->transform_buffer);
+		}
 	}
 
 	vm_free(pmi);

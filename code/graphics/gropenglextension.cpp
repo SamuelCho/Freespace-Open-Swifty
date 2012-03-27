@@ -423,6 +423,10 @@ void opengl_extensions_init()
 		Cmdline_postprocess = 0;
 	}
 
+	if ( Use_GLSL < 3 ) {
+		Cmdline_merged_ibos = false;
+	}
+
 	if (Use_GLSL) {
 		GLint max_texture_units;
 		glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS_ARB, &max_texture_units);

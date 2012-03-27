@@ -176,6 +176,7 @@ Flag exe_params[] =
 	{ "-ingame_join",		"Allow in-game joining",					true,	0,					EASY_DEFAULT,		"Experimental",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-ingame_join", },
 	{ "-voicer",			"Enable voice recognition",					true,	0,					EASY_DEFAULT,		"Experimental",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-voicer", },
 	{ "-fb_explosions",		"Enable Framebuffer Shockwaves",			true,	0,					EASY_DEFAULT,		"Experimental",	"", },
+	{ "-merged_ibos",		"Enable merged index buffers",				true,	0,					EASY_DEFAULT,		"Experimental", "", },
 
 	{ "-fps",				"Show frames per second on HUD",			false,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-fps", },
 	{ "-pos",				"Show position of camera",					false,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-pos", },
@@ -274,6 +275,7 @@ cmdline_parm fxaa_arg("-fxaa", NULL);
 cmdline_parm fxaa_preset_arg("-fxaa_preset", NULL);
 cmdline_parm fb_explosions_arg("-fb_explosions", NULL);
 cmdline_parm flightshaftsoff_arg("-nolightshafts", NULL);
+cmdline_parm merged_ibos("-merged_ibos", NULL);
 
 float Cmdline_clip_dist = Default_min_draw_distance;
 float Cmdline_fov = 0.75f;
@@ -297,6 +299,7 @@ bool Cmdline_fxaa = false;
 int Cmdline_fxaa_preset = 6;
 extern int Fxaa_preset_last_frame;
 bool Cmdline_fb_explosions = 0;
+bool Cmdline_merged_ibos = false;
 extern bool ls_force_off;
 
 // Game Speed related
@@ -1459,6 +1462,11 @@ bool SetCmdlineParams()
 	if ( fb_explosions_arg.found() )
 	{
 		Cmdline_fb_explosions = 1;
+	}
+
+	if ( merged_ibos.found() ) 
+	{
+		Cmdline_merged_ibos = true;
 	}
 
 	if ( postprocess_arg.found() )
