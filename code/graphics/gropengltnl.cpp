@@ -369,13 +369,6 @@ bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb)
 		array[arsize++] = vl->world.xyz.x;
 		array[arsize++] = vl->world.xyz.y;
 		array[arsize++] = vl->world.xyz.z;
-
-		int pad_size = (vb->stride/sizeof(GLfloat) - (arsize - prev_arsize));
-		pad_size += arsize;
-
-		while ( pad_size > arsize ) {
-			array[arsize++] = 0.0f;
-		}
 	}
 
 	// generate the index array
