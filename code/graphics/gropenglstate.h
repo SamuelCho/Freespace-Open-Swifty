@@ -201,11 +201,27 @@ class opengl_array_state
 		GLsizei vertex_array_Stride;
 		GLvoid *vertex_array_Pointer;
 
+		SCP_map<GLuint, opengl_vertex_attrib_unit> vertex_attrib_units;
+
 		GLuint array_buffer;
 		GLuint element_array_buffer;
-
-		SCP_map<GLuint, opengl_vertex_attrib_unit> vertex_attrib_units;
 	public:
+		void SetActiveClientUnit(GLuint id);
+		void EnableClientTexture();
+		void DisableClientTexture();
+		void TexPointer(GLint size, GLenum type, GLsizei stride, GLvoid *pointer);
+
+		void EnableClientNormal();
+		void DisableClientNormal();
+		void NormalPointer(GLenum type, GLsizei stride, GLvoid *pointer);
+
+		void EnableClientVertex();
+		void DisableClientVertex();
+		void VertexPointer(GLint size, GLenum type, GLsizei stride, GLvoid *pointer);
+
+		void EnableVertexAttrib(GLuint);
+		void DisableVertexAttrib(GLuint);
+		void VertexAttribPointer(GLint size, GLenum type, GLboolean normalized, GLsizei stride, GLvoid *pointer);
 };
 
 class opengl_state
