@@ -161,7 +161,52 @@ inline void opengl_texture_state::SetShaderMode(GLboolean mode)
 	shader_mode = mode;
 }
 
+struct opengl_client_texture_unit
+{
+	GLboolean active;
+	GLboolean status;
 
+	GLint size;
+	GLenum type;
+	GLsizei stride;
+	GLvoid *pointer;
+};
+
+struct opengl_vertex_attrib_unit
+{
+	GLboolean status;
+
+	GLint size;
+	GLenum type;
+	GLboolean normalized;
+	GLsizei stride;
+	GLvoid *pointer;
+};
+
+class opengl_array_state
+{
+	private:
+		GLuint active_client_texture_unit;
+
+		opengl_client_texture_unit *client_texture_units;
+
+		GLboolean normal_array_Status;
+		GLenum normal_array_Type;
+		GLsizei normal_array_Stride;
+		GLvoid *normal_array_Pointer;
+
+		GLboolean vertex_array_Status;
+		GLint vertex_array_Size;
+		GLenum vertex_array_Type;
+		GLsizei vertex_array_Stride;
+		GLvoid *vertex_array_Pointer;
+
+		GLuint array_buffer;
+		GLuint element_array_buffer;
+
+		SCP_map<GLuint, opengl_vertex_attrib_unit> vertex_attrib_units;
+	public:
+};
 
 class opengl_state
 {
@@ -283,7 +328,6 @@ inline GLenum opengl_state::DepthFunc(GLenum new_val)
 
 	return depthfunc_Value;
 }
-
 
 extern opengl_state GL_state;
 
