@@ -965,9 +965,21 @@ void opengl_array_state::BindElementBuffer(GLuint id)
 	element_array_buffer = id;
 }
 
-void opengl_flush_render_states()
+void gr_opengl_flush_data_states()
 {
+	GL_state.Texture.DisableAll();
 
+	GL_state.Array.SetActiveClientUnit(1);
+	GL_state.Array.DisableClientTexture();
+
+	GL_state.Array.SetActiveClientUnit(0);
+	GL_state.Array.DisableClientTexture();
+
+	GL_state.Array.DisableClientNormal();
+	GL_state.Array.DisableClientVertex();
+
+	GL_state.Array.ResetVertexAttribUsed();
+	GL_state.Array.DisabledVertexAttribUnused();
 }
 
 void opengl_setup_render_states(int &r, int &g, int &b, int &alpha, int &tmap_type, int flags, int is_scaler)

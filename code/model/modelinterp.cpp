@@ -3082,6 +3082,8 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	}
 	transparent_submodels.clear();
 
+	gr_flush_data_states();
+
 	if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
 		gr_set_buffer(-1);
 	}

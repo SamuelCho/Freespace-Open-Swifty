@@ -460,6 +460,8 @@ typedef struct screen {
 	uint (*gf_create_transformation_tex)();
 	void (*gf_destroy_transformation_tex)(uint tex_id);
 	void (*gf_update_transformation_tex)(uint tex_id, int n_models, float *data);
+
+	void (*gf_flush_data_states)();
 } screen;
 
 // handy macro
@@ -736,6 +738,8 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_create_transform_tex			GR_CALL(*gr_screen.gf_create_transformation_tex)
 #define gr_destroy_transform_tex		GR_CALL(*gr_screen.gf_destroy_transformation_tex)
 #define gr_update_transform_tex			GR_CALL(*gr_screen.gf_update_transformation_tex)
+
+#define gr_flush_data_states			GR_CALL(*gr_screen.gf_flush_data_states)
 
 // color functions
 void gr_get_color( int *r, int *g, int  b );

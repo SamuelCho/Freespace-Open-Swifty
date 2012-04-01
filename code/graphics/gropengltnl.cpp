@@ -404,8 +404,8 @@ void gr_opengl_set_buffer(int idx)
 
 	if (idx < 0) {
 		if (Use_VBOs) {
-			vglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-			vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+			GL_state.Array.BindArrayBuffer(0);
+			GL_state.Array.BindElementBuffer(0);
 		}
 
 		if ( (Use_GLSL > 1) && !GLSL_override ) {
@@ -475,43 +475,43 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 	// vertex buffer
 
 	if (vbp->vbo) {
-		vglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbp->vbo);
+		GL_state.Array.BindArrayBuffer(vbp->vbo)
 	} else {
 		ptr = (GLubyte*)vbp->array_list;
 	}
 
 	if (bufferp->flags & VB_FLAG_UV1) {
-		vglClientActiveTextureARB(GL_TEXTURE0_ARB);
-		glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-		glTexCoordPointer(2, GL_FLOAT, bufferp->stride, ptr + offset);
+		GL_state.Array.SetActiveClientUnit(0);
+		GL_state.Array.EnableClientTexture();
+		GL_state.Array.TexPointer(2, GL_FLOAT, bufferp->stride, ptr + offset);
 		offset += (2 * sizeof(GLfloat));
 	}
 
 	if (bufferp->flags & VB_FLAG_NORMAL) {
-		glEnableClientState(GL_NORMAL_ARRAY);
-		glNormalPointer(GL_FLOAT, bufferp->stride, ptr + offset);
+		GL_state.Array.EnableClientNormal();
+		GL_state.Array.NormalPointer(GL_FLOAT, bufferp->stride, ptr + offset);
 		offset += (3 * sizeof(GLfloat));
 	}
 
 	if (bufferp->flags & VB_FLAG_TANGENT) {
 		// we treat this as texture coords for ease of use
 		// NOTE: this is forced on tex unit 1!!!
-		vglClientActiveTextureARB(GL_TEXTURE1_ARB);
-		glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-		glTexCoordPointer(4, GL_FLOAT, bufferp->stride, ptr + offset);
+		GL_state.Array.SetActiveClientUnit(1);
+		GL_state.Array.EnableClientTexture();
+		GL_state.Array.TexPointer(4, GL_FLOAT, bufferp->stride, ptr + offset);
 		offset += (4 * sizeof(GLfloat));
 	}
 
 	if (bufferp->flags & VB_FLAG_MODEL_ID) {
 		int attrib_index = opengl_shader_get_attribute("model_id");
-		vglVertexAttribPointerARB(attrib_index, 1, GL_FLOAT, GL_FALSE, bufferp->stride, ptr + offset);
-		vglEnableVertexAttribArrayARB(attrib_index);
+		GL_state.Array.EnableVertexAttrib(attrib_index);
+		GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, bufferp->stride, ptr + offset);
 		offset += (1 * sizeof(GLfloat));
 	}
 
 	Assert( bufferp->flags & VB_FLAG_POSITION );
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glVertexPointer(3, GL_FLOAT, bufferp->stride, ptr + offset);
+	GL_state.Array.EnableClientVertex();
+	GL_state.Array.VertexPointer(3, GL_FLOAT, bufferp->stride, ptr + offset);
 	offset += (3 * sizeof(GLfloat));
 }
 
@@ -640,7 +640,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	opengl_init_arrays(vbp, bufferp);
 
 	if (vbp->ibo) {
-		vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, vbp->ibo);
+		GL_state.Array.BindElementBuffer(vbp->ibo);
 	} else {
 		ibuffer = (GLubyte*)vbp->index_list;
 	}
@@ -804,21 +804,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	}
 */
 
-	// make sure everthing gets turned back off
-	if ( shader_flags & SDR_FLAG_TRANSFORM ) {
-		int attrib_index = opengl_shader_get_attribute("model_id");
-
-		vglDisableVertexAttribArrayARB(attrib_index);
-	}
-
 	GL_state.Texture.SetShaderMode(GL_FALSE);
-	GL_state.Texture.DisableAll();
-	vglClientActiveTextureARB(GL_TEXTURE1_ARB);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	vglClientActiveTextureARB(GL_TEXTURE0_ARB);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	glDisableClientState(GL_VERTEX_ARRAY);
-	glDisableClientState(GL_NORMAL_ARRAY);
 }
 
 static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags)
