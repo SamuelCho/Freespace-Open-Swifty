@@ -39,6 +39,8 @@ struct opengl_texture_unit {
 
 	GLfloat rgb_scale;
 	GLfloat alpha_scale;
+
+	GLboolean used;
 };
 
 class opengl_texture_state
@@ -69,7 +71,9 @@ class opengl_texture_state
 		void SetActiveUnit(GLuint id = 0);
 		void Enable(GLuint tex_id = 0);
 		void Disable(bool force = false);
+		void DisableUnused();
 		void DisableAll();
+		void ResetUsed();
 		void Delete(GLuint tex_id);
 		GLfloat AnisoFilter(GLfloat aniso = 0.0f);
 		
@@ -163,7 +167,6 @@ inline void opengl_texture_state::SetShaderMode(GLboolean mode)
 
 struct opengl_client_texture_unit
 {
-	GLboolean active;
 	GLboolean status;
 
 	GLint size;
@@ -181,12 +184,16 @@ struct opengl_vertex_attrib_unit
 	GLboolean normalized;
 	GLsizei stride;
 	GLvoid *pointer;
+
+	bool used;
+	bool initialized;
 };
 
 class opengl_array_state
 {
 	private:
 		GLuint active_client_texture_unit;
+		GLuint num_client_texture_units;
 
 		opengl_client_texture_unit *client_texture_units;
 
@@ -206,6 +213,11 @@ class opengl_array_state
 		GLuint array_buffer;
 		GLuint element_array_buffer;
 	public:
+		opengl_array_state(): active_client_texture_unit(0), client_texture_units(NULL) {}
+		~opengl_array_state();
+
+		void init(GLuint n_units);
+
 		void SetActiveClientUnit(GLuint id);
 		void EnableClientTexture();
 		void DisableClientTexture();
@@ -219,9 +231,14 @@ class opengl_array_state
 		void DisableClientVertex();
 		void VertexPointer(GLint size, GLenum type, GLsizei stride, GLvoid *pointer);
 
-		void EnableVertexAttrib(GLuint);
-		void DisableVertexAttrib(GLuint);
-		void VertexAttribPointer(GLint size, GLenum type, GLboolean normalized, GLsizei stride, GLvoid *pointer);
+		void ResetVertexAttribUsed();
+		void DisabledVertexAttribUnused();
+		void EnableVertexAttrib(GLuint index);
+		void DisableVertexAttrib(GLuint index);
+		void VertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, GLvoid *pointer);
+
+		void BindArrayBuffer(GLuint id);
+		void BindElementBuffer(GLuint id);
 };
 
 class opengl_state
@@ -258,6 +275,7 @@ class opengl_state
 		void init();
 
 		opengl_texture_state Texture;
+		opengl_array_state Array;
 
 		void SetTextureSource(gr_texture_source ts);
 		void SetAlphaBlendMode(gr_alpha_blend ab);

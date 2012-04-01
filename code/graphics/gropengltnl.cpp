@@ -655,6 +655,8 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	int n_lights = MIN(Num_active_gl_lights, GL_max_lights) - 1;
 	vglUniform1iARB( opengl_shader_get_uniform("n_lights"), n_lights );
 
+	GL_state.Texture.ResetUsed();
+
 	// base texture
 	if (shader_flags & SDR_FLAG_DIFFUSE_MAP) {
 		vglUniform1iARB( opengl_shader_get_uniform("sBasemap"), render_pass );
@@ -732,6 +734,8 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		vglUniform1iARB( opengl_shader_get_uniform("transform_tex"), render_pass );
 		render_pass++;
 	}
+
+	GL_state.Texture.DisableUnused();
 
 	// DRAW IT!!
 	DO_RENDER();

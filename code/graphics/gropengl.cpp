@@ -1905,6 +1905,7 @@ bool gr_opengl_init()
 	}
 
 	GL_state.Texture.init(max_texture_units);
+	GL_state.Array.init(max_texture_units);
 
 	opengl_set_texture_target();
 	GL_state.Texture.SetActiveUnit(0);
