@@ -1152,8 +1152,9 @@ void opengl_render_internal(int nverts, vertex *verts, uint flags)
 			return;
 		}
 
-		glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-		glTexCoordPointer(2, GL_FLOAT, sizeof(vertex), &verts[0].texture_position.u);
+		GL_state.Array.SetActiveClientUnit(0);
+		GL_state.Array.EnableClientTexture();
+		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(vertex), &verts[0].texture_position.u);
 
 		// adjust texture coords if needed
 		if ( (u_scale != 1.0f) || (v_scale != 1.0f) ) {
@@ -1169,13 +1170,13 @@ void opengl_render_internal(int nverts, vertex *verts, uint flags)
 	}
 
 	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) ) {
-		glEnableClientState(GL_COLOR_ARRAY);
+		GL_state.Array.EnableClientColor();
 
 		if (flags & TMAP_FLAG_ALPHA) {
-			glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex), &verts[0].r);
+			GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex), &verts[0].r);
 		} else {
 			glColor4ub( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
-			glColorPointer(3, GL_UNSIGNED_BYTE, sizeof(vertex), &verts[0].r);
+			GL_state.Array.ColorPointer(3, GL_UNSIGNED_BYTE, sizeof(vertex), &verts[0].r);
 		}
 	}
 	// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
@@ -1189,8 +1190,8 @@ void opengl_render_internal(int nverts, vertex *verts, uint flags)
 	glPushMatrix();
 	glTranslatef((float)gr_screen.offset_x, (float)gr_screen.offset_y, offset_z);
 
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glVertexPointer(2, GL_FLOAT, sizeof(vertex), &verts[0].screen.xyw.x);
+	GL_state.Array.EnableClientVertex();
+	GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(vertex), &verts[0].screen.xyw.x);
 
 	gr_opengl_set_2d_matrix();
 
@@ -1209,9 +1210,9 @@ void opengl_render_internal(int nverts, vertex *verts, uint flags)
 	glMatrixMode(GL_MODELVIEW);
 	glPopMatrix();
 
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	glDisableClientState(GL_VERTEX_ARRAY);
-	glDisableClientState(GL_COLOR_ARRAY);
+	GL_state.Array.DisableClientTexture();
+	GL_state.Array.DisableClientVertex();
+	GL_state.Array.DisableClientColor();
 
 	GL_CHECK_FOR_ERRORS("end of render()");
 }
@@ -1231,8 +1232,9 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 			return;
 		}
 
-		glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-		glTexCoordPointer(2, GL_FLOAT, sizeof(vertex), &verts[0].texture_position.u);
+		GL_state.Array.SetActiveClientUnit(0);
+		GL_state.Array.EnableClientTexture();
+		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(vertex), &verts[0].texture_position.u);
 	}
 
 	GLboolean cull_face = GL_state.CullFace(GL_FALSE);
@@ -1249,22 +1251,22 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 	}
 
 	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) ) {
-		glEnableClientState(GL_COLOR_ARRAY);
-		glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex), &verts[0].r);
+		GL_state.Array.EnableClientColor();
+		GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex), &verts[0].r);
 	}
 	// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
 	else {
 		glColor4ub( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
 	}
 
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glVertexPointer(3, GL_FLOAT, sizeof(vertex), &verts[0].world.xyz.x);
+	GL_state.Array.EnableClientVertex();
+	GL_state.Array.VertexPointer(3, GL_FLOAT, sizeof(vertex), &verts[0].world.xyz.x);
 
 	glDrawArrays(gl_mode, 0, nverts);
 
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	glDisableClientState(GL_VERTEX_ARRAY);
-	glDisableClientState(GL_COLOR_ARRAY);
+	GL_state.Array.DisableClientTexture();
+	GL_state.Array.DisableClientVertex();
+	GL_state.Array.DisableClientColor();
 
 	GL_state.CullFace(cull_face);
 	GL_state.Lighting(lighting);
@@ -1331,17 +1333,19 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 			if( !(flags & TMAP_FLAG_DISTORTION) && !(flags & TMAP_FLAG_DISTORTION_THRUSTER) ) // Only use vertex attribute with soft particles to avoid OpenGL Errors - Valathil
 			{
 				attrib_index = opengl_shader_get_attribute("radius_in");
-				vglVertexAttribPointerARB(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
-
-				vglEnableVertexAttribArrayARB(attrib_index);
+				GL_state.Array.EnableVertexAttrib(attrib_index);
+				GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
+				//vglEnableVertexAttribArrayARB(attrib_index);
+				//vglVertexAttribPointerARB(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
 
 			}
 			if(flags & TMAP_FLAG_DISTORTION_THRUSTER)
 			{
 				attrib_index = opengl_shader_get_attribute("offset_in");
-				vglVertexAttribPointerARB(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
-
-				vglEnableVertexAttribArrayARB(attrib_index);
+				GL_state.Array.EnableVertexAttrib(attrib_index);
+				GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
+				//GL_state.Array.EnableVertexAttrib(attrib_index);
+				//GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
 			}
 			GL_state.Texture.SetActiveUnit(1);
 			GL_state.Texture.SetTarget(GL_TEXTURE_2D);
@@ -1352,8 +1356,9 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 			return;
 		}
 
-		glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-		glTexCoordPointer(2, GL_FLOAT, sizeof(vertex), &verts[0].texture_position.u);
+		GL_state.Array.SetActiveClientUnit(0);
+		GL_state.Array.EnableClientTexture();
+		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(vertex), &verts[0].texture_position.u);
 	}
 
 	GLboolean cull_face = GL_state.CullFace(GL_FALSE);
@@ -1370,16 +1375,16 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 	}
 
 	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) ) {
-		glEnableClientState(GL_COLOR_ARRAY);
-		glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex), &verts[0].r);
+		GL_state.Array.EnableClientColor();
+		GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex), &verts[0].r);
 	}
 	// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
 	else {
 		glColor4ub( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
 	}
 
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glVertexPointer(3, GL_FLOAT, sizeof(vertex), &verts[0].world.xyz.x);
+	GL_state.Array.EnableClientVertex();
+	GL_state.Array.VertexPointer(3, GL_FLOAT, sizeof(vertex), &verts[0].world.xyz.x);
 
 	glDrawArrays(gl_mode, 0, nverts);
 
@@ -1394,12 +1399,12 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 	GL_state.Texture.SetActiveUnit(3);
 	GL_state.Texture.Disable();
 
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	glDisableClientState(GL_VERTEX_ARRAY);
-	glDisableClientState(GL_COLOR_ARRAY);
+	GL_state.Array.DisableClientTexture();
+	GL_state.Array.DisableClientVertex();
+	GL_state.Array.DisableClientColor();
 
 	if ( attrib_index >= 0 ) {
-		vglDisableVertexAttribArrayARB(attrib_index);
+		GL_state.Array.DisableVertexAttrib(attrib_index);
 	}
 
 	GL_state.CullFace(cull_face);

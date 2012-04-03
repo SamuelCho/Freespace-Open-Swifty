@@ -734,13 +734,23 @@ void opengl_array_state::init(GLuint n_units)
 		client_texture_units[i].status = GL_FALSE;
 		client_texture_units[i].stride = 0;
 		client_texture_units[i].type = GL_FLOAT;
+		client_texture_units[i].buffer = 0;
 	}
 
+	color_array_Buffer = 0;
+	color_array_Status = GL_FALSE;
+	color_array_size = 4;
+	color_array_type = GL_FLOAT;
+	color_array_stride = 0;
+	color_array_pointer = 0;
+
+	normal_array_Buffer = 0;
 	normal_array_Status = GL_FALSE;
 	normal_array_Type = GL_FLOAT;
 	normal_array_Stride = 0;
 	normal_array_Pointer = 0;
 
+	vertex_array_Buffer = 0;
 	vertex_array_Status = GL_FALSE;
 	vertex_array_Size = 4;
 	vertex_array_Type = GL_FLOAT;
@@ -793,7 +803,7 @@ void opengl_array_state::TexPointer(GLint size, GLenum type, GLsizei stride, GLv
 {
 	opengl_client_texture_unit *ct_unit = &client_texture_units[active_client_texture_unit];
 
-	if ( ct_unit->pointer == pointer && ct_unit->size == size && ct_unit->type == type && ct_unit->stride == stride ) {
+	if ( ct_unit->pointer == pointer && ct_unit->size == size && ct_unit->type == type && ct_unit->stride == stride && ct_unit->buffer == array_buffer ) {
 		return;
 	}
 
@@ -803,6 +813,44 @@ void opengl_array_state::TexPointer(GLint size, GLenum type, GLsizei stride, GLv
 	ct_unit->type = type;
 	ct_unit->stride = stride;
 	ct_unit->pointer = pointer;
+	ct_unit->buffer = array_buffer;
+}
+
+void opengl_array_state::EnableClientColor()
+{
+	if ( color_array_Status == GL_TRUE ) {
+		return;
+	}
+
+	glEnableClientState(GL_COLOR_ARRAY);
+
+	color_array_Status = GL_TRUE;
+}
+
+void opengl_array_state::DisableClientColor()
+{
+	if ( color_array_Status == GL_FALSE ) {
+		return;
+	}
+
+	glDisableClientState(GL_COLOR_ARRAY);
+
+	color_array_Status = GL_FALSE;
+}
+
+void opengl_array_state::ColorPointer(GLint size, GLenum type, GLsizei stride, GLvoid *pointer)
+{
+	if ( color_array_size == size && color_array_type == type && color_array_stride == stride && color_array_pointer == pointer && color_array_Buffer == array_buffer ) {
+		return;
+	}
+
+	glColorPointer(size, type, stride, pointer);
+
+	color_array_size = size;
+	color_array_type = type;
+	color_array_stride = stride;
+	color_array_pointer = pointer;
+	color_array_Buffer = array_buffer;
 }
 
 void opengl_array_state::EnableClientNormal()
@@ -829,7 +877,7 @@ void opengl_array_state::DisableClientNormal()
 
 void opengl_array_state::NormalPointer(GLenum type, GLsizei stride, GLvoid *pointer)
 {
-	if ( normal_array_Type == type && normal_array_Stride == stride && normal_array_Pointer == pointer ) {
+	if ( normal_array_Type == type && normal_array_Stride == stride && normal_array_Pointer == pointer && normal_array_Buffer == array_buffer ) {
 		return;
 	}
 
@@ -838,6 +886,7 @@ void opengl_array_state::NormalPointer(GLenum type, GLsizei stride, GLvoid *poin
 	normal_array_Type = type;
 	normal_array_Stride = stride;
 	normal_array_Pointer = pointer;
+	normal_array_Buffer = array_buffer;
 }
 
 void opengl_array_state::EnableClientVertex()
@@ -864,7 +913,7 @@ void opengl_array_state::DisableClientVertex()
 
 void opengl_array_state::VertexPointer(GLint size, GLenum type, GLsizei stride, GLvoid *pointer)
 {
-	if ( vertex_array_Size == size && vertex_array_Type == type && vertex_array_Stride == stride && vertex_array_Pointer == pointer ) {
+	if ( vertex_array_Size == size && vertex_array_Type == type && vertex_array_Stride == stride && vertex_array_Pointer == pointer && vertex_array_Buffer == array_buffer ) {
 		return;
 	}
 
@@ -874,6 +923,15 @@ void opengl_array_state::VertexPointer(GLint size, GLenum type, GLsizei stride, 
 	vertex_array_Type = type;
 	vertex_array_Stride = stride;
 	vertex_array_Pointer = pointer;
+	vertex_array_Buffer = array_buffer;
+}
+
+void opengl_array_state::ResetVertexPointer()
+{
+	vertex_array_Size = 4;
+	vertex_array_Type = GL_FLOAT;
+	vertex_array_Stride = 0;
+	vertex_array_Pointer = 0;
 }
 
 void opengl_array_state::EnableVertexAttrib(GLuint index)
@@ -908,7 +966,7 @@ void opengl_array_state::VertexAttribPointer(GLuint index, GLint size, GLenum ty
 {
 	opengl_vertex_attrib_unit *va_unit = &vertex_attrib_units[index];
 
-	if ( va_unit->initialized && va_unit->normalized == normalized && va_unit->pointer == pointer && va_unit->size == size && va_unit->stride == stride && va_unit->type == type ) {
+	if ( va_unit->initialized && va_unit->normalized == normalized && va_unit->pointer == pointer && va_unit->size == size && va_unit->stride == stride && va_unit->type == type && va_unit->buffer == array_buffer) {
 		return;
 	}
 
@@ -919,6 +977,7 @@ void opengl_array_state::VertexAttribPointer(GLuint index, GLint size, GLenum ty
 	va_unit->size = size;
 	va_unit->stride = stride;
 	va_unit->type = type;
+	va_unit->buffer = array_buffer;
 
 	va_unit->initialized = true;
 }
@@ -975,11 +1034,12 @@ void gr_opengl_flush_data_states()
 	GL_state.Array.SetActiveClientUnit(0);
 	GL_state.Array.DisableClientTexture();
 
+	GL_state.Array.DisableClientColor();
 	GL_state.Array.DisableClientNormal();
 	GL_state.Array.DisableClientVertex();
 
-	GL_state.Array.ResetVertexAttribUsed();
-	GL_state.Array.DisabledVertexAttribUnused();
+	//GL_state.Array.ResetVertexAttribUsed();
+	//GL_state.Array.DisabledVertexAttribUnused();
 }
 
 void opengl_setup_render_states(int &r, int &g, int &b, int &alpha, int &tmap_type, int flags, int is_scaler)

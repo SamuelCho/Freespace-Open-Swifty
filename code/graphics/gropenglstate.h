@@ -169,6 +169,7 @@ struct opengl_client_texture_unit
 {
 	GLboolean status;
 
+	GLuint buffer;
 	GLint size;
 	GLenum type;
 	GLsizei stride;
@@ -179,6 +180,7 @@ struct opengl_vertex_attrib_unit
 {
 	GLboolean status;
 
+	GLuint buffer;
 	GLint size;
 	GLenum type;
 	GLboolean normalized;
@@ -197,12 +199,21 @@ class opengl_array_state
 
 		opengl_client_texture_unit *client_texture_units;
 
+		GLboolean color_array_Status;
+		GLuint color_array_Buffer;
+		GLint color_array_size;
+		GLenum color_array_type;
+		GLsizei color_array_stride;
+		GLvoid *color_array_pointer;
+
 		GLboolean normal_array_Status;
+		GLuint normal_array_Buffer;
 		GLenum normal_array_Type;
 		GLsizei normal_array_Stride;
 		GLvoid *normal_array_Pointer;
 
 		GLboolean vertex_array_Status;
+		GLuint vertex_array_Buffer;
 		GLint vertex_array_Size;
 		GLenum vertex_array_Type;
 		GLsizei vertex_array_Stride;
@@ -223,6 +234,10 @@ class opengl_array_state
 		void DisableClientTexture();
 		void TexPointer(GLint size, GLenum type, GLsizei stride, GLvoid *pointer);
 
+		void EnableClientColor();
+		void DisableClientColor();
+		void ColorPointer(GLint size, GLenum type, GLsizei stride, GLvoid *pointer);
+
 		void EnableClientNormal();
 		void DisableClientNormal();
 		void NormalPointer(GLenum type, GLsizei stride, GLvoid *pointer);
@@ -230,6 +245,7 @@ class opengl_array_state
 		void EnableClientVertex();
 		void DisableClientVertex();
 		void VertexPointer(GLint size, GLenum type, GLsizei stride, GLvoid *pointer);
+		void ResetVertexPointer();
 
 		void ResetVertexAttribUsed();
 		void DisabledVertexAttribUnused();

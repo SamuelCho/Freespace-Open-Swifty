@@ -138,7 +138,8 @@ static void opengl_gen_buffer(opengl_vertex_buffer *vbp)
 
 		// make sure we have one
 		if (vbp->vbo) {
-			vglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbp->vbo);
+			//vglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbp->vbo);
+			GL_state.Array.BindArrayBuffer(vbp->vbo);
 			vglBufferDataARB(GL_ARRAY_BUFFER_ARB, vbp->vbo_size, vbp->array_list, GL_STATIC_DRAW_ARB);
 
 			// just in case
@@ -148,7 +149,8 @@ static void opengl_gen_buffer(opengl_vertex_buffer *vbp)
 				return;
 			}
 
-			vglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+			//vglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+			GL_state.Array.BindArrayBuffer(0);
 
 			vm_free(vbp->array_list);
 			vbp->array_list = NULL;	
@@ -166,7 +168,8 @@ static void opengl_gen_buffer(opengl_vertex_buffer *vbp)
 
 		// make sure we have one
 		if (vbp->ibo) {
-			vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, vbp->ibo);
+			GL_state.Array.BindElementBuffer(vbp->ibo);
+			//vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, vbp->ibo);
 			vglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, vbp->ibo_size, vbp->index_list, GL_STATIC_DRAW_ARB);
 
 			// just in case
@@ -176,7 +179,8 @@ static void opengl_gen_buffer(opengl_vertex_buffer *vbp)
 				return;
 			}
 
-			vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+			GL_state.Array.BindElementBuffer(0);
+			//vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 
 			vm_free(vbp->index_list);
 			vbp->index_list = NULL;
@@ -475,7 +479,7 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 	// vertex buffer
 
 	if (vbp->vbo) {
-		GL_state.Array.BindArrayBuffer(vbp->vbo)
+		GL_state.Array.BindArrayBuffer(vbp->vbo);
 	} else {
 		ptr = (GLubyte*)vbp->array_list;
 	}
@@ -504,8 +508,11 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 
 	if (bufferp->flags & VB_FLAG_MODEL_ID) {
 		int attrib_index = opengl_shader_get_attribute("model_id");
-		GL_state.Array.EnableVertexAttrib(attrib_index);
-		GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, bufferp->stride, ptr + offset);
+		if ( attrib_index >= 0 ) {
+			GL_state.Array.EnableVertexAttrib(attrib_index);
+			GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, bufferp->stride, ptr + offset);
+		}
+
 		offset += (1 * sizeof(GLfloat));
 	}
 
@@ -655,7 +662,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	int n_lights = MIN(Num_active_gl_lights, GL_max_lights) - 1;
 	vglUniform1iARB( opengl_shader_get_uniform("n_lights"), n_lights );
 
-	GL_state.Texture.ResetUsed();
+	//GL_state.Texture.ResetUsed();
 
 	// base texture
 	if (shader_flags & SDR_FLAG_DIFFUSE_MAP) {
@@ -735,7 +742,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		render_pass++;
 	}
 
-	GL_state.Texture.DisableUnused();
+	//GL_state.Texture.DisableUnused();
 
 	// DRAW IT!!
 	DO_RENDER();
@@ -804,6 +811,13 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	}
 */
 
+	// make sure everthing gets turned back off
+	if ( shader_flags & SDR_FLAG_TRANSFORM ) {
+		int attrib_index = opengl_shader_get_attribute("model_id");
+		if ( attrib_index >= 0 ) {
+			GL_state.Array.DisableVertexAttrib(attrib_index);
+		}
+	}
 	GL_state.Texture.SetShaderMode(GL_FALSE);
 }
 
