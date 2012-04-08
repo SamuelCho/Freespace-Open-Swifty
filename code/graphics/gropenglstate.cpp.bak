@@ -721,13 +721,6 @@ void opengl_state::SetZbufferType(gr_zbuffer_type zt)
 	Current_zbuffer_type = zt;
 }
 
-opengl_array_state::~opengl_array_state()
-{
-	if ( client_texture_units != NULL ) {
-		vm_free(client_texture_units);
-	}
-}
-
 void opengl_array_state::init(GLuint n_units)
 {
 	Assert( n_units > 0 );
