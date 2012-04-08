@@ -252,6 +252,7 @@ void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float dep
 		P[i].b = pnt->b;
 		P[i].a = pnt->a;
 
+		P[i].screen.a1d[0] = radius;
 		R[i] = radius;
 	}
 
@@ -323,6 +324,7 @@ void geometry_batcher::draw_bitmap(vertex *pnt, float rad, float angle, float de
 		P[i].b = pnt->b;
 		P[i].a = pnt->a;
 
+		P[i].screen.a1d[0] = radius;
 		R[i] = radius;
 	}
 
@@ -414,8 +416,10 @@ void geometry_batcher::draw_beam(vec3d *start, vec3d *end, float width, float in
 	for(int i = 0; i < 6; i++){
 		P[i].r = P[i].g = P[i].b = P[i].a = _color;
 		if(offset > 0.0f) {
+			P[i].screen.a1d[0] = offset;
 			R[i] = offset;
 		} else {
+			P[i].screen.a1d[0] = width;
 			R[i] = width;
 		}
 	}
