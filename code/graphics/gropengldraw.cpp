@@ -1275,7 +1275,7 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 }
 
 
-void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint flags)
+void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint flags, bool no_flush)
 {
 	int alpha, tmap_type, r, g, b;
 	float u_scale = 1.0f, v_scale = 1.0f;
@@ -1390,21 +1390,24 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 
 	opengl_shader_set_current();
 
-	GL_state.Texture.SetActiveUnit(1);
-	GL_state.Texture.Disable();
+	if ( !no_flush ) {
 
-	GL_state.Texture.SetActiveUnit(2);
-	GL_state.Texture.Disable();
+		GL_state.Texture.SetActiveUnit(1);
+		GL_state.Texture.Disable();
 
-	GL_state.Texture.SetActiveUnit(3);
-	GL_state.Texture.Disable();
+		GL_state.Texture.SetActiveUnit(2);
+		GL_state.Texture.Disable();
 
-	GL_state.Array.DisableClientTexture();
-	GL_state.Array.DisableClientVertex();
-	GL_state.Array.DisableClientColor();
+		GL_state.Texture.SetActiveUnit(3);
+		GL_state.Texture.Disable();
 
-	if ( attrib_index >= 0 ) {
-		GL_state.Array.DisableVertexAttrib(attrib_index);
+		GL_state.Array.DisableClientTexture();
+		GL_state.Array.DisableClientVertex();
+		GL_state.Array.DisableClientColor();
+
+		if ( attrib_index >= 0 ) {
+			GL_state.Array.DisableVertexAttrib(attrib_index);
+		}
 	}
 
 	GL_state.CullFace(cull_face);

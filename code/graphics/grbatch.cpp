@@ -526,7 +526,7 @@ void geometry_batcher::render(int flags, float radius)
 {
 	if (n_to_render) {
 		if ( (((flags & TMAP_FLAG_SOFT_QUAD) && Cmdline_softparticles)) || (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) && use_radius ) {
-			gr_render_effect(n_to_render * 3, vert, radius_list, flags | TMAP_FLAG_TRILIST);
+			gr_render_effect(n_to_render * 3, vert, radius_list, flags | TMAP_FLAG_TRILIST, true);
 		} else {
 			gr_render(n_to_render * 3, vert, flags | TMAP_FLAG_TRILIST);
 		}
@@ -721,6 +721,7 @@ void batch_render_all()
 	batch_render_lasers();
 	batch_render_geometry_map_bitmaps();
 	batch_render_distortion_map_bitmaps();
+	gr_flush_data_states();
 }
 
 void batch_reset()
