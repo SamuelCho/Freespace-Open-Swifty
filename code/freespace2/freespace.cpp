@@ -45,7 +45,6 @@
 #include "gamesnd/eventmusic.h"
 #include "gamesnd/gamesnd.h"
 #include "globalincs/alphacolors.h"
-#include "globalincs/linklist.h"
 #include "globalincs/version.h"
 #include "globalincs/mspdb_callstack.h"
 #include "graphics/font.h"
@@ -4816,7 +4815,7 @@ void game_update_missiontime()
 	// TODO JAS: Put in if and move this into game_set_frametime, 
 	// fix navmap to call game_stop/start_time
 	//if ( !timer_paused )	
-		Missiontime = fixTimeFromMs(timestamp());
+		Missiontime += Frametime;
 }
 
 void game_do_frame()
