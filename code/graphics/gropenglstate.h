@@ -225,7 +225,6 @@ class opengl_array_state
 		GLuint element_array_buffer;
 	public:
 		opengl_array_state(): active_client_texture_unit(0), client_texture_units(NULL) {}
-		~opengl_array_state();
 
 		void init(GLuint n_units);
 
