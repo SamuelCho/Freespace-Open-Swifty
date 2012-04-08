@@ -172,7 +172,7 @@
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE|Win32'">$(Configuration)\$(ProjectName)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE|Win32'">true</LinkIncremental>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE2|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE2|Win32'">D:\Freespace2\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE2|Win32'">$(Configuration)\$(ProjectName)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug Inferno SSE2|Win32'">true</LinkIncremental>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug SSE|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
@@ -190,7 +190,7 @@
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release Inferno SSE|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release Inferno SSE|Win32'">$(Configuration)\$(ProjectName)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release Inferno SSE|Win32'">false</LinkIncremental>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release Inferno SSE2|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release Inferno SSE2|Win32'">D:\Diaspora\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release Inferno SSE2|Win32'">$(Configuration)\$(ProjectName)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release Inferno SSE2|Win32'">false</LinkIncremental>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release SSE|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
@@ -1009,6 +1009,7 @@
       <DataExecutionPrevention>
       </DataExecutionPrevention>
       <TargetMachine>MachineX86</TargetMachine>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Bscmake>
       <AdditionalOptions>"$(IntDir)*.sbr" %(AdditionalOptions)</AdditionalOptions>
