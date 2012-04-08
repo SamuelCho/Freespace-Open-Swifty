@@ -11024,7 +11024,7 @@ ADE_FUNC(drawTargetingBrackets, l_Graphics, "object Object, [boolean draw=true, 
 	int bound_rc, pof;
 	int modelnum;
 	bool entered_frame = false;
-	SCP_list<jump_node>::iterator jnp;
+	SCP_list<CJumpNode>::iterator jnp;
 	
 	if ( !(g3_in_frame( ) > 0 ) )
 	{
@@ -11064,11 +11064,11 @@ ADE_FUNC(drawTargetingBrackets, l_Graphics, "object Object, [boolean draw=true, 
 			break;
 		case OBJ_JUMP_NODE:
 			for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
-				if(jnp->get_obj() == targetp)
+				if(jnp->GetSCPObject() == targetp)
 					break;
 			}
 			
-			modelnum = jnp->get_modelnum();
+			modelnum = jnp->GetModelNumber();
 			bound_rc = model_find_2d_bound_min( modelnum, &targetp->orient, &targetp->pos,&x1,&y1,&x2,&y2 );
 			break;
 		default: //Someone passed an invalid pointer.
@@ -12217,11 +12217,9 @@ ADE_FUNC(startMission, l_Mission, "[Filename or MISSION_* enumeration, Briefing 
 ADE_FUNC(getMissionTime, l_Mission, NULL, "Game time in seconds since the mission was started; is affected by time compression", "number", "Mission time (seconds), or 0 if game is not in a mission")
 {
 	if(!(Game_mode & GM_IN_MISSION))
-		return ade_set_error(L, "d", 0.0f);
+		return ade_set_error(L, "f", 0.0f);
 
-	double time = (double)timestamp() / 1000.0;
-
-	return ade_set_args(L, "d", time);
+	return ade_set_args(L, "x", Missiontime);
 }
 
 //WMC - These are in freespace.cpp
