@@ -1139,7 +1139,7 @@ void ModelCollideTask::querySubModel(int mn)
 
 		// Check shield if we're supposed to
 		if ( ( this->mc.flags & MC_CHECK_SHIELD ) && ( this->pm->shield.ntris > 0 ) ) {
-			mc_check_shield();
+			queryShield();
 			return;
 		}
 
@@ -1285,7 +1285,7 @@ void ModelCollideTask::queryShield()
 		return;
 
 	if ( this->pm->shield_collision_tree ) {
-		mc_check_sldc(0); // see if we hit the SLDC
+		queryShieldSLDC(0); // see if we hit the SLDC
 	} else {
 		int o;
 		for (o=0; o<8; o++ ) {
@@ -1297,7 +1297,7 @@ void ModelCollideTask::queryShield()
 
 			for (i = 0; i < poct1->nshield_tris; i++) {
 				shield_tri	* tri = poct1->shield_tris[i];
-				mc_shield_check_common(tri);
+				queryShieldCommon(tri);
 			}
 		}
 	}//model has shield_collsion_tree
