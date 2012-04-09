@@ -239,7 +239,7 @@ static char *opengl_load_shader(char *filename, int flags)
 	}
 	
 	if (flags & SDR_FLAG_TRANSFORM) {
-		sflags += "#define FLAG_TRANSFORM";
+		sflags += "#define FLAG_TRANSFORM\n";
 	}
 
 	const char *shader_flags = sflags.c_str();
