@@ -186,6 +186,37 @@ static void opengl_gen_buffer(opengl_vertex_buffer *vbp)
 	}
 }
 
+int gr_opengl_create_stream_buffer()
+{
+	opengl_vertex_buffer buffer;
+
+	vglGenBuffersARB(1, &buffer.vbo);
+
+	GL_vertex_buffers.push_back(buffer);
+	GL_vertex_buffers_in_use++;
+
+	return (int)(GL_vertex_buffers.size() - 1);
+}
+
+void* gr_opengl_start_map_buffer(int buffer, uint size)
+{
+	opengl_vertex_buffer *stream_buffer = &GL_vertex_buffers[buffer];
+
+	if ( size > stream_buffer->vbo_size ) {
+		stream_buffer->vbo_size = size;
+	}
+
+	vglBufferDataARB(GL_ARRAY_BUFFER_ARB, stream_buffer->vbo_size, NULL, GL_STREAM_DRAW_ARB);
+	void* map = (void*)vglMapBufferARB(GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
+
+	return map;
+}
+
+void gr_opengl_end_map_buffer()
+{
+	vglUnmapBufferARB(GL_ARRAY_BUFFER_ARB);
+}
+
 int gr_opengl_create_buffer()
 {
 	if (Cmdline_nohtl) {
@@ -1144,6 +1175,154 @@ void gr_opengl_render_buffer(int start, const vertex_buffer *bufferp, int texi, 
 	}
 
 	GL_CHECK_FOR_ERRORS("end of render_buffer()");
+}
+
+void gr_render_stream_buffers_start(int buffer_id)
+{
+	Assert( buffer_id >= 0 );
+	Assert( buffer_id < (int)GL_vertex_buffers.size() );
+
+	GL_state.Array.BindArrayBuffer(GL_vertex_buffers[buffer_id].vbo);
+
+	GLubyte *ptr = NULL;
+	int offset = 0;
+
+	GL_state.Array.VertexPointer(sizeof(vec3d), GL_FLOAT, sizeof(effect_vertex), ptr + offset);
+	offset += sizeof(vec3d);
+
+	GL_state.Array.TexPointer(sizeof(uv_pair), GL_FLOAT, sizeof(effect_vertex), ptr + offset);
+	offset += sizeof(uv_pair);
+
+	GL_state.Array.ColorPointer(sizeof(ubyte)*4, GL_UNSIGNED_BYTE, sizeof(effect_vertex), ptr + offset);
+	offset += sizeof(ubyte)*4;
+}
+
+void gr_render_stream_buffers_end()
+{
+	gr_opengl_flush_data_states();
+}
+
+void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
+{
+	int alpha, tmap_type, r, g, b;
+	float u_scale = 1.0f, v_scale = 1.0f;
+	GLenum gl_mode = GL_TRIANGLE_FAN;
+	int attrib_index = -1;
+	int zbuff = ZBUFFER_TYPE_DEFAULT;
+	GL_CHECK_FOR_ERRORS("start of render3d()");
+
+	Assert(Scene_depth_texture != 0);
+
+	opengl_setup_render_states(r, g, b, alpha, tmap_type, flags);
+
+	if ( flags & TMAP_FLAG_TEXTURED ) {
+		if ( flags & TMAP_FLAG_SOFT_QUAD ) {
+			int sdr_index;
+			if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) )
+			{
+				glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+				sdr_index = opengl_shader_get_index(SDR_FLAG_SOFT_QUAD|SDR_FLAG_DISTORTION);
+				opengl_shader_set_current(&GL_shader[sdr_index]);
+
+				vglUniform1iARB(opengl_shader_get_uniform("frameBuffer"), 2);
+
+				GL_state.Texture.SetActiveUnit(2);
+				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+				GL_state.Texture.Enable(Scene_effect_texture);
+				GL_state.Texture.SetActiveUnit(3);
+				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+				if(flags & TMAP_FLAG_DISTORTION_THRUSTER)
+				{
+					vglUniform1iARB(opengl_shader_get_uniform("distMap"), 3);
+					GL_state.Texture.Enable(Distortion_texture[!Distortion_switch]);
+				}
+				else
+				{
+					vglUniform1iARB(opengl_shader_get_uniform("distMap"), 0);
+					GL_state.Texture.Disable();
+				}
+				zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
+			}
+			else
+			{
+				sdr_index = opengl_shader_get_index(SDR_FLAG_SOFT_QUAD);
+				opengl_shader_set_current(&GL_shader[sdr_index]);
+				zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
+			}
+
+			vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);
+			vglUniform1iARB(opengl_shader_get_uniform("depthMap"), 1);
+			vglUniform1fARB(opengl_shader_get_uniform("window_width"), (float)gr_screen.max_w);
+			vglUniform1fARB(opengl_shader_get_uniform("window_height"), (float)gr_screen.max_h);
+			vglUniform1fARB(opengl_shader_get_uniform("nearZ"), Min_draw_distance);
+			vglUniform1fARB(opengl_shader_get_uniform("farZ"), Max_draw_distance);
+
+			if( !(flags & TMAP_FLAG_DISTORTION) && !(flags & TMAP_FLAG_DISTORTION_THRUSTER) ) // Only use vertex attribute with soft particles to avoid OpenGL Errors - Valathil
+			{
+				attrib_index = opengl_shader_get_attribute("radius_in");
+				GL_state.Array.EnableVertexAttrib(attrib_index);
+				GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, sizeof(vertex), &verts[0].screen.a1d[0]);
+				//vglEnableVertexAttribArrayARB(attrib_index);
+				//vglVertexAttribPointerARB(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
+
+			}
+			if(flags & TMAP_FLAG_DISTORTION_THRUSTER)
+			{
+				attrib_index = opengl_shader_get_attribute("offset_in");
+				GL_state.Array.EnableVertexAttrib(attrib_index);
+				GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, sizeof(vertex), &verts[0].screen.a1d[0]);
+				//GL_state.Array.EnableVertexAttrib(attrib_index);
+				//GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
+			}
+			GL_state.Texture.SetActiveUnit(1);
+			GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+			GL_state.Texture.Enable(Scene_depth_texture);
+		}
+
+		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
+			return;
+		}
+
+		GL_state.Array.SetActiveClientUnit(0);
+		GL_state.Array.EnableClientTexture();
+	}
+
+	GLboolean cull_face = GL_state.CullFace(GL_FALSE);
+	GLboolean lighting = GL_state.Lighting(GL_FALSE);
+
+	if (flags & TMAP_FLAG_TRILIST) {
+		gl_mode = GL_TRIANGLES;
+	} else if (flags & TMAP_FLAG_TRISTRIP) {
+		gl_mode = GL_TRIANGLE_STRIP;
+	} else if (flags & TMAP_FLAG_QUADLIST) {
+		gl_mode = GL_QUADS;
+	} else if (flags & TMAP_FLAG_QUADSTRIP) {
+		gl_mode = GL_QUAD_STRIP;
+	}
+
+	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) ) {
+		GL_state.Array.EnableClientColor();
+	}
+	// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
+	else {
+		GL_state.Array.DisableClientColor();
+		glColor4ub( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
+	}
+
+	glDrawArrays(gl_mode, offset, n_verts);
+
+	opengl_shader_set_current();
+
+	GL_state.CullFace(cull_face);
+	GL_state.Lighting(lighting);
+	gr_zbuffer_set(zbuff);
+
+	if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) ) {
+		GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
+		vglDrawBuffers(2, buffers);
+	}
+
+	GL_CHECK_FOR_ERRORS("end of render3d()");
 }
 
 void gr_opengl_start_instance_matrix(vec3d *offset, matrix *rotation)
