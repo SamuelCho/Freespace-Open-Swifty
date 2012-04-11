@@ -49,7 +49,7 @@ void gr_opengl_render_to_env(int FACE);
 int gr_opengl_create_stream_buffer();
 void* gr_opengl_start_map_buffer(int buffer, uint size);
 void gr_opengl_end_map_buffer();
-void gr_opengl_render_effect_buffer();
+void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags);
 void gr_render_stream_buffers_start(int buffer_id);
 
 void gr_opengl_start_state_block();
