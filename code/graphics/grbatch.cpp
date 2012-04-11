@@ -7,13 +7,13 @@
 */ 
 
 #include "globalincs/pstypes.h"
+#include "graphics/gropengltnl.h"
+#include "graphics/gropenglstate.h"
 #include "graphics/grbatch.h"
 #include "graphics/2d.h"
 #include "cmdline/cmdline.h"
 #include "render/3d.h"
 #include "bmpman/bmpman.h"
-#include "graphics/gropengltnl.h"
-#include "graphics/gropenglstate.h"
 
 geometry_batcher::~geometry_batcher()
 {
@@ -561,6 +561,8 @@ void geometry_batcher::load_buffer(effect_vertex* buffer, int *n_verts)
 		buffer_offset[i].b = vert[i].b;
 		buffer_offset[i].a = vert[i].a;
 	}
+
+	*n_verts = verts_to_render;
 }
 
 void geometry_batcher::render_buffer(int flags)
@@ -803,7 +805,7 @@ void batch_render_all(int stream_buffer)
 		int n_to_render = batch_get_size();
 		int n_verts = 0;
 
-		gr_render_stream_buffers_start(stream_buffer);
+		gr_opengl_render_stream_buffers_start(stream_buffer);
 
 		effect_vertex* buffer = (effect_vertex*)gr_opengl_start_map_buffer(stream_buffer, n_to_render * sizeof(effect_vertex));
 		batch_load_buffer_lasers(buffer, &n_verts);
@@ -811,11 +813,10 @@ void batch_render_all(int stream_buffer)
 		batch_load_buffer_distortion_map_bitmaps(buffer, &n_verts);
 		gr_opengl_end_map_buffer();
 
-		// 
 		batch_render_lasers(true);
 		batch_render_geometry_map_bitmaps(true);
 		batch_render_distortion_map_bitmaps(true);
-		// gr_render_stream_buffers_end();
+		gr_opengl_render_stream_buffers_end();
 	} else {
 		batch_render_lasers();
 		batch_render_geometry_map_bitmaps();
@@ -899,7 +900,7 @@ void batch_render_distortion_map_bitmaps(bool stream_buffer)
 	}
 }
 
-void batch_load_buffer_geometry_map_bitmaps(effect_vertex* buffer, int *n_verts)
+void batch_load_buffer_distortion_map_bitmaps(effect_vertex* buffer, int *n_verts)
 {
 	for (SCP_vector<batch_item>::iterator bi = distortion_map.begin(); bi != distortion_map.end(); ++bi) {
 

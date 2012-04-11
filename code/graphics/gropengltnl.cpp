@@ -1178,7 +1178,10 @@ void gr_opengl_render_buffer(int start, const vertex_buffer *bufferp, int texi, 
 }
 
 int Stream_buffer_sdr = -1;
-void gr_render_stream_buffers_start(int buffer_id)
+GLboolean Stream_cull;
+GLboolean Stream_lighting;
+int Stream_zbuff_mode;
+void gr_opengl_render_stream_buffers_start(int buffer_id)
 {
 	Assert( buffer_id >= 0 );
 	Assert( buffer_id < (int)GL_vertex_buffers.size() );
@@ -1188,27 +1191,31 @@ void gr_render_stream_buffers_start(int buffer_id)
 	GLubyte *ptr = NULL;
 	int offset = 0;
 
-	GLboolean cull_face = GL_state.CullFace(GL_FALSE);
-	GLboolean lighting = GL_state.Lighting(GL_FALSE);
+	Stream_cull = GL_state.CullFace(GL_FALSE);
+	Stream_lighting = GL_state.Lighting(GL_FALSE);
+	Stream_zbuff_mode = gr_zbuffer_set(GR_ZBUFF_READ);
+
+	opengl_shader_set_current();
+	Stream_buffer_sdr = -1;
+}
+
+void gr_opengl_render_stream_buffers_end()
+{
+	GL_state.Array.BindArrayBuffer(0);
+
+	gr_opengl_flush_data_states();
 
 	opengl_shader_set_current();
 	Stream_buffer_sdr = -1;
 
-	GL_state.Array.VertexPointer(sizeof(vec3d), GL_FLOAT, sizeof(effect_vertex), ptr + offset);
-	offset += sizeof(vec3d);
-
-	GL_state.Array.TexPointer(sizeof(uv_pair), GL_FLOAT, sizeof(effect_vertex), ptr + offset);
-	offset += sizeof(uv_pair);
-
-	GL_state.Array.ColorPointer(sizeof(ubyte)*4, GL_UNSIGNED_BYTE, sizeof(effect_vertex), ptr + offset);
-	offset += sizeof(ubyte)*4;
+	GL_state.CullFace(Stream_cull);
+	GL_state.Lighting(Stream_lighting);
+	gr_zbuffer_set(Stream_zbuff_mode);
 }
 
-void gr_render_stream_buffers_end()
-{
-	gr_opengl_flush_data_states();
-}
-
+extern GLuint Scene_depth_texture;
+extern GLuint Distortion_texture[2];
+extern int Distortion_switch;
 void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 {
 	int alpha, tmap_type, r, g, b;
@@ -1218,28 +1225,29 @@ void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 	int zbuff = ZBUFFER_TYPE_DEFAULT;
 	GL_CHECK_FOR_ERRORS("start of render3d()");
 
-	Assert(Scene_depth_texture != 0);
-
-	int offset = 0;
-
-	int pos_offset = offset;
-	offset += sizeof(vec3d);
-
-	int tex_offset = offset;
-	offset += sizeof(uv_pair);
-
-	int color_offset = offset;
-	offset += sizeof(ubyte)*4;
-
-	int radius_offset = offset;
-	offset += sizeof(float);
-
 	GLubyte *ptr = NULL;
+	int vert_offset = 0;
+
+	int pos_offset = vert_offset;
+	vert_offset += sizeof(vec3d);
+
+	int tex_offset = vert_offset;
+	vert_offset += sizeof(uv_pair);
+
+	int radius_offset = vert_offset;
+	vert_offset += sizeof(float);
+
+	int color_offset = vert_offset;
+	vert_offset += sizeof(ubyte)*4;
 
 	opengl_setup_render_states(r, g, b, alpha, tmap_type, flags);
 
 	if ( flags & TMAP_FLAG_TEXTURED ) {
+		GL_state.Texture.ResetUsed();
+
 		if ( flags & TMAP_FLAG_SOFT_QUAD ) {
+			Assert(Scene_depth_texture != 0);
+
 			int sdr_index;
 
 			if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) ) {
@@ -1249,6 +1257,7 @@ void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 					glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
 					opengl_shader_set_current(&GL_shader[sdr_index]);
+					Stream_buffer_sdr = sdr_index;
 
 					vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);
 					vglUniform1iARB(opengl_shader_get_uniform("depthMap"), 1);
@@ -1259,26 +1268,23 @@ void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 
 					vglUniform1iARB(opengl_shader_get_uniform("frameBuffer"), 2);
 
-					GL_state.Texture.SetActiveUnit(2);
-					GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-					GL_state.Texture.Enable(Scene_effect_texture);
-					GL_state.Texture.SetActiveUnit(3);
-					GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-
 					attrib_index = opengl_shader_get_attribute("offset_in");
 					GL_state.Array.EnableVertexAttrib(attrib_index);
 					GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, sizeof(vertex), ptr + radius_offset);
 				}
+
+				GL_state.Texture.SetActiveUnit(2);
+				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+				GL_state.Texture.Enable(Scene_effect_texture);
 				
-				if(flags & TMAP_FLAG_DISTORTION_THRUSTER)
-				{
+				if(flags & TMAP_FLAG_DISTORTION_THRUSTER) {
 					vglUniform1iARB(opengl_shader_get_uniform("distMap"), 3);
+
+					GL_state.Texture.SetActiveUnit(3);
+					GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 					GL_state.Texture.Enable(Distortion_texture[!Distortion_switch]);
-				}
-				else
-				{
+				} else {
 					vglUniform1iARB(opengl_shader_get_uniform("distMap"), 0);
-					GL_state.Texture.Disable();
 				}
 
 				zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
@@ -1287,6 +1293,7 @@ void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 
 				if ( sdr_index != Stream_buffer_sdr ) {
 					opengl_shader_set_current(&GL_shader[sdr_index]);
+					Stream_buffer_sdr = sdr_index;
 
 					vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);
 					vglUniform1iARB(opengl_shader_get_uniform("depthMap"), 1);
@@ -1306,14 +1313,20 @@ void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 			GL_state.Texture.SetActiveUnit(1);
 			GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 			GL_state.Texture.Enable(Scene_depth_texture);
+		} else {
+			GL_state.Array.ResetVertexAttribUsed();
+			GL_state.Array.DisabledVertexAttribUnused();
 		}
 
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
 			return;
 		}
 
+		GL_state.Texture.DisableUnused();
+
 		GL_state.Array.SetActiveClientUnit(0);
 		GL_state.Array.EnableClientTexture();
+		GL_state.Array.TexPointer(sizeof(uv_pair), GL_FLOAT, sizeof(effect_vertex), ptr + tex_offset);
 	} else {
 		GL_state.Array.SetActiveClientUnit(0);
 		GL_state.Array.DisableClientTexture();
@@ -1331,15 +1344,17 @@ void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 
 	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) ) {
 		GL_state.Array.EnableClientColor();
+		GL_state.Array.ColorPointer(sizeof(ubyte)*4, GL_UNSIGNED_BYTE, sizeof(effect_vertex), ptr + color_offset);
 	} else {
 		// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
 		GL_state.Array.DisableClientColor();
 		glColor4ub( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
 	}
 
-	glDrawArrays(gl_mode, offset, n_verts);
+	GL_state.Array.EnableClientVertex();
+	GL_state.Array.VertexPointer(sizeof(vec3d), GL_FLOAT, sizeof(effect_vertex), ptr + pos_offset);
 
-	gr_zbuffer_set(zbuff);
+	glDrawArrays(gl_mode, offset, n_verts);
 
 	if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) ) {
 		GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };

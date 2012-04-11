@@ -159,12 +159,12 @@ typedef struct vertex {
 	ubyte		pad[2];				// pad structure to be 4 byte aligned.
 } vertex;
 
-struct effect_vertex {
+typedef struct effect_vertex {
 	vec3d position;
 	uv_pair tex_coord;
 	float radius;
 	ubyte r, g, b, a;
-};
+} effect_vertex;
 
 //def_list
 typedef struct flag_def_list {

@@ -449,7 +449,7 @@ void particle_render_all()
 	}
 
 	if (render_batch) {
-		batch_render_all();
+		batch_render_all(Particle_buffer_object);
 	}
 }
 

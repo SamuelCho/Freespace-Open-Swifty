@@ -1390,24 +1390,21 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 
 	opengl_shader_set_current();
 
-	if ( !no_flush ) {
+	GL_state.Texture.SetActiveUnit(1);
+	GL_state.Texture.Disable();
 
-		GL_state.Texture.SetActiveUnit(1);
-		GL_state.Texture.Disable();
+	GL_state.Texture.SetActiveUnit(2);
+	GL_state.Texture.Disable();
 
-		GL_state.Texture.SetActiveUnit(2);
-		GL_state.Texture.Disable();
+	GL_state.Texture.SetActiveUnit(3);
+	GL_state.Texture.Disable();
 
-		GL_state.Texture.SetActiveUnit(3);
-		GL_state.Texture.Disable();
+	GL_state.Array.DisableClientTexture();
+	GL_state.Array.DisableClientVertex();
+	GL_state.Array.DisableClientColor();
 
-		GL_state.Array.DisableClientTexture();
-		GL_state.Array.DisableClientVertex();
-		GL_state.Array.DisableClientColor();
-
-		if ( attrib_index >= 0 ) {
-			GL_state.Array.DisableVertexAttrib(attrib_index);
-		}
+	if ( attrib_index >= 0 ) {
+		GL_state.Array.DisableVertexAttrib(attrib_index);
 	}
 
 	GL_state.CullFace(cull_face);

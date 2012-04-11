@@ -13,7 +13,7 @@
 #ifndef _GROPENGLTNL_H
 #define _GROPENGLTNL_H
 
-
+#include "graphics/gropengl.h"
 #include "globalincs/pstypes.h"
 
 
@@ -50,7 +50,8 @@ int gr_opengl_create_stream_buffer();
 void* gr_opengl_start_map_buffer(int buffer, uint size);
 void gr_opengl_end_map_buffer();
 void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags);
-void gr_render_stream_buffers_start(int buffer_id);
+void gr_opengl_render_stream_buffers_start(int buffer_id);
+void gr_opengl_render_stream_buffers_end();
 
 void gr_opengl_start_state_block();
 int gr_opengl_end_state_block();
