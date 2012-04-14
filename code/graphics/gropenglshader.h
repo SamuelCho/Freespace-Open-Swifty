@@ -17,7 +17,6 @@
 
 #include <string>
 
-
 #define SDR_FLAG_LIGHT			(1<<0)
 #define SDR_FLAG_FOG			(1<<1)
 #define SDR_FLAG_DIFFUSE_MAP	(1<<2)
@@ -81,7 +80,7 @@ extern SCP_vector<opengl_shader_t> GL_shader;
 
 extern opengl_shader_t *Current_shader;
 
-int opengl_shader_get_index(int flags);
+int gr_opengl_maybe_create_shader(int flags);
 void opengl_shader_set_current(opengl_shader_t *shader_obj = NULL);
 
 void opengl_shader_init();
