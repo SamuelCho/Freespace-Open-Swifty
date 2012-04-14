@@ -205,6 +205,8 @@ void opengl_texture_state::SetActiveUnit(GLuint id)
 
 void opengl_texture_state::Enable(GLuint tex_id)
 {
+	units[active_texture_unit].used = GL_TRUE;
+
 	if ( units[active_texture_unit].active && (units[active_texture_unit].texture_id == tex_id) ) {
 		return;
 	}
@@ -220,7 +222,6 @@ void opengl_texture_state::Enable(GLuint tex_id)
 	}
 
 	units[active_texture_unit].active = GL_TRUE;
-	units[active_texture_unit].used = GL_TRUE;
 }
 
 void opengl_texture_state::Disable(bool force)
@@ -1045,8 +1046,8 @@ void gr_opengl_flush_data_states()
 	GL_state.Array.DisableClientNormal();
 	GL_state.Array.DisableClientVertex();
 
-	//GL_state.Array.ResetVertexAttribUsed();
-	//GL_state.Array.DisabledVertexAttribUnused();
+	GL_state.Array.ResetVertexAttribUsed();
+	GL_state.Array.DisabledVertexAttribUnused();
 }
 
 void opengl_setup_render_states(int &r, int &g, int &b, int &alpha, int &tmap_type, int flags, int is_scaler)
