@@ -198,7 +198,7 @@ int gr_opengl_create_stream_buffer()
 	return (int)(GL_vertex_buffers.size() - 1);
 }
 
-void* gr_opengl_start_map_buffer(int buffer, uint size)
+void gr_opengl_update_stream_buffer(int buffer, effect_vertex *buffer_data, uint size)
 {
 	opengl_vertex_buffer *stream_buffer = &GL_vertex_buffers[buffer];
 
@@ -206,15 +206,7 @@ void* gr_opengl_start_map_buffer(int buffer, uint size)
 		stream_buffer->vbo_size = size;
 	}
 
-	vglBufferDataARB(GL_ARRAY_BUFFER_ARB, stream_buffer->vbo_size, NULL, GL_STREAM_DRAW_ARB);
-	void* map = (void*)vglMapBufferARB(GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
-
-	return map;
-}
-
-void gr_opengl_end_map_buffer()
-{
-	vglUnmapBufferARB(GL_ARRAY_BUFFER_ARB);
+	vglBufferDataARB(GL_ARRAY_BUFFER_ARB, stream_buffer->vbo_size, (GLvoid*)buffer_data, GL_STREAM_DRAW_ARB);
 }
 
 int gr_opengl_create_buffer()
@@ -1181,15 +1173,12 @@ int Stream_buffer_sdr = -1;
 GLboolean Stream_cull;
 GLboolean Stream_lighting;
 int Stream_zbuff_mode;
-void gr_opengl_render_stream_buffers_start(int buffer_id)
+void gr_opengl_render_stream_buffer_start(int buffer_id)
 {
 	Assert( buffer_id >= 0 );
 	Assert( buffer_id < (int)GL_vertex_buffers.size() );
 
 	GL_state.Array.BindArrayBuffer(GL_vertex_buffers[buffer_id].vbo);
-
-	GLubyte *ptr = NULL;
-	int offset = 0;
 
 	Stream_cull = GL_state.CullFace(GL_FALSE);
 	Stream_lighting = GL_state.Lighting(GL_FALSE);
@@ -1199,7 +1188,7 @@ void gr_opengl_render_stream_buffers_start(int buffer_id)
 	Stream_buffer_sdr = -1;
 }
 
-void gr_opengl_render_stream_buffers_end()
+void gr_opengl_render_stream_buffer_end()
 {
 	GL_state.Array.BindArrayBuffer(0);
 
@@ -1216,7 +1205,7 @@ void gr_opengl_render_stream_buffers_end()
 extern GLuint Scene_depth_texture;
 extern GLuint Distortion_texture[2];
 extern int Distortion_switch;
-void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
+void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 {
 	int alpha, tmap_type, r, g, b;
 	float u_scale = 1.0f, v_scale = 1.0f;
@@ -1246,8 +1235,6 @@ void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 		GL_state.Texture.ResetUsed();
 
 		if ( flags & TMAP_FLAG_SOFT_QUAD ) {
-			Assert(Scene_depth_texture != 0);
-
 			int sdr_index;
 
 			if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) ) {
@@ -1270,7 +1257,7 @@ void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 
 					attrib_index = opengl_shader_get_attribute("offset_in");
 					GL_state.Array.EnableVertexAttrib(attrib_index);
-					GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, sizeof(vertex), ptr + radius_offset);
+					GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, sizeof(effect_vertex), ptr + radius_offset);
 				}
 
 				GL_state.Texture.SetActiveUnit(2);
@@ -1288,7 +1275,13 @@ void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 				}
 
 				zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
-			} else {
+
+				Assert(Scene_depth_texture != 0);
+
+				GL_state.Texture.SetActiveUnit(1);
+				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+				GL_state.Texture.Enable(Scene_depth_texture);
+			} else if ( Cmdline_softparticles ) {
 				sdr_index = opengl_shader_get_index(SDR_FLAG_SOFT_QUAD);
 
 				if ( sdr_index != Stream_buffer_sdr ) {
@@ -1304,15 +1297,17 @@ void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 
 					attrib_index = opengl_shader_get_attribute("radius_in");
 					GL_state.Array.EnableVertexAttrib(attrib_index);
-					GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, sizeof(vertex), ptr + radius_offset);
+					GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, sizeof(effect_vertex), ptr + radius_offset);
 				}
 
 				zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
-			}
 
-			GL_state.Texture.SetActiveUnit(1);
-			GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-			GL_state.Texture.Enable(Scene_depth_texture);
+				Assert(Scene_depth_texture != 0);
+
+				GL_state.Texture.SetActiveUnit(1);
+				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+				GL_state.Texture.Enable(Scene_depth_texture);
+			}
 		} else {
 			GL_state.Array.ResetVertexAttribUsed();
 			GL_state.Array.DisabledVertexAttribUnused();
@@ -1326,7 +1321,7 @@ void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 
 		GL_state.Array.SetActiveClientUnit(0);
 		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(sizeof(uv_pair), GL_FLOAT, sizeof(effect_vertex), ptr + tex_offset);
+		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(effect_vertex), ptr + tex_offset);
 	} else {
 		GL_state.Array.SetActiveClientUnit(0);
 		GL_state.Array.DisableClientTexture();
@@ -1344,7 +1339,7 @@ void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 
 	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) ) {
 		GL_state.Array.EnableClientColor();
-		GL_state.Array.ColorPointer(sizeof(ubyte)*4, GL_UNSIGNED_BYTE, sizeof(effect_vertex), ptr + color_offset);
+		GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, sizeof(effect_vertex), ptr + color_offset);
 	} else {
 		// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
 		GL_state.Array.DisableClientColor();
@@ -1352,15 +1347,15 @@ void gr_opengl_render_effect_buffer(int offset, int n_verts, int flags)
 	}
 
 	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(sizeof(vec3d), GL_FLOAT, sizeof(effect_vertex), ptr + pos_offset);
-
+	GL_state.Array.VertexPointer(3, GL_FLOAT, sizeof(effect_vertex), ptr + pos_offset);
+	
 	glDrawArrays(gl_mode, offset, n_verts);
 
 	if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) ) {
 		GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
 		vglDrawBuffers(2, buffers);
 	}
-
+	
 	GL_CHECK_FOR_ERRORS("end of render3d()");
 }
 

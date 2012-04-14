@@ -89,6 +89,7 @@ void batch_render_distortion_map_bitmaps(bool stream_buffer = false);
 void batch_load_buffer_distortion_map_bitmaps(effect_vertex* buffer, int *n_verts);
 
 int batch_get_size();
+void batch_render_close();
 
 
 #endif

@@ -7,7 +7,6 @@
 */ 
 
 #include "globalincs/pstypes.h"
-#include "graphics/gropengltnl.h"
 #include "graphics/gropenglstate.h"
 #include "graphics/grbatch.h"
 #include "graphics/2d.h"
@@ -544,25 +543,24 @@ void geometry_batcher::load_buffer(effect_vertex* buffer, int *n_verts)
 	int i;
 
 	buffer_offset = *n_verts;
-	effect_vertex* buffer_offset = buffer + (*n_verts) * sizeof(effect_vertex);
 
 	for ( i = 0; i < verts_to_render; ++i) {
-		buffer_offset[i].position = vert[i].world;
-		buffer_offset[i].tex_coord = vert[i].texture_position;
+		buffer[buffer_offset+i].position = vert[i].world;
+		buffer[buffer_offset+i].tex_coord = vert[i].texture_position;
 
-		if ( use_radius && radius_list ) {
-			buffer_offset[i].radius = radius_list[i];
+		if ( use_radius ) {
+			buffer[buffer_offset+i].radius = vert[i].screen.xyw.x;
 		} else {
-			buffer_offset[i].radius = 0.0f;
+			buffer[buffer_offset+i].radius = 0.0f;
 		}
 
-		buffer_offset[i].r = vert[i].r;
-		buffer_offset[i].g = vert[i].g;
-		buffer_offset[i].b = vert[i].b;
-		buffer_offset[i].a = vert[i].a;
+		buffer[buffer_offset+i].r = vert[i].r;
+		buffer[buffer_offset+i].g = vert[i].g;
+		buffer[buffer_offset+i].b = vert[i].b;
+		buffer[buffer_offset+i].a = vert[i].a;
 	}
 
-	*n_verts = verts_to_render;
+	*n_verts = *n_verts + verts_to_render;
 }
 
 void geometry_batcher::render_buffer(int flags)
@@ -574,9 +572,9 @@ void geometry_batcher::render_buffer(int flags)
 	if ( !n_to_render ) {
 		return;
 	}
-
-	// gr_render_stream_buffer(buffer_offset, n_to_render * 3, flags);
-
+	
+	gr_render_stream_buffer(buffer_offset, n_to_render * 3, flags | TMAP_FLAG_TRILIST);
+	
 	use_radius = true;
 	n_to_render = 0;
 	buffer_offset = -1;
@@ -599,6 +597,10 @@ struct batch_item {
 
 static SCP_vector<batch_item> geometry_map;
 static SCP_vector<batch_item> distortion_map;
+
+// Used for sending verts to the vertex buffer
+effect_vertex *Batch_buffer = NULL;
+int Batch_buffer_size = 0;
 
 static size_t find_good_batch_item(int texture)
 {
@@ -805,30 +807,48 @@ void batch_render_all(int stream_buffer)
 		int n_to_render = batch_get_size();
 		int n_verts = 0;
 
-		gr_opengl_render_stream_buffers_start(stream_buffer);
+		if ( ( Batch_buffer_size < (n_to_render * sizeof(effect_vertex)) ) ) {
+			if ( Batch_buffer != NULL ) {
+				vm_free(Batch_buffer);
+			}
 
-		effect_vertex* buffer = (effect_vertex*)gr_opengl_start_map_buffer(stream_buffer, n_to_render * sizeof(effect_vertex));
-		batch_load_buffer_lasers(buffer, &n_verts);
-		batch_load_buffer_geometry_map_bitmaps(buffer, &n_verts);
-		batch_load_buffer_distortion_map_bitmaps(buffer, &n_verts);
-		gr_opengl_end_map_buffer();
+			Batch_buffer_size = n_to_render * sizeof(effect_vertex);
+			Batch_buffer = (effect_vertex*)vm_malloc(Batch_buffer_size);
+		}
+
+		gr_render_stream_buffer_start(stream_buffer);
+		
+		batch_load_buffer_lasers(Batch_buffer, &n_verts);
+		batch_load_buffer_geometry_map_bitmaps(Batch_buffer, &n_verts);
+		batch_load_buffer_distortion_map_bitmaps(Batch_buffer, &n_verts);
+		gr_update_stream_buffer(stream_buffer, Batch_buffer, Batch_buffer_size);
+
+		Assert(n_verts <= n_to_render);
 
 		batch_render_lasers(true);
 		batch_render_geometry_map_bitmaps(true);
 		batch_render_distortion_map_bitmaps(true);
-		gr_opengl_render_stream_buffers_end();
+		gr_render_stream_buffer_end();
 	} else {
 		batch_render_lasers();
 		batch_render_geometry_map_bitmaps();
 		batch_render_distortion_map_bitmaps();
 	}
-	gr_flush_data_states();
 }
 
 void batch_reset()
 {
 	geometry_map.clear();
 	distortion_map.clear();
+}
+
+void batch_render_close()
+{
+	if ( Batch_buffer != NULL ) {
+		vm_free(Batch_buffer);
+	}
+
+	Batch_buffer_size = 0;
 }
 
 int distortion_add_bitmap_rotated(int texture, int tmap_flags, vertex *pnt, float angle, float rad, float alpha, float depth)
