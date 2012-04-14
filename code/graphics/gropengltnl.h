@@ -13,7 +13,7 @@
 #ifndef _GROPENGLTNL_H
 #define _GROPENGLTNL_H
 
-#include "graphics/gropengl.h"
+
 #include "globalincs/pstypes.h"
 
 

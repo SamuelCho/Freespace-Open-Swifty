@@ -17,7 +17,6 @@
 #include "object/object.h"
 #include "cmdline/cmdline.h"
 #include "graphics/grbatch.h"
-#include "graphics/gropengltnl.h"
 
 #ifndef NDEBUG
 #include "io/timer.h"
@@ -69,7 +68,7 @@ void particle_init()
 
 	// grab a vertex buffer object
 	if ( Particle_buffer_object < 0 ) {
-		Particle_buffer_object = gr_opengl_create_stream_buffer();
+		Particle_buffer_object = gr_create_stream_buffer();
 	}
 }
 

@@ -253,7 +253,6 @@ void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float dep
 		P[i].b = pnt->b;
 		P[i].a = pnt->a;
 
-		P[i].screen.a1d[0] = radius;
 		R[i] = radius;
 	}
 
@@ -325,7 +324,6 @@ void geometry_batcher::draw_bitmap(vertex *pnt, float rad, float angle, float de
 		P[i].b = pnt->b;
 		P[i].a = pnt->a;
 
-		P[i].screen.a1d[0] = radius;
 		R[i] = radius;
 	}
 
@@ -417,10 +415,8 @@ void geometry_batcher::draw_beam(vec3d *start, vec3d *end, float width, float in
 	for(int i = 0; i < 6; i++){
 		P[i].r = P[i].g = P[i].b = P[i].a = _color;
 		if(offset > 0.0f) {
-			P[i].screen.a1d[0] = offset;
 			R[i] = offset;
 		} else {
-			P[i].screen.a1d[0] = width;
 			R[i] = width;
 		}
 	}
@@ -527,7 +523,7 @@ void geometry_batcher::render(int flags, float radius)
 {
 	if (n_to_render) {
 		if ( (((flags & TMAP_FLAG_SOFT_QUAD) && Cmdline_softparticles)) || (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) && use_radius ) {
-			gr_render_effect(n_to_render * 3, vert, radius_list, flags | TMAP_FLAG_TRILIST, true);
+			gr_render_effect(n_to_render * 3, vert, radius_list, flags | TMAP_FLAG_TRILIST);
 		} else {
 			gr_render(n_to_render * 3, vert, flags | TMAP_FLAG_TRILIST);
 		}
@@ -548,8 +544,8 @@ void geometry_batcher::load_buffer(effect_vertex* buffer, int *n_verts)
 		buffer[buffer_offset+i].position = vert[i].world;
 		buffer[buffer_offset+i].tex_coord = vert[i].texture_position;
 
-		if ( use_radius ) {
-			buffer[buffer_offset+i].radius = vert[i].screen.xyw.x;
+		if ( use_radius && radius_list != NULL ) {
+			buffer[buffer_offset+i].radius = radius_list[i];
 		} else {
 			buffer[buffer_offset+i].radius = 0.0f;
 		}

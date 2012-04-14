@@ -310,7 +310,7 @@ typedef struct screen {
 	// Texture maps the current bitmap.  See TMAP_FLAG_?? defines for flag values
 	void (*gf_render)(int nv, vertex *verts, uint flags);
 
-	void (*gf_render_effect)(int nv, vertex *verts, float *radius_list, uint flags, bool no_flush);
+	void (*gf_render_effect)(int nv, vertex *verts, float *radius_list, uint flags);
 
 	// dumps the current screen to a file
 	void (*gf_print_screen)(char * filename);

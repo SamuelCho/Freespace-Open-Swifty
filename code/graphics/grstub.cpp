@@ -365,7 +365,7 @@ void gr_stub_render( int nverts, vertex *verts, uint flags )
 {
 }
 
-void gr_stub_render_effect( int nverts, vertex *verts, float *radius_list, uint flag, bool no_flush)
+void gr_stub_render_effect( int nverts, vertex *verts, float *radius_list, uint flag)
 {
 }
 

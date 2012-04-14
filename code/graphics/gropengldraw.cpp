@@ -1275,7 +1275,7 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 }
 
 
-void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint flags, bool no_flush)
+void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint flags)
 {
 	int alpha, tmap_type, r, g, b;
 	float u_scale = 1.0f, v_scale = 1.0f;
@@ -1334,7 +1334,7 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 			{
 				attrib_index = opengl_shader_get_attribute("radius_in");
 				GL_state.Array.EnableVertexAttrib(attrib_index);
-				GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, sizeof(vertex), &verts[0].screen.a1d[0]);
+				GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
 				//vglEnableVertexAttribArrayARB(attrib_index);
 				//vglVertexAttribPointerARB(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
 
@@ -1343,7 +1343,7 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 			{
 				attrib_index = opengl_shader_get_attribute("offset_in");
 				GL_state.Array.EnableVertexAttrib(attrib_index);
-				GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, sizeof(vertex), &verts[0].screen.a1d[0]);
+				GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
 				//GL_state.Array.EnableVertexAttrib(attrib_index);
 				//GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
 			}

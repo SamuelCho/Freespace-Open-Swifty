@@ -30,7 +30,7 @@ void gr_opengl_fade_in(int instantaneous);
 void gr_opengl_fade_out(int instantaneous);
 void gr_opengl_tmapper(int nverts, vertex **verts, uint flags);
 void gr_opengl_render(int nverts, vertex *verts, uint flags);
-void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint flags, bool no_flush);
+void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint flags);
 void gr_opengl_bitmap_ex(int x, int y, int w, int h, int sx, int sy, bool resize);
 void gr_opengl_update_distortion();
 
