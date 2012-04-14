@@ -1238,7 +1238,7 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 			int sdr_index;
 
 			if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) ) {
-				sdr_index = opengl_shader_get_index(SDR_FLAG_SOFT_QUAD|SDR_FLAG_DISTORTION);
+				sdr_index = gr_opengl_maybe_create_shader(SDR_FLAG_SOFT_QUAD|SDR_FLAG_DISTORTION);
 
 				if ( sdr_index != Stream_buffer_sdr ) {
 					glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
@@ -1282,7 +1282,7 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 				GL_state.Texture.Enable(Scene_depth_texture);
 			} else if ( Cmdline_softparticles ) {
-				sdr_index = opengl_shader_get_index(SDR_FLAG_SOFT_QUAD);
+				sdr_index = gr_opengl_maybe_create_shader(SDR_FLAG_SOFT_QUAD);
 
 				if ( sdr_index != Stream_buffer_sdr ) {
 					opengl_shader_set_current(&GL_shader[sdr_index]);
