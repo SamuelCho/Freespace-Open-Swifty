@@ -472,6 +472,10 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 	GLint offset = (GLint)bufferp->vertex_offset;
 	GLubyte *ptr = NULL;
 
+	if ( Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
+		offset = 0;
+	}
+
 	// vertex buffer
 
 	if (vbp->vbo) {
@@ -728,7 +732,21 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	//GL_state.Texture.DisableUnused();
 
 	// DRAW IT!!
-	DO_RENDER();
+	//DO_RENDER();
+
+	if ( Is_Extension_Enabled(OGL_DRAW_ELEMENTS_BASE_VERTEX) ) {
+		if (Cmdline_drawelements) {
+			vglDrawElementsBaseVertex(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start), bufferp->vertex_offset/bufferp->stride);
+		} else {
+			vglDrawRangeElementsBaseVertex(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start), bufferp->vertex_offset/bufferp->stride);
+		}
+	} else {
+		if (Cmdline_drawelements) {
+			glDrawElements(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start)); 
+		} else {
+			vglDrawRangeElements(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start));
+		}
+	}
 /*
 	int n_light_passes = (MIN(Num_active_gl_lights, GL_max_lights) - 1) / 3;
 
