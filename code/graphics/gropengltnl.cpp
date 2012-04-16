@@ -649,7 +649,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	int n_lights = MIN(Num_active_gl_lights, GL_max_lights) - 1;
 	vglUniform1iARB( opengl_shader_get_uniform("n_lights"), n_lights );
 
-	//GL_state.Texture.ResetUsed();
+	GL_state.Texture.ResetUsed();
 
 	// base texture
 	if (shader_flags & SDR_FLAG_DIFFUSE_MAP) {
@@ -729,16 +729,16 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		render_pass++;
 	}
 
-	//GL_state.Texture.DisableUnused();
+	GL_state.Texture.DisableUnused();
 
 	// DRAW IT!!
 	//DO_RENDER();
 
-	if ( Is_Extension_Enabled(OGL_DRAW_ELEMENTS_BASE_VERTEX) ) {
+	if ( Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
 		if (Cmdline_drawelements) {
-			vglDrawElementsBaseVertex(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start), bufferp->vertex_offset/bufferp->stride);
+			vglDrawElementsBaseVertex(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
 		} else {
-			vglDrawRangeElementsBaseVertex(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start), bufferp->vertex_offset/bufferp->stride);
+			vglDrawRangeElementsBaseVertex(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
 		}
 	} else {
 		if (Cmdline_drawelements) {
@@ -813,12 +813,12 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 */
 
 	// make sure everthing gets turned back off
-	if ( shader_flags & SDR_FLAG_TRANSFORM ) {
-		int attrib_index = opengl_shader_get_attribute("model_id");
-		if ( attrib_index >= 0 ) {
-			GL_state.Array.DisableVertexAttrib(attrib_index);
-		}
-	}
+// 	if ( shader_flags & SDR_FLAG_TRANSFORM ) {
+// 		int attrib_index = opengl_shader_get_attribute("model_id");
+// 		if ( attrib_index >= 0 ) {
+// 			GL_state.Array.DisableVertexAttrib(attrib_index);
+// 		}
+// 	}
 	GL_state.Texture.SetShaderMode(GL_FALSE);
 }
 
