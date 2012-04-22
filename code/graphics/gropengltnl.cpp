@@ -65,6 +65,7 @@ int GL_vertex_data_in = 0;
 GLint GL_max_elements_vertices = 4096;
 GLint GL_max_elements_indices = 4096;
 
+int Buffer_sdr = -1;
 
 struct opengl_vertex_buffer {
 	GLfloat *array_list;	// interleaved array
@@ -410,6 +411,7 @@ void gr_opengl_set_buffer(int idx)
 
 		if ( (Use_GLSL > 1) && !GLSL_override ) {
 			opengl_shader_set_current();
+			Buffer_sdr = -1;
 		}
 
 		return;
@@ -615,8 +617,10 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 
 	Assert( sdr_index >= 0 );
 
-	opengl_shader_set_current( &GL_shader[sdr_index] );
-
+	if ( sdr_index != Buffer_sdr ) {
+		Buffer_sdr = sdr_index;
+		opengl_shader_set_current( &GL_shader[sdr_index] );
+	}
 
 	opengl_default_light_settings( !GL_center_alpha, (Interp_light > 0.25f) );
 	gr_opengl_set_center_alpha(GL_center_alpha);
