@@ -76,8 +76,6 @@ struct opengl_vertex_buffer {
 	uint vbo_size;
 	uint ibo_size;
 
-	SCP_map<int, int> shader_ids;
-
 	opengl_vertex_buffer() :
 		array_list(NULL), index_list(NULL), vbo(0), ibo(0),
 		vbo_size(0), ibo_size(0)
@@ -106,8 +104,6 @@ void opengl_vertex_buffer::clear()
 		vglDeleteBuffersARB(1, &ibo);
 		GL_vertex_data_in -= ibo_size;
 	}
-
-	shader_ids.clear();
 }
 
 static SCP_vector<opengl_vertex_buffer> GL_vertex_buffers;
@@ -357,7 +353,7 @@ bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb)
 	for (j = 0; j < vb->tex_buf.size(); j++) {
 		n_verts = vb->tex_buf[j].n_verts;
 		uint offset = vb->tex_buf[j].index_offset;
-		uint *index = vb->tex_buf[j].index;
+		const uint *index = vb->tex_buf[j].get_index();
 
 		// bump to our spot in the buffer
 		GLubyte *ibuf = m_vbp->index_list + offset;
@@ -494,7 +490,7 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 	if (Cmdline_drawelements) \
 		glDrawElements(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start)); \
 	else \
-		vglDrawRangeElements(GL_TRIANGLES, start, end, count, element_type, ibuffer + (datap->index_offset + start));
+		vglDrawRangeElements(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start));
 
 int GL_last_shader_flags = -1;
 int GL_last_shader_index = -1;
@@ -566,28 +562,15 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	if (shader_flags == GL_last_shader_flags) {
 		sdr_index = GL_last_shader_index;
 	} else {
-		SCP_map<int, int>::iterator it;
+		sdr_index = gr_opengl_maybe_create_shader(shader_flags);
 
-		it = vbp->shader_ids.find(shader_flags);
-
-		if ( it != vbp->shader_ids.end() ) {
-			sdr_index = it->second;
-
-			GL_last_shader_index = sdr_index;
-			GL_last_shader_flags = shader_flags;
-		} else {
-			sdr_index = opengl_shader_get_index(shader_flags);
-
-			if (sdr_index < 0) {
-				opengl_render_pipeline_fixed(start, bufferp, datap, flags);
-				return;
-			}
-
-			vbp->shader_ids[shader_flags] = sdr_index;
-
-			GL_last_shader_index = sdr_index;
-			GL_last_shader_flags = shader_flags;
+		if (sdr_index < 0) {
+			opengl_render_pipeline_fixed(start, bufferp, datap, flags);
+			return;
 		}
+
+		GL_last_shader_index = sdr_index;
+		GL_last_shader_flags = shader_flags;
 	}
 
 	Assert( sdr_index >= 0 );

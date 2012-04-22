@@ -70,6 +70,7 @@
 #include "sound/sound.h"
 #include "cmdline/cmdline.h"
 #include "hud/hudparse.h"
+#include "hud/hudmessage.h"
 #include "starfield/starfield.h"
 #include "hud/hudartillery.h"
 #include "object/objectdock.h"
@@ -558,6 +559,7 @@ sexp_oper Operators[] = {
 	{ "hud-display-gauge",			OP_HUD_DISPLAY_GAUGE,		2, 2 },
 	{ "hud-gauge-set-active",			OP_HUD_GAUGE_SET_ACTIVE,		2, 2 },
 	{ "hud-activate-gauge-type",		OP_HUD_ACTIVATE_GAUGE_TYPE,		2, 2},
+	{ "hud-clear-messages",			OP_HUD_CLEAR_MESSAGES, 0, 0},	// swifty
 
 	{ "ai-chase",					OP_AI_CHASE,					2, 2, },
 	{ "ai-chase-wing",			OP_AI_CHASE_WING,				2, 2, },
@@ -729,7 +731,6 @@ int	Sexp_useful_number;  // a variable to pass useful info in from external modu
 int	Locked_sexp_true, Locked_sexp_false;
 int	Num_operators = sizeof(Operators) / sizeof(sexp_oper);
 int	Num_sexp_ai_goal_links = sizeof(Sexp_ai_goal_links) / sizeof(sexp_ai_goal_link);
-int	Sexp_build_flag;
 int	Sexp_clipboard = -1;  // used by Fred
 int	Training_context = 0;
 int	Training_context_speed_set;
@@ -740,8 +741,6 @@ waypoint_list *Training_context_path;
 int Training_context_goal_waypoint;
 int Training_context_at_waypoint;
 float	Training_context_distance;
-char	Sexp_error_text[MAX_SEXP_TEXT];
-char	*Sexp_string; //[1024] = {0};
 
 #define SEXP_NODE_INCREMENT	250
 int Num_sexp_nodes = 0;
@@ -791,8 +790,8 @@ char *Explosion_option[] = { "damage", "blast", "inner radius", "outer radius", 
 int Num_explosion_options = 6;
 
 int get_sexp(char *token);
-void build_extended_sexp_string(int cur_node, int level, int mode, int max_len);
-void update_sexp_references(char *old_name, char *new_name, int format, int node);
+void build_extended_sexp_string(SCP_string &accumulator, int cur_node, int level, int mode);
+void update_sexp_references(const char *old_name, const char *new_name, int format, int node);
 int sexp_determine_team(char *subj);
 int extract_sexp_variable_index(int node);
 void init_sexp_vars();
@@ -3450,9 +3449,9 @@ int num_block_variables()
 }
 
 /**
- * Build SEXP text string
+ * Stuff SEXP text string
  */
-void build_sexp_text_string(char *buffer, int node, int mode)
+void stuff_sexp_text_string(SCP_string &dest, int node, int mode)
 {
 	Assert( (node >= 0) && (node < Num_sexp_nodes) );
 
@@ -3469,14 +3468,14 @@ void build_sexp_text_string(char *buffer, int node, int mode)
 			// Error check - can be Fred or FreeSpace
 			if (mode == SEXP_ERROR_CHECK_MODE) {
 				if ( Fred_running ) {
-					sprintf(buffer, "%s[%s] ", Sexp_nodes[node].text, Sexp_variables[sexp_variables_index].text);
+					sprintf(dest, "%s[%s] ", Sexp_nodes[node].text, Sexp_variables[sexp_variables_index].text);
 				} else {
-					sprintf(buffer, "%s[%s] ", Sexp_variables[sexp_variables_index].variable_name, Sexp_variables[sexp_variables_index].text);
+					sprintf(dest, "%s[%s] ", Sexp_variables[sexp_variables_index].variable_name, Sexp_variables[sexp_variables_index].text);
 				}
 			} else {
 				// Save as string - only  Fred
 				Assert(mode == SEXP_SAVE_MODE);
-				sprintf(buffer, "@%s[%s] ", Sexp_nodes[node].text, Sexp_variables[sexp_variables_index].text);
+				sprintf(dest, "@%s[%s] ", Sexp_nodes[node].text, Sexp_variables[sexp_variables_index].text);
 			}
 		} else {
 			// string
@@ -3486,133 +3485,99 @@ void build_sexp_text_string(char *buffer, int node, int mode)
 			// Error check - can be Fred or FreeSpace
 			if (mode == SEXP_ERROR_CHECK_MODE) {
 				if ( Fred_running ) {
-					sprintf(buffer, "%s[%s] ", Sexp_variables[sexp_variables_index].variable_name, Sexp_variables[sexp_variables_index].text);
+					sprintf(dest, "%s[%s] ", Sexp_variables[sexp_variables_index].variable_name, Sexp_variables[sexp_variables_index].text);
 				} else {
-					sprintf(buffer, "%s[%s] ", Sexp_nodes[node].text, Sexp_variables[sexp_variables_index].text);
+					sprintf(dest, "%s[%s] ", Sexp_nodes[node].text, Sexp_variables[sexp_variables_index].text);
 				}
 			} else {
 				// Save as string - only Fred
 				Assert(mode == SEXP_SAVE_MODE);
-				sprintf(buffer, "\"@%s[%s]\" ", Sexp_nodes[node].text, Sexp_variables[sexp_variables_index].text);
+				sprintf(dest, "\"@%s[%s]\" ", Sexp_nodes[node].text, Sexp_variables[sexp_variables_index].text);
 			}
 		}
 	} else {
 		// not a variable
 		if (Sexp_nodes[node].subtype == SEXP_ATOM_STRING) {
-			sprintf(buffer, "\"%s\" ", CTEXT(node));
+			sprintf(dest, "\"%s\" ", CTEXT(node));
 		} else {
-			sprintf(buffer, "%s ", CTEXT(node));
+			sprintf(dest, "%s ", CTEXT(node));
 		}
 	}
 }
 
-static int Sexp_text_overflow_warning = 0;
-
-// speed is not critical, since we're using FRED
-char *sexp_strcat_s(char *dest, const char *src, int max_len)
+int build_sexp_string(SCP_string &accumulator, int cur_node, int level, int mode)
 {
-	int dest_len = strlen(dest);
-	int src_len = strlen(src);
+	SCP_string buf;
+	int node, old_length = accumulator.length();
 
-	if (dest_len + src_len < max_len - 1)
-	{
-		strcpy(&dest[dest_len], src);
-	}
-	else
-	{
-		if (!Sexp_text_overflow_warning)
-		{
-			char buf[640];
-			strcpy_s(buf, "SEXP OVERFLOW: The sexp starting with the following text...\n\n");
-			strncat(buf, dest, 172);
-			strcat_s(buf, "\n\n...is too long!  The sexp has been truncated accordingly and is probably no longer correct.  Please fix this sexp using a text editor.\n\n(Please note that future sexp overflows will fail silently, and this warning will not be displayed again until you restart FRED.)\n");
-			strcat_s(buf, "...sexp truncated on or near:  ");
-			strncat(buf, src, 40);
-			strcat_s(buf, "\n\n");
-			mprintf((buf));
-			Error(LOCATION, buf);
-
-			Sexp_text_overflow_warning = 1;
-		}
-	}
-
-	return dest;
-}
-
-int build_sexp_string(int cur_node, int level, int mode, int max_len)
-{
-	char	pstr[128];
-	int len, offset, node;
-
-	Sexp_build_flag = 0;
-	offset = strlen(Sexp_string);
-	sexp_strcat_s(Sexp_string, "( ", max_len);
+	accumulator += "( ";
 	node = cur_node;
 	while (node != -1) {
 		Assert(node >= 0 && node < Num_sexp_nodes);
 		if (Sexp_nodes[node].first == -1) {
 			// build text to string
-			build_sexp_text_string(pstr, node, mode);
-			sexp_strcat_s(Sexp_string, pstr, max_len);
+			stuff_sexp_text_string(buf, node, mode);
+			accumulator += buf;
 
 		} else {
-			build_sexp_string(Sexp_nodes[node].first, level + 1, mode, max_len);
+			build_sexp_string(accumulator, Sexp_nodes[node].first, level + 1, mode);
 		}
 
 		node = Sexp_nodes[node].rest;
 	}
 
-	sexp_strcat_s(Sexp_string, ") ", max_len);
-	len = strlen(Sexp_string) - offset;
-	if (len > 40) {
-		Sexp_string[offset] = 0;
-		build_extended_sexp_string(cur_node, level, mode, max_len);
+	accumulator += ")";
+	if ((accumulator.length() - old_length) > 40) {
+		accumulator.resize(old_length);
+		build_extended_sexp_string(accumulator, cur_node, level, mode);
 		return 1;
 	}
 
 	return 0;
 }
 
-void build_extended_sexp_string(int cur_node, int level, int mode, int max_len)
+void build_extended_sexp_string(SCP_string &accumulator, int cur_node, int level, int mode)
 {
-	char pstr[128];
+	SCP_string buf;
 	int i, flag = 0, node;
 
-	sexp_strcat_s(Sexp_string, "( ", max_len);
+	accumulator += "( ";
 	node = cur_node;
 	while (node != -1) {
-		if (flag)  // not the first line?
+		// not the first line?
+		if (flag) {
 			for (i=0; i<level + 1; i++)
-				sexp_strcat_s(Sexp_string, "   ", max_len);
+				accumulator += "   ";
+		}
 
 		flag = 1;
 		Assert(node >= 0 && node < Num_sexp_nodes);
 		if (Sexp_nodes[node].first == -1) {
-			build_sexp_text_string(pstr,node, mode);
-			sexp_strcat_s(Sexp_string, pstr, max_len);
+			stuff_sexp_text_string(buf, node, mode);
+			accumulator += buf;
 
 		} else {
-			build_sexp_string(Sexp_nodes[node].first, level + 1, mode, max_len);
+			build_sexp_string(accumulator, Sexp_nodes[node].first, level + 1, mode);
 		}
 
-		sexp_strcat_s(Sexp_string, "\n", max_len);
+		accumulator += "\n";
 		node = Sexp_nodes[node].rest;
 	}
 
 	for (i=0; i<level; i++)
-		sexp_strcat_s(Sexp_string, "   ", max_len);
+		accumulator += "   ";
 
-	sexp_strcat_s(Sexp_string, ")", max_len);
+	accumulator += ")";
 }
 
-void convert_sexp_to_string(int cur_node, char *outstr, int mode, int max_len)
+void convert_sexp_to_string(SCP_string &dest, int cur_node, int mode)
 {
-	Sexp_string = outstr;
-	*outstr = 0;
-	if (cur_node >= 0)
-		build_sexp_string(cur_node, 0, mode, max_len);
-	else
-		strcpy(Sexp_string, "( )");
+	if (cur_node >= 0) {
+		dest = "";
+		build_sexp_string(dest, cur_node, 0, mode);
+	} else {
+		dest = "( )";
+	}
 }
 
 
@@ -4497,7 +4462,7 @@ void sexp_get_object_ship_wing_point_team(object_ship_wing_point_team *oswpt, ch
 
 	// at this point, we must have a point for a target
 	wpt = find_matching_waypoint(object_name);
-	if (wpt != NULL)
+	if ((wpt != NULL) && (wpt->get_objnum() >= 0))
 	{
 		oswpt->type = OSWPT_TYPE_WAYPOINT;
 
@@ -9423,7 +9388,7 @@ void multi_sexp_hud_disable_except_messages()
 void sexp_hud_set_text_num(int n)
 {
 	char* gaugename = CTEXT(n);
-	char tmp[256] = "";
+	char tmp[16] = "";
 
 	HudGauge* cg = hud_get_gauge(gaugename);
 	if(cg) {
@@ -9447,17 +9412,13 @@ void sexp_hud_set_message(int n)
 {
 	char* gaugename = CTEXT(n);
 	char* text = CTEXT(CDR(n));
-	char message[MESSAGE_LENGTH];
+	SCP_string message;
 
 	for (int i = 0; i < Num_messages; i++) {
 		if ( !stricmp(text, Messages[i].name) ) {
-			strcpy_s(message, Messages[i].message);
+			message = Messages[i].message;
 
-			sexp_replace_variable_names_with_values(message, NAME_LENGTH);
-
-			if (strlen(message) > NAME_LENGTH) {
-				WarningEx(LOCATION, "Message %s is too long for use in a HUD gauge. Please shorten it to 32 Characters or less.", Messages[i].name);
-			}
+			sexp_replace_variable_names_with_values(message);
 
 			HudGauge* cg = hud_get_gauge(gaugename);
 			if(cg) {
@@ -9480,8 +9441,8 @@ void sexp_hud_set_directive(int n)
 
 	message_translate_tokens(message, text);
 
-	if (strlen(message) > NAME_LENGTH) {
-		WarningEx(LOCATION, "Message %s is too long for use in a HUD gauge. Please shorten it to 32 Characters or less.", message);
+	if (strlen(message) > MESSAGE_LENGTH) {
+		WarningEx(LOCATION, "Message %s is too long for use in a HUD gauge. Please shorten it to %d characters or less.", message, MESSAGE_LENGTH);
 		return;
 	}
 
@@ -9490,6 +9451,35 @@ void sexp_hud_set_directive(int n)
 		cg->updateCustomGaugeText(message);
 	} else {
 		WarningEx(LOCATION, "Could not find a hud gauge named %s\n", gaugename);
+	}
+}
+
+void sexp_hud_clear_messages()
+{
+	if(Ship_info[Player_ship->ship_info_index].hud_gauges.size() > 0) {
+		size_t num_gauges = Ship_info[Player_ship->ship_info_index].hud_gauges.size();
+
+		for(size_t i = 0; i < num_gauges; i++) {
+			if (Ship_info[Player_ship->ship_info_index].hud_gauges[i]->getObjectType() == HUD_OBJECT_MESSAGES) {
+				HudGaugeMessages* gauge = dynamic_cast<HudGaugeMessages*>(Ship_info[Player_ship->ship_info_index].hud_gauges[i]);
+
+				if ( gauge != NULL) {
+					gauge->clearMessages();
+				}
+			}
+		}
+	} else {
+		size_t num_gauges = default_hud_gauges.size();
+
+		for(size_t i = 0; i < num_gauges; i++) {
+			if (default_hud_gauges[i]->getObjectType() == HUD_OBJECT_MESSAGES) {
+				HudGaugeMessages* gauge = dynamic_cast<HudGaugeMessages*>(default_hud_gauges[i]);
+				
+				if ( gauge != NULL) {
+					gauge->clearMessages();
+				}
+			}
+		}
 	}
 }
 
@@ -13853,9 +13843,9 @@ int sexp_node_targeted(int node)
 {
 	int z;
 
-	jump_node *jnp = jumpnode_get_by_name(CTEXT(node));
+	CJumpNode *jnp = jumpnode_get_by_name(CTEXT(node));
 
-	if (jnp==NULL || !Player_ai || (jnp->get_objnum() != Player_ai->target_objnum)){
+	if (jnp==NULL || !Player_ai || (jnp->GetSCPObjectNumber() != Player_ai->target_objnum)){
 		return SEXP_FALSE;
 	}
 
@@ -19636,7 +19626,7 @@ void sexp_set_jumpnode_name(int n) //CommanderDJ
 {
 	char *old_name = CTEXT(n); //for multi
 
-	jump_node *jnp = jumpnode_get_by_name(old_name);
+	CJumpNode *jnp = jumpnode_get_by_name(old_name);
 
 	if(jnp==NULL) {
 		return;
@@ -19644,7 +19634,7 @@ void sexp_set_jumpnode_name(int n) //CommanderDJ
 
 	n=CDR(n);
 	char *new_name = CTEXT(n); //for multi
-	jnp->set_name(new_name);
+	jnp->SetName(new_name);
 
 	//multiplayer callback
 	multi_start_callback();
@@ -19661,17 +19651,17 @@ void multi_sexp_set_jumpnode_name() //CommanderDJ
 	multi_get_string(old_name);
 	multi_get_string(new_name);
 
-	jump_node *jnp = jumpnode_get_by_name(old_name);
+	CJumpNode *jnp = jumpnode_get_by_name(old_name);
 
 	if(jnp==NULL) 
 		return;
 
-	jnp->set_name(new_name);
+	jnp->SetName(new_name);
 }
 
 void sexp_set_jumpnode_color(int n)
 {
-	jump_node *jnp = jumpnode_get_by_name(CTEXT(n));
+	CJumpNode *jnp = jumpnode_get_by_name(CTEXT(n));
 
 	if(jnp==NULL)
 		return;
@@ -19685,7 +19675,7 @@ void sexp_set_jumpnode_color(int n)
 	int blue = eval_num(CDR(CDR(n)));
 	int alpha = eval_num(CDR(CDR(CDR(n))));
 
-	jnp->set_alphacolor(red, green, blue, alpha);
+	jnp->SetAlphaColor(red, green, blue, alpha);
 
 	multi_start_callback();
 	multi_send_string(jumpnode_name);
@@ -19703,7 +19693,7 @@ void multi_sexp_set_jumpnode_color()
 	int red, blue, green, alpha;
 
 	multi_get_string(jumpnode_name);
-	jump_node *jnp = jumpnode_get_by_name(jumpnode_name);
+	CJumpNode *jnp = jumpnode_get_by_name(jumpnode_name);
 
 	if(jnp==NULL) {
 		multi_discard_remaining_callback_data();
@@ -19715,13 +19705,13 @@ void multi_sexp_set_jumpnode_color()
 	multi_get_int(blue);
 	multi_get_int(alpha);
 
-	jnp->set_alphacolor(red, green, blue, alpha);
+	jnp->SetAlphaColor(red, green, blue, alpha);
 }
 
 void sexp_set_jumpnode_model(int n)
 {
 	char* jumpnode_name = CTEXT(n);
-	jump_node *jnp = jumpnode_get_by_name(jumpnode_name);
+	CJumpNode *jnp = jumpnode_get_by_name(jumpnode_name);
 
 	if(jnp==NULL)
 		return;
@@ -19731,7 +19721,7 @@ void sexp_set_jumpnode_model(int n)
 	n=CDR(n);
 	bool show_polys = (is_sexp_true(n) != 0);
 
-	jnp->set_model(model_name, show_polys);
+	jnp->SetModel(model_name, show_polys);
 
 	multi_start_callback();
 	multi_send_string(jumpnode_name);
@@ -19749,7 +19739,7 @@ void multi_sexp_set_jumpnode_model()
 	multi_get_string(jumpnode_name);
 	multi_get_string(model_name);
 
-	jump_node *jnp = jumpnode_get_by_name(jumpnode_name);
+	CJumpNode *jnp = jumpnode_get_by_name(jumpnode_name);
 
 	if(jnp==NULL) {
 		multi_discard_remaining_callback_data();		
@@ -19758,7 +19748,7 @@ void multi_sexp_set_jumpnode_model()
 
 	show_polys = multi_get_bool(show_polys);
 
-	jnp->set_model(model_name, show_polys);
+	jnp->SetModel(model_name, show_polys);
 }
 
 void sexp_show_hide_jumpnode(int node, bool show)
@@ -19767,10 +19757,10 @@ void sexp_show_hide_jumpnode(int node, bool show)
 
 	for (int n = node; n >= 0; n = CDR(n))
 	{
-		jump_node *jnp = jumpnode_get_by_name(CTEXT(n));
+		CJumpNode *jnp = jumpnode_get_by_name(CTEXT(n));
 		if (jnp != NULL)
 		{
-			jnp->show(show);
+			jnp->SetVisibility(show);
 			multi_send_string(CTEXT(n));
 		}
 	}
@@ -19784,9 +19774,9 @@ void multi_sexp_show_hide_jumpnode(bool show)
 
 	while (multi_get_string(jumpnode_name))
 	{
-		jump_node *jnp = jumpnode_get_by_name(jumpnode_name);
+		CJumpNode *jnp = jumpnode_get_by_name(jumpnode_name);
 		if (jnp != NULL)
-			jnp->show(show);
+			jnp->SetVisibility(show);
 	}
 }
 
@@ -22102,6 +22092,11 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_hud_gauge_set_active(node);
 				break;
 
+			case OP_HUD_CLEAR_MESSAGES:
+				sexp_val = SEXP_TRUE;
+				sexp_hud_clear_messages();
+				break;
+
 			case OP_HUD_ACTIVATE_GAUGE_TYPE:
 				sexp_val = SEXP_TRUE;
 				sexp_hud_activate_gauge_type(node);
@@ -22188,9 +22183,9 @@ int eval_sexp(int cur_node, int referenced_node)
 			// make sure everything works okay
 			if (arg_num == -1)
 			{
-				char sexp_text[MAX_EVENT_SIZE];
-				convert_sexp_to_string(cur_node, sexp_text, SEXP_ERROR_CHECK_MODE, MAX_EVENT_SIZE);
-				Error(LOCATION, "Error finding sexp argument.  Received value %d for sexp:\n%s", sexp_val, sexp_text);
+				SCP_string sexp_text;
+				convert_sexp_to_string(sexp_text, cur_node, SEXP_ERROR_CHECK_MODE);
+				Error(LOCATION, "Error finding sexp argument.  Received value %d for sexp:\n%s", sexp_val, sexp_text.c_str());
 			}
 
 			// if we need a positive value, make it positive
@@ -22985,6 +22980,7 @@ int query_operator_return_type(int op)
 		case OP_HUD_SET_FRAME:
 		case OP_HUD_SET_COLOR:
 		case OP_HUD_SET_MAX_TARGETING_RANGE:
+		case OP_HUD_CLEAR_MESSAGES:
 		case OP_SHIP_CHANGE_ALT_NAME:
 		case OP_SHIP_CHANGE_CALLSIGN:
 		case OP_SET_DEATH_MESSAGE:
@@ -23893,6 +23889,9 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_STRING;
 			else
 				return OPF_POSITIVE;
+
+		case OP_HUD_CLEAR_MESSAGES:
+			return OPF_NONE;
 
 		case OP_PLAYER_USE_AI:
 		case OP_PLAYER_NOT_USE_AI:
@@ -24997,7 +24996,7 @@ int query_operator_argument_type(int op, int argnum)
 
 // DA: 1/7/99  Used to rename ships and waypoints, not variables
 // Strictly used in FRED
-void update_sexp_references(char *old_name, char *new_name)
+void update_sexp_references(const char *old_name, const char *new_name)
 {
 	int i;
 
@@ -25012,7 +25011,7 @@ void update_sexp_references(char *old_name, char *new_name)
 
 // DA: 1/7/99  Used to rename event names, goal names, not variables
 // Strictly used in FRED
-void update_sexp_references(char *old_name, char *new_name, int format)
+void update_sexp_references(const char *old_name, const char *new_name, int format)
 {
 	int i;
 
@@ -25026,7 +25025,7 @@ void update_sexp_references(char *old_name, char *new_name, int format)
 
 // DA: 1/7/99  Used to rename event names, goal names, not variables
 // recursive function to update references to a certain type of data
-void update_sexp_references(char *old_name, char *new_name, int format, int node)
+void update_sexp_references(const char *old_name, const char *new_name, int format, int node)
 {
 	int i, n, op;
 
@@ -25443,10 +25442,11 @@ char *sexp_error_message(int num)
 			
 		case SEXP_CHECK_INVALID_ANIMATION_TYPE:
 			return "Invalid animation type";
-	}
 
-	sprintf(Sexp_error_text, "Sexp error code %d", num);
-	return Sexp_error_text;
+		default:
+			Warning(LOCATION, "Unhandled sexp error code %d!", num);
+			return "Unhandled sexp error code!";
+	}
 }
 
 int query_sexp_ai_goal_valid(int sexp_ai_goal, int ship)
@@ -26440,6 +26440,7 @@ int get_subcategory(int sexp_id)
 		case OP_HUD_SET_DIRECTIVE:
 		case OP_HUD_GAUGE_SET_ACTIVE:
 		case OP_HUD_ACTIVATE_GAUGE_TYPE:
+		case OP_HUD_CLEAR_MESSAGES:
 			return CHANGE_SUBCATEGORY_HUD;
 
 		case OP_CUTSCENES_SET_CUTSCENE_BARS:
@@ -27033,7 +27034,8 @@ sexp_help_struct Sexp_help[] = {
 		"Returns a boolean value.  Takes 2 required arguments and 1 optional argument...\r\n"
 		"\t1:\tName of the event in the mission.\r\n"
 		"\t2:\tNumber of seconds to delay before returning true.\r\n"
-		"\t3:\t(Optional) True/False which signifies this is a current event, whether true, false, or unknown, for use as a directive."},
+		"\t3:\t(Optional) Defaults to False. When set to false, directives will only appear as soon as the specified event is true.\r\n"
+		"\t\tWhen set to true, the event only affects whether the directive succeeds/fails, and has no effect on when it appears"},
 
 	{ OP_EVENT_FALSE_DELAY, "Mission Event False (Boolean operator)\r\n"
 		"\tReturns true N seconds after the specified event in the this mission is false "
@@ -27041,7 +27043,8 @@ sexp_help_struct Sexp_help[] = {
 		"Returns a boolean value.  Takes 2 required arguments and 1 optional argument...\r\n"
 		"\t1:\tName of the event in the mission.\r\n"
 		"\t2:\tNumber of seconds to delay before returning true.\r\n"
-		"\t3:\t(Optional) True/False which signifies this is a current event, whether true, false, or unknown, for use as a directive."},
+		"\t3:\t(Optional) Defaults to False. When set to false, directives will only appear as soon as the specified event is true.\r\n"
+		"\t\tWhen set to true, the event only affects whether the directive succeeds/fails, and has no effect on when it appears"},
 
 	{ OP_EVENT_TRUE_MSECS_DELAY, "Mission Event True (Boolean operator)\r\n"
 		"\tReturns true N milliseconds after the specified event in the this mission is true "
@@ -27049,7 +27052,8 @@ sexp_help_struct Sexp_help[] = {
 		"Returns a boolean value.  Takes 2 required arguments and 1 optional argument...\r\n"
 		"\t1:\tName of the event in the mission.\r\n"
 		"\t2:\tNumber of milliseconds to delay before returning true.\r\n"
-		"\t3:\t(Optional) True/False which signifies this is a current event, whether true, false, or unknown, for use as a directive."},
+		"\t3:\t(Optional) Defaults to False. When set to false, directives will only appear as soon as the specified event is true.\r\n"
+		"\t\tWhen set to true, the event only affects whether the directive succeeds/fails, and has no effect on when it appears"},
 
 	{ OP_EVENT_FALSE_MSECS_DELAY, "Mission Event False (Boolean operator)\r\n"
 		"\tReturns true N milliseconds after the specified event in the this mission is false "
@@ -27057,8 +27061,8 @@ sexp_help_struct Sexp_help[] = {
 		"Returns a boolean value.  Takes 2 required arguments and 1 optional argument...\r\n"
 		"\t1:\tName of the event in the mission.\r\n"
 		"\t2:\tNumber of milliseconds to delay before returning true.\r\n"
-		"\t3:\t(Optional) True/False which signifies this is a current event, whether true, false, or unknown, for use as a directive."},
-
+		"\t3:\t(Optional) Defaults to False. When set to false, directives will only appear as soon as the specified event is true.\r\n"
+		"\t\tWhen set to true, the event only affects whether the directive succeeds/fails, and has no effect on when it appears"},
 
 	{ OP_EVENT_INCOMPLETE, "Mission Event Incomplete (Boolean operator)\r\n"
 		"\tReturns true if the specified event in the this mission is incomplete.  This "
@@ -29891,6 +29895,11 @@ sexp_help_struct Sexp_help[] = {
 		"Takes 2 Arguments...\r\n"
 		"\t1:\tHUD Gauge name\r\n"
 		"\t2:\tBoolean, whether or not to display this gauge\r\n"
+	},
+
+	{OP_HUD_CLEAR_MESSAGES, "hud-clear-messages\r\n"
+		"\tClears active messages displayed on the HUD."
+		"Takes no arguments\r\n"
 	},
 
 	{OP_HUD_ACTIVATE_GAUGE_TYPE, "hud-activate-gauge-type\r\n"

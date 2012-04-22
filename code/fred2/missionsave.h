@@ -28,7 +28,7 @@
 class CFred_mission_save {
 private:
 	char *raw_ptr;
-	std::vector<std::string> fso_ver_comment;
+	SCP_vector<SCP_string> fso_ver_comment;
 	int err;
 	CFILE *fp;
 
@@ -59,6 +59,7 @@ private:
 	void save_single_dock_instance(ship *shipp, dock_instance *dock_ptr);
 
 	void convert_special_tags_to_retail(char *text, int max_len);
+	void convert_special_tags_to_retail(SCP_string &text);
 	void convert_special_tags_to_retail();
 
 public:

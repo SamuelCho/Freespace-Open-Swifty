@@ -52,10 +52,6 @@ extern jmp_buf parse_abort;
 //For modular TBL files -C
 #define MAX_TBL_PARTS 32
 
-// 1K on the stack? seems to work...
-// JH: 1k isn't enough!  Command briefs can be 16k max, so changed this.
-#define MAX_TMP_STRING_LENGTH 16384
-
 
 #define	SHIP_TYPE			0	// used to identify which kind of array to do a search for a name in
 #define	SHIP_INFO_TYPE		1
@@ -111,7 +107,7 @@ extern void skip_token();
 
 // required
 extern int required_string(char *pstr);
-extern int optional_string(char *pstr);
+extern int optional_string(const char *pstr);
 extern int optional_string_either(char *str1, char *str2);
 extern int required_string_either(char *str1, char *str2);
 extern int required_string_3(char *str1, char *str2, char *str3);
@@ -139,8 +135,8 @@ extern char* alloc_block(char* startstr, char* endstr, int extra_chars = 0);
 // Exactly the same as stuff string only Malloc's the buffer. 
 //	Supports various FreeSpace primitive types.  If 'len' is supplied, it will override
 // the default string length if using the F_NAME case.
-extern char *stuff_and_malloc_string( int type, char *terminators = NULL, int len = 0);
-extern void stuff_malloc_string(char **dest, int type, char *terminators = NULL, int len = 0);
+extern char *stuff_and_malloc_string(int type, char *terminators = NULL);
+extern void stuff_malloc_string(char **dest, int type, char *terminators = NULL);
 extern void stuff_float(float *f);
 extern int stuff_float_optional(float *f);
 extern void stuff_int(int *i);
@@ -195,14 +191,14 @@ extern void read_file_text_from_array(char *array, char *processed_text = NULL, 
 extern void read_raw_file_text(char *filename, int mode = CF_TYPE_ANY, char *raw_text = NULL);
 extern void process_raw_file_text(char *processed_text = NULL, char *raw_text = NULL);
 extern void debug_show_mission_text();
-extern void convert_sexp_to_string(int cur_node, char *outstr, int mode, int max_len);
+extern void convert_sexp_to_string(SCP_string &dest, int cur_node, int mode);
 char *split_str_once(char *src, int max_pixel_w);
 int split_str(const char *src, int max_pixel_w, int *n_chars, const char **p_str, int max_lines, char ignore_char = -1);
-int split_str(const char *src, int max_pixel_w, SCP_vector<int> *n_chars, SCP_vector<const char*> *p_str, char ignore_char);
+int split_str(const char *src, int max_pixel_w, SCP_vector<int> &n_chars, SCP_vector<const char*> &p_str, char ignore_char);
 
 inline int split_str(char *src, int max_pixel_w, int *n_chars, char **p_str, int max_lines, char ignore_char = -1)
 {
-	return split_str((const char*)src,max_pixel_w,n_chars,(const char**)p_str,max_lines,ignore_char);
+	return split_str(const_cast<const char*>(src), max_pixel_w, n_chars, const_cast<const char**>(p_str), max_lines, ignore_char);
 }
 
 // fred
@@ -212,14 +208,15 @@ extern int optional_string_fred(char *pstr, char *end = NULL, char *end2 = NULL)
 
 extern char	parse_error_text[128];
 
-// Goober5000 - returns position of replacement or -1 for exceeded length
+// Goober5000 - returns position of replacement or -1 for exceeded length (SCP_string variants return the result)
 extern int replace_one(char *str, char *oldstr, char *newstr, unsigned int max_len, int range = 0);
-
-// Goober5000 - returns number of replacements or -1 for exceeded length
-extern int replace_all(char *str, char *oldstr, char *newstr, unsigned int max_len, int range = 0);
-
 extern SCP_string& replace_one(SCP_string& context, const SCP_string& from, const SCP_string& to);
+extern SCP_string& replace_one(SCP_string& context, const char* from, const char* to);
+
+// Goober5000 - returns number of replacements or -1 for exceeded length (SCP_string variants return the result)
+extern int replace_all(char *str, char *oldstr, char *newstr, unsigned int max_len, int range = 0);
 extern SCP_string& replace_all(SCP_string& context, const SCP_string& from, const SCP_string& to);
+extern SCP_string& replace_all(SCP_string& context, const char* from, const char* to);
 
 // Goober5000 (why is this not in the C library?)
 extern char *stristr(const char *str, const char *substr);
@@ -228,6 +225,7 @@ extern char *stristr(const char *str, const char *substr);
 extern bool can_construe_as_integer(const char *text);
 
 // Goober5000 (ditto for C++)
+extern void vsprintf(SCP_string &dest, const char *format, va_list ap);
 extern void sprintf(SCP_string &dest, const char *format, ...);
 
 // Goober5000
@@ -259,5 +257,20 @@ int get_string_or_variable (SCP_string &str);
 #define PARSING_FOUND_STRING		0
 #define PARSING_FOUND_VARIABLE		1
 
+/**
+ * @brief Reads a float and takes care of given limits
+ *
+ * Parses a float into @c destination if the specified tag is present. When the parsed float is less than
+ * the specified @c min value then a warning will be generated and the destination will contain @c min as its
+ * value. The same applies to @c max.
+ *
+ * @param tag The optional tag that should be checked
+ * @param destination The destination float where the value should be stored
+ * @param def The default value which should be used when the tag isn't present
+ * @param min The minimum value which will be accepted. Optional parameter; defaults to @c FLT_MIN
+ * @param max The maximum value which will be accepted. Optional parameter; defaults to @c FLT_MAX
+ * @return
+ */
+bool parse_optional_float(const char *tag, float *destination, float def, float min = FLT_MIN, float max = FLT_MAX);
 
 #endif

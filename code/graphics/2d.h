@@ -27,6 +27,19 @@ extern int Gr_inited;
 extern int gr_zbuffering, gr_zbuffering_mode;
 extern int gr_global_zbuffering;
 
+// Shader flags
+#define SDR_FLAG_LIGHT			(1<<0)
+#define SDR_FLAG_FOG			(1<<1)
+#define SDR_FLAG_DIFFUSE_MAP	(1<<2)
+#define SDR_FLAG_GLOW_MAP		(1<<3)
+#define SDR_FLAG_SPEC_MAP		(1<<4)
+#define SDR_FLAG_NORMAL_MAP		(1<<5)
+#define SDR_FLAG_HEIGHT_MAP		(1<<6)
+#define SDR_FLAG_ENV_MAP		(1<<7)
+#define SDR_FLAG_ANIMATED		(1<<8)
+#define SDR_FLAG_SOFT_QUAD		(1<<9)
+#define SDR_FLAG_DISTORTION		(1<<10)
+
 /**
  * This is a structure used by the shader to keep track
  * of the values you want to use in the shade primitive.
@@ -109,7 +122,12 @@ struct buffer_data {
 
 	size_t index_offset;
 
-	uint *index;
+	const uint *get_index() const
+	{
+		return index;
+	}
+	
+        uint i_first, i_last;
 
 	void release()
 	{
@@ -119,10 +137,26 @@ struct buffer_data {
 		}
 	}
 
-	buffer_data() :
-		flags(0), texture(-1), n_verts(0), index_offset(0), index(NULL)
+	void assign(int i, uint j)
 	{
+		const_cast<uint *>(index)[i] = j;
+		if (i_first > i_last)
+			i_first = i_last = j;
+		else if (i_first > j)
+			i_first = j;
+		else if (i_last < j)
+			i_last = j;
 	}
+
+	buffer_data(int n_vrts) :
+		flags(0), texture(-1), n_verts(n_vrts), index_offset(0),
+		i_first(1), i_last(0)
+	{
+		index = new(std::nothrow) uint[n_verts];
+	}
+
+private:
+	uint *index;
 };
 
 struct vertex_buffer {
@@ -256,7 +290,7 @@ typedef struct screen {
 	void (*gf_aabitmap)(int x, int y, bool resize, bool mirror);
 	void (*gf_aabitmap_ex)(int x, int y, int w, int h, int sx, int sy, bool resize, bool mirror);
 
-	void (*gf_string)(int x, int y, char * text,bool resize);
+	void (*gf_string)(int x, int y, const char * text,bool resize);
 
 	// Draw a gradient line... x1,y1 is bright, x2,y2 is transparent.
 	void (*gf_gradient)(int x1, int y1, int x2, int y2, bool resize);
@@ -434,6 +468,8 @@ typedef struct screen {
 
 	void (*gf_line_htl)(vec3d *start, vec3d* end);
 	void (*gf_sphere_htl)(float rad);
+
+	int (*gf_maybe_create_shader)(int flags);
 } screen;
 
 // handy macro
@@ -485,7 +521,12 @@ extern void _cdecl gr_printf( int x, int y, char * format, ... );
 extern void _cdecl gr_printf_no_resize( int x, int y, char * format, ... );
 
 // Returns the size of the string in pixels in w and h
-extern void gr_get_string_size( int *w, int *h, char * text, int len = 9999 );
+extern void gr_get_string_size( int *w, int *h, const char * text, int len = 9999 );
+
+__inline void gr_get_string_size( int *w, int *h, char * text, int len = 9999 )
+{
+	gr_get_string_size(w, h, const_cast<const char*>(text), len);
+}
 
 // Returns the height of the current font
 extern int gr_get_font_height();
@@ -546,9 +587,14 @@ __inline void gr_bitmap_ex(int x, int y, int w, int h, int sx, int sy, bool resi
 void gr_rect(int x, int y, int w, int h, bool resize = true);
 void gr_shade(int x, int y, int w, int h, bool resize = true);
 
-__inline void gr_string(int x, int y, char* string, bool resize = true)
+__inline void gr_string(int x, int y, const char* string, bool resize = true)
 {
 	(*gr_screen.gf_string)(x,y,string,resize);
+}
+
+__inline void gr_string(int x, int y, char* string, bool resize = true)
+{
+	(*gr_screen.gf_string)(x,y,const_cast<char*>(string),resize);
 }
 
 __inline void gr_circle(int xc, int yc, int d, bool resize = true)
@@ -705,6 +751,8 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 
 #define gr_line_htl						GR_CALL(*gr_screen.gf_line_htl)
 #define gr_sphere_htl					GR_CALL(*gr_screen.gf_sphere_htl)
+
+#define gr_maybe_create_shader			GR_CALL(*gr_screen.gf_maybe_create_shader)
 
 // color functions
 void gr_get_color( int *r, int *g, int  b );

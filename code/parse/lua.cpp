@@ -5452,7 +5452,7 @@ ADE_INDEXER(l_WaypointList, "number Index", "Array of waypoints that are part of
 	//Get waypoint name
 	sprintf(wpname, "%s:%d", wlh->wlp->get_name(), calc_waypoint_index(idx) + 1);
 	waypoint *wpt = find_matching_waypoint( wpname );
-	if( idx >= 0 && (uint) idx < wlh->wlp->get_waypoints().size() && wpt != NULL ) {
+	if( (idx >= 0) && ((uint) idx < wlh->wlp->get_waypoints().size()) && (wpt != NULL) && (wpt->get_objnum() >= 0) ) {
 		return ade_set_args( L, "o", l_Waypoint.Set( object_h( &Objects[wpt->get_objnum()] ), Objects[wpt->get_objnum()].signature ) );
 	}
 
@@ -6973,23 +6973,23 @@ ADE_VIRTVAR(TargetSubsystem, l_Ship, "subsystem", "Target subsystem of ship.", "
 
 	if(ADE_SETTING_VAR)
 	{
-		if(aip->target_signature == newh->sig)
+		if(newh->IsValid())
 		{
-			if(newh->IsValid())
-			{
-				aip->target_objnum = OBJ_INDEX(newh->objp);
-				aip->target_signature = newh->sig;
-				aip->target_time = 0.0f;
-				set_targeted_subsys(aip, newh->ss, aip->target_objnum);
-			}
-			else
-			{
-				aip->target_objnum = -1;
-				aip->target_signature = 0;
-				aip->target_time = 0.0f;
+			aip->target_objnum = OBJ_INDEX(newh->objp);
+			aip->target_signature = newh->sig;
+			aip->target_time = 0.0f;
+			set_targeted_subsys(aip, newh->ss, aip->target_objnum);
 
-				set_targeted_subsys(aip, NULL, -1);
-			}
+			if (aip == Player_ai)
+				Ships[newh->ss->parent_objnum].last_targeted_subobject[Player_num] = newh->ss;
+		}
+		else
+		{
+			aip->target_objnum = -1;
+			aip->target_signature = 0;
+			aip->target_time = 0.0f;
+
+			set_targeted_subsys(aip, NULL, -1);
 		}
 	}
 
@@ -7807,7 +7807,10 @@ ADE_VIRTVAR(ParentTurret, l_Weapon, "subsystem", "Turret which fired this weapon
 		}
 	}
 
-	return ade_set_args(L, "o", l_Subsystem.Set(ship_subsys_h(&Objects[wp->turret_subsys->parent_objnum], wp->turret_subsys)));
+    if(wp->turret_subsys == NULL)
+        return ade_set_error(L, "o", l_Subsystem.Set(ship_subsys_h()));
+    else
+        return ade_set_args(L, "o", l_Subsystem.Set(ship_subsys_h(&Objects[wp->turret_subsys->parent_objnum], wp->turret_subsys)));
 }
 
 ADE_VIRTVAR(HomingObject, l_Weapon, "object", "Object that weapon will home in on. Value may also be a deriviative of the 'object' class, such as 'ship'", "object", "Object that weapon is homing in on, or an invalid object handle if weapon is not homing or the weapon handle is invalid")
@@ -11024,7 +11027,7 @@ ADE_FUNC(drawTargetingBrackets, l_Graphics, "object Object, [boolean draw=true, 
 	int bound_rc, pof;
 	int modelnum;
 	bool entered_frame = false;
-	SCP_list<jump_node>::iterator jnp;
+	SCP_list<CJumpNode>::iterator jnp;
 	
 	if ( !(g3_in_frame( ) > 0 ) )
 	{
@@ -11064,11 +11067,11 @@ ADE_FUNC(drawTargetingBrackets, l_Graphics, "object Object, [boolean draw=true, 
 			break;
 		case OBJ_JUMP_NODE:
 			for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
-				if(jnp->get_obj() == targetp)
+				if(jnp->GetSCPObject() == targetp)
 					break;
 			}
 			
-			modelnum = jnp->get_modelnum();
+			modelnum = jnp->GetModelNumber();
 			bound_rc = model_find_2d_bound_min( modelnum, &targetp->orient, &targetp->pos,&x1,&y1,&x2,&y2 );
 			break;
 		default: //Someone passed an invalid pointer.
@@ -12217,11 +12220,9 @@ ADE_FUNC(startMission, l_Mission, "[Filename or MISSION_* enumeration, Briefing 
 ADE_FUNC(getMissionTime, l_Mission, NULL, "Game time in seconds since the mission was started; is affected by time compression", "number", "Mission time (seconds), or 0 if game is not in a mission")
 {
 	if(!(Game_mode & GM_IN_MISSION))
-		return ade_set_error(L, "d", 0.0f);
+		return ade_set_error(L, "f", 0.0f);
 
-	double time = (double)timestamp() / 1000.0;
-
-	return ade_set_args(L, "d", time);
+	return ade_set_args(L, "x", Missiontime);
 }
 
 //WMC - These are in freespace.cpp

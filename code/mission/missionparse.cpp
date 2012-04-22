@@ -927,6 +927,17 @@ void parse_player_info2(mission *pm)
 			}
 		}
 		ptr->num_weapon_choices = num_choices;
+
+		memset(ptr->weapon_required, 0, MAX_WEAPON_TYPES * sizeof(bool));
+		if (optional_string("+Required for mission:"))
+		{
+			int num_weapons;
+			int weapon_list_buf[MAX_WEAPON_TYPES];
+			num_weapons = stuff_int_list(weapon_list_buf, MAX_WEAPON_TYPES, WEAPON_LIST_TYPE);
+
+			for (i = 0; i < num_weapons; i++)
+				ptr->weapon_required[weapon_list_buf[i]] = true;
+		}
 	}
 
 	if ( nt != Num_teams )
@@ -1255,8 +1266,7 @@ void parse_cmd_brief(mission *pm)
 	required_string("#Command Briefing");
 	while (optional_string("$Stage Text:")) {
 		Assert(stage < CMD_BRIEF_STAGES_MAX);
-		Cur_cmd_brief->stage[stage].text = stuff_and_malloc_string(F_MULTITEXT, NULL, CMD_BRIEF_TEXT_MAX);
-		Assert(Cur_cmd_brief->stage[stage].text);
+		stuff_string(Cur_cmd_brief->stage[stage].text, F_MULTITEXT, NULL);
 
 		required_string("$Ani Filename:");
 		stuff_string(Cur_cmd_brief->stage[stage].ani_filename, F_FILESPEC, MAX_FILENAME_LEN);
@@ -1320,11 +1330,7 @@ void parse_briefing(mission *pm, int flags)
 			Assert(stage_num < MAX_BRIEF_STAGES);
 			bs = &bp->stages[stage_num++];
 			required_string("$multi_text");
-			if ( Fred_running )	{
-				stuff_string(bs->new_text, F_MULTITEXT, MAX_BRIEF_LEN);
-			} else {
-				bs->new_text = stuff_and_malloc_string(F_MULTITEXT, NULL, MAX_BRIEF_LEN);
-			}
+			stuff_string(bs->text, F_MULTITEXT, NULL);
 			required_string("$voice:");
 			stuff_string(bs->voice, F_FILESPEC, MAX_FILENAME_LEN);
 			required_string("$camera_pos:");
@@ -1528,19 +1534,11 @@ void parse_debriefing_new(mission *pm)
 			required_string("$Formula:");
 			dbs->formula = get_sexp_main();
 			required_string("$multi text");
-			if ( Fred_running )	{
-				stuff_string(dbs->new_text, F_MULTITEXT, MAX_DEBRIEF_LEN);
-			} else {
-				dbs->new_text = stuff_and_malloc_string(F_MULTITEXT, NULL, MAX_DEBRIEF_LEN);
-			}
+			stuff_string(dbs->text, F_MULTITEXT, NULL);
 			required_string("$Voice:");
 			stuff_string(dbs->voice, F_FILESPEC, MAX_FILENAME_LEN);
 			required_string("$Recommendation text:");
-			if ( Fred_running )	{
-				stuff_string( dbs->new_recommendation_text, F_MULTITEXT, MAX_RECOMMENDATION_LEN);
-			} else {
-				dbs->new_recommendation_text = stuff_and_malloc_string( F_MULTITEXT, NULL, MAX_RECOMMENDATION_LEN);
-			}
+			stuff_string(dbs->recommendation_text, F_MULTITEXT, NULL);
 		} // end while
 
 		Assert(db->num_stages == stage_num);
@@ -4639,23 +4637,23 @@ void parse_waypoints_and_jumpnodes(mission *pm)
 
 	required_string("#Waypoints");
 
-	jump_node *jnp;
+	CJumpNode *jnp;
 	char file_name[MAX_FILENAME_LEN] = { 0 };
 	char jump_name[NAME_LENGTH] = { 0 };
 
 	while (optional_string("$Jump Node:")) {
 		stuff_vec3d(&pos);
-		jnp = new jump_node(&pos);
+		jnp = new CJumpNode(&pos);
 		Assert(jnp != NULL);
 
 		if (optional_string("$Jump Node Name:") || optional_string("+Jump Node Name:")) {
 			stuff_string(jump_name, F_NAME, NAME_LENGTH);
-			jnp->set_name(jump_name);
+			jnp->SetName(jump_name);
 		}
 
 		if(optional_string("+Model File:")){
 			stuff_string(file_name, F_NAME, MAX_FILENAME_LEN);
-			jnp->set_model(file_name);
+			jnp->SetModel(file_name);
 		}
 
 		if(optional_string("+Alphacolor:")) {
@@ -4664,13 +4662,13 @@ void parse_waypoints_and_jumpnodes(mission *pm)
 			stuff_ubyte(&g);
 			stuff_ubyte(&b);
 			stuff_ubyte(&a);
-			jnp->set_alphacolor(r, g, b, a);
+			jnp->SetAlphaColor(r, g, b, a);
 		}
 
 		if(optional_string("+Hidden:")) {
 			int hide;
 			stuff_boolean(&hide);
-			jnp->show(!hide);
+			jnp->SetVisibility(!hide);
 		}
 
 		Jump_nodes.push_back(*jnp);
@@ -5382,7 +5380,7 @@ void post_process_mission()
 	// Loop through the Sexp_nodes array and send the top level functions to the check_sexp_syntax parser
 
 	for (i = 0; i < Num_sexp_nodes; i++) {
-		if ( is_sexp_top_level(i) && (!Fred_running || (i != Sexp_clipboard))) {
+		if (is_sexp_top_level(i) && (!Fred_running || (i != Sexp_clipboard))) {
 			int result, bad_node, op;
 
 			op = get_operator_index(CTEXT(i));
@@ -5392,16 +5390,19 @@ void post_process_mission()
 			// entering this if statement will result in program termination!!!!!
 			// print out an error based on the return value from check_sexp_syntax()
 			if ( result ) {
-				char sexp_str[MAX_EVENT_SIZE], text[4500];
+				SCP_string sexp_str;
+				SCP_string error_msg;
 
-				convert_sexp_to_string( i, sexp_str, SEXP_ERROR_CHECK_MODE, MAX_EVENT_SIZE);
-				sprintf(text, "%s.\n\nIn sexpression: %s\n(Error appears to be: %s)",
-					sexp_error_message(result), sexp_str, Sexp_nodes[bad_node].text);
+				convert_sexp_to_string(sexp_str, i, SEXP_ERROR_CHECK_MODE);
+				sprintf(error_msg, "%s.\n\nIn sexpression: %s\n(Error appears to be: %s)", sexp_error_message(result), sexp_str.c_str(), Sexp_nodes[bad_node].text);
 
-				if (!Fred_running)
-					Error( LOCATION, text );
-				else
-					Warning( LOCATION, text );
+				if (!Fred_running) {
+					nprintf(("Error", error_msg.c_str()));
+					Error(LOCATION, error_msg.c_str());
+				} else {
+					nprintf(("Warning", error_msg.c_str()));
+					Warning(LOCATION, error_msg.c_str());
+				}
 			}
 		}
 	}

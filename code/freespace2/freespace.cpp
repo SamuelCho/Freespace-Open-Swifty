@@ -45,7 +45,6 @@
 #include "gamesnd/eventmusic.h"
 #include "gamesnd/gamesnd.h"
 #include "globalincs/alphacolors.h"
-#include "globalincs/linklist.h"
 #include "globalincs/version.h"
 #include "globalincs/mspdb_callstack.h"
 #include "graphics/font.h"
@@ -1245,8 +1244,7 @@ void game_loading_callback_init()
 	if (Game_loading_background < 0)
 		Game_loading_background = bm_load(Game_loading_bground_fname[gr_screen.res]);
 
-	strcpy_s(Game_loading_ani.filename, Game_loading_ani_fname[gr_screen.res]);
-	generic_anim_init(&Game_loading_ani, Game_loading_ani.filename);
+	generic_anim_init(&Game_loading_ani, Game_loading_ani_fname[gr_screen.res]);
 	generic_anim_load(&Game_loading_ani);
 	Assertion( Game_loading_ani.num_frames > 0, "Load Screen animation %s not found, or corrupted. Needs to be an animation with at least 1 frame.", Game_loading_ani.filename );
 
@@ -4817,7 +4815,7 @@ void game_update_missiontime()
 	// TODO JAS: Put in if and move this into game_set_frametime, 
 	// fix navmap to call game_stop/start_time
 	//if ( !timer_paused )	
-		Missiontime = fixTimeFromMs(timestamp());
+		Missiontime += Frametime;
 }
 
 void game_do_frame()

@@ -64,6 +64,8 @@ int	Num_campaigns;
 int Campaign_file_missing;
 int Campaign_names_inited = 0;
 
+char Default_campaign_file_name[MAX_FILENAME_LEN - 4]  = { NULL };
+
 // stuff used for campaign list building
 static bool MC_desc = false;
 static bool MC_multiplayer = false;
@@ -161,7 +163,7 @@ int mission_campaign_get_info(char *filename, char *name, int *type, int *max_pl
 
 		if (desc) {
 			if (optional_string("+Description:")) {
-				*desc = stuff_and_malloc_string(F_MULTITEXT, NULL, MISSION_DESC_LENGTH);
+				*desc = stuff_and_malloc_string(F_MULTITEXT, NULL);
 			} else {
 				*desc = NULL;
 			}
@@ -506,7 +508,7 @@ int mission_campaign_load( char *filename, player *pl, int load_savefile )
 
 		Campaign.desc = NULL;
 		if (optional_string("+Description:"))
-			Campaign.desc = stuff_and_malloc_string(F_MULTITEXT, NULL, MISSION_DESC_LENGTH);
+			Campaign.desc = stuff_and_malloc_string(F_MULTITEXT, NULL);
 
 		// if the type is multiplayer -- get the number of players
 		Campaign.num_players = 0;
@@ -583,17 +585,17 @@ int mission_campaign_load( char *filename, player *pl, int load_savefile )
 
 			cm->mission_branch_desc = NULL;
 			if ( optional_string("+Mission Loop Text:") || optional_string("+Mission Fork Text:") ) {
-				cm->mission_branch_desc = stuff_and_malloc_string(F_MULTITEXT, NULL, MISSION_DESC_LENGTH);
+				cm->mission_branch_desc = stuff_and_malloc_string(F_MULTITEXT, NULL);
 			}
 
 			cm->mission_branch_brief_anim = NULL;
 			if ( optional_string("+Mission Loop Brief Anim:") || optional_string("+Mission Fork Brief Anim:") ) {
-				cm->mission_branch_brief_anim = stuff_and_malloc_string(F_MULTITEXT, NULL, MAX_FILENAME_LEN);
+				cm->mission_branch_brief_anim = stuff_and_malloc_string(F_MULTITEXT, NULL);
 			}
 
 			cm->mission_branch_brief_sound = NULL;
 			if ( optional_string("+Mission Loop Brief Sound:") || optional_string("+Mission Fork Brief Sound:") ) {
-				cm->mission_branch_brief_sound = stuff_and_malloc_string(F_MULTITEXT, NULL, MAX_FILENAME_LEN);
+				cm->mission_branch_brief_sound = stuff_and_malloc_string(F_MULTITEXT, NULL);
 			}
 
 			cm->mission_loop_formula = -1;
@@ -2345,7 +2347,7 @@ int mission_load_up_campaign( player *pl )
 	if ( strlen(pl->current_campaign) ) {
 		return mission_campaign_load(pl->current_campaign, pl);
 	} else {
-		int rc = mission_campaign_load(BUILTIN_CAMPAIGN, pl);
+		int rc = mission_campaign_load(Default_campaign_file_name, pl);
 
 		// if the builtin campaign is missing/corrupt then try and fall back on whatever is available
 		if (rc) {
