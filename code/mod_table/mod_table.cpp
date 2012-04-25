@@ -6,12 +6,16 @@
 
 #include "globalincs/pstypes.h"
 #include "globalincs/def_files.h"
+#include "mission/missioncampaign.h"
+#include "mission/missionmessage.h"
 #include "mod_table/mod_table.h"
 #include "localization/localize.h"
 #include "parse/parselo.h"
 
 int Directive_wait_time;
 bool True_loop_argument_sexps;
+bool Fixed_turret_collisions;
+bool Damage_impacted_subsystem_first;
 
 void parse_mod_table(char *filename)
 {
@@ -36,16 +40,19 @@ void parse_mod_table(char *filename)
 	reset_parse();	
 
 	// start parsing
-	required_string("#HUD SETTINGS");
-	
+	optional_string("#CAMPAIGN SETTINGS"); 
+	if (optional_string("$Default Campaign File Name:")) {
+		stuff_string(Default_campaign_file_name, F_NAME, (MAX_FILENAME_LEN - 4) );
+	}
+
+	optional_string("#HUD SETTINGS"); 
 	// how long should the game wait before displaying a directive?
 	if (optional_string("$Directive Wait Time:")) {
 		stuff_int(&Directive_wait_time);
 	}
 
-	required_string("#SEXP SETTINGS");
-
-	if (optional_string("$Loop SEXPs Then Arguments:")) {
+	optional_string("#SEXP SETTINGS"); 
+	if (optional_string("$Loop SEXPs Then Arguments:")) { 
 		stuff_boolean(&True_loop_argument_sexps);
 		if (True_loop_argument_sexps){
 			mprintf(("Game Settings Table : Using Reversed Loops For SEXP Arguments"));
@@ -54,9 +61,23 @@ void parse_mod_table(char *filename)
 			mprintf(("Game Settings Table : Using Standard Loops For SEXP Arguments"));
 		}
 	}
-	else 
 
+	optional_string("#OTHER SETTINGS"); 
+	if (optional_string("$Self Praise Percentage:")) { 
+		stuff_int(&Praise_self_percentage);
+		if (Praise_self_percentage < 0 || Praise_self_percentage > 100) {
+			Warning(LOCATION, "Game_settings.tbl - $Self Praise Percentage must be between 0 and 100. Setting to 100");
+			Praise_self_percentage = 100;
+		}
+	}
 
+	if (optional_string("$Fixed Turret Collisions:")) { 
+		stuff_boolean(&Fixed_turret_collisions);
+	}
+
+	if (optional_string("$Damage Impacted Subsystem First:")) { 
+		stuff_boolean(&Damage_impacted_subsystem_first);
+	}
 
 	required_string("#END");
 
@@ -66,11 +87,13 @@ void parse_mod_table(char *filename)
 
 void mod_table_init()
 {	
-	// if a mod.tbl exists read it, otherwise fallback to the default
-	if (cf_exists_full("game_settings.tbl", CF_TYPE_TABLES))
+	// first parse the default table
+	parse_mod_table(NULL);
+
+	// if a mod.tbl exists read it
+	if (cf_exists_full("game_settings.tbl", CF_TYPE_TABLES)) {
 		parse_mod_table("game_settings.tbl");
-	else
-		parse_mod_table(NULL);
+	}
 
 	// parse any modular tables
 	parse_modular_table("*-mod.tbm", parse_mod_table);
