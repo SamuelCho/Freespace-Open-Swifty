@@ -1610,8 +1610,8 @@ void control_config_do_frame(float frametime)
 						for (i=0; i<CCFG_MAX; i++) {
 							if (Control_config[i].joy_id == j) {
 								z = i;
-								for (j=0; j<NUM_BUTTONS; j++){
-									CC_Buttons[gr_screen.res][j].button.reset();
+								for (size_t buttonid=0; buttonid<NUM_BUTTONS; buttonid++){
+									CC_Buttons[gr_screen.res][buttonid].button.reset();
 								}
 								break;
 							}
@@ -2100,7 +2100,7 @@ void control_check_indicate()
 	Control_check_count = 0;
 }
 
-int check_control(int id, int key)
+int check_control_used(int id, int key)
 {
 	int z, mask;
 	static int last_key = 0;
@@ -2152,10 +2152,8 @@ int check_control(int id, int key)
 			z &= KEY_MASK;
 
 			if (keyd_pressed[z] || key_down_count(z)) {
-				if ( !hud_squadmsg_read_key(z) ) {
-					control_used(id);
-					return 1;
-				}
+				control_used(id);
+				return 1;
 			}
 		}
 
@@ -2165,6 +2163,24 @@ int check_control(int id, int key)
 	if ((Control_config[id].key_id == key) || joy_down_count(Control_config[id].joy_id, 1) || mouse_down_count(1 << Control_config[id].joy_id)) {
 		//mprintf(("Key used %d", key));
 		control_used(id);
+		return 1;
+	}
+
+	return 0;
+}
+
+/**
+* Wrapper for check_control_used. Allows the game to ignore the key if told to do so by the ignore-key SEXP.
+*/
+int check_control(int id, int key) 
+{
+	if (check_control_used(id, key)) {
+		if (Ignored_keys[id]) {
+			if (Ignored_keys[id] > 0) {
+				Ignored_keys[id]--;
+			}
+			return 0;
+		}
 		return 1;
 	}
 

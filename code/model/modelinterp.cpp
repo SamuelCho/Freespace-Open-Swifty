@@ -2408,7 +2408,6 @@ void model_render_thrusters(polymodel *pm, int objnum, ship *shipp, matrix *orie
 							dist_bitmap = Interp_secondary_thrust_glow_bitmap;
 						}
 						float mag = vm_vec_mag(&gpt->pnt); 
-						pow(mag,12);
 						mag -= (float)((int)mag);//Valathil - Get a fairly random but constant number to offset the distortion texture
 						distortion_add_beam(dist_bitmap,
 							TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT | TMAP_FLAG_DISTORTION_THRUSTER | TMAP_FLAG_SOFT_QUAD,
@@ -4245,22 +4244,21 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 		if ( !polygon_list[i].n_verts )
 			continue;
 
-		buffer_data new_buffer;
+		buffer_data new_buffer(polygon_list[i].n_verts);
 
-		new_buffer.index = new(std::nothrow) uint[polygon_list[i].n_verts];
-		Verify( new_buffer.index != NULL );
+		Verify( new_buffer.get_index() != NULL );
 
 		for (j = 0; j < polygon_list[i].n_verts; j++) {
 			if (ibuffer_info.read != NULL) {
 				first_index = cfread_int(ibuffer_info.read);
 				Assert( first_index >= 0 );
 
-				new_buffer.index[j] = (uint)first_index;
+				new_buffer.assign(j, first_index);
 			} else {
 				first_index = model_list->find_index(&polygon_list[i], j);
 				Assert(first_index != -1);
 
-				new_buffer.index[j] = (uint)first_index;
+				new_buffer.assign(j, first_index);
 
 				if (ibuffer_info.write != NULL) {
 					cfwrite_int(first_index, ibuffer_info.write);
@@ -4268,7 +4266,6 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 			}
 		}
 
-		new_buffer.n_verts = polygon_list[i].n_verts;
 		new_buffer.texture = i;
 
 		new_buffer.flags = 0;

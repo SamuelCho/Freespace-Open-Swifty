@@ -135,7 +135,8 @@ typedef struct polymodel_instance {
 
 #define MSS_FLAG2_PLAYER_TURRET_SOUND			 (1 << 0)
 #define MSS_FLAG2_TURRET_ONLY_TARGET_IF_CAN_FIRE (1 << 1)	// Turrets only target things they're allowed to shoot at (e.g. if check-hull fails, won't keep targeting)
-#define MSS_FLAG2_NO_DISAPPEAR					 (1 << 2) // Submodel won't disappear when subsystem destroyed
+#define MSS_FLAG2_NO_DISAPPEAR					 (1 << 2)	// Submodel won't disappear when subsystem destroyed
+#define MSS_FLAG2_COLLIDE_SUBMODEL				 (1 << 3)	// subsystem takes damage only from hits which impact the associated submodel
 
 #define NUM_SUBSYSTEM_FLAGS			33
 
@@ -972,7 +973,10 @@ typedef struct mc_info {
 										// flags can be changed for the case of sphere check finds an edge hit
 	mc_info()
 	{
-		memset(this, 0, sizeof(this));
+		// Echelon9 - BIG WARNING.
+        // Using memset() as a constructor is rarely correct in C++
+        // If mc_info ever becomes non-POD type, this memset() will hose the virtual table
+        memset(this, 0, sizeof(*this));
 	}
 
 	mc_info(const mc_info& other)

@@ -24,6 +24,7 @@
 #include "network/multi_obj.h"
 #include "hud/hudparse.h"
 #include "render/3d.h"
+#include "radar/radarsetup.h"
 #include "weapon/shockwave.h"
 #include "species_defs/species_defs.h"
 #include "globalincs/pstypes.h"
@@ -507,6 +508,7 @@ typedef struct ship {
 	char targeting_laser_bank;						// -1 if not firing, index into polymodel gun points if it _is_ firing
 	// corkscrew missile stuff
 	ubyte num_corkscrew_to_fire;						// # of corkscrew missiles lef to fire
+	int corkscrew_missile_bank;
 	// END PACK
 
 	// targeting laser info
@@ -613,6 +615,7 @@ typedef struct ship {
 	int	next_swarm_fire;					// timestamp of next swarm missile to fire
 	int	next_swarm_path;					// next path number for swarm missile to take
 	int	num_turret_swarm_info;			// number of turrets in process of launching swarm
+	int swarm_missile_bank;				// The missilebank the swarm was originally launched from
 
 	int	group;								// group ship is in, or -1 if none.  Fred thing
 	int	death_roll_snd;					// id of death roll sound, may need to be stopped early	
@@ -742,6 +745,14 @@ typedef struct ship {
 	int debris_damage_type_idx;
 
 	int model_instance_num;
+
+	fix time_created;
+
+	fix radar_visible_since; // The first time this ship was visible on the radar. Gets reset when ship is not visible anymore
+	fix radar_last_contact; // The last time this ship appeared on the radar. When it is currently visible this has the value if Missiontime
+
+	RadarVisibility radar_last_status; // Last radar status
+	RadarVisibility radar_current_status; // Current radar status
 } ship;
 
 struct ai_target_priority {
@@ -1326,7 +1337,7 @@ typedef struct ship_info {
 	int glide_start_snd;					// handle to sound to play at the beginning of a glide maneuver (default is 0 for regular throttle down sound)
 	int glide_end_snd;						// handle to sound to play at the end of a glide maneuver (default is 0 for regular throttle up sound)
 
-	SCP_map<int, int> ship_sounds;			// specifies ship-specific sound indexes
+	SCP_map<GameSoundsIndex, int> ship_sounds;			// specifies ship-specific sound indexes
 
 	int num_maneuvering;
 	man_thruster maneuvering[MAX_MAN_THRUSTERS];
@@ -1901,7 +1912,17 @@ extern SCP_vector<ship_effect> Ship_effects;
  *  
  *  @return An index into the Snds vector, if the specified index could not be found then the id itself will be returned
  */
-int ship_get_sound(object *objp, int id);
+int ship_get_sound(object *objp, GameSoundsIndex id);
+
+/**
+ *  @brief Specifies if a ship has a custom sound for the specified id
+ *  
+ *  @param objp An object pointer. Has to be of type OBJ_SHIP
+ *  @param id A sound id as defined in gamsesnd.h
+ *  
+ *  @return True if this object has the specified sound, false otherwise
+ */
+bool ship_has_sound(object *objp, GameSoundsIndex id);
 
 /**
  * @brief Returns the index of the default player ship
