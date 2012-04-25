@@ -42,7 +42,7 @@ obj_pair pair_used_list;
 obj_pair pair_free_list;
 
 SCP_vector<int> Collision_sort_list;
-SCP_map<uint, collider_pair> Collision_cached_pairs;
+SCP_hash_map<uint, collider_pair> Collision_cached_pairs;
 
 struct checkobject;
 extern checkobject CheckObjects[MAX_OBJECTS];
@@ -1130,7 +1130,7 @@ void obj_reset_colliders()
 
 void obj_collide_retime_cached_pairs(int checkdly)
 {
-	SCP_map<uint, collider_pair>::iterator it;
+	SCP_hash_map<uint, collider_pair>::iterator it;
 
 	for ( it = Collision_cached_pairs.begin(); it != Collision_cached_pairs.end(); ++it ) {
 		it->second.next_check_time = timestamp(checkdly);
@@ -1456,6 +1456,7 @@ void obj_collide_pair(object *A, object *B)
 			collision_info->b = B;
 			collision_info->signature_a = A->signature;
 			collision_info->signature_b = B->signature;
+			collision_info->next_check_time = 0;
 		}
 	} else {
 		collision_info->a = A;
@@ -1463,6 +1464,7 @@ void obj_collide_pair(object *A, object *B)
 		collision_info->signature_a = A->signature;
 		collision_info->signature_b = B->signature;
 		collision_info->initialized = true;
+		collision_info->next_check_time = 0;
 	}
 
 	if ( valid ) {
@@ -1470,7 +1472,7 @@ void obj_collide_pair(object *A, object *B)
 		if ( collision_info->next_check_time == -1 ) {
 			return;
 		} else {
-			if ( !timestamp_elapsed(collision_info->next_check_time) ) {
+			if ( collision_info->next_check_time != 0 && !timestamp_elapsed(collision_info->next_check_time) ) {
 				return;
 			}
 		}
