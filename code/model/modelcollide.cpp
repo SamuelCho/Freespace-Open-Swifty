@@ -1169,7 +1169,7 @@ void ModelCollideTask::querySubModel(int mn)
 			this->mc.hit_bitmap = -1;
 			this->mc.num_hits++;
 		} else {
-			model_collide_sub(sm->bsp_data);
+			querySubModelTris(sm->bsp_data);
 		}
 	}
 
@@ -1244,9 +1244,39 @@ NoHit:
 
 }
 
-void ModelCollideTask::querySubModelTris(void *ptr)
+void ModelCollideTask::querySubModelTris(void *model_ptr)
 {
+	ubyte *p = (ubyte *)model_ptr;
+	int chunk_type, chunk_size;
 
+	chunk_type = w(p);
+	chunk_size = w(p+4);
+
+	while (chunk_type != OP_EOF)	{
+
+		//		mprintf(( "Processing chunk type %d, len=%d\n", chunk_type, chunk_size ));
+
+		switch (chunk_type) {
+		case OP_EOF: return 1;
+		case OP_DEFPOINTS:	model_collide_defpoints(p); break;
+		case OP_FLATPOLY:		model_collide_flatpoly(p); break;
+		case OP_TMAPPOLY:		model_collide_tmappoly(p); break;
+		case OP_SORTNORM:		model_collide_sortnorm(p); break;
+		case OP_BOUNDBOX:	
+			if (!queryRayBoundingbox( vp(p+8), vp(p+20), &Mc_p0, &Mc_direction, NULL ))	{
+				return 1;
+			}
+			break;
+		default:
+			mprintf(( "Bad chunk type %d, len=%d in model_collide_sub\n", chunk_type, chunk_size ));
+			Int3();		// Bad chunk type!
+			return 0;
+		}
+		p += chunk_size;
+		chunk_type = w(p);
+		chunk_size = w(p+4);
+	}
+	return 1;
 }
 
 int ModelCollideTask::queryRayBoundingbox( vec3d *min, vec3d *max, vec3d * p0, vec3d *pdir, vec3d *hitpos )
@@ -1344,7 +1374,7 @@ bool ModelCollideTask::queryShieldSLDC(int offset)
 		{
 			tri = &this->pm->shield.tris[shld_polys[i]];
 
-			mc_shield_check_common(tri);
+			queryShieldCommon(tri);
 
 		} // for (unsigned int i = 0; i < leaf->num_polygons; i++)
 	}

@@ -50,6 +50,15 @@ typedef struct collision_info_struct {
 // type specific collision modules.
 //===============================================================================
 
+// basic threaded collision task 
+class CollisionQuery
+{
+
+public:
+	void test();
+	void writeResults();
+};
+
 // Keeps track of pairs of objects for collision detection
 typedef struct obj_pair	{
 	object *a;
