@@ -1053,7 +1053,7 @@ void ModelCollideTask::query()
 				this->mc.hit_point = this->mc.hit_point_world;
 				this->mc.hit_submodel = first_submodel;
 				this->mc.num_hits++;
-				return (this->mc.num_hits > 0);
+				return;
 			}
 			// continue checking polygons.
 		} else {
@@ -1257,26 +1257,143 @@ void ModelCollideTask::querySubModelTris(void *model_ptr)
 		//		mprintf(( "Processing chunk type %d, len=%d\n", chunk_type, chunk_size ));
 
 		switch (chunk_type) {
-		case OP_EOF: return 1;
-		case OP_DEFPOINTS:	model_collide_defpoints(p); break;
-		case OP_FLATPOLY:		model_collide_flatpoly(p); break;
+		case OP_EOF: return;
+		case OP_DEFPOINTS:	loadPoints(p); break;
+		case OP_FLATPOLY:		queryFlatPoly(p); break;
 		case OP_TMAPPOLY:		model_collide_tmappoly(p); break;
 		case OP_SORTNORM:		model_collide_sortnorm(p); break;
 		case OP_BOUNDBOX:	
 			if (!queryRayBoundingbox( vp(p+8), vp(p+20), &Mc_p0, &Mc_direction, NULL ))	{
-				return 1;
+				return;
 			}
 			break;
 		default:
 			mprintf(( "Bad chunk type %d, len=%d in model_collide_sub\n", chunk_type, chunk_size ));
 			Int3();		// Bad chunk type!
-			return 0;
+			return;
 		}
 		p += chunk_size;
 		chunk_type = w(p);
 		chunk_size = w(p+4);
 	}
-	return 1;
+
+	return;
+}
+
+// Point list
+// +0      int         id
+// +4      int         size
+// +8      int         n_verts
+// +12     int         n_norms
+// +16     int         offset from start of chunk to vertex data
+// +20     n_verts*char    norm_counts
+// +offset             vertex data. Each vertex n is a point followed by norm_counts[n] normals.     
+void ModelCollideTask::loadPoints(ubyte * p)
+{
+	int n;
+	int nverts = w(p+8);	
+	int offset = w(p+16);	
+
+	ubyte * normcount = p+20;
+	vec3d *src = vp(p+offset);
+
+	Assert( Mc_point_list != NULL );
+
+	for (n=0; n<nverts; n++ ) {
+		Mc_point_list[n] = src;
+
+		src += normcount[n]+1;
+	} 
+}
+
+// Flat Poly
+// +0      int         id
+// +4      int         size 
+// +8      vec3d      normal
+// +20     vec3d      center
+// +32     float       radius
+// +36     int         nverts
+// +40     byte        red
+// +41     byte        green
+// +42     byte        blue
+// +43     byte        pad
+// +44     nverts*int  vertlist
+void ModelCollideTask::queryFlatPoly(ubyte * p)
+{
+	int i;
+	int nv;
+	vec3d *points[TMAP_MAX_VERTS];
+	short *verts;
+
+	nv = w(p+36);
+	if ( nv < 0 ) return;
+
+	if ( nv > TMAP_MAX_VERTS ) {
+		Int3();
+		return;
+	}
+
+	verts = (short *)(p+44);
+
+	for (i=0;i<nv;i++)	{
+		points[i] = Mc_point_list[verts[i*2]];
+	}
+
+	if ( this->mc.flags & MC_CHECK_SPHERELINE )	{
+		querySpherelineFace(nv, points, vp(p+20), fl(p+32), vp(p+8), NULL, -1, p);
+	} else {
+		queryFace(nv, points, vp(p+20), fl(p+32), vp(p+8), NULL, -1, p);
+	}
+}
+
+// Textured Poly
+// +0      int         id
+// +4      int         size 
+// +8      vec3d      normal
+// +20     vec3d      normal_point
+// +32     int         tmp = 0
+// +36     int         nverts
+// +40     int         tmap_num
+// +44     nverts*(model_tmap_vert) vertlist (n,u,v)
+void ModelCollideTask::queryTmapPoly(ubyte * p)
+{
+	int i;
+	int nv;
+	uv_pair uvlist[TMAP_MAX_VERTS];
+	vec3d *points[TMAP_MAX_VERTS];
+	model_tmap_vert *verts;
+
+	nv = w(p+36);
+	if ( nv < 0 ) return;
+
+	if ( nv > TMAP_MAX_VERTS ) {
+		Int3();
+		return;
+	}
+
+	int tmap_num = w(p+40);
+	Assert(tmap_num >= 0 && tmap_num < MAX_MODEL_TEXTURES);	// Goober5000
+
+	if ( (!(this->mc.flags & MC_CHECK_INVISIBLE_FACES)) && (this->pm->maps[tmap_num].textures[TM_BASE_TYPE].GetTexture() < 0) )	{
+		// Don't check invisible polygons.
+		//SUSHI: Unless $collide_invisible is set.
+		if (!(this->pm->submodel[this->submodel].collide_invisible))
+			return;
+	}
+
+	verts = (model_tmap_vert *)(p+44);
+
+	for (i=0;i<nv;i++)	{
+		points[i] = Mc_point_list[verts[i].vertnum];
+		uvlist[i].u = verts[i].u;
+		uvlist[i].v = verts[i].v;
+	}
+
+	if ( this->mc.flags & MC_CHECK_SPHERELINE )	{
+		querySpherelineFace(nv, points, vp(p+20), fl(p+32), vp(p+8), uvlist, tmap_num, p);
+	} else {
+		queryFace(nv, points, vp(p+20), fl(p+32), vp(p+8), uvlist, tmap_num, p);
+	}
 }
 
 int ModelCollideTask::queryRayBoundingbox( vec3d *min, vec3d *max, vec3d * p0, vec3d *pdir, vec3d *hitpos )
@@ -1305,6 +1422,223 @@ int ModelCollideTask::queryRayBoundingbox( vec3d *min, vec3d *max, vec3d * p0, v
 	} else {
 		return fvi_ray_boundingbox( min, max, p0, pdir, hitpos );
 	}	
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// check face with spheres
+//
+//	inputs:	nv				=>		number of vertices
+//				verts			=>		array of vertices
+//				plane_pnt	=>		center point in plane (about which radius is measured)
+//				face_rad		=>		radius of face 
+//				plane_norm	=>		normal of face
+void ModelCollideTask::querySpherelineFace( int nv, vec3d ** verts, vec3d * plane_pnt, float face_rad, vec3d * plane_norm, uv_pair * uvl_list, int ntmap, ubyte *poly)
+{
+	vec3d	hit_point;
+	float		u, v;
+	float		delta_t;			// time sphere takes to cross from one side of plane to the other
+	float		face_t;			// time at which face touches plane
+	// NOTE all times are normalized so that t = 1.0 at the end of the frame
+	int		check_face = 1;		// assume we'll check the face.
+	int		check_edges = 1;		// assume we'll check the edges.
+
+	// Check to see if poly is facing away from ray.  If so, don't bother
+	// checking it.
+
+	if (vm_vec_dot(&this->direction, plane_norm) > 0.0f)	{
+		return;
+	}
+
+	// Find the intersection of this sphere with the plane of the poly
+	if ( !fvi_sphere_plane( &hit_point, &this->p0, &this->direction, this->mc.radius, plane_norm, plane_pnt, &face_t, &delta_t ) ) {
+		return;
+	}
+
+	if ( face_t < 0 || face_t > 1) {
+		check_face = 0;		// If the ray is behind the plane there is no collision
+	}
+
+	if ( !(this->mc.flags & MC_CHECK_RAY) && (face_t > 1.0f) ) {
+		check_face = 0;		// The ray isn't long enough to intersect the plane
+	}
+
+	// If the ray hits, but a closer intersection has already been found, don't check face
+	if ( this->mc.num_hits && (face_t >= this->mc.hit_dist ) ) {
+		check_face = 0;		// The ray isn't long enough to intersect the plane
+	}
+
+
+	vec3d temp_sphere;
+	vec3d temp_dir;
+	float temp_dist;
+	// DA 11/5/97  Above is used to test distance between hit_point and sphere_hit_point.
+	// This can be as large as 0.003 on a unit sphere.  I suspect that with larger spheres,
+	// both the relative and absolute error decrease, but this should still be checked for the
+	// case of larger spheres (about 5-10 units).  The error also depends on the geometry of the 
+	// object we're colliding against, but I think to a lesser degree.
+
+	if ( check_face )	{
+		// Find the time of the sphere surface touches the plane
+		// If this is within the collision window, check to see if we hit a face
+		if ( fvi_point_face(&hit_point, nv, verts, plane_norm, &u, &v, uvl_list) ) {
+
+			this->mc.hit_dist = face_t;		
+			this->mc.hit_point = hit_point;
+			this->mc.hit_normal = *plane_norm;
+			this->mc.hit_submodel = this->submodel;			
+			this->mc.edge_hit = 0;
+
+			if ( uvl_list )	{
+				this->mc.hit_u = u;
+				this->mc.hit_v = v;
+				this->mc.hit_bitmap = this->pm->maps[ntmap].textures[TM_BASE_TYPE].GetTexture();
+			}
+
+			if(ntmap >= 0){
+				this->mc.t_poly = poly;
+				this->mc.f_poly = NULL;
+			} else {
+				this->mc.t_poly = NULL;
+				this->mc.f_poly = poly;
+			}
+
+			this->mc.num_hits++;
+			check_edges = 0;
+			vm_vec_scale_add( &temp_sphere, &this->p0, &this->direction, this->mc.hit_dist );
+			temp_dist = vm_vec_dist( &temp_sphere, &hit_point );
+			if ( (temp_dist - DIST_TOL > this->mc.radius) || (temp_dist + DIST_TOL < this->mc.radius) ) {
+				// get Andsager
+				//mprintf(("Estimated radius error: Estimate %f, actual %f Mc->radius\n", temp_dist, Mc->radius));
+			}
+			vm_vec_sub( &temp_dir, &hit_point, &temp_sphere );
+			// Assert( vm_vec_dotprod( &temp_dir, &Mc_direction ) > 0 );
+		}
+	}
+
+
+	if ( check_edges ) {
+
+		// Either (face_t) is out of range or we miss the face
+		// Check for sphere hitting edge
+
+		// If checking shields, we *still* need to check edges
+
+		// First check whether sphere can hit edge in allowed time range
+		if ( face_t > 1.0f || face_t+delta_t < 0.0f )	{
+			return;
+		}
+
+		// this is where we need another test to cull checking for edges
+		// PUT TEST HERE
+
+		// check each edge to see if we hit, find the closest edge
+		// Mc->hit_dist stores the best edge time of *all* faces
+		float sphere_time;
+		if ( fvi_polyedge_sphereline(&hit_point, &this->p0, &this->direction, this->mc.radius, nv, verts, &sphere_time)) {
+
+			Assert( sphere_time >= 0.0f );
+			vm_vec_scale_add( &temp_sphere, &this->p0, &this->direction, sphere_time );
+			temp_dist = vm_vec_dist( &temp_sphere, &hit_point );
+			if ( (temp_dist - DIST_TOL > this->mc.radius) || (temp_dist + DIST_TOL < this->mc.radius) ) {
+				// get Andsager
+				//mprintf(("Estimated radius error: Estimate %f, actual %f Mc->radius\n", temp_dist, Mc->radius));
+			}
+			vm_vec_sub( &temp_dir, &hit_point, &temp_sphere );
+			//			Assert( vm_vec_dotprod( &temp_dir, &Mc_direction ) > 0 );
+
+			if ( (this->mc.num_hits==0) || (sphere_time < this->mc.hit_dist) ) {
+				// This is closer than best so far
+				this->mc.hit_dist = sphere_time;
+				this->mc.hit_point = hit_point;
+				this->mc.hit_submodel = this->submodel;
+				this->mc.edge_hit = 1;
+				this->mc.hit_bitmap = this->pm->maps[ntmap].textures[TM_BASE_TYPE].GetTexture();				
+
+				if(ntmap >= 0){
+					this->mc.t_poly = poly;
+					this->mc.f_poly = NULL;
+				} else {
+					this->mc.t_poly = NULL;
+					this->mc.f_poly = poly;
+				}
+
+				this->mc.num_hits++;
+
+				//	nprintf(("Physics", "edge sphere time: %f, normal: (%f, %f, %f) hit_point: (%f, %f, %f)\n", sphere_time,
+				//		Mc->hit_normal.xyz.x, Mc->hit_normal.xyz.y, Mc->hit_normal.xyz.z,
+				//		hit_point.xyz.x, hit_point.xyz.y, hit_point.xyz.z));
+			} else  {	// Not best so far
+				Assert(this->mc.num_hits>0);
+				this->mc.num_hits++;
+			}
+		}
+	}
+}
+
+// ----- 
+// mc_check_face
+// nv -- number of vertices
+// verts -- actual vertices
+// plane_pnt -- A point on the plane.  Could probably use the first vertex.
+// plane_norm -- normal of the plane
+// uvl_list -- list of uv coords for the poly.
+// ntmap -- The tmap index into the model's textures array.
+//
+// detects whether or not a vector has collided with a polygon.  vector points stored in global
+// Mc_p0 and Mc_p1.  Results stored in global mc_info * Mc.
+
+void ModelCollideTask::queryFace(int nv, vec3d **verts, vec3d *plane_pnt, float face_rad, vec3d *plane_norm, uv_pair *uvl_list, int ntmap, ubyte *poly)
+{
+	vec3d	hit_point;
+	float		dist;
+	float		u, v;
+
+	// Check to see if poly is facing away from ray.  If so, don't bother
+	// checking it.
+	if (vm_vec_dot(&this->direction,plane_norm) > 0.0f)	{
+		return;
+	}
+
+	// Find the intersection of this ray with the plane that the poly
+	dist = fvi_ray_plane(NULL, plane_pnt, plane_norm, &this->p0, &this->direction, 0.0f);
+
+	if ( dist < 0.0f ) return; // If the ray is behind the plane there is no collision
+	if ( !(this->mc.flags & MC_CHECK_RAY) && (dist > 1.0f) ) return; // The ray isn't long enough to intersect the plane
+
+	// If the ray hits, but a closer intersection has already been found, return
+	if ( this->mc.num_hits && (dist >= this->mc.hit_dist ) ) return;	
+
+	// Find the hit point
+	vm_vec_scale_add( &hit_point, &this->p0, &this->direction, dist );
+
+	// Check to see if the point of intersection is on the plane.  If so, this
+	// also finds the uv's where the ray hit.
+	if ( fvi_point_face(&hit_point, nv, verts, plane_norm, &u,&v, uvl_list ) )	{
+		this->mc.hit_dist = dist;
+
+		this->mc.hit_point = hit_point;
+		this->mc.hit_submodel = this->submodel;
+
+		this->mc.hit_normal = *plane_norm;
+
+		if ( uvl_list )	{
+			this->mc.hit_u = u;
+			this->mc.hit_v = v;
+			this->mc.hit_bitmap = this->pm->maps[ntmap].textures[TM_BASE_TYPE].GetTexture();			
+		}
+
+		if(ntmap >= 0){
+			this->mc.t_poly = poly;
+			this->mc.f_poly = NULL;
+		} else {
+			this->mc.t_poly = NULL;
+			this->mc.f_poly = poly;
+		}
+
+		//		mprintf(( "Bing!\n" ));
+
+		this->mc.num_hits++;
+	}
 }
 
 void ModelCollideTask::queryShield()
@@ -1441,149 +1775,6 @@ bool ModelCollideTask::queryShieldCommon(shield_tri *tri)
 	} // Mc->flags & MC_CHECK_SPHERELINE else
 
 	return false;
-}
-
-void ModelCollideTask::querySpherelineFace(int nv, vec3d **verts, vec3d *plane_pnt, float face_rad, vec3d *plane_norm, uv_pair *uvl_list, int ntmap, ubyte *poly)
-{
-	vec3d	hit_point;
-	float		u, v;
-	float		delta_t;			// time sphere takes to cross from one side of plane to the other
-	float		face_t;			// time at which face touches plane
-	// NOTE all times are normalized so that t = 1.0 at the end of the frame
-	int		check_face = 1;		// assume we'll check the face.
-	int		check_edges = 1;		// assume we'll check the edges.
-
-	// Check to see if poly is facing away from ray.  If so, don't bother
-	// checking it.
-
-	if (vm_vec_dot(&this->direction,plane_norm) > 0.0f)	{
-		return;
-	}
-
-	// Find the intersection of this sphere with the plane of the poly
-	if ( !fvi_sphere_plane( &hit_point, &this->p0, &this->direction, this->mc.radius, plane_norm, plane_pnt, &face_t, &delta_t ) ) {
-		return;
-	}
-
-	if ( face_t < 0 || face_t > 1) {
-		check_face = 0;		// If the ray is behind the plane there is no collision
-	}
-
-	if ( !(this->mc.flags & MC_CHECK_RAY) && (face_t > 1.0f) ) {
-		check_face = 0;		// The ray isn't long enough to intersect the plane
-	}
-
-	// If the ray hits, but a closer intersection has already been found, don't check face
-	if ( this->mc.num_hits && (face_t >= this->mc.hit_dist ) ) {
-		check_face = 0;		// The ray isn't long enough to intersect the plane
-	}
-
-
-	vec3d temp_sphere;
-	vec3d temp_dir;
-	float temp_dist;
-	// DA 11/5/97  Above is used to test distance between hit_point and sphere_hit_point.
-	// This can be as large as 0.003 on a unit sphere.  I suspect that with larger spheres,
-	// both the relative and absolute error decrease, but this should still be checked for the
-	// case of larger spheres (about 5-10 units).  The error also depends on the geometry of the 
-	// object we're colliding against, but I think to a lesser degree.
-
-	if ( check_face )	{
-		// Find the time of the sphere surface touches the plane
-		// If this is within the collision window, check to see if we hit a face
-		if ( fvi_point_face(&hit_point, nv, verts, plane_norm, &u, &v, uvl_list) ) {
-
-			this->mc.hit_dist = face_t;		
-			this->mc.hit_point = hit_point;
-			this->mc.hit_normal = *plane_norm;
-			this->mc.hit_submodel = Mc_submodel;			
-			this->mc.edge_hit = 0;
-
-			if ( uvl_list )	{
-				this->mc.hit_u = u;
-				this->mc.hit_v = v;
-				this->mc.hit_bitmap = this->pm->maps[ntmap].textures[TM_BASE_TYPE].GetTexture();
-			}
-
-			if(ntmap >= 0){
-				this->mc.t_poly = poly;
-				this->mc.f_poly = NULL;
-			} else {
-				this->mc.t_poly = NULL;
-				this->mc.f_poly = poly;
-			}
-
-			this->mc.num_hits++;
-			check_edges = 0;
-			vm_vec_scale_add( &temp_sphere, &this->p0, &this->direction, this->mc.hit_dist );
-			temp_dist = vm_vec_dist( &temp_sphere, &hit_point );
-			if ( (temp_dist - DIST_TOL > this->mc.radius) || (temp_dist + DIST_TOL < this->mc.radius) ) {
-				// get Andsager
-				//mprintf(("Estimated radius error: Estimate %f, actual %f Mc->radius\n", temp_dist, Mc->radius));
-			}
-			vm_vec_sub( &temp_dir, &hit_point, &temp_sphere );
-			// Assert( vm_vec_dotprod( &temp_dir, &Mc_direction ) > 0 );
-		}
-	}
-
-
-	if ( check_edges ) {
-
-		// Either (face_t) is out of range or we miss the face
-		// Check for sphere hitting edge
-
-		// If checking shields, we *still* need to check edges
-
-		// First check whether sphere can hit edge in allowed time range
-		if ( face_t > 1.0f || face_t+delta_t < 0.0f )	{
-			return;
-		}
-
-		// this is where we need another test to cull checking for edges
-		// PUT TEST HERE
-
-		// check each edge to see if we hit, find the closest edge
-		// Mc->hit_dist stores the best edge time of *all* faces
-		float sphere_time;
-		if ( fvi_polyedge_sphereline(&hit_point, &this->p0, &this->direction, this->mc.radius, nv, verts, &sphere_time)) {
-
-			Assert( sphere_time >= 0.0f );
-			vm_vec_scale_add( &temp_sphere, &this->p0, &this->direction, sphere_time );
-			temp_dist = vm_vec_dist( &temp_sphere, &hit_point );
-			if ( (temp_dist - DIST_TOL > this->mc.radius) || (temp_dist + DIST_TOL < this->mc.radius) ) {
-				// get Andsager
-				//mprintf(("Estimated radius error: Estimate %f, actual %f Mc->radius\n", temp_dist, Mc->radius));
-			}
-			vm_vec_sub( &temp_dir, &hit_point, &temp_sphere );
-			//			Assert( vm_vec_dotprod( &temp_dir, &Mc_direction ) > 0 );
-
-			if ( (this->mc.num_hits==0) || (sphere_time < this->mc.hit_dist) ) {
-				// This is closer than best so far
-				this->mc.hit_dist = sphere_time;
-				this->mc.hit_point = hit_point;
-				this->mc.hit_submodel = this->submodel;
-				this->mc.edge_hit = 1;
-				this->mc.hit_bitmap = Mc_pm->maps[ntmap].textures[TM_BASE_TYPE].GetTexture();				
-
-				if(ntmap >= 0){
-					this->mc.t_poly = poly;
-					this->mc.f_poly = NULL;
-				} else {
-					this->mc.t_poly = NULL;
-					this->mc.f_poly = poly;
-				}
-
-				this->mc.num_hits++;
-
-				//	nprintf(("Physics", "edge sphere time: %f, normal: (%f, %f, %f) hit_point: (%f, %f, %f)\n", sphere_time,
-				//		Mc->hit_normal.xyz.x, Mc->hit_normal.xyz.y, Mc->hit_normal.xyz.z,
-				//		hit_point.xyz.x, hit_point.xyz.y, hit_point.xyz.z));
-			} else  {	// Not best so far
-				Assert(this->mc.num_hits>0);
-				this->mc.num_hits++;
-			}
-		}
-	}
 }
 
 bool ModelCollideTask::hit()
