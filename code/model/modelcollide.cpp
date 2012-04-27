@@ -897,6 +897,108 @@ int model_collide_new_node(collision_tree *tree, int current_node)
 	return tree->node_list[current_node].next;
 }
 
+void model_collide_parse_bsp(bsp_collision_tree *tree, void *model_ptr, int version)
+{
+	ubyte *p = (ubyte *)model_ptr;
+	ubyte *next_p;
+
+	size_t i = 0;	// keeping track of the current node to process
+
+	int chunk_type;
+	int chunk_size;
+
+	int next_chunk_type;
+
+	vec3d *min;
+	vec3d *max;
+
+	bsp_collision_node new_node;
+	bsp_collision_node *node;
+
+	SCP_vector<bsp_collision_node> node_buffer;
+	SCP_vector<bsp_collision_leaf> leaf_buffer;
+	SCP_vector<bsp_collision_vert> vert_buffer;
+
+	SCP_map<size_t, ubyte*> bsp_datap;
+
+	node_buffer.push_back(new_node);
+
+	bsp_datap[node_buffer.size() - 1] = p;
+
+	while ( i < node_buffer.size() ) {
+		p = bsp_datap[i];
+
+		chunk_type = w(p);
+		chunk_size = w(p+4);
+
+		switch ( chunk_type ) {
+		case OP_EOF:
+			break;
+		case OP_DEFPOINTS:
+			model_collide_defpoints(p);
+
+			bsp_datap[i] = p + chunk_size;
+			break;
+		case OP_FLATPOLY:
+			model_collide_parse_flatpoly(tree, p, i);
+			break;
+		case OP_TMAPPOLY:
+			model_collide_parse_tmappoly(tree, p, i);
+			break;
+		case OP_SORTNORM:
+			if ( version >= 2000 ) {
+				min = vp(p+56);
+				max = vp(p+68);
+
+				node_buffer[i].min = *min;
+				node_buffer[i].max = *max;
+			}
+
+			node_buffer.push_back(new_node);
+			node_buffer[i].front = (ushort)(node_buffer.size() - 1 - i);
+			bsp_datap[node_buffer.size() - 1] = p+w(p+36);
+
+			node_buffer.push_back(new_node);
+			node_buffer[i].back = (ushort)(node_buffer.size() - 1 - i);
+			bsp_datap[node_buffer.size() - 1] = p+w(p+40);
+
+			++i;
+			break;
+		case OP_BOUNDBOX:
+			min = vp(p+8);
+			max = vp(p+20);
+
+			node_buffer[i].min = *min;
+			node_buffer[i].max = *max;
+
+			next_p = p + chunk_size;
+			next_chunk_type = w(next_p);
+
+			if ( next_chunk_type == OP_TMAPPOLY ) {
+
+			} else if ( next_chunk_type == OP_FLATPOLY ) {
+
+			}
+
+			++i;
+			break;
+		default:
+			mprintf( ("Bad chunk type %d, len=%d in model_collide_parse\n", chunk_type, chunk_size) );
+			Int3();
+			break;
+		}
+
+		if ( tree->node_list[i].op != OP_EOF ) {
+			p += chunk_size;
+
+			new_node.p = p;
+
+			tree->node_list.push_back(new_node);
+			tree->node_list[i].next = tree->node_list.size() - 1;
+		}
+	}
+}
+
 void model_collide_parse_breadth(collision_tree *tree, void *model_ptr, int version)
 {
 	ubyte *p = (ubyte *)model_ptr;

@@ -295,6 +295,39 @@ struct collision_node {
 	}
 };
 
+struct bsp_collision_node {
+	vec3d min;
+	vec3d max;
+
+	ushort back;
+	ushort front;
+
+	int leaf;
+};
+
+struct bsp_collision_leaf {
+	vec3d plane_pnt;
+	float face_rad;
+	vec3d plane_norm;
+	ubyte tmap_num;
+	int vert_start;
+	//int uv_start;
+	ubyte num_verts;
+};
+
+struct bsp_collision_vert {
+	vec3d point;
+	uv_pair uv;
+};
+
+struct bsp_collision_tree {
+	bsp_collision_node *node_list;
+	bsp_collision_leaf *leaf_list;
+	bsp_collision_vert *vert_list;
+
+	bool used;
+};
+
 struct collision_tree {
 	SCP_vector<collision_node> node_list;
 	SCP_vector<vec3d> point_list;

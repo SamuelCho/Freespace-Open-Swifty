@@ -2589,7 +2589,7 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 
 
 	model_octant_create( pm );
-	
+
 	for ( i = 0; i < pm->n_models; ++i ) {
 		pm->submodel[i].collision_tree_index = model_create_collision_tree();
 		collision_tree *tree = model_get_collision_tree(pm->submodel[i].collision_tree_index);
