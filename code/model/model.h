@@ -299,8 +299,8 @@ struct bsp_collision_node {
 	vec3d min;
 	vec3d max;
 
-	ushort back;
-	ushort front;
+	int back;
+	int front;
 
 	int leaf;
 };

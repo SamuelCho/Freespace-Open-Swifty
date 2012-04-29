@@ -537,13 +537,17 @@ int model_collide_sub(void *model_ptr )
 
 void model_collide_bsp(bsp_collision_tree *tree, int node_index)
 {
+	if ( node_index < 0 ) {
+		return;
+	}
+
 	// check the bounding box of this node. if it passes, check left and right children
 	if ( mc_ray_boundingbox( &tree->node_list[node_index].min, &tree->node_list[node_index].max, &Mc_p0, &Mc_direction, NULL ) ) {
 		if ( tree->node_list[node_index].leaf >= 0 ) {
 			model_collide_bsp_poly(tree, tree->node_list[node_index].leaf);
 		} else {
-			model_collide_bsp(tree, tree->node_list[node_index].back + node_index);
-			model_collide_bsp(tree, tree->node_list[node_index].front + node_index);
+			model_collide_bsp(tree, tree->node_list[node_index].back);
+			model_collide_bsp(tree, tree->node_list[node_index].front);
 		}
 	}
 }
@@ -1112,17 +1116,24 @@ void model_collide_parse_bsp(bsp_collision_tree *tree, void *model_ptr, int vers
 
 				node_buffer[i].min = *min;
 				node_buffer[i].max = *max;
-				node_buffer[i].leaf = -1;
 			}
 
-			node_buffer.push_back(new_node);
-			node_buffer[i].front = (ushort)(node_buffer.size() - 1 - i);
-			bsp_datap[node_buffer.size() - 1] = p+w(p+36);
+			node_buffer[i].leaf = -1;
+			node_buffer[i].front = -1;
+			node_buffer[i].back = -1;
 
-			node_buffer.push_back(new_node);
-			node_buffer[i].back = (ushort)(node_buffer.size() - 1 - i);
-			bsp_datap[node_buffer.size() - 1] = p+w(p+40);
+			if ( p+w(p+36) ) {
+				node_buffer.push_back(new_node);
+				node_buffer[i].front = (ushort)(node_buffer.size() - 1 - i);
+				bsp_datap[node_buffer.size() - 1] = p+w(p+36);
+			}
 
+			if ( p+w(p+40) ) {
+				node_buffer.push_back(new_node);
+				node_buffer[i].back = (ushort)(node_buffer.size() - 1 - i);
+				bsp_datap[node_buffer.size() - 1] = p+w(p+40);
+			}
+			
 			++i;
 			break;
 		case OP_BOUNDBOX:
