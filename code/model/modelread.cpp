@@ -58,6 +58,7 @@ polymodel *Polygon_models[MAX_POLYGON_MODELS];
 SCP_vector<polymodel_instance*> Polygon_model_instances;
 
 SCP_vector<collision_tree> Collision_tree_list;
+SCP_vector<bsp_collision_tree> Bsp_collision_tree_list;
 
 static int model_initted = 0;
 extern int Cmdline_nohtl;
@@ -235,7 +236,7 @@ void model_unload(int modelnum, int force)
 			}
 
 			if ( pm->submodel[i].collision_tree_index >= 0 ) {
-				model_remove_collision_tree(pm->submodel[i].collision_tree_index);
+				model_remove_bsp_collision_tree(pm->submodel[i].collision_tree_index);
 			}
 		}
 
@@ -2591,16 +2592,17 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 	model_octant_create( pm );
 
 	for ( i = 0; i < pm->n_models; ++i ) {
-		pm->submodel[i].collision_tree_index = model_create_collision_tree();
-		collision_tree *tree = model_get_collision_tree(pm->submodel[i].collision_tree_index);
+		pm->submodel[i].collision_tree_index = model_create_bsp_collision_tree();
+		bsp_collision_tree *tree = model_get_bsp_collision_tree(pm->submodel[i].collision_tree_index);
 
 		//model_collide_parse(tree, pm->submodel[i].bsp_data, 0, pm->version);
-		model_collide_parse_breadth(tree, pm->submodel[i].bsp_data, pm->version);
+		//model_collide_parse_breadth(tree, pm->submodel[i].bsp_data, pm->version);
+		model_collide_parse_bsp(tree, pm->submodel[i].bsp_data, pm->version);
 
-		if ( i != pm->detail[0] ) {
-			vm_free(pm->submodel[i].bsp_data);
-			pm->submodel[i].bsp_data = NULL;
-		}
+// 		if ( i != pm->detail[0] ) {
+// 			vm_free(pm->submodel[i].bsp_data);
+// 			pm->submodel[i].bsp_data = NULL;
+// 		}
 	}
 
 	// Find the core_radius... the minimum of 
@@ -4716,12 +4718,68 @@ int model_create_collision_tree()
 	return Collision_tree_list.size() - 1;
 }
 
+int model_create_bsp_collision_tree()
+{
+	// first find an open slot
+	size_t i;
+	bool slot_found = false;
+
+	for ( i = 0; i < Bsp_collision_tree_list.size(); ++i ) {
+		if ( !Bsp_collision_tree_list[i].used ) {
+			slot_found = true;
+			break;
+		}
+	}
+
+	if ( slot_found ) {
+		Bsp_collision_tree_list[i].used = true;
+
+		return (int)i;
+	}
+
+	bsp_collision_tree tree;
+
+	tree.used = true;
+	Bsp_collision_tree_list.push_back(tree);
+
+	return Bsp_collision_tree_list.size() - 1;
+}
+
 collision_tree *model_get_collision_tree(int tree_index)
 {
 	Assert(tree_index >= 0);
 	Assert(tree_index < Collision_tree_list.size());
 
 	return &Collision_tree_list[tree_index];
+}
+
+bsp_collision_tree *model_get_bsp_collision_tree(int tree_index)
+{
+	Assert(tree_index >= 0);
+	Assert(tree_index < Bsp_collision_tree_list.size());
+
+	return &Bsp_collision_tree_list[tree_index];
+}
+
+void model_remove_bsp_collision_tree(int tree_index)
+{
+	Bsp_collision_tree_list[tree_index].used = false;
+
+	if ( Bsp_collision_tree_list[tree_index].node_list ) {
+		vm_free(Bsp_collision_tree_list[tree_index].node_list);
+	}
+
+	if ( Bsp_collision_tree_list[tree_index].leaf_list ) {
+		vm_free(Bsp_collision_tree_list[tree_index].leaf_list);
+	}
+	
+	if ( Bsp_collision_tree_list[tree_index].point_list ) {
+		vm_free( Bsp_collision_tree_list[tree_index].point_list );
+	}
+	
+	if ( Bsp_collision_tree_list[tree_index].vert_list ) {
+		vm_free( Bsp_collision_tree_list[tree_index].vert_list);
+	}
 }
 
 void model_remove_collision_tree(int tree_index)
