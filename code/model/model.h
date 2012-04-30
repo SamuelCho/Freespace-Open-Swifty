@@ -295,6 +295,12 @@ struct collision_node {
 	}
 };
 
+typedef struct model_tmap_vert {
+	ushort vertnum;
+	ushort normnum;
+	float u,v;
+} model_tmap_vert;
+
 struct bsp_collision_node {
 	vec3d min;
 	vec3d max;
@@ -316,7 +322,11 @@ struct bsp_collision_leaf {
 
 struct bsp_collision_tree {
 	bsp_collision_node *node_list;
+	int n_nodes;
+
 	bsp_collision_leaf *leaf_list;
+	int n_leaves;
+
 	model_tmap_vert *vert_list;
 	vec3d *point_list;
 
@@ -481,12 +491,6 @@ typedef struct model_path {
 									// For MP_TYPE_UNUSED, this means nothing.
 									// For MP_TYPE_SUBSYS, this is the subsystem number this path takes you to.
 } model_path;
-
-typedef struct model_tmap_vert {
-	ushort vertnum;
-	ushort normnum;
-	float u,v;
-} model_tmap_vert;
 
 // info for gun and missile banks.  Also used for docking points.  There should always
 // only be two slots for each docking bay

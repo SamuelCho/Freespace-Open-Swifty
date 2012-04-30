@@ -599,6 +599,21 @@ void model_collide_bsp_poly(bsp_collision_tree *tree, int leaf_index)
 	}
 }
 
+void model_collide_bsp(bsp_collision_tree *tree, int node_index)
+{
+	bsp_collision_node *node = &tree->node_list[node_index];
+
+	// check the bounding box of this node. if it passes, check left and right children
+	if ( mc_ray_boundingbox( &node->min, &node->max, &Mc_p0, &Mc_direction, NULL ) ) {
+		if ( node->leaf >= 0 ) {
+			model_collide_bsp_poly(tree, node->leaf);
+		} else {
+			if ( node->back >= 0 ) model_collide_bsp(tree, node->back);
+			if ( node->front >= 0 ) model_collide_bsp(tree, node->front);
+		}
+	}
+}
+
 void model_collide_node_flatpoly(collision_tree *tree, collision_node *node)
 {
 	int i;
@@ -1124,13 +1139,13 @@ void model_collide_parse_bsp(bsp_collision_tree *tree, void *model_ptr, int vers
 
 			if ( p+w(p+36) ) {
 				node_buffer.push_back(new_node);
-				node_buffer[i].front = (ushort)(node_buffer.size() - 1 - i);
+				node_buffer[i].front = (node_buffer.size() - 1);
 				bsp_datap[node_buffer.size() - 1] = p+w(p+36);
 			}
 
 			if ( p+w(p+40) ) {
 				node_buffer.push_back(new_node);
-				node_buffer[i].back = (ushort)(node_buffer.size() - 1 - i);
+				node_buffer[i].back = (node_buffer.size() - 1);
 				bsp_datap[node_buffer.size() - 1] = p+w(p+40);
 			}
 			
@@ -1142,6 +1157,9 @@ void model_collide_parse_bsp(bsp_collision_tree *tree, void *model_ptr, int vers
 
 			node_buffer[i].min = *min;
 			node_buffer[i].max = *max;
+
+			node_buffer[i].front = -1;
+			node_buffer[i].back = -1;
 
 			next_p = p + chunk_size;
 			next_chunk_type = w(next_p);
@@ -1159,8 +1177,7 @@ void model_collide_parse_bsp(bsp_collision_tree *tree, void *model_ptr, int vers
 
 				node_buffer[i].leaf = leaf_buffer.size() - 1;
 			} else {
-				mprintf( ("Bad chunk type %d, len=%d in model_collide_parse\n", chunk_type, chunk_size) );
-				Int3();
+				node_buffer[i].leaf = -1;
 			}
 
 			++i;
@@ -1181,19 +1198,23 @@ void model_collide_parse_bsp(bsp_collision_tree *tree, void *model_ptr, int vers
 		tree->point_list[i] = *Mc_point_list[i];
 	}
 
+	tree->n_verts = n_verts;
+
 	// copy node info. this might be a good time to organize the nodes into a cache efficient tree layout.
+	tree->n_nodes = node_buffer.size();
 	tree->node_list = (bsp_collision_node*)vm_malloc(sizeof(bsp_collision_node) * node_buffer.size());
-	memcpy(tree->node_list, &node_buffer[0], node_buffer.size());
+	memcpy(tree->node_list, &node_buffer[0], sizeof(bsp_collision_node) * node_buffer.size());
 	node_buffer.clear();
 
 	// copy leaves.
+	tree->n_leaves = leaf_buffer.size();
 	tree->leaf_list = (bsp_collision_leaf*)vm_malloc(sizeof(bsp_collision_leaf) * leaf_buffer.size());
-	memcpy(tree->leaf_list, &leaf_buffer[0], leaf_buffer.size());
+	memcpy(tree->leaf_list, &leaf_buffer[0], sizeof(bsp_collision_leaf) * leaf_buffer.size());
 	leaf_buffer.clear();
 
 	// finally copy the vert list.
 	tree->vert_list = (model_tmap_vert*)vm_malloc(sizeof(model_tmap_vert) * vert_buffer.size());
-	memcpy(tree->vert_list, &vert_buffer[0], vert_buffer.size());
+	memcpy(tree->vert_list, &vert_buffer[0], sizeof(model_tmap_vert) * vert_buffer.size());
 	vert_buffer.clear();
 }
 
