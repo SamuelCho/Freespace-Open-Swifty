@@ -253,48 +253,6 @@ typedef struct IBX {
 	char name[MAX_FILENAME_LEN];	// filename of the ibx, this is used in case a safety check fails and we delete the file
 } IBX;
 
-struct collision_node {
-	ubyte op;
-	int next;
-	ubyte* p;
-
-	union {
-		struct {
-			vec3d min;
-			vec3d max;
-
-			ushort pre;
-			ushort back;
-			ushort on;
-			ushort front;
-			ushort post;
-		} sortnorm;
-		struct {
-			vec3d plane_pnt;
-			float face_rad;
-			vec3d plane_norm;
-			ubyte tmap_num;
-			int vert_start;
-			int uv_start;
-			ubyte num_verts;
-		} tri;
-	};
-	/*vec3d min;
-	vec3d max;
-
-	int tri_num;
-
-	int pre;
-	int back;
-	int on;
-	int front;
-	int post;*/
-
-	collision_node(): op(0), next(-1)
-	{
-	}
-};
-
 typedef struct model_tmap_vert {
 	ushort vertnum;
 	ushort normnum;
@@ -331,14 +289,6 @@ struct bsp_collision_tree {
 	vec3d *point_list;
 
 	int n_verts;
-	bool used;
-};
-
-struct collision_tree {
-	SCP_vector<collision_node> node_list;
-	SCP_vector<vec3d> point_list;
-	SCP_vector<uv_pair> uv_list;
-
 	bool used;
 };
 
@@ -1156,13 +1106,7 @@ typedef struct mc_info {
 */
 
 int model_collide(mc_info * mc_info);
-void model_collide_parse(collision_tree *tree, void *model_ptr, int starting_node, int version);
-void model_collide_parse_breadth(collision_tree *tree, void *model_ptr, int version);
 void model_collide_parse_bsp(bsp_collision_tree *tree, void *model_ptr, int version);
-
-int model_create_collision_tree();
-void model_remove_collision_tree(int tree_index);
-collision_tree *model_get_collision_tree(int tree_index);
 
 bsp_collision_tree *model_get_bsp_collision_tree(int tree_index);
 void model_remove_bsp_collision_tree(int tree_index);

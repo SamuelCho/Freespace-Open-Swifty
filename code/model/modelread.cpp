@@ -57,7 +57,6 @@ int model_render_flags_size = sizeof(model_render_flags)/sizeof(flag_def_list);
 polymodel *Polygon_models[MAX_POLYGON_MODELS];
 SCP_vector<polymodel_instance*> Polygon_model_instances;
 
-SCP_vector<collision_tree> Collision_tree_list;
 SCP_vector<bsp_collision_tree> Bsp_collision_tree_list;
 
 static int model_initted = 0;
@@ -4691,33 +4690,6 @@ int model_find_bay_path(int modelnum, char *bay_path_name)
 	return -1;
 }
 
-int model_create_collision_tree()
-{
-	// first find an open slot
-	size_t i;
-	bool slot_found = false;
-
-	for ( i = 0; i < Collision_tree_list.size(); ++i ) {
-		if ( !Collision_tree_list[i].used ) {
-			slot_found = true;
-			break;
-		}
-	}
-
-	if ( slot_found ) {
-		Collision_tree_list[i].used = true;
-
-		return (int)i;
-	}
-
-	collision_tree tree;
-
-	tree.used = true;
-	Collision_tree_list.push_back(tree);
-
-	return Collision_tree_list.size() - 1;
-}
-
 int model_create_bsp_collision_tree()
 {
 	// first find an open slot
@@ -4743,14 +4715,6 @@ int model_create_bsp_collision_tree()
 	Bsp_collision_tree_list.push_back(tree);
 
 	return Bsp_collision_tree_list.size() - 1;
-}
-
-collision_tree *model_get_collision_tree(int tree_index)
-{
-	Assert(tree_index >= 0);
-	Assert(tree_index < Collision_tree_list.size());
-
-	return &Collision_tree_list[tree_index];
 }
 
 bsp_collision_tree *model_get_bsp_collision_tree(int tree_index)
@@ -4780,15 +4744,6 @@ void model_remove_bsp_collision_tree(int tree_index)
 	if ( Bsp_collision_tree_list[tree_index].vert_list ) {
 		vm_free( Bsp_collision_tree_list[tree_index].vert_list);
 	}
-}
-
-void model_remove_collision_tree(int tree_index)
-{
-	Collision_tree_list[tree_index].used = false;
-
-	Collision_tree_list[tree_index].node_list.clear();
-	Collision_tree_list[tree_index].point_list.clear();
-	Collision_tree_list[tree_index].uv_list.clear();
 }
 
 #if BYTE_ORDER == BIG_ENDIAN
