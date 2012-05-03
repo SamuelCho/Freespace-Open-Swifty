@@ -1359,6 +1359,7 @@ void obj_collide_pair(object *A, object *B)
 		if(beam_collide_early_out(B, A)){
 			return;
 		}
+		swapped = 1;
 		check_collision = beam_collide_ship;
 		break;
 
@@ -1389,6 +1390,7 @@ void obj_collide_pair(object *A, object *B)
 		}
 		swapped = 1;
 		check_collision = beam_collide_debris;
+		break;
 	case COLLISION_OF(OBJ_BEAM, OBJ_DEBRIS):
 		if(beam_collide_early_out(A, B)){
 			return;
