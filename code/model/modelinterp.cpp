@@ -3409,6 +3409,11 @@ void submodel_get_two_random_points(int model_num, int submodel_num, vec3d *v1, 
 void submodel_get_two_random_points_better(int model_num, int submodel_num, vec3d *v1, vec3d *v2)
 {
 	polymodel *pm = model_get(model_num);
+
+	if ( submodel_num < 0 )	{
+		submodel_num = pm->detail[0];
+	}
+
 	bsp_collision_tree *tree = model_get_bsp_collision_tree(pm->submodel[submodel_num].collision_tree_index);
 
 	int nv = tree->n_verts;
