@@ -50,15 +50,6 @@ typedef struct collision_info_struct {
 // type specific collision modules.
 //===============================================================================
 
-// basic threaded collision task 
-class CollisionQuery
-{
-
-public:
-	void test();
-	void writeResults();
-};
-
 // Keeps track of pairs of objects for collision detection
 typedef struct obj_pair	{
 	object *a;
@@ -68,6 +59,22 @@ typedef struct obj_pair	{
 	struct obj_pair *next;
 } obj_pair;
 
+// threaded ship weapon collision task 
+struct ship_weapon_collision_query
+{
+	obj_pair *pair;
+	object *a;
+	object *b;
+
+	bool never_check_again;
+	int next_check_time;
+	bool hit_occurred;
+	int shield_quadrant_num;
+	vec3d hit_point_world;
+	vec3d hit_point;
+	int hit_submodel;
+	int hit_normal;
+};
 
 #define COLLISION_OF(a,b) (((a)<<8)|(b))
 

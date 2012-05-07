@@ -323,6 +323,431 @@ int ship_weapon_check_collision(object *ship_objp, object *weapon_objp, float ti
 	return valid_hit_occurred;
 }
 
+int ship_weapon_check_collision(object *ship_objp, object *weapon_objp, float time_limit = 0.0f, int *next_hit = NULL)
+{
+	mc_info mc, mc_shield, mc_hull;
+	ship	*shipp;
+	ship_info *sip;
+	weapon	*wp;
+	weapon_info	*wip;
+
+	Assert( ship_objp != NULL );
+	Assert( ship_objp->type == OBJ_SHIP );
+	Assert( ship_objp->instance >= 0 );
+
+	shipp = &Ships[ship_objp->instance];
+	sip = &Ship_info[shipp->ship_info_index];
+
+	Assert( weapon_objp != NULL );
+	Assert( weapon_objp->type == OBJ_WEAPON );
+	Assert( weapon_objp->instance >= 0 );
+
+	wp = &Weapons[weapon_objp->instance];
+	wip = &Weapon_info[wp->weapon_info_index];
+
+
+	Assert( shipp->objnum == OBJ_INDEX(ship_objp));
+
+	// Make ships that are warping in not get collision detection done
+	if ( shipp->flags & SF_ARRIVING ) return 0;
+
+	//	If either of these objects doesn't get collision checks, abort.
+	if (Ship_info[shipp->ship_info_index].flags & SIF_NO_COLLIDE)
+		return 0;
+
+	//	Return information for AI to detect incoming fire.
+	//	Could perhaps be done elsewhere at lower cost --MK, 11/7/97
+	float	dist = vm_vec_dist_quick(&ship_objp->pos, &weapon_objp->pos);
+	if (dist < weapon_objp->phys_info.speed) {
+		update_danger_weapon(ship_objp, weapon_objp);
+	}
+
+	int	valid_hit_occurred = 0;				// If this is set, then hitpos is set
+	int	quadrant_num = -1;
+	polymodel *pm = model_get(sip->model_num);
+
+	//	total time is flFrametime + time_limit (time_limit used to predict collisions into the future)
+	vec3d weapon_end_pos;
+	vm_vec_scale_add( &weapon_end_pos, &weapon_objp->pos, &weapon_objp->phys_info.vel, time_limit );
+
+
+	// Goober5000 - I tried to make collision code here much saner... here begin the (major) changes
+
+	// set up collision structs
+	mc.model_instance_num = shipp->model_instance_num;
+	mc.model_num = sip->model_num;
+	mc.submodel_num = -1;
+	mc.orient = &ship_objp->orient;
+	mc.pos = &ship_objp->pos;
+	mc.p0 = &weapon_objp->last_pos;
+	mc.p1 = &weapon_end_pos;
+	memcpy(&mc_shield, &mc, sizeof(mc_info));
+	memcpy(&mc_hull, &mc, sizeof(mc_info));
+
+	// (btw, these are leftover comments from below...)
+	//
+	//	Note: This code is obviously stupid. We want to add the shield point if there is shield to hit, but:
+	//		1. We want the size/color of the hit effect to indicate shield damage done.  (i.e., for already-weak shield, smaller effect)
+	//		2. Currently (8/9/97), apply_damage_to_shield() passes lefer damage to hull, which might not make sense.  If
+	//			wouldn't have collided with hull, shouldn't do damage.  Once this is fixed, the code below needs to cast the
+	//			vector through to the hull if there is leftover damage.
+	//
+	// WIF2_PIERCE_SHIELDS pierces shields
+	// AL 1-14-97: "Puncture" doesn't mean penetrate shield anymore, it means that it punctures
+	//					hull to inflict maximum subsystem damage
+	//
+	// _argv[-1], 16 Jan 2005: Surface shields.
+	// Surface shields allow for shields on a ship without a shield mesh.  Good for putting real shields
+	// on the Lucifer.  This also fixes the strange bug where shots will occasionally go through the
+	// shield mesh when they shouldn't.  I don't know what causes this, but this fixes that -- shields
+	// will absorb it when it hits the hull instead.  This has no fancy graphical effect, though.
+	// Someone should make one.
+
+	// set flags
+	mc_shield.flags = MC_CHECK_SHIELD;
+	mc_hull.flags = MC_CHECK_MODEL;
+
+	// check both kinds of collisions
+	int shield_collision = (pm->shield.ntris > 0) ? model_collide(&mc_shield) : 0;
+	int hull_collision = model_collide(&mc_hull);
+
+	// check shields for impact
+	if (!(ship_objp->flags & OF_NO_SHIELDS))
+	{
+		// pick out the shield quadrant
+		if (shield_collision)
+			quadrant_num = get_quadrant(&mc_shield.hit_point);
+		else if (hull_collision && (sip->flags2 & SIF2_SURFACE_SHIELDS)) {
+			vec3d local_pos, local_pos_rot;
+			vm_vec_sub(&local_pos, &mc_hull.hit_point_world, &ship_objp->pos);
+			vm_vec_rotate(&local_pos_rot, &local_pos, &ship_objp->orient);
+			quadrant_num = get_quadrant(&local_pos_rot);
+		}
+
+		// make sure that the shield is active in that quadrant
+		if ((quadrant_num >= 0) && ((shipp->flags & SF_DYING) || !ship_is_shield_up(ship_objp, quadrant_num)))
+			quadrant_num = -1;
+
+		// see if we hit the shield
+		if (quadrant_num >= 0)
+		{
+			// do the hit effect
+			if (shield_collision)
+				add_shield_point(OBJ_INDEX(ship_objp), mc_shield.shield_hit_tri, &mc_shield.hit_point);
+			else
+				/* TODO */;
+
+			// if this weapon pierces the shield, then do the hit effect, but act like a shield collision never occurred;
+			// otherwise, we have a valid hit on this shield
+			if (wip->wi_flags2 & WIF2_PIERCE_SHIELDS)
+				quadrant_num = -1;
+			else
+				valid_hit_occurred = 1;
+		}
+	}
+
+	// see which impact we use
+	if (shield_collision && valid_hit_occurred)
+	{
+		memcpy(&mc, &mc_shield, sizeof(mc_info));
+		Assert(quadrant_num >= 0);
+	}
+	else if (hull_collision)
+	{
+		memcpy(&mc, &mc_hull, sizeof(mc_info));
+		valid_hit_occurred = 1;
+	}
+
+	// check if the hit point is beyond the clip plane when warping out.
+	if ((shipp->flags & SF_DEPART_WARP) &&
+		(shipp->warpout_effect) &&
+		(valid_hit_occurred))
+	{
+		vec3d warp_pnt, hit_direction;
+		matrix warp_orient;
+
+		shipp->warpout_effect->getWarpPosition(&warp_pnt);
+		shipp->warpout_effect->getWarpOrientation(&warp_orient);
+
+		vm_vec_sub(&hit_direction, &mc.hit_point_world, &warp_pnt);
+
+		if (vm_vec_dot(&hit_direction, &warp_orient.vec.fvec) < 0.0f)
+		{
+			valid_hit_occurred = false;
+		}
+	}
+
+	// deal with predictive collisions.  Find their actual hit time and see if they occured in current frame
+	if (next_hit && valid_hit_occurred) {
+		// find hit time
+		*next_hit = (int) (1000.0f * (mc.hit_dist*(flFrametime + time_limit) - flFrametime) );
+		if (*next_hit > 0)
+			// if hit occurs outside of this frame, do not do damage 
+			return 1;
+	}
+
+	if ( valid_hit_occurred )
+	{
+		wp->collisionOccured = true;
+		wp->collisionInfo = mc_info(mc);
+
+		Script_system.SetHookObjects(4, "Ship", ship_objp, "Weapon", weapon_objp, "Self",ship_objp, "Object", weapon_objp);
+		bool ship_override = Script_system.IsConditionOverride(CHA_COLLIDEWEAPON, ship_objp);
+
+		Script_system.SetHookObjects(2, "Self",weapon_objp, "Object", ship_objp);
+		bool weapon_override = Script_system.IsConditionOverride(CHA_COLLIDESHIP, weapon_objp);
+
+		if(!ship_override && !weapon_override) {
+			ship_weapon_do_hit_stuff(ship_objp, weapon_objp, &mc.hit_point_world, &mc.hit_point, quadrant_num, mc.hit_submodel, mc.hit_normal);
+		}
+
+		Script_system.SetHookObjects(2, "Self",ship_objp, "Object", weapon_objp);
+		if(!(weapon_override && !ship_override))
+			Script_system.RunCondition(CHA_COLLIDEWEAPON, '\0', NULL, ship_objp);
+
+		Script_system.SetHookObjects(2, "Self",weapon_objp, "Object", ship_objp);
+		if((weapon_override && !ship_override) || (!weapon_override && !ship_override))
+			Script_system.RunCondition(CHA_COLLIDESHIP, '\0', NULL, weapon_objp);
+
+		Script_system.RemHookVars(4, "Ship", "Weapon", "Self","Object");
+	}
+	else if ((Missiontime - wp->creation_time > F1_0/2) && (wip->wi_flags & WIF_HOMING) && (wp->homing_object == ship_objp)) {
+		if (dist < wip->shockwave.inner_rad) {
+			vec3d	vec_to_ship;
+
+			vm_vec_normalized_dir(&vec_to_ship, &ship_objp->pos, &weapon_objp->pos);
+
+			if (vm_vec_dot(&vec_to_ship, &weapon_objp->orient.vec.fvec) < 0.0f) {
+				// check if we're colliding against "invisible" ship
+				if (!(shipp->flags2 & SF2_DONT_COLLIDE_INVIS)) {
+					wp->lifeleft = 0.001f;
+					if (ship_objp == Player_obj)
+						nprintf(("Jim", "Frame %i: Weapon %i set to detonate, dist = %7.3f.\n", Framecount, OBJ_INDEX(weapon_objp), dist));
+					valid_hit_occurred = 1;
+				}
+			}
+
+		}
+	}
+
+	return valid_hit_occurred;
+}
+
+int ship_weapon_check_collision_threaded(ship_weapon_collision_query *query, object *ship_objp, object *weapon_objp, float time_limit = 0.0f, int *next_hit = NULL)
+{
+	mc_info mc, mc_shield, mc_hull;
+	ship	*shipp;
+	ship_info *sip;
+	weapon	*wp;
+	weapon_info	*wip;
+
+	Assert( ship_objp != NULL );
+	Assert( ship_objp->type == OBJ_SHIP );
+	Assert( ship_objp->instance >= 0 );
+
+	shipp = &Ships[ship_objp->instance];
+	sip = &Ship_info[shipp->ship_info_index];
+
+	Assert( weapon_objp != NULL );
+	Assert( weapon_objp->type == OBJ_WEAPON );
+	Assert( weapon_objp->instance >= 0 );
+
+	wp = &Weapons[weapon_objp->instance];
+	wip = &Weapon_info[wp->weapon_info_index];
+
+
+	Assert( shipp->objnum == OBJ_INDEX(ship_objp));
+
+	// Make ships that are warping in not get collision detection done
+	if ( shipp->flags & SF_ARRIVING ) return 0;
+
+	//	If either of these objects doesn't get collision checks, abort.
+	if (Ship_info[shipp->ship_info_index].flags & SIF_NO_COLLIDE)
+		return 0;
+
+	// <<<<<<<<<<<<<<<<<<<<< MOVE TO RESPONSE FUNCTION
+	//	Return information for AI to detect incoming fire.
+	//	Could perhaps be done elsewhere at lower cost --MK, 11/7/97
+	float	dist = vm_vec_dist_quick(&ship_objp->pos, &weapon_objp->pos);
+	if (dist < weapon_objp->phys_info.speed) {
+		update_danger_weapon(ship_objp, weapon_objp);
+	}
+	// MOVE TO RESPONSE FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+	int	valid_hit_occurred = 0;				// If this is set, then hitpos is set
+	int	quadrant_num = -1;
+	polymodel *pm = model_get(sip->model_num);
+
+	//	total time is flFrametime + time_limit (time_limit used to predict collisions into the future)
+	vec3d weapon_end_pos;
+	vm_vec_scale_add( &weapon_end_pos, &weapon_objp->pos, &weapon_objp->phys_info.vel, time_limit );
+
+
+	// Goober5000 - I tried to make collision code here much saner... here begin the (major) changes
+
+	// set up collision structs
+	mc.model_instance_num = shipp->model_instance_num;
+	mc.model_num = sip->model_num;
+	mc.submodel_num = -1;
+	mc.orient = &ship_objp->orient;
+	mc.pos = &ship_objp->pos;
+	mc.p0 = &weapon_objp->last_pos;
+	mc.p1 = &weapon_end_pos;
+	memcpy(&mc_shield, &mc, sizeof(mc_info));
+	memcpy(&mc_hull, &mc, sizeof(mc_info));
+
+	// (btw, these are leftover comments from below...)
+	//
+	//	Note: This code is obviously stupid. We want to add the shield point if there is shield to hit, but:
+	//		1. We want the size/color of the hit effect to indicate shield damage done.  (i.e., for already-weak shield, smaller effect)
+	//		2. Currently (8/9/97), apply_damage_to_shield() passes lefer damage to hull, which might not make sense.  If
+	//			wouldn't have collided with hull, shouldn't do damage.  Once this is fixed, the code below needs to cast the
+	//			vector through to the hull if there is leftover damage.
+	//
+	// WIF2_PIERCE_SHIELDS pierces shields
+	// AL 1-14-97: "Puncture" doesn't mean penetrate shield anymore, it means that it punctures
+	//					hull to inflict maximum subsystem damage
+	//
+	// _argv[-1], 16 Jan 2005: Surface shields.
+	// Surface shields allow for shields on a ship without a shield mesh.  Good for putting real shields
+	// on the Lucifer.  This also fixes the strange bug where shots will occasionally go through the
+	// shield mesh when they shouldn't.  I don't know what causes this, but this fixes that -- shields
+	// will absorb it when it hits the hull instead.  This has no fancy graphical effect, though.
+	// Someone should make one.
+
+	// set flags
+	mc_shield.flags = MC_CHECK_SHIELD;
+	mc_hull.flags = MC_CHECK_MODEL;
+
+	// check both kinds of collisions
+	int shield_collision = (pm->shield.ntris > 0) ? model_collide(&mc_shield) : 0;
+	int hull_collision = model_collide(&mc_hull);
+
+	// check shields for impact
+	if (!(ship_objp->flags & OF_NO_SHIELDS))
+	{
+		// pick out the shield quadrant
+		if (shield_collision)
+			quadrant_num = get_quadrant(&mc_shield.hit_point);
+		else if (hull_collision && (sip->flags2 & SIF2_SURFACE_SHIELDS)) {
+			vec3d local_pos, local_pos_rot;
+			vm_vec_sub(&local_pos, &mc_hull.hit_point_world, &ship_objp->pos);
+			vm_vec_rotate(&local_pos_rot, &local_pos, &ship_objp->orient);
+			quadrant_num = get_quadrant(&local_pos_rot);
+		}
+
+		// make sure that the shield is active in that quadrant
+		if ((quadrant_num >= 0) && ((shipp->flags & SF_DYING) || !ship_is_shield_up(ship_objp, quadrant_num)))
+			quadrant_num = -1;
+
+		// <<<<<<<<<<<<<<<<<<<<< MOVE TO RESPONSE FUNCTION
+		// see if we hit the shield
+		if (quadrant_num >= 0)
+		{
+			// do the hit effect
+			if (shield_collision)
+				add_shield_point(OBJ_INDEX(ship_objp), mc_shield.shield_hit_tri, &mc_shield.hit_point);
+			else
+				/* TODO */;
+
+			// if this weapon pierces the shield, then do the hit effect, but act like a shield collision never occurred;
+			// otherwise, we have a valid hit on this shield
+			if (wip->wi_flags2 & WIF2_PIERCE_SHIELDS)
+				quadrant_num = -1;
+			else
+				valid_hit_occurred = 1;
+		}
+		// MOVE TO RESPONSE FUNCTION >>>>>>>>>>>>>>>>>>>>>>
+	}
+
+	// see which impact we use
+	if (shield_collision && valid_hit_occurred)
+	{
+		memcpy(&mc, &mc_shield, sizeof(mc_info));
+		Assert(quadrant_num >= 0);
+	}
+	else if (hull_collision)
+	{
+		memcpy(&mc, &mc_hull, sizeof(mc_info));
+		valid_hit_occurred = 1;
+	}
+
+	// check if the hit point is beyond the clip plane when warping out.
+	if ((shipp->flags & SF_DEPART_WARP) &&
+		(shipp->warpout_effect) &&
+		(valid_hit_occurred))
+	{
+		vec3d warp_pnt, hit_direction;
+		matrix warp_orient;
+
+		shipp->warpout_effect->getWarpPosition(&warp_pnt);
+		shipp->warpout_effect->getWarpOrientation(&warp_orient);
+
+		vm_vec_sub(&hit_direction, &mc.hit_point_world, &warp_pnt);
+
+		if (vm_vec_dot(&hit_direction, &warp_orient.vec.fvec) < 0.0f)
+		{
+			valid_hit_occurred = false;
+		}
+	}
+
+	// deal with predictive collisions.  Find their actual hit time and see if they occured in current frame
+	if (next_hit && valid_hit_occurred) {
+		// find hit time
+		*next_hit = (int) (1000.0f * (mc.hit_dist*(flFrametime + time_limit) - flFrametime) );
+		if (*next_hit > 0)
+			// if hit occurs outside of this frame, do not do damage 
+			return 1;
+	}
+
+	if ( valid_hit_occurred )
+	{
+		// <<<<<<<<<<<<<<<<<<< MOVE TO RESPONSE FUNCTION
+		wp->collisionOccured = true;
+		wp->collisionInfo = mc_info(mc);
+
+		Script_system.SetHookObjects(4, "Ship", ship_objp, "Weapon", weapon_objp, "Self",ship_objp, "Object", weapon_objp);
+		bool ship_override = Script_system.IsConditionOverride(CHA_COLLIDEWEAPON, ship_objp);
+
+		Script_system.SetHookObjects(2, "Self",weapon_objp, "Object", ship_objp);
+		bool weapon_override = Script_system.IsConditionOverride(CHA_COLLIDESHIP, weapon_objp);
+
+		if(!ship_override && !weapon_override) {
+			ship_weapon_do_hit_stuff(ship_objp, weapon_objp, &mc.hit_point_world, &mc.hit_point, quadrant_num, mc.hit_submodel, mc.hit_normal);
+		}
+
+		Script_system.SetHookObjects(2, "Self",ship_objp, "Object", weapon_objp);
+		if(!(weapon_override && !ship_override))
+			Script_system.RunCondition(CHA_COLLIDEWEAPON, '\0', NULL, ship_objp);
+
+		Script_system.SetHookObjects(2, "Self",weapon_objp, "Object", ship_objp);
+		if((weapon_override && !ship_override) || (!weapon_override && !ship_override))
+			Script_system.RunCondition(CHA_COLLIDESHIP, '\0', NULL, weapon_objp);
+
+		Script_system.RemHookVars(4, "Ship", "Weapon", "Self","Object");
+		// MOVE TO RESPONSE FUNCTION >>>>>>>>>>>>>>>>>>>>
+	}
+	else if ((Missiontime - wp->creation_time > F1_0/2) && (wip->wi_flags & WIF_HOMING) && (wp->homing_object == ship_objp)) {
+		if (dist < wip->shockwave.inner_rad) {
+			vec3d	vec_to_ship;
+
+			vm_vec_normalized_dir(&vec_to_ship, &ship_objp->pos, &weapon_objp->pos);
+
+			if (vm_vec_dot(&vec_to_ship, &weapon_objp->orient.vec.fvec) < 0.0f) {
+				// check if we're colliding against "invisible" ship
+				if (!(shipp->flags2 & SF2_DONT_COLLIDE_INVIS)) {
+					wp->lifeleft = 0.001f;
+					if (ship_objp == Player_obj)
+						nprintf(("Jim", "Frame %i: Weapon %i set to detonate, dist = %7.3f.\n", Framecount, OBJ_INDEX(weapon_objp), dist));
+					valid_hit_occurred = 1;
+				}
+			}
+
+		}
+	}
+
+	return valid_hit_occurred;
+}
 
 /**
  * Checks ship-weapon collisions.  
@@ -361,6 +786,54 @@ int collide_ship_weapon( obj_pair * pair )
 	}
 
 	did_hit = ship_weapon_check_collision( ship, weapon );
+
+	if ( !did_hit )	{
+		// Since we didn't hit, check to see if we can disable all future collisions
+		// between these two.
+		return weapon_will_never_hit( weapon, ship, pair );
+	}
+
+	return 0;
+}
+
+void collide_ship_weapon_threaded(ship_weapon_collision_query *query)
+{
+	int		did_hit;
+	object *ship = query->pair->a;
+	object *weapon = query->pair->b;
+
+	Assert( ship->type == OBJ_SHIP );
+	Assert( weapon->type == OBJ_WEAPON );
+
+	// Don't check collisions for player if past first warpout stage.
+	if ( Player->control_mode > PCM_WARPOUT_STAGE1)	{
+		if ( ship == Player_obj ) {
+			query->next_check_time = -1;
+			query->hit_occurred = false;
+			return;
+		}
+	}
+
+	if (reject_due_collision_groups(ship, weapon)) {
+		query->next_check_time = -1;
+		query->hit_occurred = false;
+		return;
+	}
+
+	// Cull lasers within big ship spheres by casting a vector forward for (1) exit sphere or (2) lifetime of laser
+	// If it does hit, don't check the pair until about 200 ms before collision.  
+	// If it does not hit and is within error tolerance, cull the pair.
+
+	if ( (Ship_info[Ships[ship->instance].ship_info_index].flags & (SIF_BIG_SHIP | SIF_HUGE_SHIP)) && (Weapon_info[Weapons[weapon->instance].weapon_info_index].subtype == WP_LASER) ) {
+		// Check when within ~1.1 radii.  
+		// This allows good transition between sphere checking (leaving the laser about 200 ms from radius) and checking
+		// within the sphere with little time between.  There may be some time for "small" big ships
+		if ( vm_vec_dist_squared(&ship->pos, &weapon->pos) < (1.2f*ship->radius*ship->radius) ) {
+			return check_inside_radius_for_big_ships_threaded( ship, weapon, query );
+		}
+	}
+
+	did_hit = ship_weapon_check_collision_threaded( ship, weapon );
 
 	if ( !did_hit )	{
 		// Since we didn't hit, check to see if we can disable all future collisions
@@ -439,6 +912,77 @@ int check_inside_radius_for_big_ships( object *ship, object *weapon, obj_pair *p
 
 	// modify ship_weapon_check_collision to do damage if hit_time is negative (ie, hit occurs in this frame)
 	if ( ship_weapon_check_collision( ship, weapon, limit_time, &hit_time ) ) {
+		// hit occured in while in sphere
+		if (hit_time < 0) {
+			// hit occured in the frame
+			return 1;
+		} else if (hit_time > 200) {
+			pair->next_check_time = timestamp(hit_time - 200);
+			return 0;
+			// set next check time to time - 200
+		} else {
+			// set next check time to next frame
+			pair->next_check_time = 1;
+			return 0;
+		}
+	} else {
+		if (limit_time > time_to_max_error) {
+		// no hit, but beyond error tolerance
+			if (1000*time_to_max_error > 200) {
+				pair->next_check_time = timestamp( (int)(1000*time_to_max_error) - 200 );
+			} else {
+				pair->next_check_time = 1;
+			}
+			return 0;
+		} else {
+			// no hit and within error tolerance
+			return 1;
+		}
+	}
+}
+
+/**
+ * When inside radius of big ship, check if we can cull collision pair determine the time when pair should next be checked
+ * @return 1 if pair can be culled
+ * @return 0 if pair can not be culled
+ */
+int check_inside_radius_for_big_ships_threaded( object *ship, object *weapon, ship_weapon_collision_query *pair )
+{
+	vec3d error_vel;		// vel perpendicular to laser
+	float error_vel_mag;	// magnitude of error_vel
+	float time_to_max_error, time_to_exit_sphere;
+	float ship_speed_at_exit_sphere, error_at_exit_sphere;	
+	float max_error = (float) ERROR_STD / 150.0f * ship->radius;
+	if (max_error < 2)
+		max_error = 2.0f;
+
+	time_to_exit_sphere = (ship->radius + vm_vec_dist(&ship->pos, &weapon->pos)) / (weapon->phys_info.max_vel.xyz.z - ship->phys_info.max_vel.xyz.z);
+	ship_speed_at_exit_sphere = estimate_ship_speed_upper_limit( ship, time_to_exit_sphere );
+	// update estimated time to exit sphere
+	time_to_exit_sphere = (ship->radius + vm_vec_dist(&ship->pos, &weapon->pos)) / (weapon->phys_info.max_vel.xyz.z - ship_speed_at_exit_sphere);
+	vm_vec_scale_add( &error_vel, &ship->phys_info.vel, &weapon->orient.vec.fvec, -vm_vec_dotprod(&ship->phys_info.vel, &weapon->orient.vec.fvec) );
+	error_vel_mag = vm_vec_mag_quick( &error_vel );
+	error_vel_mag += 0.5f * (ship->phys_info.max_vel.xyz.z - error_vel_mag)*(time_to_exit_sphere/ship->phys_info.forward_accel_time_const);
+	// error_vel_mag is now average velocity over period
+	error_at_exit_sphere = error_vel_mag * time_to_exit_sphere;
+	time_to_max_error = max_error / error_at_exit_sphere * time_to_exit_sphere;
+
+	// find the minimum time we can safely check into the future.
+	// limited by (1) time to exit sphere (2) time to weapon expires
+	// if ship_weapon_check_collision comes back with a hit_time > error limit, ok
+	// if ship_weapon_check_collision comes finds no collision, next check time based on error time
+	float limit_time;		// furthest time to check (either lifetime or exit sphere)
+	if ( time_to_exit_sphere < Weapons[weapon->instance].lifeleft ) {
+		limit_time = time_to_exit_sphere;
+	} else {
+		limit_time = Weapons[weapon->instance].lifeleft;
+	}
+
+	// Note:  when estimated hit time is less than 200 ms, look at every frame
+	int hit_time;	// estimated time of hit in ms
+
+	// modify ship_weapon_check_collision to do damage if hit_time is negative (ie, hit occurs in this frame)
+	if ( ship_weapon_check_collision_threaded( pair, ship, weapon, limit_time, &hit_time ) ) {
 		// hit occured in while in sphere
 		if (hit_time < 0) {
 			// hit occured in the frame
