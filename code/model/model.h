@@ -1106,6 +1106,8 @@ class ModelCollideTask
 	bool queryShieldCommon(shield_tri *tri);
 	int queryRayBoundingbox(vec3d *min, vec3d *max, vec3d * p0, vec3d *pdir, vec3d *hitpos);
 public:
+	mc_info results;
+
 	ModelCollideTask(mc_info *mc);
 	void query();
 	bool hit();

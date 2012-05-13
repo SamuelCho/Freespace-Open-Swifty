@@ -66,10 +66,13 @@ struct ship_weapon_collision_query
 	object *a;
 	object *b;
 
+	bool culled;
 	bool never_check_again;
 	int next_check_time;
 	bool hit_occurred;
 	int shield_quadrant_num;
+
+	ModelCollideTask collide_info;
 	vec3d hit_point_world;
 	vec3d hit_point;
 	int hit_submodel;
