@@ -28,7 +28,7 @@
 
 extern float ai_endangered_time(object *ship_objp, object *weapon_objp);
 int check_inside_radius_for_big_ships( object *ship, object *weapon, obj_pair *pair );
-int check_inside_radius_for_big_ships_threaded( object *ship, object *weapon, ship_weapon_collision_query *pair );
+void check_inside_radius_for_big_ships_threaded( object *ship, object *weapon, ship_weapon_collision_query *pair );
 float estimate_ship_speed_upper_limit( object *ship, float time );
 extern float flFrametime;
 
@@ -324,7 +324,7 @@ int ship_weapon_check_collision(object *ship_objp, object *weapon_objp, float ti
 	return valid_hit_occurred;
 }
 
-int ship_weapon_check_collision_threaded(ship_weapon_collision_query *query, object *ship_objp, object *weapon_objp, float time_limit = 0.0f, int *next_hit = NULL)
+bool ship_weapon_check_collision_threaded(ship_weapon_collision_query *query, object *ship_objp, object *weapon_objp, float time_limit = 0.0f, int *next_hit = NULL)
 {
 	mc_info mc, mc_shield, mc_hull;
 	ship	*shipp;
@@ -354,23 +354,14 @@ int ship_weapon_check_collision_threaded(ship_weapon_collision_query *query, obj
 	// Make ships that are warping in not get collision detection done
 	if ( shipp->flags & SF_ARRIVING ) {
 		query->culled = true;
-		return 0;
+		return false;
 	}
 
 	//	If either of these objects doesn't get collision checks, abort.
 	if (Ship_info[shipp->ship_info_index].flags & SIF_NO_COLLIDE) {
 		query->culled = true;
-		return 0;
+		return false;
 	}
-
-	// <<<<<<<<<<<<<<<<<<<<< MOVE TO RESPONSE FUNCTION
-	//	Return information for AI to detect incoming fire.
-	//	Could perhaps be done elsewhere at lower cost --MK, 11/7/97
-	float	dist = vm_vec_dist_quick(&ship_objp->pos, &weapon_objp->pos);
-	if (dist < weapon_objp->phys_info.speed) {
-		update_danger_weapon(ship_objp, weapon_objp);
-	}
-	// MOVE TO RESPONSE FUNCTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 	polymodel *pm = model_get(sip->model_num);
 
@@ -414,16 +405,22 @@ int ship_weapon_check_collision_threaded(ship_weapon_collision_query *query, obj
 	mc_shield.flags = MC_CHECK_SHIELD;
 	mc_hull.flags = MC_CHECK_MODEL;
 
+	ModelCollideTask shield_test(&mc_shield);
+	ModelCollideTask hull_test(&mc_hull);
+
+	shield_test.query();
+	hull_test.query();
+
 	// check both kinds of collisions
-	int shield_collision = (pm->shield.ntris > 0) ? model_collide(&mc_shield) : 0;
-	int hull_collision = model_collide(&mc_hull);
+	int shield_collision = (pm->shield.ntris > 0) ? shield_test.hit() : 0;
+	int hull_collision = hull_test.hit();
 
 	// check shields for impact
 	if (!(ship_objp->flags & OF_NO_SHIELDS))
 	{
 		// pick out the shield quadrant
 		if (shield_collision)
-			query->shield_quadrant_num = get_quadrant(&mc_shield.hit_point);
+			query->shield_quadrant_num = get_quadrant(&shield_test.mc.hit_point);
 		else if (hull_collision && (sip->flags2 & SIF2_SURFACE_SHIELDS)) {
 			vec3d local_pos, local_pos_rot;
 			vm_vec_sub(&local_pos, &mc_hull.hit_point_world, &ship_objp->pos);
@@ -435,17 +432,9 @@ int ship_weapon_check_collision_threaded(ship_weapon_collision_query *query, obj
 		if ((query->shield_quadrant_num >= 0) && ((shipp->flags & SF_DYING) || !ship_is_shield_up(ship_objp, query->shield_quadrant_num)))
 			query->shield_quadrant_num = -1;
 
-		// <<<<<<<<<<<<<<<<<<<<< MOVE TO RESPONSE FUNCTION
 		// see if we hit the shield
 		if (query->shield_quadrant_num >= 0)
 		{
-			// do the hit effect
-			if (shield_collision)
-				add_shield_point(OBJ_INDEX(ship_objp), mc_shield.shield_hit_tri, &mc_shield.hit_point);
-			else
-				/* TODO */;
-			// MOVE TO RESPONSE FUNCTION >>>>>>>>>>>>>>>>>>>>>>
-
 			// if this weapon pierces the shield, then do the hit effect, but act like a shield collision never occurred;
 			// otherwise, we have a valid hit on this shield
 			if (wip->wi_flags2 & WIF2_PIERCE_SHIELDS)
@@ -459,12 +448,12 @@ int ship_weapon_check_collision_threaded(ship_weapon_collision_query *query, obj
 	// see which impact we use
 	if (shield_collision && query->hit_occurred)
 	{
-		memcpy(&mc, &mc_shield, sizeof(mc_info));
+		memcpy(&query->result, &shield_test.mc, sizeof(mc_info));
 		Assert(query->shield_quadrant_num >= 0);
 	}
 	else if (hull_collision)
 	{
-		memcpy(&mc, &mc_hull, sizeof(mc_info));
+		memcpy(&query->result, &hull_test.mc, sizeof(mc_info));
 		query->hit_occurred = true;
 	}
 
@@ -479,7 +468,7 @@ int ship_weapon_check_collision_threaded(ship_weapon_collision_query *query, obj
 		shipp->warpout_effect->getWarpPosition(&warp_pnt);
 		shipp->warpout_effect->getWarpOrientation(&warp_orient);
 
-		vm_vec_sub(&hit_direction, &mc.hit_point_world, &warp_pnt);
+		vm_vec_sub(&hit_direction, &query->result.hit_point_world, &warp_pnt);
 
 		if (vm_vec_dot(&hit_direction, &warp_orient.vec.fvec) < 0.0f) {
 			query->hit_occurred = false;
@@ -489,40 +478,15 @@ int ship_weapon_check_collision_threaded(ship_weapon_collision_query *query, obj
 	// deal with predictive collisions.  Find their actual hit time and see if they occured in current frame
 	if (next_hit && query->hit_occurred) {
 		// find hit time
-		*next_hit = (int) (1000.0f * (mc.hit_dist*(flFrametime + time_limit) - flFrametime) );
+		*next_hit = (int) (1000.0f * (query->result.hit_dist*(flFrametime + time_limit) - flFrametime) );
 		if (*next_hit > 0)
 			// if hit occurs outside of this frame, do not do damage 
 			return 1;
 	}
 
-	if ( query->hit_occurred )
-	{
-		// <<<<<<<<<<<<<<<<<<< MOVE TO RESPONSE FUNCTION
-		wp->collisionOccured = true;
-		wp->collisionInfo = mc_info(mc);
+	if ( !query->hit_occurred && (Missiontime - wp->creation_time > F1_0/2) && (wip->wi_flags & WIF_HOMING) && (wp->homing_object == ship_objp)) {
+		float	dist = vm_vec_dist_quick(&ship_objp->pos, &weapon_objp->pos);
 
-		Script_system.SetHookObjects(4, "Ship", ship_objp, "Weapon", weapon_objp, "Self",ship_objp, "Object", weapon_objp);
-		bool ship_override = Script_system.IsConditionOverride(CHA_COLLIDEWEAPON, ship_objp);
-
-		Script_system.SetHookObjects(2, "Self",weapon_objp, "Object", ship_objp);
-		bool weapon_override = Script_system.IsConditionOverride(CHA_COLLIDESHIP, weapon_objp);
-
-		if(!ship_override && !weapon_override) {
-			ship_weapon_do_hit_stuff(ship_objp, weapon_objp, &mc.hit_point_world, &mc.hit_point, quadrant_num, mc.hit_submodel, mc.hit_normal);
-		}
-
-		Script_system.SetHookObjects(2, "Self",ship_objp, "Object", weapon_objp);
-		if(!(weapon_override && !ship_override))
-			Script_system.RunCondition(CHA_COLLIDEWEAPON, '\0', NULL, ship_objp);
-
-		Script_system.SetHookObjects(2, "Self",weapon_objp, "Object", ship_objp);
-		if((weapon_override && !ship_override) || (!weapon_override && !ship_override))
-			Script_system.RunCondition(CHA_COLLIDESHIP, '\0', NULL, weapon_objp);
-
-		Script_system.RemHookVars(4, "Ship", "Weapon", "Self","Object");
-		// MOVE TO RESPONSE FUNCTION >>>>>>>>>>>>>>>>>>>>
-	}
-	else if ((Missiontime - wp->creation_time > F1_0/2) && (wip->wi_flags & WIF_HOMING) && (wp->homing_object == ship_objp)) {
 		if (dist < wip->shockwave.inner_rad) {
 			vec3d	vec_to_ship;
 
@@ -601,6 +565,7 @@ void collide_ship_weapon_threaded(ship_weapon_collision_query *query)
 	Assert( weapon->type == OBJ_WEAPON );
 
 	query->culled = false;
+	query->never_check_again = false;
 
 	// Don't check collisions for player if past first warpout stage.
 	if ( Player->control_mode > PCM_WARPOUT_STAGE1)	{
@@ -628,19 +593,22 @@ void collide_ship_weapon_threaded(ship_weapon_collision_query *query)
 		// This allows good transition between sphere checking (leaving the laser about 200 ms from radius) and checking
 		// within the sphere with little time between.  There may be some time for "small" big ships
 		if ( vm_vec_dist_squared(&ship->pos, &weapon->pos) < (1.2f*ship->radius*ship->radius) ) {
-			return check_inside_radius_for_big_ships_threaded( ship, weapon, query );
+			check_inside_radius_for_big_ships_threaded( ship, weapon, query );
+			return;
 		}
 	}
 
-	did_hit = ship_weapon_check_collision_threaded( ship, weapon );
+	did_hit = ship_weapon_check_collision_threaded( query, ship, weapon );
 
 	if ( !did_hit )	{
 		// Since we didn't hit, check to see if we can disable all future collisions
 		// between these two.
-		return weapon_will_never_hit( weapon, ship, pair );
-	}
+		query->next_check_time = weapon_will_never_hit_threaded( weapon, ship );
 
-	return 0;
+		if ( query->next_check_time < 0 ) {
+			query->never_check_again = true;
+		} 
+	}
 }
 
 void collide_ship_weapon_threaded_response(ship_weapon_collision_query *query)
@@ -672,13 +640,17 @@ void collide_ship_weapon_threaded_response(ship_weapon_collision_query *query)
 		polymodel *pm = model_get(sip->model_num);
 
 		// do the hit effect
-		if (pm->shield.ntris > 0)
-			add_shield_point(OBJ_INDEX(ship_obj), mc_shield.shield_hit_tri, &mc_shield.hit_point);
+		if (pm->shield.ntris > 0) {
+			add_shield_point(OBJ_INDEX(ship_obj), query->result.shield_hit_tri, &query->result.hit_point);
+		}
 	}
 
 	if ( query->hit_occurred ) {
+		weapon	*wp;
+		wp = &Weapons[weapon_obj->instance];
+
 		wp->collisionOccured = true;
-		wp->collisionInfo = mc_info(mc);
+		wp->collisionInfo = mc_info(query->result);
 
 		Script_system.SetHookObjects(4, "Ship", ship_obj, "Weapon", weapon_obj, "Self",ship_obj, "Object", weapon_obj);
 		bool ship_override = Script_system.IsConditionOverride(CHA_COLLIDEWEAPON, ship_obj);
@@ -687,7 +659,7 @@ void collide_ship_weapon_threaded_response(ship_weapon_collision_query *query)
 		bool weapon_override = Script_system.IsConditionOverride(CHA_COLLIDESHIP, weapon_obj);
 
 		if(!ship_override && !weapon_override) {
-			ship_weapon_do_hit_stuff(ship_obj, weapon_obj, &mc.hit_point_world, &mc.hit_point, quadrant_num, mc.hit_submodel, mc.hit_normal);
+			ship_weapon_do_hit_stuff(ship_obj, weapon_obj, &query->result.hit_point_world, &query->result.hit_point, query->shield_quadrant_num, query->result.hit_submodel, query->result.hit_normal);
 		}
 
 		Script_system.SetHookObjects(2, "Self",ship_obj, "Object", weapon_obj);
@@ -700,29 +672,6 @@ void collide_ship_weapon_threaded_response(ship_weapon_collision_query *query)
 
 		Script_system.RemHookVars(4, "Ship", "Weapon", "Self","Object");
 	}
-
-	// Cull lasers within big ship spheres by casting a vector forward for (1) exit sphere or (2) lifetime of laser
-	// If it does hit, don't check the pair until about 200 ms before collision.  
-	// If it does not hit and is within error tolerance, cull the pair.
-
-	if ( (Ship_info[Ships[ship_obj->instance].ship_info_index].flags & (SIF_BIG_SHIP | SIF_HUGE_SHIP)) && (Weapon_info[Weapons[weapon_obj->instance].weapon_info_index].subtype == WP_LASER) ) {
-		// Check when within ~1.1 radii.  
-		// This allows good transition between sphere checking (leaving the laser about 200 ms from radius) and checking
-		// within the sphere with little time between.  There may be some time for "small" big ships
-		if ( vm_vec_dist_squared(&ship_obj->pos, &weapon_obj->pos) < (1.2f*ship_obj->radius*ship_obj->radius) ) {
-			return check_inside_radius_for_big_ships_threaded( ship_obj, weapon_obj, query );
-		}
-	}
-
-	did_hit = ship_weapon_check_collision_threaded( ship_obj, weapon_obj );
-
-	if ( !did_hit )	{
-		// Since we didn't hit, check to see if we can disable all future collisions
-		// between these two.
-		return weapon_will_never_hit( weapon_obj, ship_obj, pair );
-	}
-
-	return 0;
 }
 
 /**
@@ -827,7 +776,7 @@ int check_inside_radius_for_big_ships( object *ship, object *weapon, obj_pair *p
  * @return 1 if pair can be culled
  * @return 0 if pair can not be culled
  */
-int check_inside_radius_for_big_ships_threaded( object *ship, object *weapon, ship_weapon_collision_query *pair )
+void check_inside_radius_for_big_ships_threaded( object *ship, object *weapon, ship_weapon_collision_query *pair )
 {
 	vec3d error_vel;		// vel perpendicular to laser
 	float error_vel_mag;	// magnitude of error_vel
@@ -867,15 +816,13 @@ int check_inside_radius_for_big_ships_threaded( object *ship, object *weapon, sh
 		// hit occured in while in sphere
 		if (hit_time < 0) {
 			// hit occured in the frame
-			return 1;
+			pair->never_check_again = true;
 		} else if (hit_time > 200) {
 			pair->next_check_time = timestamp(hit_time - 200);
-			return 0;
 			// set next check time to time - 200
 		} else {
 			// set next check time to next frame
 			pair->next_check_time = 1;
-			return 0;
 		}
 	} else {
 		if (limit_time > time_to_max_error) {
@@ -885,10 +832,10 @@ int check_inside_radius_for_big_ships_threaded( object *ship, object *weapon, sh
 			} else {
 				pair->next_check_time = 1;
 			}
-			return 0;
+			return;
 		} else {
 			// no hit and within error tolerance
-			return 1;
+			pair->never_check_again = true;
 		}
 	}
 }

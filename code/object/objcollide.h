@@ -72,11 +72,7 @@ struct ship_weapon_collision_query
 	bool hit_occurred;
 	int shield_quadrant_num;
 
-	ModelCollideTask collide_info;
-	vec3d hit_point_world;
-	vec3d hit_point;
-	int hit_submodel;
-	int hit_normal;
+	mc_info result;
 };
 
 #define COLLISION_OF(a,b) (((a)<<8)|(b))
@@ -105,7 +101,7 @@ void obj_all_collisions_retime(int checkdly=25);
 // to be checked and fills the time in in current_pair.
 // CODE is locatated in CollideGeneral.cpp
 int weapon_will_never_hit( object *weapon, object *other, obj_pair * current_pair );
-
+int weapon_will_never_hit_threaded( object *obj_weapon, object *other);
 
 //	See if two lines intersect by doing recursive subdivision.
 //	Bails out if larger distance traveled is less than sum of radii + 1.0f.

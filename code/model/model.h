@@ -1000,7 +1000,26 @@ typedef struct mc_info {
 	}
 } mc_info;
 
+struct mc_result {
+	// Return values
+	int		num_hits;			// How many collisions were found
+	float		hit_dist;			// The distance from p0 to hitpoint
+	vec3d	hit_point;			// Where the collision occurred at in hit_submodel's coordinate system
+	vec3d	hit_point_world;	// Where the collision occurred at in world coordinates
+	int		hit_submodel;		// Which submodel got hit.
+	int		hit_bitmap;			// Which texture got hit.  -1 if not a textured poly
+	float		hit_u, hit_v;		// Where on hit_bitmap the ray hit.  Invalid if hit_bitmap < 0
+	int		shield_hit_tri;	// Which triangle on the shield got hit or -1 if none
+	vec3d	hit_normal;			//	Vector normal of polygon of collision.  (This is in submodel RF)
+	int		edge_hit;			// Set if an edge got hit.  Only valid if MC_CHECK_THICK is set.	
+	ubyte		*f_poly;				// pointer to flat poly where we intersected
+	ubyte		*t_poly;				// pointer to tmap poly where we intersected
 
+	mc_result()
+	{
+		memset(this, 0, sizeof(this));
+	}
+};
 
 //======== MODEL_COLLIDE ============
 
@@ -1077,8 +1096,6 @@ void model_show_damaged(int model_num, int show_damaged);
 
 class ModelCollideTask
 {
-	mc_info				mc;
-
 	polymodel			*pm;
 	polymodel_instance	*pmi;
 	bool				*submodel_check;
@@ -1106,7 +1123,7 @@ class ModelCollideTask
 	bool queryShieldCommon(shield_tri *tri);
 	int queryRayBoundingbox(vec3d *min, vec3d *max, vec3d * p0, vec3d *pdir, vec3d *hitpos);
 public:
-	mc_info results;
+	mc_info				mc;
 
 	ModelCollideTask(mc_info *mc);
 	void query();

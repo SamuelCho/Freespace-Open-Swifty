@@ -867,6 +867,173 @@ int weapon_will_never_hit( object *obj_weapon, object *other, obj_pair * current
 	return 0;
 }
 
+int weapon_will_never_hit_threaded( object *obj_weapon, object *other)
+{
+
+	Assert( obj_weapon->type == OBJ_WEAPON );
+	weapon *wp = &Weapons[obj_weapon->instance];
+	weapon_info *wip = &Weapon_info[wp->weapon_info_index];
+
+	//	mprintf(( "Frame: %d,  Weapon=%d, Other=%d, pair=$%08x\n", G3_frame_count, OBJ_INDEX(weapon), OBJ_INDEX(other), current_pair ));
+
+
+	// Do some checks for weapons that don't turn
+	if ( !(wip->wi_flags & WIF_TURNS) )	{
+
+		// This first check is to see if a weapon is behind an object, and they
+		// are heading in opposite directions.   If so, we don't need to ever check	
+		// them again.   This is only valid for weapons that don't turn. 
+
+		float vdot;
+		if (wip->subtype == WP_LASER) {
+			vec3d velocity_rel_weapon;
+			vm_vec_sub(&velocity_rel_weapon, &obj_weapon->phys_info.vel, &other->phys_info.vel);
+			vdot = -vm_vec_dot(&velocity_rel_weapon, &obj_weapon->orient.vec.fvec);
+		} else {
+			vdot = vm_vec_dot( &other->phys_info.vel, &obj_weapon->phys_info.vel);
+		}
+		if ( vdot <= 0.0f )	{
+			// They're heading in opposite directions...
+			// check their positions
+			vec3d weapon2other;
+			vm_vec_sub( &weapon2other, &other->pos, &obj_weapon->pos );
+			float pdot = vm_vec_dot( &obj_weapon->orient.vec.fvec, &weapon2other );
+			if ( pdot <= -other->radius )	{
+				// The other object is behind the weapon by more than
+				// its radius, so it will never hit...
+				return -1;
+			}
+		}
+
+		// FUTURE ENHANCEMENT IDEAS 
+
+		// Given a laser does it hit a slow or not moving object
+		// in its life or the next n seconds?  We'd actually need to check the 
+		// model for this.
+
+	}
+
+
+	// This check doesn't care about orient, only looks at the maximum speed
+	// of the two objects, so it knows that in the next n seconds, they can't
+	// go further than some distance, so don't bother checking collisions for 
+	// that time.   This is very rough, but is so general that it works for
+	// everything and immidiately gets rid of a lot of cases.
+
+	// Find the time it will take before these get within each others distances.
+	// tmp->next_check_time = timestamp(500);
+	//vector	max_vel;			//maximum foward velocity in x,y,z
+
+	float max_vel_weapon, max_vel_other;
+
+	//SUSHI: Fix bug where additive weapon velocity screws up collisions
+	//Assumes that weapons which don't home don't change speed, which is currently the case.
+	if (!(wip->wi_flags & WIF_TURNS))
+		max_vel_weapon = obj_weapon->phys_info.speed;
+	else if (wp->lssm_stage==5)
+		max_vel_weapon = wip->lssm_stage5_vel;
+	else
+		max_vel_weapon = wp->weapon_max_vel;
+
+	max_vel_other = other->phys_info.max_vel.xyz.z;
+	if (max_vel_other < 10.0f) {
+		if ( vm_vec_mag_squared( &other->phys_info.vel ) > 100 ) {
+			// bump up velocity from collision
+			max_vel_other = vm_vec_mag( &other->phys_info.vel ) + 10.0f;
+		} else {
+			max_vel_other = 10.0f;		// object may move from collision
+		}
+	}
+
+	// check weapon that does not turn against sphere expanding at ship maxvel
+	// compare (weeapon) ray with expanding sphere (ship) to find earliest possible collision time
+	// look for two time solutions to Xw = Xs, where Xw = Xw0 + Vwt*t  Xs = Xs + Vs*(t+dt), where Vs*dt = radius of ship 
+	// Since direction of Vs is unknown, solve for (Vs*t) and find norm of both sides
+	if ( !(wip->wi_flags & WIF_TURNS) ) {
+		vec3d delta_x, laser_vel;
+		float a,b,c, delta_x_dot_vl, delta_t;
+		float root1, root2, root, earliest_time;
+
+		vm_vec_sub( &delta_x, &obj_weapon->pos, &other->pos );
+		laser_vel = obj_weapon->phys_info.vel;
+		// vm_vec_copy_scale( &laser_vel, &weapon->orient.vec.fvec, max_vel_weapon );
+		delta_t = (other->radius + 10.0f) / max_vel_other;		// time to get from center to radius of other obj
+		delta_x_dot_vl = vm_vec_dotprod( &delta_x, &laser_vel );
+
+		a = max_vel_weapon*max_vel_weapon - max_vel_other*max_vel_other;
+		b = 2.0f * (delta_x_dot_vl - max_vel_other*max_vel_other*delta_t);
+		c = vm_vec_mag_squared( &delta_x ) - max_vel_other*max_vel_other*delta_t*delta_t;
+
+		float discriminant = b*b - 4.0f*a*c;
+		if ( discriminant < 0) {
+			// never hit
+			return -1;
+		} else {
+			root = fl_sqrt( discriminant );
+			root1 = (-b + root) / (2.0f * a) * 1000.0f;	// get time in ms
+			root2 = (-b - root) / (2.0f * a) * 1000.0f;	// get time in ms
+		}
+
+		// find earliest positive time
+		if ( root1 > root2 ) {
+			float temp = root1;
+			root1 = root2;
+			root2 = temp;
+		}
+
+		if (root1 > 0) {
+			earliest_time = root1;
+		} else if (root2 > 0) {
+			// root1 < 0 and root2 > 0, so we're inside sphere and next check should be next frame
+			return timestamp(0);	// check next time
+		} else {
+			// both times negative, so never collides
+			return -1;
+		}
+
+
+
+		// check if possible collision occurs after weapon expires
+		if ( earliest_time > 1000*wp->lifeleft )
+			return -1;
+
+		// Allow one worst case frametime to elapse (~5 fps)
+		earliest_time -= 200.0f;
+
+		if (earliest_time > 100) {
+			return timestamp( fl2i(earliest_time) );
+		} else {
+			return timestamp(0);	// check next time
+		}
+
+	} else {
+
+		float dist, max_vel, time;
+
+		max_vel = max_vel_weapon + max_vel_other;
+
+		// suggest that fudge factor for other radius be changed to other_radius + const (~10)
+		dist = vm_vec_dist( &other->pos, &obj_weapon->pos ) - (other->radius + 10.0f);
+		if ( dist > 0.0f )	{
+			time = (dist*1000.0f) / max_vel;
+			int time_ms = fl2i(time);
+
+			// check if possible collision occurs after weapon expires
+			if ( time_ms > 1000*wp->lifeleft )
+				return -1;
+
+			time_ms -= 200;	// Allow at least one worst case frametime to elapse (~5 fps)
+
+			if ( time_ms > 100 )	{		// If it takes longer than 1/10th of a second, then delay it
+				return timestamp(time_ms);
+				//mprintf(( "Delaying %d ms\n", time_ms ));
+			}
+		}
+		return timestamp(0);	// check next time
+
+	}
+}
+
 //	Return true if vector from *curpos to *goalpos intersects with object *goalobjp
 //	Else, return false.
 //	radius is radius of object moving from curpos to goalpos.
