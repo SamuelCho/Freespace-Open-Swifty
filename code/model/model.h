@@ -1156,7 +1156,7 @@ class ModelCollideTask
 	void querySubModel(int mn);
 
 	void loadPoints(ubyte * p);
-	void querySubModelTris(void *ptr);
+	void querySubModelTris(bsp_collision_tree *tree, int node_index);
 	void queryFlatPoly(ubyte * p);
 	void queryTmapPoly(ubyte * p);
 	void queryFace(int nv, vec3d **verts, vec3d *plane_pnt, float face_rad, vec3d *plane_norm, uv_pair *uvl_list, int ntmap, ubyte *poly);

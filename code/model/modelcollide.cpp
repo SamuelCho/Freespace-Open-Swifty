@@ -1478,7 +1478,7 @@ void ModelCollideTask::querySubModel(int mn)
 			this->mc.hit_bitmap = -1;
 			this->mc.num_hits++;
 		} else {
-			querySubModelTris(sm->bsp_data);
+			querySubModelTris(model_get_bsp_collision_tree(sm->collision_tree_index), 0);
 		}
 	}
 
@@ -1553,40 +1553,25 @@ NoHit:
 
 }
 
-void ModelCollideTask::querySubModelTris(void *model_ptr)
+void ModelCollideTask::querySubModelTris(bsp_collision_tree *tree, int node_index)
 {
-	ubyte *p = (ubyte *)model_ptr;
-	int chunk_type, chunk_size;
+	bsp_collision_node *node = &tree->node_list[node_index];
+	vec3d hitpos;
 
-	chunk_type = w(p);
-	chunk_size = w(p+4);
-
-	while (chunk_type != OP_EOF)	{
-
-		//		mprintf(( "Processing chunk type %d, len=%d\n", chunk_type, chunk_size ));
-
-		switch (chunk_type) {
-		case OP_EOF: return;
-		case OP_DEFPOINTS:	loadPoints(p); break;
-		case OP_FLATPOLY:		queryFlatPoly(p); break;
-		case OP_TMAPPOLY:		model_collide_tmappoly(p); break;
-		case OP_SORTNORM:		model_collide_sortnorm(p); break;
-		case OP_BOUNDBOX:	
-			if (!queryRayBoundingbox( vp(p+8), vp(p+20), &Mc_p0, &Mc_direction, NULL ))	{
-				return;
-			}
-			break;
-		default:
-			mprintf(( "Bad chunk type %d, len=%d in model_collide_sub\n", chunk_type, chunk_size ));
-			Int3();		// Bad chunk type!
+	// check the bounding box of this node. if it passes, check left and right children
+	if ( queryRayBoundingbox( &node->min, &node->max, &Mc_p0, &Mc_direction, &hitpos ) ) {
+		if ( !(Mc->flags & MC_CHECK_RAY) && (vm_vec_dist(&hitpos, &Mc_p0) > Mc_mag) ) {
+			// The ray isn't long enough to intersect the bounding box
 			return;
 		}
-		p += chunk_size;
-		chunk_type = w(p);
-		chunk_size = w(p+4);
-	}
 
-	return;
+		if ( node->leaf >= 0 ) {
+			model_collide_bsp_poly(tree, node->leaf);
+		} else {
+			if ( node->back >= 0 ) querySubModelTris(tree, node->back);
+			if ( node->front >= 0 ) querySubModelTris(tree, node->front);
+		}
+	}
 }
 
 // Point list
