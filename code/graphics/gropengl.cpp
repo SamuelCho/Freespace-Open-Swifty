@@ -1834,6 +1834,7 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_line_htl			= gr_opengl_line_htl;
 	gr_screen.gf_sphere_htl			= gr_opengl_sphere_htl;
 
+	gr_screen.gf_maybe_create_shader = gr_opengl_maybe_create_shader;
 	// NOTE: All function pointers here should have a Cmdline_nohtl check at the top
 	//       if they shouldn't be run in non-HTL mode, Don't keep separate entries.
 	// *****************************************************************************
@@ -1974,12 +1975,10 @@ bool gr_opengl_init()
 	mprintf(( "  Using %s texture filter.\n", (GL_mipmap_filter) ? NOX("trilinear") : NOX("bilinear") ));
 
 	if (Use_GLSL) {
-		if (Use_GLSL > 1) {
-			mprintf(( "  Using GLSL for model rendering.\n" ));
-		}
-
 		mprintf(( "  OpenGL Shader Version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION_ARB) ));
 	}
+
+
 
 	// This stops fred crashing if no textures are set
 	gr_screen.current_bitmap = -1;

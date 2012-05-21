@@ -4004,7 +4004,7 @@ ADE_VIRTVAR(Speed, l_Weaponclass, "number", "Weapon max speed, aka $Velocity in 
 	return ade_set_args(L, "f", Weapon_info[idx].max_speed);
 }
 
-ADE_VIRTVAR(Bomb, l_Weaponclass, "boolean", "Is weapon clas flagged as bomb", "boolean", "New flag")
+ADE_VIRTVAR(Bomb, l_Weaponclass, "boolean", "Is weapon class flagged as bomb", "boolean", "New flag")
 {
 	int idx;
 	bool newVal = false;
@@ -4047,7 +4047,7 @@ ADE_FUNC(isValid, l_Weaponclass, NULL, "Detects whether handle is valid", "boole
 	return ADE_RETURN_TRUE;
 }
 
-ADE_FUNC(getWeaponClassIndex, l_Weaponclass, NULL, "Gets the index valus of the weapon class", "number", "index value of the weapon class")
+ADE_FUNC(getWeaponClassIndex, l_Weaponclass, NULL, "Gets the index value of the weapon class", "number", "index value of the weapon class")
 {
 	int idx;
 	if(!ade_get_args(L, "o", l_Weaponclass.Get(&idx)))
@@ -4258,7 +4258,7 @@ ADE_FUNC(getCollisionNormal, l_ColInfo, "[boolean local]", "The collision normal
 	}
 }
 
-ADE_FUNC(isValid, l_ColInfo, NULL, "Detectes if this handle is valid", "boolean", "true if valid false otherwise")
+ADE_FUNC(isValid, l_ColInfo, NULL, "Detects if this handle is valid", "boolean", "true if valid false otherwise")
 {
 	mc_info_h* info;
 
@@ -5452,7 +5452,7 @@ ADE_INDEXER(l_WaypointList, "number Index", "Array of waypoints that are part of
 	//Get waypoint name
 	sprintf(wpname, "%s:%d", wlh->wlp->get_name(), calc_waypoint_index(idx) + 1);
 	waypoint *wpt = find_matching_waypoint( wpname );
-	if( idx >= 0 && (uint) idx < wlh->wlp->get_waypoints().size() && wpt != NULL ) {
+	if( (idx >= 0) && ((uint) idx < wlh->wlp->get_waypoints().size()) && (wpt != NULL) && (wpt->get_objnum() >= 0) ) {
 		return ade_set_args( L, "o", l_Waypoint.Set( object_h( &Objects[wpt->get_objnum()] ), Objects[wpt->get_objnum()].signature ) );
 	}
 
@@ -6093,6 +6093,17 @@ ADE_VIRTVAR(Name, l_Subsystem, "string", "Subsystem name", "string", "Subsystem 
 	return ade_set_args(L, "s", ship_subsys_get_name(sso->ss));
 }
 
+ADE_FUNC(getModelName, l_Subsystem, NULL, "Returns the original name of the subsystem in the model file", "string", "name or empty string on error")
+{
+	ship_subsys_h *sso;
+	if(!ade_get_args(L, "o", l_Subsystem.GetPtr(&sso)))
+		return ade_set_error(L, "s", "");
+
+	if(!sso->IsValid())
+		return ade_set_error(L, "s", "");
+
+	return ade_set_args(L, "s", sso->ss->system_info->subobj_name);
+}
 
 ADE_VIRTVAR(PrimaryBanks, l_Subsystem, "weaponbanktype", "Array of primary weapon banks", "weaponbanktype", "Primary banks, or invalid weaponbanktype handle if subsystem handle is invalid")
 {
@@ -6245,6 +6256,46 @@ ADE_VIRTVAR(TurnRate, l_Subsystem, "number", "The turn rate", "number", "Turnrat
 	}
 
 	return ade_set_args(L, "i", sso->ss->system_info->turret_turning_rate);
+}
+
+ADE_VIRTVAR(TurretLocked, l_Subsystem, "boolean", "Whether the turret is locked. Setting to true locks the turret, setting to false frees it.", "boolean", "True if turret is locked, false otherwise")
+{
+	ship_subsys_h *sso;
+	bool newVal = false;
+	if (!ade_get_args(L, "o|b", l_Subsystem.GetPtr(&sso), &newVal))
+		return ade_set_error(L, "b", false);
+
+	if (!sso->IsValid())
+		return ade_set_error(L, "b", false);
+
+	if(ADE_SETTING_VAR)
+	{
+		if (newVal) {
+			sso->ss->weapons.flags |= SW_FLAG_TURRET_LOCK;
+		} else {
+			sso->ss->weapons.flags &= (~SW_FLAG_TURRET_LOCK);
+		}
+	}
+
+	return ade_set_args(L, "b", (sso->ss->weapons.flags & SW_FLAG_TURRET_LOCK));
+}
+
+ADE_VIRTVAR(NextFireTimestamp, l_Subsystem, "number", "The next time the turret may attempt to fire", "number", "Mission time (seconds) or -1 on error")
+{
+	ship_subsys_h *sso;
+	float newVal = -1.0f;
+	if (!ade_get_args(L, "o|f", l_Subsystem.GetPtr(&sso), &newVal))
+		return ade_set_error(L, "f", -1.0f);
+
+	if (!sso->IsValid())
+		return ade_set_error(L, "f", -1.0f);
+
+	if(ADE_SETTING_VAR)
+	{
+		sso->ss->turret_next_fire_stamp = (int)(newVal * 1000);
+	}
+
+	return ade_set_args(L, "f", sso->ss->turret_next_fire_stamp / 1000.0f);
 }
 
 ADE_FUNC(targetingOverride, l_Subsystem, "boolean", "If set to true, AI targeting for this turret is switched off. If set to false, the AI will take over again.", "boolean", "Returns true if successful, false otherwise")
@@ -6922,23 +6973,23 @@ ADE_VIRTVAR(TargetSubsystem, l_Ship, "subsystem", "Target subsystem of ship.", "
 
 	if(ADE_SETTING_VAR)
 	{
-		if(aip->target_signature == newh->sig)
+		if(newh->IsValid())
 		{
-			if(newh->IsValid())
-			{
-				aip->target_objnum = OBJ_INDEX(newh->objp);
-				aip->target_signature = newh->sig;
-				aip->target_time = 0.0f;
-				set_targeted_subsys(aip, newh->ss, aip->target_objnum);
-			}
-			else
-			{
-				aip->target_objnum = -1;
-				aip->target_signature = 0;
-				aip->target_time = 0.0f;
+			aip->target_objnum = OBJ_INDEX(newh->objp);
+			aip->target_signature = newh->sig;
+			aip->target_time = 0.0f;
+			set_targeted_subsys(aip, newh->ss, aip->target_objnum);
 
-				set_targeted_subsys(aip, NULL, -1);
-			}
+			if (aip == Player_ai)
+				Ships[newh->ss->parent_objnum].last_targeted_subobject[Player_num] = newh->ss;
+		}
+		else
+		{
+			aip->target_objnum = -1;
+			aip->target_signature = 0;
+			aip->target_time = 0.0f;
+
+			set_targeted_subsys(aip, NULL, -1);
 		}
 	}
 
@@ -7723,6 +7774,43 @@ ADE_VIRTVAR(Target, l_Weapon, "object", "Target of weapon. Value may also be a d
 	}
 
 	return ade_set_object_with_breed(L, wp->target_num);
+}
+
+ADE_VIRTVAR(ParentTurret, l_Weapon, "subsystem", "Turret which fired this weapon.", "subsystem", "Turret subsystem handle, or an invalid handle if the weapon not fired from a turret")
+{
+	object_h *objh;
+	ship_subsys_h *newh;
+	if(!ade_get_args(L, "o|o", l_Weapon.GetPtr(&objh), l_Subsystem.GetPtr(&newh)))
+		return ade_set_error(L, "o", l_Subsystem.Set(ship_subsys_h()));
+
+	if(!objh->IsValid())
+		return ade_set_error(L, "o", l_Subsystem.Set(ship_subsys_h()));
+
+	weapon *wp = NULL;
+	if(objh->objp->instance > -1)
+		wp = &Weapons[objh->objp->instance];
+	else
+		return ade_set_error(L, "o", l_Subsystem.Set(ship_subsys_h()));
+
+	if(ADE_SETTING_VAR)
+	{
+		if(newh != NULL && newh->IsValid())
+		{
+			if(wp->turret_subsys != newh->ss)
+			{
+				wp->turret_subsys = newh->ss;
+			}
+		}
+		else
+		{
+			wp->turret_subsys = NULL;
+		}
+	}
+
+    if(wp->turret_subsys == NULL)
+        return ade_set_error(L, "o", l_Subsystem.Set(ship_subsys_h()));
+    else
+        return ade_set_args(L, "o", l_Subsystem.Set(ship_subsys_h(&Objects[wp->turret_subsys->parent_objnum], wp->turret_subsys)));
 }
 
 ADE_VIRTVAR(HomingObject, l_Weapon, "object", "Object that weapon will home in on. Value may also be a deriviative of the 'object' class, such as 'ship'", "object", "Object that weapon is homing in on, or an invalid object handle if weapon is not homing or the weapon handle is invalid")
@@ -10939,7 +11027,7 @@ ADE_FUNC(drawTargetingBrackets, l_Graphics, "object Object, [boolean draw=true, 
 	int bound_rc, pof;
 	int modelnum;
 	bool entered_frame = false;
-	SCP_list<jump_node>::iterator jnp;
+	SCP_list<CJumpNode>::iterator jnp;
 	
 	if ( !(g3_in_frame( ) > 0 ) )
 	{
@@ -10979,11 +11067,11 @@ ADE_FUNC(drawTargetingBrackets, l_Graphics, "object Object, [boolean draw=true, 
 			break;
 		case OBJ_JUMP_NODE:
 			for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
-				if(jnp->get_obj() == targetp)
+				if(jnp->GetSCPObject() == targetp)
 					break;
 			}
 			
-			modelnum = jnp->get_modelnum();
+			modelnum = jnp->GetModelNumber();
 			bound_rc = model_find_2d_bound_min( modelnum, &targetp->orient, &targetp->pos,&x1,&y1,&x2,&y2 );
 			break;
 		default: //Someone passed an invalid pointer.

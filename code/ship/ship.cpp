@@ -247,7 +247,9 @@ flag_def_list Subsystem_flags[] = {
 	{ "no aggregate",			MSS_FLAG_NO_AGGREGATE,		0 },
 	{ "wait for animation",     MSS_FLAG_TURRET_ANIM_WAIT,  0 },
 	{ "play fire sound for player", MSS_FLAG2_PLAYER_TURRET_SOUND, 1},
-	{ "only target if can fire",    MSS_FLAG2_TURRET_ONLY_TARGET_IF_CAN_FIRE, 1}
+	{ "only target if can fire",    MSS_FLAG2_TURRET_ONLY_TARGET_IF_CAN_FIRE, 1},
+	{ "no disappear",			MSS_FLAG2_NO_DISAPPEAR, 1},
+	{ "collide submodel",		MSS_FLAG2_COLLIDE_SUBMODEL, 1}
 };
 
 const int Num_subsystem_flags = sizeof(Subsystem_flags)/sizeof(flag_def_list);
@@ -1146,7 +1148,7 @@ int parse_ship_template()
 	return rtn;
 }
 
-void parse_ship_sound(char *name, int id, ship_info *sip)
+void parse_ship_sound(char *name, GameSoundsIndex id, ship_info *sip)
 {
 	Assert( name != NULL );
 
@@ -1155,7 +1157,7 @@ void parse_ship_sound(char *name, int id, ship_info *sip)
 	parse_sound(name, &temp_index, sip->name);
 
 	if (temp_index >= 0)
-		sip->ship_sounds.insert(std::pair<int, int>(id, temp_index));
+		sip->ship_sounds.insert(std::pair<GameSoundsIndex, int>(id, temp_index));
 }
 
 void parse_ship_sounds(ship_info *sip)
@@ -1182,6 +1184,9 @@ void parse_ship_sounds(ship_info *sip)
 	parse_ship_sound("$AspectSeekerProximityWarningSnd:", SND_PROXIMITY_ASPECT_WARNING, sip);
 	parse_ship_sound("$MissileEvadedSnd:",                SND_MISSILE_EVADED_POPUP, sip);
 	parse_ship_sound("$CargoScanningSnd:",                SND_CARGO_SCAN, sip);
+
+	// Use SND_SHIP_EXPLODE_1 for custom explosion sounds
+	parse_ship_sound("$ExplosionSnd:",                    SND_SHIP_EXPLODE_1, sip);
 } 
 
 void parse_ship_particle_effect(ship_info* sip, particle_effect* pe, char *id_string)
@@ -1297,11 +1302,13 @@ void parse_weapon_bank(ship_info *sip, bool is_primary, int *num_banks, int *ban
 	Assert(bank_default_weapons != NULL);
 	Assert(bank_capacities != NULL);
 	const int max_banks = is_primary ? MAX_SHIP_PRIMARY_BANKS : MAX_SHIP_SECONDARY_BANKS;
+	const char *default_banks_str = is_primary ? "$Default PBanks:" : "$Default SBanks:";
+	const char *bank_capacities_str = is_primary ? "$PBank Capacity:" : "$SBank Capacity:";
 
 	// we initialize to the previous parse, which presumably worked
 	int num_bank_capacities = num_banks != NULL ? *num_banks : 0;
 
-	if (optional_string(const_cast<char*>(is_primary ? "$Default PBanks:" : "$Default SBanks:")))
+	if (optional_string(default_banks_str))
 	{
 		// get weapon list
 		if (num_banks != NULL)
@@ -1310,7 +1317,7 @@ void parse_weapon_bank(ship_info *sip, bool is_primary, int *num_banks, int *ban
 			stuff_int_list(bank_default_weapons, max_banks, WEAPON_LIST_TYPE);
 	}
 
-	if (optional_string(const_cast<char*>(is_primary ? "$PBank Capacity:" : "$SBank Capacity:")))
+	if (optional_string(bank_capacities_str))
 	{
 		// get capacity list
 		num_bank_capacities = stuff_int_list(bank_capacities, max_banks, RAW_INTEGER_TYPE);
@@ -1412,7 +1419,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 	}
 
 	if (optional_string("+Description:")) {
-		stuff_malloc_string(&sip->desc, F_MULTITEXT, NULL, SHIP_MULTITEXT_LENGTH);
+		stuff_malloc_string(&sip->desc, F_MULTITEXT, NULL);
 	}
 	
 	if (optional_string("+Tech Title:")) {
@@ -1420,7 +1427,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 	}
 
 	if (optional_string("+Tech Description:")) {
-		stuff_malloc_string(&sip->tech_desc, F_MULTITEXT, NULL, SHIP_MULTITEXT_LENGTH);
+		stuff_malloc_string(&sip->tech_desc, F_MULTITEXT, NULL);
 	}
 
 	if (optional_string("+Length:")) {
@@ -1469,7 +1476,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 	}
 	if(optional_string( "+Cockpit offset:" ))
 	{
-		stuff_vector(&sip->cockpit_offset);
+		stuff_vec3d(&sip->cockpit_offset);
 	}
 	while(optional_string( "$Cockpit Display:" )) 
 	{
@@ -1840,7 +1847,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 
 	if(optional_string("$Max Velocity:"))
 	{
-		stuff_vector(&sip->max_vel);
+		stuff_vec3d(&sip->max_vel);
 		sip->max_accel = sip->max_vel.xyz.z;
 	}
 
@@ -1849,7 +1856,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 
 	if(optional_string("$Rotation Time:"))
 	{
-		stuff_vector(&sip->rotation_time);
+		stuff_vec3d(&sip->rotation_time);
 
 		// div/0 safety check.
 		if ((sip->rotation_time.xyz.x == 0) || (sip->rotation_time.xyz.y == 0) || (sip->rotation_time.xyz.z == 0))
@@ -1935,7 +1942,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 				stuff_float(&sip->convergence_distance);
 		}
 		if(optional_string("+Offset:")) {
-			stuff_vector(&sip->convergence_offset);
+			stuff_vec3d(&sip->convergence_offset);
 
 			if (IS_VEC_NULL(&sip->convergence_offset))
 				sip->aiming_flags &= ~AIM_FLAG_CONVERGENCE_OFFSET;
@@ -2604,7 +2611,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		sip->flags |= SIF_AFTERBURNER;
 
 		if(optional_string("+Aburn Max Vel:")) {
-			stuff_vector(&sip->afterburner_max_vel);
+			stuff_vec3d(&sip->afterburner_max_vel);
 		}
 
 		if(optional_string("+Aburn For accel:")) {
@@ -2701,7 +2708,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 	
 	if(optional_string("$Closeup_pos:"))
 	{
-		stuff_vector(&sip->closeup_pos);
+		stuff_vec3d(&sip->closeup_pos);
 	}
 	else if (first_time && strlen(sip->pof_file))
 	{
@@ -2728,7 +2735,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		
 	if(optional_string("$Topdown offset:")) {
 		sip->topdown_offset_def = true;
-		stuff_vector(&sip->topdown_offset);
+		stuff_vec3d(&sip->topdown_offset);
 	}
 
 	if (optional_string("$Shield_icon:")) {
@@ -2945,7 +2952,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		trail_info *ci = &sip->ct_info[sip->ct_count++];
 		
 		required_string("+Offset:");
-		stuff_vector(&ci->pt);
+		stuff_vec3d(&ci->pt);
 		
 		required_string("+Start Width:");
 		stuff_float(&ci->w_start);
@@ -3140,7 +3147,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		//Get +departure rvec and store on the path_metadata object
 		if (optional_string("+departure rvec:"))
 		{
-			stuff_vector(&metadata.departure_rvec);
+			stuff_vec3d(&metadata.departure_rvec);
 		}
 
 		//Add the new path_metadata to sip->pathMetadata keyed by path name
@@ -3547,7 +3554,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 
 						if(optional_string("+absolute_angle:")){
 							current_trigger->absolute = true;
-							stuff_vector(&current_trigger->angle );
+							stuff_vec3d(&current_trigger->angle );
 		
 							current_trigger->angle.xyz.x = fl_radians(current_trigger->angle.xyz.x);
 							current_trigger->angle.xyz.y = fl_radians(current_trigger->angle.xyz.y);
@@ -3557,7 +3564,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 							if(!optional_string("+relative_angle:"))
 								required_string("+relative_angle:");
 
-							stuff_vector(&current_trigger->angle );
+							stuff_vec3d(&current_trigger->angle );
 		
 							current_trigger->angle.xyz.x = fl_radians(current_trigger->angle.xyz.x);
 							current_trigger->angle.xyz.y = fl_radians(current_trigger->angle.xyz.y);
@@ -3565,14 +3572,14 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 						}
 		
 						if(optional_string("+velocity:")){
-							stuff_vector(&current_trigger->vel );
+							stuff_vec3d(&current_trigger->vel );
 							current_trigger->vel.xyz.x = fl_radians(current_trigger->vel.xyz.x);
 							current_trigger->vel.xyz.y = fl_radians(current_trigger->vel.xyz.y);
 							current_trigger->vel.xyz.z = fl_radians(current_trigger->vel.xyz.z);
 						}
 		
 						if(optional_string("+acceleration:")){
-							stuff_vector(&current_trigger->accel );
+							stuff_vec3d(&current_trigger->accel );
 							current_trigger->accel.xyz.x = fl_radians(current_trigger->accel.xyz.x);
 							current_trigger->accel.xyz.y = fl_radians(current_trigger->accel.xyz.y);
 							current_trigger->accel.xyz.z = fl_radians(current_trigger->accel.xyz.z);
@@ -3594,7 +3601,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		
 						if(optional_string("+absolute_angle:")){
 							current_trigger->absolute = true;
-							stuff_vector(&current_trigger->angle );
+							stuff_vec3d(&current_trigger->angle );
 		
 							current_trigger->angle.xyz.x = fl_radians(current_trigger->angle.xyz.x);
 							current_trigger->angle.xyz.y = fl_radians(current_trigger->angle.xyz.y);
@@ -3602,7 +3609,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 						}else{
 							current_trigger->absolute = false;
 							required_string("+relative_angle:");
-							stuff_vector(&current_trigger->angle );
+							stuff_vec3d(&current_trigger->angle );
 		
 							current_trigger->angle.xyz.x = fl_radians(current_trigger->angle.xyz.x);
 							current_trigger->angle.xyz.y = fl_radians(current_trigger->angle.xyz.y);
@@ -3610,13 +3617,13 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 						}
 		
 						required_string("+velocity:");
-						stuff_vector(&current_trigger->vel );
+						stuff_vec3d(&current_trigger->vel );
 						current_trigger->vel.xyz.x = fl_radians(current_trigger->vel.xyz.x);
 						current_trigger->vel.xyz.y = fl_radians(current_trigger->vel.xyz.y);
 						current_trigger->vel.xyz.z = fl_radians(current_trigger->vel.xyz.z);
 		
 						required_string("+acceleration:");
-						stuff_vector(&current_trigger->accel );
+						stuff_vec3d(&current_trigger->accel );
 						current_trigger->accel.xyz.x = fl_radians(current_trigger->accel.xyz.x);
 						current_trigger->accel.xyz.y = fl_radians(current_trigger->accel.xyz.y);
 						current_trigger->accel.xyz.z = fl_radians(current_trigger->accel.xyz.z);
@@ -4965,6 +4972,10 @@ void ship_set(int ship_index, int objnum, int ship_type)
 	// corkscrew missile stuff
 	shipp->next_corkscrew_fire = 1;
 
+	// Missile bank indexes to avoid firing different swarm/corkscrew missiles
+	shipp->swarm_missile_bank = -1;
+	shipp->corkscrew_missile_bank = -1;
+
 	// field for score
 	shipp->score = sip->score;
 
@@ -5298,6 +5309,8 @@ int subsys_set(int objnum, int ignore_subsys_info)
 			ship_system->flags |= SSF_ROTATES;
 		if (model_system->flags2 & MSS_FLAG2_PLAYER_TURRET_SOUND)
 			ship_system->flags |= SSF_PLAY_SOUND_FOR_PLAYER;
+		if (model_system->flags2 & MSS_FLAG2_NO_DISAPPEAR)
+			ship_system->flags |= SSF_NO_DISAPPEAR;
 
 		ship_system->turn_rate = model_system->turn_rate;
 
@@ -6721,11 +6734,11 @@ void ship_cleanup(int shipnum, int cleanup_mode)
 	if (cleanup_mode == SHIP_DEPARTED) {
 		// see if this ship departed within the radius of a jump node -- if so, put the node name into
 		// the secondary mission log field
-		jump_node *jnp = jumpnode_get_which_in(&Objects[shipp->objnum]);
+		CJumpNode *jnp = jumpnode_get_which_in(&Objects[shipp->objnum]);
 		if(jnp==NULL)
 			mission_log_add_entry(LOG_SHIP_DEPARTED, shipp->ship_name, NULL, shipp->wingnum);
 		else
-			mission_log_add_entry(LOG_SHIP_DEPARTED, shipp->ship_name, jnp->get_name_ptr(), shipp->wingnum);
+			mission_log_add_entry(LOG_SHIP_DEPARTED, shipp->ship_name, jnp->GetName(), shipp->wingnum);
 	}
 
 #ifndef NDEBUG
@@ -7051,7 +7064,7 @@ void ship_dying_frame(object *objp, int ship_num)
 				polymodel *pm = model_get(sip->model_num);
 
 				// Gets two random points on the surface of a submodel
-				submodel_get_two_random_points(pm->id, pm->detail[0], &pnt1, &pnt2 );
+				submodel_get_two_random_points_better(pm->id, pm->detail[0], &pnt1, &pnt2 );
 
 				model_find_world_point(&outpnt, &pnt1, sip->model_num, pm->detail[0], &objp->orient, &objp->pos );
 
@@ -7161,7 +7174,7 @@ void ship_dying_frame(object *objp, int ship_num)
 				vec3d tmp, outpnt, pnt1, pnt2;
 
 				// Gets two random points on the surface of a submodel [KNOSSOS]
-				submodel_get_two_random_points(pm->id, pm->detail[0], &pnt1, &pnt2 );
+				submodel_get_two_random_points_better(pm->id, pm->detail[0], &pnt1, &pnt2 );
 
 				vm_vec_avg( &tmp, &pnt1, &pnt2 );
 				model_find_world_point(&outpnt, &tmp, pm->id, pm->detail[0], &objp->orient, &objp->pos );
@@ -7184,13 +7197,21 @@ void ship_dying_frame(object *objp, int ship_num)
 			
 			// play ship explosion sound effect, pick appropriate explosion sound
 			int sound_index;
-			if ( sip->flags & (SIF_CAPITAL | SIF_KNOSSOS_DEVICE) ) {
-				sound_index=SND_CAPSHIP_EXPLODE;
-			} else {
-				if ( OBJ_INDEX(objp) & 1 ) {
-					sound_index=SND_SHIP_EXPLODE_1;
+
+			if (ship_has_sound(objp, SND_SHIP_EXPLODE_1))
+			{
+				sound_index = ship_get_sound(objp, SND_SHIP_EXPLODE_1);
+			}
+			else
+			{
+				if ( sip->flags & (SIF_CAPITAL | SIF_KNOSSOS_DEVICE) ) {
+					sound_index=SND_CAPSHIP_EXPLODE;
 				} else {
-					sound_index=SND_SHIP_EXPLODE_2;
+					 if ( OBJ_INDEX(objp) & 1 ) {
+						sound_index=SND_SHIP_EXPLODE_1;
+					} else {
+						sound_index=SND_SHIP_EXPLODE_2;
+					}
 				}
 			}
 
@@ -7983,6 +8004,43 @@ void ship_process_pre(object *objp, float frametime)
 
 MONITOR( NumShips )
 
+void ship_radar_process( object * obj, ship * shipp, ship_info * sip ) 
+{
+	Assert( obj != NULL);
+	Assert( shipp != NULL );
+	Assert( sip != NULL);
+
+	shipp->radar_last_status = shipp->radar_current_status;
+
+	RadarVisibility visibility = radar_is_visible(obj);
+
+	if (visibility == NOT_VISIBLE)
+	{
+		if (shipp->radar_last_contact < 0 && shipp->radar_visible_since < 0)
+		{
+			shipp->radar_visible_since = -1;
+			shipp->radar_last_contact = -1;
+		}
+		else
+		{
+			shipp->radar_visible_since = -1;
+			shipp->radar_last_contact = Missiontime;
+		}
+	}
+	else if (visibility == VISIBLE || visibility == DISTORTED)
+	{
+		if (shipp->radar_visible_since < 0)
+		{
+			shipp->radar_visible_since = Missiontime;
+		}
+
+		shipp->radar_last_contact = Missiontime;
+	}
+
+	shipp->radar_current_status = visibility;
+}
+
+
 /**
  * Player ship uses this code, but does a quick out after doing a few things.
  * 
@@ -8125,6 +8183,9 @@ void ship_process_post(object * obj, float frametime)
 		// fast enough to move 2x its radius in SHIP_WARP_TIME seconds.
 		shipfx_warpout_frame( obj, frametime );
 	} 
+
+	// update radar status of the ship
+	ship_radar_process(obj, shipp, sip);
 
 	if ( (!(shipp->flags & SF_ARRIVING) || (Ai_info[shipp->ai_index].mode == AIM_BAY_EMERGE)
 		|| ((sip->warpin_type == WT_IN_PLACE_ANIM) && (shipp->flags & SF_ARRIVING_STAGE_2)) )
@@ -8687,6 +8748,11 @@ int ship_create(matrix *orient, vec3d *pos, int ship_type, char *ship_name)
 	model_anim_set_initial_states(shipp);
 
 	shipp->model_instance_num = model_create_instance(sip->model_num);
+
+	shipp->time_created = Missiontime;
+
+	shipp->radar_visible_since = -1;
+	shipp->radar_last_contact = -1;
 	
 	return objnum;
 }
@@ -10521,8 +10587,16 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 
 	num_fired = 0;		// tracks how many missiles actually fired
 
-	bank = swp->current_secondary_bank;
-	if ( bank < 0 ) {
+	// niffiwan: allow swarm/corkscrew bank to keep firing if current bank changes
+	if (shipp->swarm_missile_bank != -1 && allow_swarm) {
+		bank = shipp->swarm_missile_bank;
+	} else if (shipp->corkscrew_missile_bank != -1 && allow_swarm) {
+		bank = shipp->corkscrew_missile_bank;
+	} else {
+		bank = swp->current_secondary_bank;
+	}
+
+	if ( bank < 0 || bank > sip->num_secondary_banks ) {
 		return 0;
 	}
 
@@ -10565,7 +10639,8 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 		return 0;
 	}
 
-	if ( swp->current_secondary_bank < 0 ){
+	// niffiwan: 04/03/12: duplicate of a check approx 100 lines above - not needed?
+	if ( bank < 0 ){
 		return 0;
 	}
 
@@ -10643,10 +10718,11 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 	if ( (wip->wi_flags & WIF_SWARM) && !allow_swarm ) {
 		Assert(wip->swarm_count > 0);
 		if(wip->swarm_count <= 0){
-			shipp->num_swarm_missiles_to_fire += SWARM_DEFAULT_NUM_MISSILES_FIRED;
+			shipp->num_swarm_missiles_to_fire = SWARM_DEFAULT_NUM_MISSILES_FIRED;
 		} else {
-			shipp->num_swarm_missiles_to_fire += wip->swarm_count;
+			shipp->num_swarm_missiles_to_fire = wip->swarm_count;
 		}
+		shipp->swarm_missile_bank = bank;
 		return 1;		//	Note: Missiles didn't get fired, but the frame interval code will fire them.
 	}
 
@@ -10654,7 +10730,8 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 	if ( (wip->wi_flags & WIF_CORKSCREW) && !allow_swarm ) {
 		//phreak 11-9-02 
 		//changed this from 4 to custom number defined in tables
-		shipp->num_corkscrew_to_fire = (ubyte)(shipp->num_corkscrew_to_fire + (ubyte)wip->cs_num_fired);		
+		shipp->num_corkscrew_to_fire = (ubyte)(shipp->num_corkscrew_to_fire + (ubyte)wip->cs_num_fired);
+		shipp->corkscrew_missile_bank = bank;
 		return 1;		//	Note: Missiles didn't get fired, but the frame interval code will fire them.
 	}	
 
@@ -10816,8 +10893,8 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 		if ( Weapon_info[weapon].launch_snd != -1 ) {
 			snd_play( &Snds[Weapon_info[weapon].launch_snd], 0.0f, 1.0f, SND_PRIORITY_MUST_PLAY );
 			swp = &Player_ship->weapons;
-			if (swp->current_secondary_bank >= 0) {
-				wip = &Weapon_info[swp->secondary_bank_weapons[swp->current_secondary_bank]];
+			if (bank >= 0) {
+				wip = &Weapon_info[swp->secondary_bank_weapons[bank]];
 				if (Player_ship->flags & SF_SECONDARY_DUAL_FIRE){
 					joy_ff_play_secondary_shoot((int) (wip->cargo_size * 2.0f));
 				} else {
@@ -10874,10 +10951,12 @@ done_secondary:
 
 		if (shipp->num_swarm_missiles_to_fire > 1) {
 			shipp->num_swarm_missiles_to_fire = 1;
+			shipp->swarm_missile_bank = -1;
 		}
 
 		if (shipp->num_corkscrew_to_fire > 1) {
 			shipp->num_corkscrew_to_fire = 1;
+			shipp->corkscrew_missile_bank = -1;
 		}
 	}
 
@@ -10895,8 +10974,8 @@ done_secondary:
 	//then it would have no firedelay. and then add 250 ms of delay. in effect, this way there is no penalty if there is any firedelay remaning in
 	//the next valid bank. the delay is there to prevent things like Trible/Quad Fire Trebuchets.
 	//
-	// niffiwan: only try to switch banks if object has multiple banks
-	if ( (obj->flags & OF_PLAYER_SHIP) && (swp->secondary_bank_ammo[bank] <= 0) && (swp->num_secondary_banks >= 2) ) {
+	// niffiwan: only try to switch banks if object has multiple banks, and firing bank is the current bank
+	if ( (obj->flags & OF_PLAYER_SHIP) && (swp->secondary_bank_ammo[bank] <= 0) && (swp->num_secondary_banks >= 2) && (bank == swp->current_secondary_bank) ) {
 		// niffiwan: call ship_select_next_secondary instead of ship_select_next_valid_secondary_bank
 		// ensures all "extras" are dealt with, like animations, scripting hooks, etc
 		if (ship_select_next_secondary(obj) ) {			//DTP here we switch to the next valid bank, but we can't call weapon_info on next fire_wait
@@ -12937,7 +13016,8 @@ void ship_assign_sound(ship *sp)
 void ship_assign_sound_all()
 {
 	object *objp;
-	int idx, has_sounds;
+	size_t idx;
+	int has_sounds;
 
 	if ( !Sound_enabled )
 		return;
@@ -12947,7 +13027,7 @@ void ship_assign_sound_all()
 			has_sounds = 0;
 
 			// check to make sure this guy hasn't got sounds already assigned to him
-			for(idx=0; idx<MAX_OBJECT_SOUNDS; idx++){
+			for(idx=0; idx<objp->objsnd_num.size(); idx++){
 				if(objp->objsnd_num[idx] != -1){
 					// skip
 					has_sounds = 1;
@@ -14264,7 +14344,7 @@ void ship_maybe_praise_self(ship *deader_sp, ship *killer_sp)
 	int j; 
 	bool wingman = false;
 
-	if ( myrand()&10 ) {
+	if ( (int)(frand()*100) > Praise_self_percentage ) {
 		return;
 	}
 
@@ -15154,7 +15234,7 @@ void ship_page_in()
 #ifndef NDEBUG
 			// Verify that all the subsystem model numbers are updated
 			for (j = 0; j < sip->n_subsystems; j++)
-				Assert( sip->subsystems[j].model_num == sip->model_num );	// JAS
+				Assertion( sip->subsystems[j].model_num == sip->model_num, "Model reference for subsystem %s (model num: %d) on model %s (model num: %d) is invalid.\n", sip->subsystems[j].name, sip->subsystems[j].model_num, sip->pof_file, sip->model_num );	// JAS
 #endif
 		}
 
@@ -16335,6 +16415,7 @@ void ArmorDamageType::clear()
 
 	Calculations.clear();
 	Arguments.clear();
+	altArguments.clear();  // Nuke: dont forget to delete it
 }
 
 //************
@@ -16362,23 +16443,74 @@ int piercing_type_get(char *str)
 	return SADTF_PIERCING_RETAIL;
 }
 
+// Nuke: handle difficulty scaling type
+flag_def_list	DifficultyScaleTypes[] = {
+	{	"first",	ADT_DIFF_SCALE_FIRST,	0},
+	{	"last",		ADT_DIFF_SCALE_LAST,	0},
+	{	"manual",	ADT_DIFF_SCALE_MANUAL,	0},
+};
+
+const int Num_difficulty_scale_types = sizeof(DifficultyScaleTypes)/sizeof(flag_def_list);
+
+int difficulty_scale_type_get(char *str) {
+	int i;
+	for(i = 0; i < Num_difficulty_scale_types; i++){
+		if (!stricmp(DifficultyScaleTypes[i].name, str))
+			return DifficultyScaleTypes[i].def;
+	}
+
+	// indicate error
+	return ADT_DIFF_SCALE_BAD_VAL;
+}
+
+// Nuke: flag list for +constant: values
+flag_def_list	ArmorTypeConstants[] = {
+	{	"base damage",			AT_CONSTANT_BASE_DMG,		0},
+	{	"current damage",		AT_CONSTANT_CURRENT_DMG,	0},
+	{	"difficulty factor",	AT_CONSTANT_DIFF_FACTOR,	0},
+	{	"random",				AT_CONSTANT_RANDOM,			0},
+	{	"pi",					AT_CONSTANT_PI,				0},
+};
+
+const int Num_armor_type_constants = sizeof(ArmorTypeConstants)/sizeof(flag_def_list);
+
+int armor_type_constants_get(char *str){
+	int i;
+	for (i = 0; i < Num_armor_type_constants; i++){
+		if (!stricmp(ArmorTypeConstants[i].name, str))
+			return ArmorTypeConstants[i].def;
+	}
+	// this shouldnt happen, but if it does theirs a define for that
+	return AT_CONSTANT_BAD_VAL;
+}
+
+
 //**************************************************************
 //WMC - All the extra armor crap
 
 //****************************Calculation type addition
-
 //4 steps to add a new one
 
 //Armor types
 //STEP 1: Add a define
-#define AT_TYPE_ADDITIVE			0
+#define AT_TYPE_ADDITIVE				0
 #define AT_TYPE_MULTIPLICATIVE			1
-#define AT_TYPE_EXPONENTIAL			2
+#define AT_TYPE_EXPONENTIAL				2
 #define AT_TYPE_EXPONENTIAL_BASE		3
-#define AT_TYPE_CUTOFF				4
+#define AT_TYPE_CUTOFF					4
 #define AT_TYPE_REVERSE_CUTOFF			5
 #define AT_TYPE_INSTANT_CUTOFF			6
-#define AT_TYPE_INSTANT_REVERSE_CUTOFF		7
+#define AT_TYPE_INSTANT_REVERSE_CUTOFF	7
+// Added by Nuke
+#define AT_TYPE_CAP						8
+#define AT_TYPE_INSTANT_CAP				9
+#define AT_TYPE_SET						10
+#define AT_TYPE_STORE					11
+#define AT_TYPE_LOAD					12
+#define AT_TYPE_RANDOM					13
+
+// Nuke: this is the number of storage locations load/store calculations are allowed to use
+#define AT_NUM_STORAGE_LOCATIONS		8
 
 //STEP 2: Add the name string to the array
 char *TypeNames[] = {
@@ -16390,6 +16522,13 @@ char *TypeNames[] = {
 	"reverse cutoff",
 	"instant cutoff",
 	"instant reverse cutoff",
+	// Added by Nuke
+	"cap",
+	"instant cap",
+	"set",
+	"load",
+	"store",
+	"random"
 };
 
 //STEP 3: Add the default value
@@ -16402,6 +16541,13 @@ float TypeDefaultValues[] = {
 	0.0f,	//reverse cutoff
 	0.0f,	//instant cutoff
 	0.0f,	//rev instant cutoff
+	// Added by Nuke
+	0.0f,	// cap - caps are the same as reverse cutoffs, but sets damage to value instead of 0
+	0.0f,	// instant cap
+	0.0f,	// set - set the damage to value
+	0.0f,	// data storage index - load and store calculations allow you to dump and retrieve the current damage in one of a few memory locations (these only persist for the duration of the computation)
+	0.0f,	// data storage index
+	0.0f	// random min/max
 };
 
 const int Num_armor_calculation_types = sizeof(TypeNames)/sizeof(char*);
@@ -16418,12 +16564,14 @@ int calculation_type_get(char *str)
 }
 
 //STEP 4: Add the calculation to the switch statement.
-float ArmorType::GetDamage(float damage_applied, int in_damage_type_idx)
+float ArmorType::GetDamage(float damage_applied, int in_damage_type_idx, float diff_dmg_scale)
 {
-	//If the weapon has no damage type, just return damage
-	if(in_damage_type_idx < 0)
-		return damage_applied;
-	
+	// Nuke: If the weapon has no damage type, just return damage
+	if (in_damage_type_idx < 0) {
+		// multiply by difficulty scaler now, since it is no longer done where this is called
+		return (damage_applied * diff_dmg_scale);
+	}
+
 	//Initialize vars
 	uint i,num;
 	ArmorDamageType *adtp = NULL;
@@ -16448,14 +16596,63 @@ float ArmorType::GetDamage(float damage_applied, int in_damage_type_idx)
 		//How many calculations do we have to do?
 		num = adtp->Calculations.size();
 
-		//Used for instant cutoffs, to instantly end the loop
+		// Used for instant cutoffs/cap, to instantly end the loop
 		bool end_now = false;
+		// used for load/store operations
+		float storage[AT_NUM_STORAGE_LOCATIONS];
+		int storage_idx;
+		bool using_storage = false;
+		// constant related stuff
+		float constant_val;
+		float base_damage;
+		bool using_constant = false;
 
-		//LOOP!
-		for(i = 0; i < num; i++)
-		{
+		// set storage locations to zero
+		for (i = 0; i < AT_NUM_STORAGE_LOCATIONS; i++) {
+			storage[i]=0.0f;
+		}
+
+		// check to see if we need to difficulty scale damage first
+		if (adtp->difficulty_scale_type == ADT_DIFF_SCALE_FIRST) {
+			damage_applied *= diff_dmg_scale;
+		}
+
+		// user may want to use base damage as a constant
+		base_damage = damage_applied;
+		// LOOP!
+		for (i = 0; i < num; i++) {
+			storage_idx = adtp->altArguments[i];
 			//Set curr_arg
-			curr_arg = &adtp->Arguments[i];
+			// use storage index at +Stored Value:
+			if ( (storage_idx >= 0) && (storage_idx < AT_NUM_STORAGE_LOCATIONS) ) {
+				curr_arg = &storage[storage_idx];
+				using_storage = true;
+			// using +value: (or error cases caught at parse, where this holda a 0.0f)
+			} else if (storage_idx == AT_CONSTANT_NOT_USED) { // save time checking all possible constants when most of the time you will be using +value:
+				curr_arg = &adtp->Arguments[i];
+			// maybe handle constants
+			} else if (storage_idx == AT_CONSTANT_BASE_DMG) {
+				curr_arg = &base_damage;
+				using_constant = true;
+			} else if (storage_idx == AT_CONSTANT_CURRENT_DMG) {
+				curr_arg = &damage_applied;
+				using_constant = true;
+			} else if (storage_idx == AT_CONSTANT_DIFF_FACTOR) {
+				curr_arg = &diff_dmg_scale;
+				using_constant = true;
+			} else if (storage_idx == AT_CONSTANT_RANDOM) {
+				constant_val = frand();
+				curr_arg = &constant_val;
+				using_constant = true;
+			} else if (storage_idx == AT_CONSTANT_PI) {
+				constant_val = PI;
+				curr_arg = &constant_val;
+				using_constant = true;
+			} else { // fail
+				constant_val = 0.0f;
+				curr_arg = &constant_val;
+			}
+			// new calcs go here
 			switch(adtp->Calculations[i])
 			{
 				case AT_TYPE_ADDITIVE:
@@ -16492,14 +16689,67 @@ float ArmorType::GetDamage(float damage_applied, int in_damage_type_idx)
 						end_now = true;
 					}
 					break;
+				case AT_TYPE_CAP:
+					if (damage_applied > *curr_arg)
+						damage_applied = *curr_arg;
+					break;
+				case AT_TYPE_INSTANT_CAP:
+					if (damage_applied > *curr_arg) {
+						damage_applied = *curr_arg;
+						end_now = true;
+					}
+					break;
+				case AT_TYPE_SET:
+					damage_applied = *curr_arg;
+					break;
+				case AT_TYPE_STORE:
+					if (using_storage || using_constant) {
+						Warning(LOCATION, "Cannot use +Stored Value: or +Constant: with +Store:, that would be bad. Skipping calculation.");
+					} else {
+						storage_idx =  int(floorf(*curr_arg));
+						// Nuke: idiotproof this, no segfault 4 u
+						if ( (storage_idx < 0) || (storage_idx >= AT_NUM_STORAGE_LOCATIONS) ) {
+							Warning(LOCATION, "+Value: for +Store: calculation out of range. Should be between 0 and %i. Read: %i, Skipping calculation.", AT_NUM_STORAGE_LOCATIONS, storage_idx);
+							storage_idx = 0;
+						} else {
+							storage[storage_idx] = damage_applied;
+						}
+					}
+					break;
+				case AT_TYPE_LOAD:
+					if (using_storage || using_constant) {
+						Warning(LOCATION, "Cannot use +Stored Value: or +Constant: with +Load:, that would be bad. Skipping calculation.");
+					} else {
+						storage_idx =  int(floorf(*curr_arg));
+						// Nuke: idiotproof this, no segfault 4 u
+						if ( (storage_idx < 0) || (storage_idx >= AT_NUM_STORAGE_LOCATIONS) ) {
+							Warning(LOCATION, "+Value: for +Load: calculation out of range. Should be between 0 and %i. Read: %i, Skipping calculation.", AT_NUM_STORAGE_LOCATIONS, storage_idx);
+							storage_idx = 0;
+						} else {
+							damage_applied = storage[storage_idx];
+						}
+					}
+					break;
+				case AT_TYPE_RANDOM:  // Nuke: get a random number between damage_applied and +value:
+					if (damage_applied > *curr_arg) {
+						damage_applied = frand_range( *curr_arg, damage_applied );
+					} else {
+						damage_applied = frand_range( damage_applied, *curr_arg );
+					}
+				break;
 			}
 			
 			if(end_now)
 				break;
 		}
-	}
+		// Nuke: check to see if we need to difficulty scale damage last
+		if (adtp->difficulty_scale_type == ADT_DIFF_SCALE_LAST)
+			damage_applied *= diff_dmg_scale;
 	
-	return damage_applied;
+		return damage_applied;
+	}
+	// fail return is fail
+	return (damage_applied * diff_dmg_scale);
 }
 
 float ArmorType::GetShieldPiercePCT(int damage_type_idx)
@@ -16597,6 +16847,7 @@ void ArmorType::ParseData()
 	ArmorDamageType adt;
 	char buf[NAME_LENGTH];
 	float temp_float;
+	int temp_int;
 	int calc_type = -1;
 
 	//Get the damage types
@@ -16623,16 +16874,45 @@ void ArmorType::ParseData()
 			if(calc_type == -1)
 			{
 				Warning(LOCATION, "Armor '%s': Armor calculation type '%s' is invalid, and has been skipped", Name, buf);
-				required_string("+Value:");
-				stuff_float(&temp_float);
+				// Nuke: guess we need to add this here too
+				if (optional_string("+Stored Value:")) {
+					stuff_int(&temp_int);
+				} else if (optional_string("+Constant:")) {
+					stuff_string(buf, F_NAME, NAME_LENGTH);
+				} else {
+					required_string("+Value:");
+					stuff_float(&temp_float);
+				}
 			}
 			else
 			{
 				adt.Calculations.push_back(calc_type);
-				//+Value
-				required_string("+Value:");
-				stuff_float(&temp_float);
-				adt.Arguments.push_back(temp_float);
+				// Nuke: maybe were using a stored location
+				if (optional_string("+Stored Value:")) {
+					stuff_int(&temp_int);
+					// Nuke: idiot-proof
+					if ( (temp_int < 0) || (temp_int >= AT_NUM_STORAGE_LOCATIONS) ) {
+						Error(LOCATION, "+Stored Value: is out of range. Should be between 0 and %i. Read: %i, Using value 0.", AT_NUM_STORAGE_LOCATIONS-1, temp_int);
+						temp_int = AT_CONSTANT_NOT_USED;
+					}
+					adt.altArguments.push_back(temp_int);
+					adt.Arguments.push_back(0.0f); // this isnt used in this case, just take up space so the indices lign up, also a fallback value in case of bad altArguments
+				} else if (optional_string("+Constant:")) { // use one of the pre-defined constants
+					stuff_string(buf, F_NAME, NAME_LENGTH);
+					temp_int = armor_type_constants_get(buf);
+					// Nuke: idiot proof some more
+					if (temp_int == AT_CONSTANT_BAD_VAL) {
+						Error(LOCATION, "Invalid +Constant: name, '%s'. Using value 0.", buf);
+						temp_int = AT_CONSTANT_NOT_USED;
+					}
+					adt.altArguments.push_back(temp_int);
+					adt.Arguments.push_back(0.0f); // this isnt used in this case, just take up space so the indices lign up, also a fallback value in case of bad altArguments
+				} else { // Nuke: +Value, only required if storage location or constant is not used -nuke
+					required_string("+Value:");
+					stuff_float(&temp_float);
+					adt.altArguments.push_back(AT_CONSTANT_NOT_USED); // set this to AT_CONSTANT_NOT_USED so we know to just use the value from adt.Arguments instead of constants/storage locations
+					adt.Arguments.push_back(temp_float);
+				}
 				no_content = false;
 			}
 		}
@@ -16660,6 +16940,21 @@ void ArmorType::ParseData()
 		if(optional_string("+Weapon Piercing Type:")) {
 			stuff_string(buf, F_NAME, NAME_LENGTH);
 			adt.piercing_type = piercing_type_get(buf);
+			no_content = false;
+		}
+
+		// Nuke: dont forget to init things
+		adt.difficulty_scale_type = ADT_DIFF_SCALE_FIRST;
+
+		if (optional_string("+Difficulty Scale Type:")) {
+			stuff_string(buf, F_NAME, NAME_LENGTH);
+			temp_int = difficulty_scale_type_get(buf);
+			if (temp_int == ADT_DIFF_SCALE_BAD_VAL) {
+				Error(LOCATION, "Invalid +Difficulty Scale Type: name: '%s'. Reverting to default behavior.", buf);
+				adt.difficulty_scale_type = ADT_DIFF_SCALE_FIRST;
+			} else {
+				adt.difficulty_scale_type = temp_int;
+			}
 			no_content = false;
 		}
 
@@ -16964,7 +17259,7 @@ void init_path_metadata(path_metadata& metadata)
 	vm_vec_zero(&metadata.departure_rvec);
 }
 
-int ship_get_sound(object *objp, int id)
+int ship_get_sound(object *objp, GameSoundsIndex id)
 {
 	Assert( objp != NULL );
 	Assert( id >= 0 && id < (int) Snds.size() );
@@ -16974,10 +17269,29 @@ int ship_get_sound(object *objp, int id)
 	ship *shipp = &Ships[objp->instance];
 	ship_info *sip = &Ship_info[shipp->ship_info_index];
 
-	SCP_map<int, int>::iterator element = sip->ship_sounds.find(id);
+	SCP_map<GameSoundsIndex, int>::iterator element = sip->ship_sounds.find(id);
 
 	if (element == sip->ship_sounds.end())
 		return id;
 	else
 		return (*element).second;
 }
+
+bool ship_has_sound(object *objp, GameSoundsIndex id)
+{
+	Assert( objp != NULL );
+	Assert( id >= 0 && id < (int) Snds.size() );
+
+	Assert( objp->type == OBJ_SHIP );
+
+	ship *shipp = &Ships[objp->instance];
+	ship_info *sip = &Ship_info[shipp->ship_info_index];
+
+	SCP_map<GameSoundsIndex, int>::iterator element = sip->ship_sounds.find(id);
+
+	if (element == sip->ship_sounds.end())
+		return false;
+	else
+		return true;
+}
+

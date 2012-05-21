@@ -34,6 +34,7 @@
 #include "cutscene/movie.h"
 #include "debris/debris.h"
 #include "exceptionhandler/exceptionhandler.h"
+#include "external_dll/trackirpublic.h" // header file for the TrackIR routines (Swifty)
 #include "fireball/fireballs.h"
 #include "freespace2/freespace.h"
 #include "freespace2/freespaceresource.h"
@@ -44,7 +45,6 @@
 #include "gamesnd/eventmusic.h"
 #include "gamesnd/gamesnd.h"
 #include "globalincs/alphacolors.h"
-#include "globalincs/linklist.h"
 #include "globalincs/version.h"
 #include "globalincs/mspdb_callstack.h"
 #include "graphics/font.h"
@@ -63,7 +63,6 @@
 #include "io/key.h"
 #include "io/mouse.h"
 #include "io/timer.h"
-#include "external_dll/trackirpublic.h" // header file for the TrackIR routines (Swifty)
 #include "jumpnode/jumpnode.h"
 #include "lab/lab.h"
 #include "lab/wmcgui.h"	//So that GUI_System can be initialized
@@ -98,6 +97,7 @@
 #include "missionui/missionshipchoice.h"
 #include "missionui/missionweaponchoice.h"
 #include "missionui/redalert.h"
+#include "mod_table/mod_table.h"
 #include "nebula/neb.h"
 #include "nebula/neblightning.h"
 #include "network/multi.h"
@@ -1244,8 +1244,7 @@ void game_loading_callback_init()
 	if (Game_loading_background < 0)
 		Game_loading_background = bm_load(Game_loading_bground_fname[gr_screen.res]);
 
-	strcpy_s(Game_loading_ani.filename, Game_loading_ani_fname[gr_screen.res]);
-	generic_anim_init(&Game_loading_ani, Game_loading_ani.filename);
+	generic_anim_init(&Game_loading_ani, Game_loading_ani_fname[gr_screen.res]);
 	generic_anim_load(&Game_loading_ani);
 	Assertion( Game_loading_ani.num_frames > 0, "Load Screen animation %s not found, or corrupted. Needs to be an animation with at least 1 frame.", Game_loading_ani.filename );
 
@@ -1888,6 +1887,8 @@ void game_init()
 	// D3D's gamma system now works differently. 1.0 is the default value
 	ptr = os_config_read_string(NULL, NOX("GammaD3D"), NOX("1.0"));
 	FreeSpace_gamma = (float)atof(ptr);
+
+	mod_table_init();		// load in all the mod dependent settings
 
 	script_init();			//WMC
 

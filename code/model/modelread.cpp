@@ -57,6 +57,8 @@ int model_render_flags_size = sizeof(model_render_flags)/sizeof(flag_def_list);
 polymodel *Polygon_models[MAX_POLYGON_MODELS];
 SCP_vector<polymodel_instance*> Polygon_model_instances;
 
+SCP_vector<bsp_collision_tree> Bsp_collision_tree_list;
+
 static int model_initted = 0;
 extern int Cmdline_nohtl;
 
@@ -230,6 +232,10 @@ void model_unload(int modelnum, int force)
 
 			if ( pm->submodel[i].bsp_data )	{
 				vm_free(pm->submodel[i].bsp_data);
+			}
+
+			if ( pm->submodel[i].collision_tree_index >= 0 ) {
+				model_remove_bsp_collision_tree(pm->submodel[i].collision_tree_index);
 			}
 		}
 
@@ -1947,7 +1953,7 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 			}
 
 			case ID_SPCL: {
-				char name[MAX_NAME_LEN], props[MAX_PROP_LEN], *p;
+				char name[MAX_NAME_LEN], props_spcl[MAX_PROP_LEN], *p;
 				int n_specials;
 				float radius;
 				vec3d pnt;
@@ -1959,7 +1965,7 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 
 					cfread_string_len(name, MAX_NAME_LEN, fp);			// get the name of this special polygon
 
-					cfread_string_len(props, MAX_PROP_LEN, fp);		// will definately have properties as well!
+					cfread_string_len(props_spcl, MAX_PROP_LEN, fp);		// will definately have properties as well!
 					cfread_vector( &pnt, fp );
 					radius = cfread_float( fp );
 
@@ -1969,14 +1975,14 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 						pm->split_plane[pm->num_split_plane] = pnt.xyz.z;
 						pm->num_split_plane++;
 						Assert(pm->num_split_plane <= MAX_SPLIT_PLANE);
-					} else if ( ( p = strstr(props, "$special"))!= NULL ) {
+					} else if ( ( p = strstr(props_spcl, "$special"))!= NULL ) {
 						char type[64];
 
 						get_user_prop_value(p+9, type);
 						if ( !stricmp(type, "subsystem") )						// if we have a subsystem, put it into the list!
-							do_new_subsystem( n_subsystems, subsystems, -1, radius, &pnt, props, &name[1], pm->id );		// skip the first '$' character of the name
+							do_new_subsystem( n_subsystems, subsystems, -1, radius, &pnt, props_spcl, &name[1], pm->id );		// skip the first '$' character of the name
 					} else if ( strstr(name, "$enginelarge") || strstr(name, "$enginehuge") ){
-						do_new_subsystem( n_subsystems, subsystems, -1, radius, &pnt, props, &name[1], pm->id );		// skip the first '$' character of the name
+						do_new_subsystem( n_subsystems, subsystems, -1, radius, &pnt, props_spcl, &name[1], pm->id );		// skip the first '$' character of the name
 					} else {
 						nprintf(("Warning", "Unknown special object type %s while reading model %s\n", name, pm->filename));
 					}					
@@ -2323,6 +2329,27 @@ void model_load_texture(polymodel *pm, int i, char *file)
 		}
 	}
 	// -------------------------------------------------------------------------
+
+	// See if we need to compile a new shader for this material
+	int shader_flags = 0;
+
+	if (tbase->GetTexture() > 0)
+		shader_flags |= SDR_FLAG_DIFFUSE_MAP;
+	if (tglow->GetTexture() > 0 && Cmdline_glow)
+		shader_flags |= SDR_FLAG_GLOW_MAP;
+	if (tspec->GetTexture() > 0 && Cmdline_spec)
+		shader_flags |= SDR_FLAG_SPEC_MAP;
+	if (tnorm->GetTexture() > 0 && Cmdline_normal)
+		shader_flags |= SDR_FLAG_NORMAL_MAP;
+	if (theight->GetTexture() > 0 && Cmdline_height)
+		shader_flags |= SDR_FLAG_HEIGHT_MAP;
+	if (tspec->GetTexture() > 0 && Cmdline_env && Cmdline_spec) // No env maps without spec map
+		shader_flags |= SDR_FLAG_ENV_MAP;
+
+	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT);
+	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_FOG);
+	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED);
+	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED | SDR_FLAG_FOG);
 }
 
 //returns the number of this model
@@ -2562,6 +2589,20 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 
 
 	model_octant_create( pm );
+
+	for ( i = 0; i < pm->n_models; ++i ) {
+		pm->submodel[i].collision_tree_index = model_create_bsp_collision_tree();
+		bsp_collision_tree *tree = model_get_bsp_collision_tree(pm->submodel[i].collision_tree_index);
+
+		//model_collide_parse(tree, pm->submodel[i].bsp_data, 0, pm->version);
+		//model_collide_parse_breadth(tree, pm->submodel[i].bsp_data, pm->version);
+		model_collide_parse_bsp(tree, pm->submodel[i].bsp_data, pm->version);
+
+// 		if ( i != pm->detail[0] ) {
+// 			vm_free(pm->submodel[i].bsp_data);
+// 			pm->submodel[i].bsp_data = NULL;
+// 		}
+	}
 
 	// Find the core_radius... the minimum of 
 	float rx, ry, rz;
@@ -4258,6 +4299,12 @@ void model_set_instance(int model_num, int sub_model_num, submodel_instance_info
 	if ( sub_model_num >= pm->n_models ) return;
 	bsp_info *sm = &pm->submodel[sub_model_num];
 
+	if (flags & SSF_NO_DISAPPEAR) {
+		// If the submodel is to not disappear when the subsystem is destroyed, we simply
+		// make the submodel act as its own replacement as well
+		sm->my_replacement = sub_model_num;
+	}
+
 	// Set the "blown out" flags	
 	sm->blown_off = sii->blown_off;
 
@@ -4268,7 +4315,9 @@ void model_set_instance(int model_num, int sub_model_num, submodel_instance_info
 			pm->submodel[sm->my_replacement].sii = sii;
 		}
 	} else {
-		if ( sm->my_replacement > -1 )	{
+		// If submodel isn't yet blown off and has a -destroyed replacement model, we prevent
+		// the replacement model from being drawn by marking it as having been blown off
+		if ( sm->my_replacement > -1 && sm->my_replacement != sub_model_num)	{
 			pm->submodel[sm->my_replacement].blown_off = 1;
 		}
 	}
@@ -4311,7 +4360,9 @@ void model_update_instance(int model_instance_num, int sub_model_num, submodel_i
 			pmi->submodel[sm->my_replacement].prev_angs = sii->prev_angs;
 		}
 	} else {
-		if ( sm->my_replacement > -1 )	{
+		// If submodel isn't yet blown off and has a -destroyed replacement model, we prevent
+		// the replacement model from being drawn by marking it as having been blown off
+		if ( sm->my_replacement > -1 && sm->my_replacement != sub_model_num)	{
 			pmi->submodel[sm->my_replacement].blown_off = true;
 		}
 	}
@@ -4637,6 +4688,62 @@ int model_find_bay_path(int modelnum, char *bay_path_name)
 	}
 
 	return -1;
+}
+
+int model_create_bsp_collision_tree()
+{
+	// first find an open slot
+	size_t i;
+	bool slot_found = false;
+
+	for ( i = 0; i < Bsp_collision_tree_list.size(); ++i ) {
+		if ( !Bsp_collision_tree_list[i].used ) {
+			slot_found = true;
+			break;
+		}
+	}
+
+	if ( slot_found ) {
+		Bsp_collision_tree_list[i].used = true;
+
+		return (int)i;
+	}
+
+	bsp_collision_tree tree;
+
+	tree.used = true;
+	Bsp_collision_tree_list.push_back(tree);
+
+	return Bsp_collision_tree_list.size() - 1;
+}
+
+bsp_collision_tree *model_get_bsp_collision_tree(int tree_index)
+{
+	Assert(tree_index >= 0);
+	Assert(tree_index < Bsp_collision_tree_list.size());
+
+	return &Bsp_collision_tree_list[tree_index];
+}
+
+void model_remove_bsp_collision_tree(int tree_index)
+{
+	Bsp_collision_tree_list[tree_index].used = false;
+
+	if ( Bsp_collision_tree_list[tree_index].node_list ) {
+		vm_free(Bsp_collision_tree_list[tree_index].node_list);
+	}
+
+	if ( Bsp_collision_tree_list[tree_index].leaf_list ) {
+		vm_free(Bsp_collision_tree_list[tree_index].leaf_list);
+	}
+	
+	if ( Bsp_collision_tree_list[tree_index].point_list ) {
+		vm_free( Bsp_collision_tree_list[tree_index].point_list );
+	}
+	
+	if ( Bsp_collision_tree_list[tree_index].vert_list ) {
+		vm_free( Bsp_collision_tree_list[tree_index].vert_list);
+	}
 }
 
 #if BYTE_ORDER == BIG_ENDIAN

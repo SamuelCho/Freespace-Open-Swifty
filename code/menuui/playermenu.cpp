@@ -205,10 +205,10 @@ extern int delete_pilot_file(char *pilot_name, int single);
 /**
  * Sets Player values to 0/NULL/whatever appropriate default value
  */
-void zero_player () {
+void zero_player() {
 	player *tmp_Player = new player();
 	memcpy(Player,tmp_Player,sizeof(player));
-	free (tmp_Player);
+	delete tmp_Player;
 }
 
 // basically, gray out all controls (gray == 1), or ungray the controls (gray == 0)
@@ -1334,7 +1334,7 @@ void player_tips_init()
 		if(Num_player_tips >= MAX_PLAYER_TIPS) {
 			break;
 		}
-		Player_tips[Num_player_tips++] = stuff_and_malloc_string(F_NAME, NULL, 1024);
+		Player_tips[Num_player_tips++] = stuff_and_malloc_string(F_NAME, NULL);
 	}
 
 	// stop externalizing, homey

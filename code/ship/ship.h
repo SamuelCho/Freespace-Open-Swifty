@@ -24,6 +24,7 @@
 #include "network/multi_obj.h"
 #include "hud/hudparse.h"
 #include "render/3d.h"
+#include "radar/radarsetup.h"
 #include "weapon/shockwave.h"
 #include "species_defs/species_defs.h"
 #include "globalincs/pstypes.h"
@@ -161,6 +162,22 @@ int damage_type_add(char *name);
 //**************************************************************
 //WMC - Armor stuff
 
+// Nuke: some defines for difficulty scaling type
+#define ADT_DIFF_SCALE_BAD_VAL	-1 // error mode 
+#define ADT_DIFF_SCALE_FIRST	0
+#define ADT_DIFF_SCALE_LAST		1
+#define ADT_DIFF_SCALE_MANUAL	2 // this is the user defined mode where the modder has to handle difficulty scaling in their calculations
+
+// Nuke: +value: replacing constants
+// these are stored as altArguments, positive values mean storage idxes and -1 means not used, anything below that is fair game
+#define AT_CONSTANT_NOT_USED	-1	// will probibly never get used
+#define AT_CONSTANT_BAD_VAL		-2	// this conveys table error to the user 
+#define AT_CONSTANT_BASE_DMG	-3	// what the damage was at start of calculations
+#define AT_CONSTANT_CURRENT_DMG	-4	// what the damage currently is
+#define AT_CONSTANT_DIFF_FACTOR	-5	// difficulty factor (by default 0.2 (easy) to 1.0 (insane))
+#define AT_CONSTANT_RANDOM		-6	// number between 0 and 1 (redundant but saves a calculation)
+#define AT_CONSTANT_PI			-7	// because everyone likes pi
+
 struct ArmorDamageType
 {
 	friend class ArmorType;
@@ -170,11 +187,14 @@ private:
 	int					DamageTypeIndex;
 	SCP_vector<int>	Calculations;
 	SCP_vector<float>	Arguments;
+	SCP_vector<int>		altArguments;		// Nuke: to facilitate optional importation of data in place of +value: tag -nuke 
 	float				shieldpierce_pct;
 
 	// piercing effect data
 	float				piercing_start_pct;
 	int					piercing_type;
+	// Nuke: difficulty scale type
+	int					difficulty_scale_type;
 
 public:
 	void clear();
@@ -193,7 +213,7 @@ public:
 	//Get
 	char *GetNamePtr(){return Name;}
 	bool IsName(char *in_name){return (stricmp(in_name,Name)==0);}
-	float GetDamage(float damage_applied, int in_damage_type_idx);
+	float GetDamage(float damage_applied, int in_damage_type_idx, float diff_dmg_scale);
 	float GetShieldPiercePCT(int damage_type_idx);
 	int GetPiercingType(int damage_type_idx);
 	float GetPiercingLimit(int damage_type_idx);
@@ -267,6 +287,7 @@ typedef struct cockpit_display_info {
 #define SSF_DAMAGE_AS_HULL		(1 << 11)		// Applies armor damage instead of subsystem damge. - FUBAR
 #define SSF_NO_AGGREGATE		(1 << 12)		// exclude this subsystem from the aggregate subsystem-info tracking - Goober5000
 #define SSF_PLAY_SOUND_FOR_PLAYER	( 1 << 13)	// If this subsystem is a turret on a player ship, play firing sounds - The E 
+#define SSF_NO_DISAPPEAR		( 1 << 14)		// prevents submodel from disappearing when subsys destroyed
 
 
 // Wanderer 
@@ -506,6 +527,7 @@ typedef struct ship {
 	char targeting_laser_bank;						// -1 if not firing, index into polymodel gun points if it _is_ firing
 	// corkscrew missile stuff
 	ubyte num_corkscrew_to_fire;						// # of corkscrew missiles lef to fire
+	int corkscrew_missile_bank;
 	// END PACK
 
 	// targeting laser info
@@ -612,6 +634,7 @@ typedef struct ship {
 	int	next_swarm_fire;					// timestamp of next swarm missile to fire
 	int	next_swarm_path;					// next path number for swarm missile to take
 	int	num_turret_swarm_info;			// number of turrets in process of launching swarm
+	int swarm_missile_bank;				// The missilebank the swarm was originally launched from
 
 	int	group;								// group ship is in, or -1 if none.  Fred thing
 	int	death_roll_snd;					// id of death roll sound, may need to be stopped early	
@@ -741,6 +764,14 @@ typedef struct ship {
 	int debris_damage_type_idx;
 
 	int model_instance_num;
+
+	fix time_created;
+
+	fix radar_visible_since; // The first time this ship was visible on the radar. Gets reset when ship is not visible anymore
+	fix radar_last_contact; // The last time this ship appeared on the radar. When it is currently visible this has the value if Missiontime
+
+	RadarVisibility radar_last_status; // Last radar status
+	RadarVisibility radar_current_status; // Current radar status
 } ship;
 
 struct ai_target_priority {
@@ -1325,7 +1356,7 @@ typedef struct ship_info {
 	int glide_start_snd;					// handle to sound to play at the beginning of a glide maneuver (default is 0 for regular throttle down sound)
 	int glide_end_snd;						// handle to sound to play at the end of a glide maneuver (default is 0 for regular throttle up sound)
 
-	SCP_map<int, int> ship_sounds;			// specifies ship-specific sound indexes
+	SCP_map<GameSoundsIndex, int> ship_sounds;			// specifies ship-specific sound indexes
 
 	int num_maneuvering;
 	man_thruster maneuvering[MAX_MAN_THRUSTERS];
@@ -1900,7 +1931,17 @@ extern SCP_vector<ship_effect> Ship_effects;
  *  
  *  @return An index into the Snds vector, if the specified index could not be found then the id itself will be returned
  */
-int ship_get_sound(object *objp, int id);
+int ship_get_sound(object *objp, GameSoundsIndex id);
+
+/**
+ *  @brief Specifies if a ship has a custom sound for the specified id
+ *  
+ *  @param objp An object pointer. Has to be of type OBJ_SHIP
+ *  @param id A sound id as defined in gamsesnd.h
+ *  
+ *  @return True if this object has the specified sound, false otherwise
+ */
+bool ship_has_sound(object *objp, GameSoundsIndex id);
 
 /**
  * @brief Returns the index of the default player ship

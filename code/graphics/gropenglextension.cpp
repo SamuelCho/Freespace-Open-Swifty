@@ -20,6 +20,7 @@
 #include "graphics/gropengltexture.h"
 #include "cmdline/cmdline.h"
 #include "ddsutils/ddsutils.h"
+#include "popup/popup.h"
 
 #include "osapi/outwnd.h"
 
@@ -369,9 +370,22 @@ void opengl_extensions_init()
 		Use_PBOs = 1;
 	}
 
+	// setup the best fog function found
+	if ( !Fred_running ) {
+		if ( Is_Extension_Enabled(OGL_EXT_FOG_COORD) ) {
+			OGL_fogmode = 2;
+		} else {
+			OGL_fogmode = 1;
+		}
+	}
+
+	// if we can't do cubemaps then turn off Cmdline_env
+	if ( !(Is_Extension_Enabled(OGL_ARB_TEXTURE_CUBE_MAP) && Is_Extension_Enabled(OGL_ARB_TEXTURE_ENV_COMBINE)) ) {
+		Cmdline_env = 0;
+	}
+
 	if ( !Cmdline_noglsl && Is_Extension_Enabled(OGL_ARB_SHADER_OBJECTS) && Is_Extension_Enabled(OGL_ARB_FRAGMENT_SHADER)
-			&& Is_Extension_Enabled(OGL_ARB_VERTEX_SHADER) )
-	{
+			&& Is_Extension_Enabled(OGL_ARB_VERTEX_SHADER) ) {
 		int ver = 0, major = 0, minor = 0;
 		const char *glsl_ver = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION_ARB);
 
@@ -387,27 +401,17 @@ void opengl_extensions_init()
 			Use_GLSL = 3;
 		}
 		// SM 2.0 compatible
-		else if (ver >= 110) {
+		else if (ver >= 120) {
 			Use_GLSL = 2;
 		}
-		// we require GLSL 1.10 or higher
+		// we require GLSL 1.20 or higher
 		else if (ver < 110) {
 			Use_GLSL = 0;
+			mprintf(("  OpenGL Shading Language version %s is not sufficient to use GLSL mode in FSO. Defaulting to fixed-function renderer.\n", glGetString(GL_SHADING_LANGUAGE_VERSION_ARB) ));
+#ifdef NDEBUG
+			popup(0, 1, POPUP_OK, "GLSL support not available on this GPU. Disabling shader support and defaulting to fixed-function rendering.\n");
+#endif
 		}
-	}
-
-	// setup the best fog function found
-	if ( !Fred_running ) {
-		if ( Is_Extension_Enabled(OGL_EXT_FOG_COORD) ) {
-			OGL_fogmode = 2;
-		} else {
-			OGL_fogmode = 1;
-		}
-	}
-
-	// if we can't do cubemaps then turn off Cmdline_env
-	if ( !(Is_Extension_Enabled(OGL_ARB_TEXTURE_CUBE_MAP) && Is_Extension_Enabled(OGL_ARB_TEXTURE_ENV_COMBINE)) ) {
-		Cmdline_env = 0;
 	}
 
 	// can't have this stuff without GLSL support

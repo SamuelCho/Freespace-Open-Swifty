@@ -182,7 +182,7 @@ int weapon_explosions::Load(char *filename, int expected_lods)
 	}
 
 	// 2 chars for the lod, 4 for the extension that gets added automatically
-	if ( MAX_FILENAME_LEN - (strlen(filename) > 6) ) {
+	if ( (MAX_FILENAME_LEN - strlen(filename)) > 6 ) {
 		for (idx = 1; idx < expected_lods; idx++) {
 			sprintf(name_tmp, "%s_%d", filename, idx);
 
@@ -724,15 +724,16 @@ void parse_shockwave_info(shockwave_create_info *sci, char *pre_char)
 	sprintf(buf, "%sInner Radius:", pre_char);
 	if(optional_string(buf)) {
 		stuff_float(&sci->inner_rad);
-		if (!sci->inner_rad != 0.0f) {
-			WarningEx(LOCATION, "Invalid inner Radius for Shockwave. Must be greater than 0.\n");
-			sci->inner_rad = 0.1f;
-		}
 	}
 
 	sprintf(buf, "%sOuter Radius:", pre_char);
 	if(optional_string(buf)) {
 		stuff_float(&sci->outer_rad);
+	}
+
+	if (sci->outer_rad < sci->inner_rad) {
+		Warning(LOCATION, "Shockwave outer radius must be greater than or equal to the inner radius!");
+		sci->outer_rad = sci->inner_rad;
 	}
 
 	sprintf(buf, "%sShockwave Speed:", pre_char);
@@ -812,7 +813,7 @@ void init_weapon_entry(int weap_info_index)
 	generic_anim_init(&wip->laser_glow_bitmap);
 
 	gr_init_color(&wip->laser_color_1, 255, 255, 255);
-	gr_init_color(&wip->laser_color_2, 0, 0, 0);
+	gr_init_color(&wip->laser_color_2, 255, 255, 255);
 	
 	wip->laser_length = 10.0f;
 	wip->laser_head_radius = 1.0f;
@@ -1190,7 +1191,7 @@ int parse_weapon(int subtype, bool replace)
 		stuff_string(wip->tech_model, F_NAME, MAX_FILENAME_LEN);
 
 		if (optional_string("+Closeup_pos:")) {
-			stuff_vector(&wip->closeup_pos);
+			stuff_vec3d(&wip->closeup_pos);
 		}
 
 		if (optional_string("+Closeup_zoom:")) {
@@ -1287,6 +1288,8 @@ int parse_weapon(int subtype, bool replace)
 		stuff_ubyte(&g);
 		stuff_ubyte(&b);
 		gr_init_color( &wip->laser_color_2, r, g, b );
+	} else {
+		gr_init_color( &wip->laser_color_2, wip->laser_color_1.red, wip->laser_color_1.green, wip->laser_color_1.blue );
 	}
 
 	if(optional_string("@Laser Length:")) {
@@ -2392,11 +2395,11 @@ int parse_weapon(int subtype, bool replace)
 				}
 
 				if (optional_string("+Offset:")) {
-					stuff_vector(&wip->particle_spewers[spew_index].particle_spew_offset);
+					stuff_vec3d(&wip->particle_spewers[spew_index].particle_spew_offset);
 				}
 
 				if (optional_string("+Initial Velocity:")) {
-					stuff_vector(&wip->particle_spewers[spew_index].particle_spew_velocity);
+					stuff_vec3d(&wip->particle_spewers[spew_index].particle_spew_velocity);
 				}
 
 				if (optional_string("+Bitmap:")) {
@@ -5510,11 +5513,18 @@ int weapon_area_calc_damage(object *objp, vec3d *pos, float inner_rad, float out
 		*damage = max_damage;
 		*blast = max_blast;
 	} else {
-		float dist_to_outer_rad_squared, total_dist_squared;
 		min_dist = dist - objp->radius;
 		Assert(min_dist < outer_rad);
-		dist_to_outer_rad_squared = (outer_rad-min_dist)*(outer_rad-min_dist);
-		total_dist_squared = (inner_rad-outer_rad)*(inner_rad-outer_rad);
+
+		float dist_to_outer_rad_squared = (outer_rad-min_dist)*(outer_rad-min_dist);
+		float total_dist_squared = (inner_rad-outer_rad)*(inner_rad-outer_rad);
+
+		// this means the inner and outer radii are basically equal... and since we aren't within the inner radius,
+		// we fudge the law of excluded middle to place ourselves outside the outer radius
+		if (total_dist_squared < 0.0001f) {
+			return -1;	// avoid divide-by-zero; we won't take damage anyway
+		}
+
 		// AL 2-24-98: drop off damage relative to square of distance
 		Assert(dist_to_outer_rad_squared <= total_dist_squared);
 		*damage = max_damage * dist_to_outer_rad_squared/total_dist_squared;
@@ -5581,7 +5591,6 @@ void weapon_do_area_effect(object *wobjp, shockwave_create_info *sci, vec3d *pos
 
 	wip = &Weapon_info[Weapons[wobjp->instance].weapon_info_index];	
 	wp = &Weapons[wobjp->instance];
-	Assertion(sci->inner_rad != 0, "Shockwave info for weapon %s is invalid. Inner Radius needs to be greater than 0./n", wip->name);	
 
 	// only blast ships and asteroids
 	// And (some) weapons
@@ -5624,7 +5633,7 @@ void weapon_do_area_effect(object *wobjp, shockwave_create_info *sci, vec3d *pos
 		case OBJ_WEAPON:
 			target_wip = &Weapon_info[Weapons[objp->instance].weapon_info_index];
 			if (target_wip->armor_type_idx >= 0)
-				damage = Armor_types[target_wip->armor_type_idx].GetDamage(damage, wip->damage_type_idx);
+				damage = Armor_types[target_wip->armor_type_idx].GetDamage(damage, wip->damage_type_idx, 1.0f);
 
 			objp->hull_strength -= damage;
 			if (objp->hull_strength < 0.0f) {
@@ -6147,7 +6156,7 @@ void weapon_get_laser_color(color *c, object *objp)
 	winfo = &Weapon_info[wep->weapon_info_index];
 
 	// if we're a one-color laser
-	if ( (winfo->laser_color_2.red == 0) && (winfo->laser_color_2.green == 0) && (winfo->laser_color_2.blue == 0) ) {
+	if ( (winfo->laser_color_2.red == winfo->laser_color_1.red) && (winfo->laser_color_2.green == winfo->laser_color_1.green) && (winfo->laser_color_2.blue == winfo->laser_color_1.blue) ) {
 		*c = winfo->laser_color_1;
 		return;
 	}

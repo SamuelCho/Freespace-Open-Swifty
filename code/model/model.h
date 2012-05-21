@@ -135,6 +135,8 @@ typedef struct polymodel_instance {
 
 #define MSS_FLAG2_PLAYER_TURRET_SOUND			 (1 << 0)
 #define MSS_FLAG2_TURRET_ONLY_TARGET_IF_CAN_FIRE (1 << 1)	// Turrets only target things they're allowed to shoot at (e.g. if check-hull fails, won't keep targeting)
+#define MSS_FLAG2_NO_DISAPPEAR					 (1 << 2)	// Submodel won't disappear when subsystem destroyed
+#define MSS_FLAG2_COLLIDE_SUBMODEL				 (1 << 3)	// subsystem takes damage only from hits which impact the associated submodel
 
 #define NUM_SUBSYSTEM_FLAGS			33
 
@@ -251,7 +253,44 @@ typedef struct IBX {
 	char name[MAX_FILENAME_LEN];	// filename of the ibx, this is used in case a safety check fails and we delete the file
 } IBX;
 
+typedef struct model_tmap_vert {
+	ushort vertnum;
+	ushort normnum;
+	float u,v;
+} model_tmap_vert;
 
+struct bsp_collision_node {
+	vec3d min;
+	vec3d max;
+
+	int back;
+	int front;
+
+	int leaf;
+};
+
+struct bsp_collision_leaf {
+	vec3d plane_pnt;
+	vec3d plane_norm;
+	float face_rad;
+	int vert_start;
+	ubyte num_verts;
+	ubyte tmap_num;
+};
+
+struct bsp_collision_tree {
+	bsp_collision_node *node_list;
+	int n_nodes;
+
+	bsp_collision_leaf *leaf_list;
+	int n_leaves;
+
+	model_tmap_vert *vert_list;
+	vec3d *point_list;
+
+	int n_verts;
+	bool used;
+};
 
 typedef struct bsp_info {
 	char		name[MAX_NAME_LEN];	// name of the subsystem.  Probably displayed on HUD
@@ -264,6 +303,8 @@ typedef struct bsp_info {
 
 	int		bsp_data_size;
 	ubyte		*bsp_data;
+
+	int collision_tree_index;
 
 	vec3d	geometric_center;		// geometric center of this subobject.  In the same Frame Of 
 	                              //  Reference as all other vertices in this submodel. (Relative to pivot point)
@@ -354,6 +395,7 @@ typedef struct bsp_info {
 		bsp_data = NULL;
 		rad = 0.f;
 		lod_name[ 0 ] = '\0';
+		collision_tree_index = -1;
 		attach_thrusters = false;
 
 		/* Compound types */
@@ -399,12 +441,6 @@ typedef struct model_path {
 									// For MP_TYPE_UNUSED, this means nothing.
 									// For MP_TYPE_SUBSYS, this is the subsystem number this path takes you to.
 } model_path;
-
-typedef struct model_tmap_vert {
-	ushort vertnum;
-	ushort normnum;
-	float u,v;
-} model_tmap_vert;
 
 // info for gun and missile banks.  Also used for docking points.  There should always
 // only be two slots for each docking bay
@@ -905,7 +941,7 @@ extern int submodel_get_points(int model_num, int submodel_num, int max_num, vec
 
 // Gets two random points on the surface of a submodel
 extern void submodel_get_two_random_points(int model_num, int submodel_num, vec3d *v1, vec3d *v2, vec3d *n1 = NULL, vec3d *n2 = NULL);
-
+extern void submodel_get_two_random_points_better(int model_num, int submodel_num, vec3d *v1, vec3d *v2);
 // gets the index into the docking_bays array of the specified type of docking point
 // Returns the index.  second functions returns the index of the docking bay with
 // the specified name
@@ -971,7 +1007,10 @@ typedef struct mc_info {
 										// flags can be changed for the case of sphere check finds an edge hit
 	mc_info()
 	{
-		memset(this, 0, sizeof(this));
+		// Echelon9 - BIG WARNING.
+        // Using memset() as a constructor is rarely correct in C++
+        // If mc_info ever becomes non-POD type, this memset() will hose the virtual table
+        memset(this, 0, sizeof(*this));
 	}
 
 	mc_info(const mc_info& other)
@@ -1086,6 +1125,11 @@ struct mc_result {
 */
 
 int model_collide(mc_info * mc_info);
+void model_collide_parse_bsp(bsp_collision_tree *tree, void *model_ptr, int version);
+
+bsp_collision_tree *model_get_bsp_collision_tree(int tree_index);
+void model_remove_bsp_collision_tree(int tree_index);
+int model_create_bsp_collision_tree();
 
 void model_collide_preprocess(matrix *orient, int model_instance_num);
 

@@ -307,7 +307,7 @@ texture_target(-1), canvas_w(-1), canvas_h(-1), target_w(-1), target_h(-1)
 	texture_target_fname[0] = '\0';
 
 	custom_name[0] = '\0';
-	custom_text[0] = '\0';
+	custom_text.clear();
 	custom_frame.first_frame = -1;
 	custom_frame.num_frames = 0;
 	custom_frame_offset = 0;
@@ -341,8 +341,8 @@ canvas_w(-1), canvas_h(-1), target_w(-1), target_h(-1)
 	texture_target_fname[0] = '\0';
 
 	custom_name[0] = '\0';
-	custom_text[0] = '\0';
-	default_text[0] = '\0';
+	custom_text.clear();
+	default_text.clear();
 	custom_frame.first_frame = -1;
 	custom_frame.num_frames = 0;
 	custom_frame_offset = 0;
@@ -379,11 +379,11 @@ disabled_views(VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY), cus
 	}
 
 	if(_custom_text) {
-		strcpy_s(custom_text, _custom_text);
-		strcpy_s(default_text, _custom_text);
+		custom_text = _custom_text;
+		default_text = _custom_text;
 	} else {
-		custom_text[0] = '\0';
-		default_text[0] = '\0';
+		custom_text.clear();
+		default_text.clear();
 	}
 
 	custom_frame.first_frame = -1;
@@ -431,9 +431,9 @@ char* HudGauge::getCustomGaugeName()
 	return custom_name;
 }
 
-char* HudGauge::getCustomGaugeText()
+const char* HudGauge::getCustomGaugeText()
 {
-	return custom_text;
+	return custom_text.c_str();
 }
 
 void HudGauge::updateCustomGaugeCoords(int _x, int _y)
@@ -455,13 +455,22 @@ void HudGauge::updateCustomGaugeFrame(int frame_offset)
 	custom_frame_offset = frame_offset;
 }
 
-void HudGauge::updateCustomGaugeText(char* txt)
+void HudGauge::updateCustomGaugeText(const char* txt)
 {
 	if(!custom_gauge) {
 		return;
 	}
 
-	strcpy_s(custom_text, txt);
+	custom_text = txt;
+}
+
+void HudGauge::updateCustomGaugeText(SCP_string& txt)
+{
+	if(!custom_gauge) {
+		return;
+	}
+
+	custom_text = txt;
 }
 
 void HudGauge::setFont()
@@ -661,6 +670,11 @@ void HudGauge::preprocess()
 
 }
 
+void HudGauge::onFrame(float frametime)
+{
+	
+}
+
 void HudGauge::render(float frametime)
 {
 	if(!custom_gauge) {
@@ -669,11 +683,14 @@ void HudGauge::render(float frametime)
 
 	setGaugeColor();
 
-	if(custom_text) {
-		if(custom_text[0] != '\0') {
-			hud_num_make_mono(custom_text);
-			renderString(position[0] + textoffset_x, position[1] + textoffset_y, custom_text);
-		}
+	if( !custom_text.empty() ) {
+		char *text = new char[custom_text.size()+1];
+		strcpy(text, custom_text.c_str());
+
+		hud_num_make_mono(text);
+		renderString(position[0] + textoffset_x, position[1] + textoffset_y, text);
+
+		delete[] text;
 	}
 
 	if(custom_frame.first_frame > -1) {
@@ -1024,7 +1041,7 @@ void HudGauge::pageIn()
 void HudGauge::initialize()
 {
 	//Reset text to default
-	strcpy_s(custom_text, default_text);
+	custom_text = default_text;
 
 	sexp_lock_color = false;
 }
@@ -1402,7 +1419,7 @@ void hud_update_frame(float frametime)
 	// to deal with the message.  hud_sqaudmsg_do_frame will return 0 if the key
 	// wasn't used in messaging mode, otherwise 1.  In the event the key was used,
 	// return immediately out of this function.
-	if ( Players->flags & PLAYER_FLAGS_MSG_MODE ) {
+	if ( Players[Player_num].flags & PLAYER_FLAGS_MSG_MODE ) {
 		hud_squadmsg_do_frame();
 	}
 
@@ -1734,6 +1751,8 @@ void hud_render_gauges(int cockpit_display_num)
 				sip->hud_gauges[j]->preprocess();
 			}
 
+			sip->hud_gauges[j]->onFrame(flFrametime);
+
 			if ( !sip->hud_gauges[j]->setupRenderCanvas(render_target) ) {
 				continue;
 			}
@@ -1751,6 +1770,8 @@ void hud_render_gauges(int cockpit_display_num)
 
 		for(j = 0; j < num_gauges; j++) {
 			default_hud_gauges[j]->preprocess();
+
+			default_hud_gauges[j]->onFrame(flFrametime);
 
 			if ( !default_hud_gauges[j]->canRender() ) {
 				continue;

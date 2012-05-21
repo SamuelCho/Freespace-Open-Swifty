@@ -2408,7 +2408,6 @@ void model_render_thrusters(polymodel *pm, int objnum, ship *shipp, matrix *orie
 							dist_bitmap = Interp_secondary_thrust_glow_bitmap;
 						}
 						float mag = vm_vec_mag(&gpt->pnt); 
-						pow(mag,12);
 						mag -= (float)((int)mag);//Valathil - Get a fairly random but constant number to offset the distortion texture
 						distortion_add_beam(dist_bitmap,
 							TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT | TMAP_FLAG_DISTORTION_THRUSTER | TMAP_FLAG_SOFT_QUAD,
@@ -3407,6 +3406,26 @@ void submodel_get_two_random_points(int model_num, int submodel_num, vec3d *v1, 
 	}
 }
 
+void submodel_get_two_random_points_better(int model_num, int submodel_num, vec3d *v1, vec3d *v2)
+{
+	polymodel *pm = model_get(model_num);
+
+	if ( submodel_num < 0 )	{
+		submodel_num = pm->detail[0];
+	}
+
+	bsp_collision_tree *tree = model_get_bsp_collision_tree(pm->submodel[submodel_num].collision_tree_index);
+
+	int nv = tree->n_verts;
+
+	Assert(nv > 0);	// Goober5000 - to avoid div-0 error
+	int vn1 = (myrand()>>5) % nv;
+	int vn2 = (myrand()>>5) % nv;
+
+	*v1 = tree->point_list[vn1];
+	*v2 = tree->point_list[vn2];
+}
+
 // If MR_FLAG_OUTLINE bit set this color will be used for outlines.
 // This defaults to black.
 void model_set_outline_color(int r, int g, int b )
@@ -4245,22 +4264,21 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 		if ( !polygon_list[i].n_verts )
 			continue;
 
-		buffer_data new_buffer;
+		buffer_data new_buffer(polygon_list[i].n_verts);
 
-		new_buffer.index = new(std::nothrow) uint[polygon_list[i].n_verts];
-		Verify( new_buffer.index != NULL );
+		Verify( new_buffer.get_index() != NULL );
 
 		for (j = 0; j < polygon_list[i].n_verts; j++) {
 			if (ibuffer_info.read != NULL) {
 				first_index = cfread_int(ibuffer_info.read);
 				Assert( first_index >= 0 );
 
-				new_buffer.index[j] = (uint)first_index;
+				new_buffer.assign(j, first_index);
 			} else {
 				first_index = model_list->find_index(&polygon_list[i], j);
 				Assert(first_index != -1);
 
-				new_buffer.index[j] = (uint)first_index;
+				new_buffer.assign(j, first_index);
 
 				if (ibuffer_info.write != NULL) {
 					cfwrite_int(first_index, ibuffer_info.write);
@@ -4268,7 +4286,6 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 			}
 		}
 
-		new_buffer.n_verts = polygon_list[i].n_verts;
 		new_buffer.texture = i;
 
 		new_buffer.flags = 0;
@@ -4306,11 +4323,7 @@ inline int in_box(vec3d *min, vec3d *max, vec3d *pos)
 
 inline int in_sphere(vec3d *pos, float radius)
 {
-	vec3d point;
-
-	vm_vec_sub(&point, &View_position, pos);
-
-	if ( vm_vec_dist(&point, pos) <= radius )
+	if ( vm_vec_dist(&View_position, pos) <= radius )
 		return 1;
 	else
 		return -1;
