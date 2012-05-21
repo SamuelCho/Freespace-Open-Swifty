@@ -839,3 +839,19 @@ void check_inside_radius_for_big_ships_threaded( object *ship, object *weapon, s
 		}
 	}
 }
+
+void collide_ship_weapon_queue_query(obj_pair *pair)
+{
+	ship_weapon_collision_query query;
+
+	query.a = pair->a;
+	query.b = pair->b;
+	query.culled = false;
+	query.hit_occurred = false;
+	query.never_check_again = false;
+	query.next_check_time = -1;
+	query.pair = pair;
+	query.shield_quadrant_num = -1;
+
+	// queue up query into vector
+}

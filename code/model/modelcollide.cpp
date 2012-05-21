@@ -1574,119 +1574,50 @@ void ModelCollideTask::querySubModelTris(bsp_collision_tree *tree, int node_inde
 	}
 }
 
-// Point list
-// +0      int         id
-// +4      int         size
-// +8      int         n_verts
-// +12     int         n_norms
-// +16     int         offset from start of chunk to vertex data
-// +20     n_verts*char    norm_counts
-// +offset             vertex data. Each vertex n is a point followed by norm_counts[n] normals.     
-void ModelCollideTask::loadPoints(ubyte * p)
-{
-	int n;
-	int nverts = w(p+8);	
-	int offset = w(p+16);	
-
-	ubyte * normcount = p+20;
-	vec3d *src = vp(p+offset);
-
-	Assert( Mc_point_list != NULL );
-
-	for (n=0; n<nverts; n++ ) {
-		Mc_point_list[n] = src;
-
-		src += normcount[n]+1;
-	} 
-}
-
-// Flat Poly
-// +0      int         id
-// +4      int         size 
-// +8      vec3d      normal
-// +20     vec3d      center
-// +32     float       radius
-// +36     int         nverts
-// +40     byte        red
-// +41     byte        green
-// +42     byte        blue
-// +43     byte        pad
-// +44     nverts*int  vertlist
-void ModelCollideTask::queryFlatPoly(ubyte * p)
+void ModelCollideTask::queryPoly(bsp_collision_tree *tree, int leaf_index)
 {
 	int i;
-	int nv;
-	vec3d *points[TMAP_MAX_VERTS];
-	short *verts;
-
-	nv = w(p+36);
-	if ( nv < 0 ) return;
-
-	if ( nv > TMAP_MAX_VERTS ) {
-		Int3();
-		return;
-	}
-
-	verts = (short *)(p+44);
-
-	for (i=0;i<nv;i++)	{
-		points[i] = Mc_point_list[verts[i*2]];
-	}
-
-	if ( this->mc.flags & MC_CHECK_SPHERELINE )	{
-		querySpherelineFace(nv, points, vp(p+20), fl(p+32), vp(p+8), NULL, -1, p);
-	} else {
-		queryFace(nv, points, vp(p+20), fl(p+32), vp(p+8), NULL, -1, p);
-	}
-}
-
-// Textured Poly
-// +0      int         id
-// +4      int         size 
-// +8      vec3d      normal
-// +20     vec3d      normal_point
-// +32     int         tmp = 0
-// +36     int         nverts
-// +40     int         tmap_num
-// +44     nverts*(model_tmap_vert) vertlist (n,u,v)
-void ModelCollideTask::queryTmapPoly(ubyte * p)
-{
-	int i;
-	int nv;
 	uv_pair uvlist[TMAP_MAX_VERTS];
 	vec3d *points[TMAP_MAX_VERTS];
-	model_tmap_vert *verts;
 
-	nv = w(p+36);
-	if ( nv < 0 ) return;
+	bsp_collision_leaf *leaf = &tree->leaf_list[leaf_index];
 
-	if ( nv > TMAP_MAX_VERTS ) {
-		Int3();
-		return;
-	}
+	bool flat_poly = false;
+	int vert_start = leaf->vert_start;
+	int nv = leaf->num_verts;
 
-	int tmap_num = w(p+40);
-	Assert(tmap_num >= 0 && tmap_num < MAX_MODEL_TEXTURES);	// Goober5000
-
-	if ( (!(this->mc.flags & MC_CHECK_INVISIBLE_FACES)) && (this->pm->maps[tmap_num].textures[TM_BASE_TYPE].GetTexture() < 0) )	{
-		// Don't check invisible polygons.
-		//SUSHI: Unless $collide_invisible is set.
-		if (!(this->pm->submodel[this->submodel].collide_invisible))
-			return;
-	}
-
-	verts = (model_tmap_vert *)(p+44);
-
-	for (i=0;i<nv;i++)	{
-		points[i] = Mc_point_list[verts[i].vertnum];
-		uvlist[i].u = verts[i].u;
-		uvlist[i].v = verts[i].v;
-	}
-
-	if ( this->mc.flags & MC_CHECK_SPHERELINE )	{
-		querySpherelineFace(nv, points, vp(p+20), fl(p+32), vp(p+8), uvlist, tmap_num, p);
+	if ( leaf->tmap_num < MAX_MODEL_TEXTURES ) {
+		if ( (!(Mc->flags & MC_CHECK_INVISIBLE_FACES)) && (Mc_pm->maps[leaf->tmap_num].textures[TM_BASE_TYPE].GetTexture() < 0) )	{
+			// Don't check invisible polygons.
+			//SUSHI: Unless $collide_invisible is set.
+			if (!(Mc_pm->submodel[Mc_submodel].collide_invisible))
+				return;
+		}
 	} else {
-		queryFace(nv, points, vp(p+20), fl(p+32), vp(p+8), uvlist, tmap_num, p);
+		flat_poly = true;
+	}
+
+	int vert_num;
+	for ( i = 0; i < nv; ++i ) {
+		vert_num = tree->vert_list[vert_start+i].vertnum;
+		points[i] = &tree->point_list[vert_num];
+
+		uvlist[i].u = tree->vert_list[vert_start+i].u;
+		uvlist[i].v = tree->vert_list[vert_start+i].v;
+	}
+
+	if ( flat_poly ) {
+		if ( Mc->flags & MC_CHECK_SPHERELINE ) {
+			querySpherelineFace(nv, points, &leaf->plane_pnt, leaf->face_rad, &leaf->plane_norm, NULL, -1, NULL);
+		} else {
+			queryFace(nv, points, &leaf->plane_pnt, leaf->face_rad, &leaf->plane_norm, NULL, -1, NULL);
+		}
+	} else {
+		if ( Mc->flags & MC_CHECK_SPHERELINE ) {
+			querySpherelineFace(nv, points, &leaf->plane_pnt, leaf->face_rad, &leaf->plane_norm, uvlist, leaf->tmap_num, NULL);
+		} else {
+			queryFace(nv, points, &leaf->plane_pnt, leaf->face_rad, &leaf->plane_norm, uvlist, leaf->tmap_num, NULL);
+		}
 	}
 }
 
