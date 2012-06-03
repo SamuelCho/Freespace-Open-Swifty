@@ -1566,7 +1566,7 @@ void ModelCollideTask::querySubModelTris(bsp_collision_tree *tree, int node_inde
 		}
 
 		if ( node->leaf >= 0 ) {
-			model_collide_bsp_poly(tree, node->leaf);
+			queryPoly(tree, node->leaf);
 		} else {
 			if ( node->back >= 0 ) querySubModelTris(tree, node->back);
 			if ( node->front >= 0 ) querySubModelTris(tree, node->front);
@@ -1587,10 +1587,10 @@ void ModelCollideTask::queryPoly(bsp_collision_tree *tree, int leaf_index)
 	int nv = leaf->num_verts;
 
 	if ( leaf->tmap_num < MAX_MODEL_TEXTURES ) {
-		if ( (!(Mc->flags & MC_CHECK_INVISIBLE_FACES)) && (Mc_pm->maps[leaf->tmap_num].textures[TM_BASE_TYPE].GetTexture() < 0) )	{
+		if ( (!(this->mc.flags & MC_CHECK_INVISIBLE_FACES)) && (this->pm->maps[leaf->tmap_num].textures[TM_BASE_TYPE].GetTexture() < 0) )	{
 			// Don't check invisible polygons.
 			//SUSHI: Unless $collide_invisible is set.
-			if (!(Mc_pm->submodel[Mc_submodel].collide_invisible))
+			if (!(this->pm->submodel[Mc_submodel].collide_invisible))
 				return;
 		}
 	} else {
@@ -1607,13 +1607,13 @@ void ModelCollideTask::queryPoly(bsp_collision_tree *tree, int leaf_index)
 	}
 
 	if ( flat_poly ) {
-		if ( Mc->flags & MC_CHECK_SPHERELINE ) {
+		if ( this->mc.flags & MC_CHECK_SPHERELINE ) {
 			querySpherelineFace(nv, points, &leaf->plane_pnt, leaf->face_rad, &leaf->plane_norm, NULL, -1, NULL);
 		} else {
 			queryFace(nv, points, &leaf->plane_pnt, leaf->face_rad, &leaf->plane_norm, NULL, -1, NULL);
 		}
 	} else {
-		if ( Mc->flags & MC_CHECK_SPHERELINE ) {
+		if ( this->mc.flags & MC_CHECK_SPHERELINE ) {
 			querySpherelineFace(nv, points, &leaf->plane_pnt, leaf->face_rad, &leaf->plane_norm, uvlist, leaf->tmap_num, NULL);
 		} else {
 			queryFace(nv, points, &leaf->plane_pnt, leaf->face_rad, &leaf->plane_norm, uvlist, leaf->tmap_num, NULL);
