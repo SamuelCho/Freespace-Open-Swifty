@@ -484,9 +484,14 @@ void model_collide_sortnorm(ubyte * p)
 	int prelist = w(p+44);
 	int postlist = w(p+48);
 	int onlist = w(p+52);
+	vec3d hitpos;
 
 	if ( Mc_pm->version >= 2000 )	{
-		if (!mc_ray_boundingbox( vp(p+56), vp(p+68), &Mc_p0, &Mc_direction, NULL ))	{
+		if ( mc_ray_boundingbox( vp(p+56), vp(p+68), &Mc_p0, &Mc_direction, &hitpos) )	{
+			if ( !(Mc->flags & MC_CHECK_RAY) && (vm_vec_dist(&hitpos, &Mc_p0) > Mc_mag) ) {
+				return;
+			}
+		} else {
 			return;
 		}
 	}
@@ -504,6 +509,7 @@ int model_collide_sub(void *model_ptr )
 {
 	ubyte *p = (ubyte *)model_ptr;
 	int chunk_type, chunk_size;
+	vec3d hitpos;
 
 	chunk_type = w(p);
 	chunk_size = w(p+4);
@@ -519,7 +525,12 @@ int model_collide_sub(void *model_ptr )
 		case OP_TMAPPOLY:		model_collide_tmappoly(p); break;
 		case OP_SORTNORM:		model_collide_sortnorm(p); break;
 		case OP_BOUNDBOX:	
-			if (!mc_ray_boundingbox( vp(p+8), vp(p+20), &Mc_p0, &Mc_direction, NULL ))	{
+			if ( mc_ray_boundingbox( vp(p+8), vp(p+20), &Mc_p0, &Mc_direction, &hitpos ) )	{
+				if ( !(Mc->flags & MC_CHECK_RAY) && (vm_vec_dist(&hitpos, &Mc_p0) > Mc_mag) ) {
+					// The ray isn't long enough to intersect the bounding box
+					return 1;
+				}
+			} else {
 				return 1;
 			}
 			break;

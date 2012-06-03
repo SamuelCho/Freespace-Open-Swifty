@@ -396,6 +396,7 @@ char* Cmdline_keyboard_layout = NULL;
 
 // Developer/Testing related
 cmdline_parm start_mission_arg("-start_mission", NULL);	// Cmdline_start_mission
+cmdline_parm new_collision_system("-new_collision", NULL); // Cmdline_new_collision
 cmdline_parm dis_collisions("-dis_collisions", NULL);	// Cmdline_dis_collisions
 cmdline_parm dis_weapons("-dis_weapons", NULL);		// Cmdline_dis_weapons
 cmdline_parm noparseerrors_arg("-noparseerrors", NULL);	// Cmdline_noparseerrors  -- turns off parsing errors -C
@@ -418,6 +419,7 @@ cmdline_parm no_grab("-nograb", NULL);				// Cmdline_no_grab
 cmdline_parm reparse_mainhall_arg("-reparse_mainhall", NULL); //Cmdline_reparse_mainhall
 
 char *Cmdline_start_mission = NULL;
+int Cmdline_new_collision_sys = 0;
 int Cmdline_dis_collisions = 0;
 int Cmdline_dis_weapons = 0;
 int Cmdline_noparseerrors = 0;
@@ -1388,6 +1390,9 @@ bool SetCmdlineParams()
 	if ( cache_bitmaps_arg.found() ) {
 		Cmdline_cache_bitmaps = 1;
 	}
+
+	if(new_collision_system.found())
+		Cmdline_new_collision_sys = 1;
 
 	if(dis_collisions.found())
 		Cmdline_dis_collisions = 1;
