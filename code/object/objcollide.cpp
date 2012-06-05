@@ -43,6 +43,8 @@ obj_pair pair_free_list;
 
 SCP_vector<int> Collision_sort_list;
 SCP_hash_map<uint, collider_pair> Collision_cached_pairs;
+SCP_hash_map<uint, collider_pair*> Collision_pair_ptrs;
+SCP_vector<ship_weapon_collision_query> Ship_weapon_queries;
 
 struct checkobject;
 extern checkobject CheckObjects[MAX_OBJECTS];
@@ -1309,6 +1311,8 @@ void obj_sort_and_collide()
 	SCP_vector<int> sort_list_y;
 	SCP_vector<int> sort_list_z;
 
+	Ship_weapon_queries.clear();
+
 	sort_list_y.clear();
 	obj_quicksort_colliders(&Collision_sort_list, 0, Collision_sort_list.size() - 1, 0);
 	obj_find_overlap_colliders(&sort_list_y, &Collision_sort_list, 0, false);
@@ -1610,10 +1614,19 @@ void obj_collide_pair(object *A, object *B)
 	}
 
 	collider_pair *collision_info = NULL;
+	collider_pair **collision_info_ptr = NULL;
 	bool valid = false;
 	uint key = (OBJ_INDEX(A) << 12) + OBJ_INDEX(B);
 
 	collision_info = &Collision_cached_pairs[key];
+	collision_info_ptr = &Collision_pair_ptrs[key];
+
+	if ( *collision_info_ptr == NULL) {
+		*collision_info_ptr = (collider_pair*)vm_malloc(sizeof(collider_pair));
+		memset(*collision_info_ptr, 0, sizeof(collider_pair));
+	}
+
+	collision_info = *collision_info_ptr;
 
 	if ( collision_info->initialized ) {
 		// make sure we're referring to the correct objects in case the original pair was deleted
