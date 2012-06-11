@@ -412,8 +412,8 @@ bool ship_weapon_check_collision_threaded(ship_weapon_collision_query *query, ob
 	hull_test.query();
 
 	// check both kinds of collisions
-	int shield_collision = (pm->shield.ntris > 0) ? shield_test.hit() : 0;
-	int hull_collision = hull_test.hit();
+	bool shield_collision = (pm->shield.ntris > 0) ? shield_test.hit() : 0;
+	bool hull_collision = hull_test.hit();
 
 	// check shields for impact
 	if (!(ship_objp->flags & OF_NO_SHIELDS))
@@ -448,12 +448,12 @@ bool ship_weapon_check_collision_threaded(ship_weapon_collision_query *query, ob
 	// see which impact we use
 	if (shield_collision && query->hit_occurred)
 	{
-		memcpy(&query->result, &shield_test.mc, sizeof(mc_info));
+		query->result = shield_test.mc;
 		Assert(query->shield_quadrant_num >= 0);
 	}
 	else if (hull_collision)
 	{
-		memcpy(&query->result, &hull_test.mc, sizeof(mc_info));
+		query->result = hull_test.mc;
 		query->hit_occurred = true;
 	}
 
@@ -481,10 +481,8 @@ bool ship_weapon_check_collision_threaded(ship_weapon_collision_query *query, ob
 		*next_hit = (int) (1000.0f * (query->result.hit_dist*(flFrametime + time_limit) - flFrametime) );
 		if (*next_hit > 0)
 			// if hit occurs outside of this frame, do not do damage 
-			return 1;
-	}
-
-	if ( !query->hit_occurred && (Missiontime - wp->creation_time > F1_0/2) && (wip->wi_flags & WIF_HOMING) && (wp->homing_object == ship_objp)) {
+			return true;
+	} else if ( (Missiontime - wp->creation_time > F1_0/2) && (wip->wi_flags & WIF_HOMING) && (wp->homing_object == ship_objp)) {
 		float	dist = vm_vec_dist_quick(&ship_objp->pos, &weapon_objp->pos);
 
 		if (dist < wip->shockwave.inner_rad) {
@@ -495,10 +493,7 @@ bool ship_weapon_check_collision_threaded(ship_weapon_collision_query *query, ob
 			if (vm_vec_dot(&vec_to_ship, &weapon_objp->orient.vec.fvec) < 0.0f) {
 				// check if we're colliding against "invisible" ship
 				if (!(shipp->flags2 & SF2_DONT_COLLIDE_INVIS)) {
-					wp->lifeleft = 0.001f;
-					if (ship_objp == Player_obj)
-						nprintf(("Jim", "Frame %i: Weapon %i set to detonate, dist = %7.3f.\n", Framecount, OBJ_INDEX(weapon_objp), dist));
-					query->hit_occurred = true;
+					return true;
 				}
 			}
 
@@ -558,8 +553,8 @@ int collide_ship_weapon( obj_pair * pair )
 void collide_ship_weapon_threaded(ship_weapon_collision_query *query)
 {
 	int		did_hit;
-	object *ship = query->pair->a;
-	object *weapon = query->pair->b;
+	object *ship = query->a;
+	object *weapon = query->b;
 
 	Assert( ship->type == OBJ_SHIP );
 	Assert( weapon->type == OBJ_WEAPON );
@@ -609,11 +604,21 @@ void collide_ship_weapon_threaded(ship_weapon_collision_query *query)
 void collide_ship_weapon_threaded_response(ship_weapon_collision_query *query)
 {
 	int		did_hit;
-	object *ship_obj = query->pair->a;
-	object *weapon_obj = query->pair->b;
+	object *ship_obj = query->a;
+	object *weapon_obj = query->b;
 
 	Assert( ship_obj->type == OBJ_SHIP );
 	Assert( weapon_obj->type == OBJ_WEAPON );
+
+	ship	*shipp;
+
+	shipp = &Ships[ship_obj->instance];
+
+	weapon	*wp;
+	weapon_info	*wip;
+
+	wp = &Weapons[weapon_obj->instance];
+	wip = &Weapon_info[wp->weapon_info_index];
 
 	if ( query->culled ) {
 		return;
@@ -666,6 +671,22 @@ void collide_ship_weapon_threaded_response(ship_weapon_collision_query *query)
 			Script_system.RunCondition(CHA_COLLIDESHIP, '\0', NULL, weapon_obj);
 
 		Script_system.RemHookVars(4, "Ship", "Weapon", "Self","Object");
+	} else if ( (Missiontime - wp->creation_time > F1_0/2) && (wip->wi_flags & WIF_HOMING) && (wp->homing_object == ship_obj)) {
+		if (dist < wip->shockwave.inner_rad) {
+			vec3d	vec_to_ship;
+
+			vm_vec_normalized_dir(&vec_to_ship, &ship_obj->pos, &weapon_obj->pos);
+
+			if (vm_vec_dot(&vec_to_ship, &weapon_obj->orient.vec.fvec) < 0.0f) {
+				// check if we're colliding against "invisible" ship
+				if (!(shipp->flags2 & SF2_DONT_COLLIDE_INVIS)) {
+					wp->lifeleft = 0.001f;
+					if (ship_obj == Player_obj)
+						nprintf(("Jim", "Frame %i: Weapon %i set to detonate, dist = %7.3f.\n", Framecount, OBJ_INDEX(weapon_obj), dist));
+				}
+			}
+
+		}
 	}
 }
 

@@ -1313,7 +1313,7 @@ ModelCollideTask::ModelCollideTask(mc_info *query_info)
 	this->mc.edge_hit = 0;
 
 	//Fill in some global variables that all the model collide routines need internally.
-	this->pm = model_get(Mc->model_num);
+	this->pm = model_get(query_info->model_num);
 	this->orient = *query_info->orient;
 	this->base = *query_info->pos;
 	this->mag = vm_vec_dist( query_info->p0, query_info->p1 );
@@ -1350,7 +1350,7 @@ void ModelCollideTask::query()
 		// Do a quick check on the Bounding Sphere
 		if (fvi_segment_sphere(&this->mc.hit_point_world, this->mc.p0, this->mc.p1, this->mc.pos, model_radius + this->mc.radius) )	{
 			if ( this->mc.flags & MC_ONLY_SPHERE )	{
-				this->mc.hit_point = Mc->hit_point_world;
+				this->mc.hit_point = this->mc.hit_point_world;
 				this->mc.hit_submodel = first_submodel;
 				this->mc.num_hits++;
 				return;
@@ -1470,7 +1470,7 @@ void ModelCollideTask::querySubModel(int mn)
 	this->submodel = mn;
 
 	// Check if the ray intersects this subobject's bounding box 	
-	if (queryRayBoundingbox(&sm->min, &sm->max, &Mc_p0, &this->direction, &hitpt))	{
+	if (queryRayBoundingbox(&sm->min, &sm->max, &this->p0, &this->direction, &hitpt))	{
 
 		// The ray interects this bounding box, so we have to check all the
 		// polygons in this submodel.
@@ -1485,7 +1485,7 @@ void ModelCollideTask::querySubModel(int mn)
 
 			this->mc.hit_dist = dist;
 			this->mc.hit_point = hitpt;
-			this->mc.hit_submodel = Mc_submodel;
+			this->mc.hit_submodel = this->submodel;
 			this->mc.hit_bitmap = -1;
 			this->mc.num_hits++;
 		} else {
@@ -1571,7 +1571,7 @@ void ModelCollideTask::querySubModelTris(bsp_collision_tree *tree, int node_inde
 
 	// check the bounding box of this node. if it passes, check left and right children
 	if ( queryRayBoundingbox( &node->min, &node->max, &this->p0, &this->direction, &hitpos ) ) {
-		if ( !(Mc->flags & MC_CHECK_RAY) && (vm_vec_dist(&hitpos, &this->p0) > this->mag) ) {
+		if ( !(this->mc.flags & MC_CHECK_RAY) && (vm_vec_dist(&hitpos, &this->p0) > this->mag) ) {
 			// The ray isn't long enough to intersect the bounding box
 			return;
 		}
@@ -1601,7 +1601,7 @@ void ModelCollideTask::queryPoly(bsp_collision_tree *tree, int leaf_index)
 		if ( (!(this->mc.flags & MC_CHECK_INVISIBLE_FACES)) && (this->pm->maps[leaf->tmap_num].textures[TM_BASE_TYPE].GetTexture() < 0) )	{
 			// Don't check invisible polygons.
 			//SUSHI: Unless $collide_invisible is set.
-			if (!(this->pm->submodel[Mc_submodel].collide_invisible))
+			if (!(this->pm->submodel[this->submodel].collide_invisible))
 				return;
 		}
 	} else {
@@ -1891,7 +1891,7 @@ void ModelCollideTask::queryShield()
 		for (o=0; o<8; o++ ) {
 			model_octant * poct1 = &this->pm->octants[o];
 
-			if (!queryRayBoundingbox( &poct1->min, &poct1->max, &Mc_p0, &Mc_direction, NULL ))	{
+			if (!queryRayBoundingbox( &poct1->min, &poct1->max, &this->p0, &this->direction, NULL ))	{
 				continue;
 			}
 

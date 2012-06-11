@@ -1324,6 +1324,8 @@ void obj_sort_and_collide()
 	sort_list_y.clear();
 	obj_quicksort_colliders(&sort_list_z, 0, sort_list_z.size() - 1, 2);
 	obj_find_overlap_colliders(&sort_list_y, &sort_list_z, 2, true);
+
+	obj_collide_multithread();
 }
 
 void obj_find_overlap_colliders(SCP_vector<int> *overlap_list_out, SCP_vector<int> *list, int axis, bool collide)
@@ -1757,17 +1759,16 @@ void obj_collide_pair(object *A, object *B)
 
 void obj_collide_multithread()
 {
-	int i;
 	int num_tests;
 
 	num_tests = Ship_weapon_queries.size();
 
 	#pragma omp parallel for
-	for ( i = 0; i < num_tests; ++i ) {
+	for ( int i = 0; i < num_tests; ++i ) {
 		collide_ship_weapon_threaded(&Ship_weapon_queries[i]);
 	}
 
-	for ( i = 0; i < num_tests; ++i) {
+	for ( int i = 0; i < num_tests; ++i) {
 		Ship_weapon_queries[i].pair_info->next_check_time = Ship_weapon_queries[i].next_check_time;
 
 		collide_ship_weapon_threaded_response(&Ship_weapon_queries[i]);
