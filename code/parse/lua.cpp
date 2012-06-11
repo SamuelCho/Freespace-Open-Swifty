@@ -1025,9 +1025,6 @@ ADE_FUNC(isValid, l_Event, NULL, "Detects whether handle is valid", "boolean", "
 }
 
 //**********HANDLE: File
-//static CFILE *Lua_file_current = NULL;
-static int Lua_file_handle_instances = 0;
-static int Lua_max_file_handle_instances = 5;
 
 ade_obj<CFILE*> l_File("file", "File handle");
 
@@ -5175,18 +5172,9 @@ ADE_FUNC(renderTechModel, l_Shipclass, "X1, Y1, X2, Y2, [Rotation %, Pitch %, Ba
 	if(x2 < x1 || y2 < y1)
 		return ade_set_args(L, "b", false);
 
-	if(rot_angles.p < 0.0f)
-		rot_angles.p = 0.0f;
-	if(rot_angles.p > 100.0f)
-		rot_angles.p = 100.0f;
-	if(rot_angles.b < 0.0f)
-		rot_angles.b = 0.0f;
-	if(rot_angles.b > 100.0f)
-		rot_angles.b = 100.0f;
-	if(rot_angles.h < 0.0f)
-		rot_angles.h = 0.0f;
-	if(rot_angles.h > 100.0f)
-		rot_angles.h = 100.0f;
+    CLAMP(rot_angles.p, 0.0f, 100.0f);
+    CLAMP(rot_angles.b, 0.0f, 100.0f);
+    CLAMP(rot_angles.h, 0.0f, 100.0f);
 
 	ship_info *sip = &Ship_info[idx];
 
@@ -5920,6 +5908,34 @@ ADE_FUNC(__tostring, l_Subsystem, NULL, "Returns name of subsystem", "string", "
 	return ade_set_args(L, "s", ship_subsys_get_name(sso->ss));
 }
 
+ADE_VIRTVAR(ArmorClass, l_Subsystem, "string", "Current Armor class", "string", "Armor class name, or empty string if none is set")
+{
+	ship_subsys_h *sso;
+	char *s = NULL;
+	char *name = NULL;
+	
+	if(!ade_get_args(L, "o|s", l_Subsystem.GetPtr(&sso), &s))
+		return ade_set_error(L, "s", "");
+
+	if(!sso->IsValid())
+		return ade_set_error(L, "s", "");
+
+	ship_subsys *ssys = sso->ss;
+
+	int atindex = -1;
+	if (ADE_SETTING_VAR && s != NULL) {
+		atindex = armor_type_get_idx(s);
+		ssys->armor_type_idx = atindex;
+	}
+
+	if (atindex != -1)
+		name = Armor_types[atindex].GetNamePtr();
+	else
+		name = "";
+
+	return ade_set_args(L, "s", name);
+}
+
 ADE_VIRTVAR(AWACSIntensity, l_Subsystem, "number", "Subsystem AWACS intensity", "number", "AWACS intensity, or 0 if handle is invalid")
 {
 	ship_subsys_h *sso;
@@ -6627,6 +6643,60 @@ ADE_FUNC(__len, l_Ship, NULL, "Number of subsystems on ship", "number", "Subsyst
 	return ade_set_args(L, "i", ship_get_num_subsys(&Ships[objh->objp->instance]));
 }
 
+ADE_VIRTVAR(ShieldArmorClass, l_Ship, "string", "Current Armor class of the ships' shield", "string", "Armor class name, or empty string if none is set")
+{
+	object_h *objh;
+	char *s = NULL;
+	char *name = NULL;
+	
+	if(!ade_get_args(L, "o|s", l_Ship.GetPtr(&objh), &s))
+		return ade_set_error(L, "s", "");
+
+	if(!objh->IsValid())
+		return ade_set_error(L, "s", "");
+
+	ship *shipp = &Ships[objh->objp->instance];
+	int atindex = -1;
+	if (ADE_SETTING_VAR && s != NULL) {
+		atindex = armor_type_get_idx(s);
+		shipp->shield_armor_type_idx = atindex;
+	}
+
+	if (atindex != -1)
+		name = Armor_types[atindex].GetNamePtr();
+	else
+		name = "";
+
+	return ade_set_args(L, "s", name);
+}
+
+ADE_VIRTVAR(ArmorClass, l_Ship, "string", "Current Armor class", "string", "Armor class name, or empty string if none is set")
+{
+	object_h *objh;
+	char *s = NULL;
+	char *name = NULL;
+	
+	if(!ade_get_args(L, "o|s", l_Ship.GetPtr(&objh), &s))
+		return ade_set_error(L, "s", "");
+
+	if(!objh->IsValid())
+		return ade_set_error(L, "s", "");
+
+	ship *shipp = &Ships[objh->objp->instance];
+	int atindex = -1;
+	if (ADE_SETTING_VAR && s != NULL) {
+		atindex = armor_type_get_idx(s);
+		shipp->armor_type_idx = atindex;
+	}
+
+	if (atindex != -1)
+		name = Armor_types[atindex].GetNamePtr();
+	else
+		name = "";
+
+	return ade_set_args(L, "s", name);
+}
+
 ADE_VIRTVAR(Name, l_Ship, "string", "Ship name", "string", "Ship name, or empty string if handle is invalid")
 {
 	object_h *objh;
@@ -6810,10 +6880,12 @@ ADE_VIRTVAR(PrimaryTriggerDown, l_Ship, "boolean", "Determines if primary trigge
 	ship *shipp = &Ships[objh->objp->instance];
 
 	if(ADE_SETTING_VAR)
+    {
 		if(trig)
 			shipp->flags |= SF_TRIGGER_DOWN;
 		else
 			shipp->flags &= ~SF_TRIGGER_DOWN;
+    }
 
 	if (shipp->flags & SF_TRIGGER_DOWN)
 		return ADE_RETURN_TRUE;
@@ -7055,10 +7127,12 @@ ADE_VIRTVAR(FlagAffectedByGravity, l_Ship, "boolean", "Checks for the \"affected
 	ship *shipp = &Ships[objh->objp->instance];
 
 	if(ADE_SETTING_VAR)
+    {
 		if(set)
 			shipp->flags2 |= SF2_AFFECTED_BY_GRAVITY;
 		else
 			shipp->flags2 &= ~SF2_AFFECTED_BY_GRAVITY;
+    }
 
 	if (shipp->flags2 & SF2_AFFECTED_BY_GRAVITY)
 		return ADE_RETURN_TRUE;
@@ -9712,14 +9786,8 @@ ADE_FUNC(playGameSound, l_Audio, "Sound index, [Panning (-1.0 left to 1.0 right)
 	if(pri < 0 || pri > 3)
 		pri = 0;
 
-	if(pan < -1.0f)
-		pan = -1.0f;
-	if(pan > 1.0f)
-		pan = 1.0f;
-	if(vol < 0.0f)
-		vol = 0.0f;
-	if(vol > 100.0f)
-		vol = 100.0f;
+    CLAMP(pan, -1.0f, 1.0f);
+    CLAMP(vol, 0.0f, 100.0f);
 
 	idx = snd_play(&Snds[gamesnd_get_by_tbl_index(idx)], pan, vol*0.01f, pri, voice_msg);
 
@@ -10279,11 +10347,11 @@ ADE_VIRTVAR(MouseControlStatus, l_Mouse, "boolean", "Gets and sets the retail mo
 	{
 		if (newVal)
 		{
-			Use_mouse_to_fly = true;
+			Use_mouse_to_fly = 1;
 		}
 		else
 		{
-			Use_mouse_to_fly = false;
+			Use_mouse_to_fly = 0;
 		}
 	}
 

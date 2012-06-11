@@ -345,6 +345,7 @@ sexp_oper Operators[] = {
 	{ "player-use-ai",				OP_PLAYER_USE_AI,				0, 0 },			// Goober5000
 	{ "player-not-use-ai",			OP_PLAYER_NOT_USE_AI,			0, 0 },			// Goober5000
 	{ "allow-treason",				OP_ALLOW_TREASON,				1, 1 },			// Karajorma
+	{ "set-player-orders",			OP_SET_PLAYER_ORDERS,			3, INT_MAX },	// Karajorma
 
 	{ "sabotage-subsystem",			OP_SABOTAGE_SUBSYSTEM,			3, 3,			},
 	{ "repair-subsystem",			OP_REPAIR_SUBSYSTEM,			3, 4,			},
@@ -510,6 +511,7 @@ sexp_oper Operators[] = {
 	{ "weapon-create",					OP_WEAPON_CREATE,				5, 10	},	// Goober5000
 	{ "ship-vanish",					OP_SHIP_VANISH,					1, INT_MAX	},
 	{ "supernova-start",				OP_SUPERNOVA_START,				1,	1			},
+	{ "supernova-stop",					OP_SUPERNOVA_STOP,				0,	0			}, //CommanderDJ
 	{ "shields-on",					OP_SHIELDS_ON,					1, INT_MAX			}, //-Sesquipedalian
 	{ "shields-off",					OP_SHIELDS_OFF,					1, INT_MAX			}, //-Sesquipedalian
 	{ "ship-tag",				OP_SHIP_TAG,				3, 8			},	// Goober5000
@@ -2788,8 +2790,8 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 				if ( type2 != SEXP_ATOM_STRING )
 					return SEXP_CHECK_TYPE_MISMATCH;
 
-				st = model_anim_match_type(CTEXT(node));
-				if ( st == TRIGGER_TYPE_NONE )
+				i = model_anim_match_type(CTEXT(node));
+				if ( i == TRIGGER_TYPE_NONE )
 					return SEXP_CHECK_INVALID_ANIMATION_TYPE;
 
 				break;
@@ -3100,7 +3102,7 @@ int get_sexp(char *token)
 			}
 			token[len] = 0;
 
-			// Goober5000 - maybe replace deprecated names
+			// maybe replace deprecated names
 			if (!stricmp(token, "set-ship-position"))
 				strcpy(token, "set-object-position");
 			else if (!stricmp(token, "set-ship-facing"))
@@ -5399,12 +5401,7 @@ void sexp_set_energy_pct (int node, int op_num)
 	new_pct = eval_num(node) / 100.0f;
 
 	// deal with ridiculous percentages
-	if (new_pct > 1.0f) {
-		new_pct = 1.0f;
-	}
-	else if (new_pct < 0.0f) {
-		new_pct = 0.0f; 
-	}
+    CLAMP(new_pct, 0.0f, 1.0f);
 	
 	// only need to send a packet for afterburners because shields and weapon energy are sent from server to clients
 	if (MULTIPLAYER_MASTER && (op_num == OP_SET_AFTERBURNER_ENERGY)) {
@@ -8026,9 +8023,12 @@ void eval_when_do_all_exp(int all_actions, int when_op_num)
 	}
 }
 	
-// Goober5000 - added capability for arguments
-// Goober5000 - and also if-then-else and perform-actions
-// eval_when evaluates the when conditional
+/**
+ * Evaluates the when conditional
+ *
+ * @note Goober5000 - added capability for arguments
+ * @note Goober5000 - and also if-then-else and perform-actions
+ */
 int eval_when(int n, int when_op_num)
 {
 	int cond, val, actions;
@@ -8075,7 +8075,7 @@ int eval_when(int n, int when_op_num)
 			while (actions != -1)
 			{
 				// get the operator
-				int exp = CAR(actions);
+				exp = CAR(actions);
 				if (exp != -1)
 					eval_when_do_one_exp(exp);
 
@@ -9515,6 +9515,7 @@ void sexp_hud_set_color(int n)
 
 	HudGauge* cg = hud_get_gauge(gaugename);
 	if(cg) {
+		cg->sexpLockConfigColor(false);
 		cg->updateColor(red, green, blue, (HUD_color_alpha+1)*16);
 		cg->sexpLockConfigColor(true);
 	}
@@ -9605,7 +9606,8 @@ void sexp_player_use_ai(int flag)
 }
 
 // Karajorma
-void sexp_allow_treason (int n) {
+void sexp_allow_treason (int n) 
+{
 	n = CDR(n);
 	if (n != -1) {
 		if ( is_sexp_true(n) ) {
@@ -9614,6 +9616,44 @@ void sexp_allow_treason (int n) {
 		else {
 			The_mission.flags &= ~MISSION_FLAG_NO_TRAITOR;
 		}
+	}
+}
+
+void sexp_set_player_orders(int n) 
+{
+	ship *shipp; 
+	int i;
+	int allow_order;
+	int orders = 0;
+	int default_orders; 
+
+	shipp = sexp_get_ship_from_node(n);
+
+	// we need to know which orders this ship class can accept.
+	default_orders = ship_get_default_orders_accepted(&Ship_info[shipp->ship_info_index]);
+	n = CDR(n);
+	allow_order = is_sexp_true(n);
+	n = CDR(n);
+	do {
+		for (i = 0 ; i < NUM_COMM_ORDER_ITEMS ; i++) {
+			// since it's the cheaper test, test first if the ship will even accept this order first
+			if (default_orders & Sexp_comm_orders[i].item) {
+				if (!stricmp(CTEXT(n), Sexp_comm_orders[i].name)) {
+					orders |= Sexp_comm_orders[i].item;
+					break;
+				}
+			}
+		}
+
+		n = CDR(n);
+	}while (n >= 0);
+		
+	// set or unset the orders
+	if (allow_order) {
+		shipp->orders_accepted |= orders;
+	}
+	else {
+		shipp->orders_accepted &= ~orders;
 	}
 }
 
@@ -10597,7 +10637,7 @@ void sexp_end_campaign(int n)
 	// code needs special time to execute and will post GS_EVENT_END_CAMPAIGN with Game_mode check
 	// or show death-popup when it's done - taylor
 	if (supernova_active() /*&& !stricmp(Campaign.filename, "freespace2")*/) {
-		Campaign_ended_in_mission = 1;
+		Campaign_ending_via_supernova = 1;
 	} else {
 		// post and event to move us to the end-of-campaign state
 		gameseq_post_event(GS_EVENT_END_CAMPAIGN);
@@ -15839,6 +15879,7 @@ void sexp_turret_change_weapon(int node)
 		swp->primary_bank_ammo[prim_slot] = swp->primary_bank_start_ammo[prim_slot];
 		swp->primary_bank_weapons[prim_slot] = windex;
 		swp->primary_bank_rearm_time[prim_slot] = timestamp(0);
+		swp->primary_bank_fof_cooldown[prim_slot] = 0.0f;
 	}
 	else if(sec_slot)
 	{
@@ -17372,7 +17413,7 @@ int is_nav_linked(int node)
 			return (Ships[i].flags2 & SF2_NAVPOINT_CARRY) != 0;
 		}
 	}
-	return false;
+	return 0;
 }
 
 //text: distance-to-nav
@@ -17885,6 +17926,11 @@ void sexp_subsys_set_random(int node)
 void sexp_supernova_start(int node)
 {
 	supernova_start(eval_num(node));
+}
+
+void sexp_supernova_stop(int node)
+{
+	supernova_stop();
 }
 
 int sexp_is_secondary_selected(int node)
@@ -20974,6 +21020,12 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = SEXP_TRUE;
 				break; 
 
+			//Karajorma
+			case OP_SET_PLAYER_ORDERS:
+				sexp_set_player_orders(node);
+				sexp_val = SEXP_TRUE;
+				break; 
+
 			// Goober5000
 			case OP_EXPLOSION_EFFECT:
 				sexp_explosion_effect(node);
@@ -21632,6 +21684,11 @@ int eval_sexp(int cur_node, int referenced_node)
 			case OP_SUPERNOVA_START:
 				sexp_val = SEXP_TRUE;
 				sexp_supernova_start(node);
+				break;
+
+			case OP_SUPERNOVA_STOP:
+				sexp_val = SEXP_TRUE;
+				sexp_supernova_stop(node);
 				break;
 
 			case OP_SHIELD_RECHARGE_PCT:
@@ -22910,6 +22967,7 @@ int query_operator_return_type(int op)
 		case OP_TURRET_TAGGED_CLEAR_ALL:
 		case OP_SUBSYS_SET_RANDOM:
 		case OP_SUPERNOVA_START:
+		case OP_SUPERNOVA_STOP:
 		case OP_SET_SPECIAL_WARPOUT_NAME:
 		case OP_SHIP_VAPORIZE:
 		case OP_SHIP_NO_VAPORIZE:
@@ -22958,6 +23016,7 @@ int query_operator_return_type(int op)
 		case OP_PLAYER_USE_AI:
 		case OP_PLAYER_NOT_USE_AI:
 		case OP_ALLOW_TREASON:
+		case OP_SET_PLAYER_ORDERS:
 		case OP_NAV_ADD_WAYPOINT:
 		case OP_NAV_ADD_SHIP:
 		case OP_NAV_DEL:
@@ -23154,6 +23213,7 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_INVALIDATE_ALL_ARGUMENTS:
 		case OP_VALIDATE_ALL_ARGUMENTS:
 		case OP_NUM_VALID_ARGUMENTS:
+		case OP_SUPERNOVA_STOP:
 			return OPF_NONE;
 
 		case OP_AND:
@@ -23826,6 +23886,14 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_ALLOW_TREASON:
 		case OP_END_MISSION:
 			return OPF_BOOL;
+
+		case OP_SET_PLAYER_ORDERS:
+			if (argnum==0)
+				return OPF_SHIP_WING_TEAM;
+			if (argnum==1)
+				return OPF_BOOL;
+			else 
+				return OPF_AI_ORDER;
 
 		case OP_SET_SOUND_ENVIRONMENT:
 			if (argnum == 0)
@@ -25014,6 +25082,9 @@ void update_sexp_references(const char *old_name, const char *new_name)
 void update_sexp_references(const char *old_name, const char *new_name, int format)
 {
 	int i;
+	if (!strcmp(old_name, new_name)) {
+		return;
+	}
 
 	Assert(strlen(new_name) < TOKEN_LENGTH);
 	for (i = 0; i < Num_sexp_nodes; i++)
@@ -26234,6 +26305,7 @@ int get_subcategory(int sexp_id)
 		case OP_PLAYER_USE_AI:
 		case OP_PLAYER_NOT_USE_AI:
 		case OP_ALLOW_TREASON:
+		case OP_SET_PLAYER_ORDERS:
 		case OP_CHANGE_IFF_COLOR:
 			return CHANGE_SUBCATEGORY_AI_AND_IFF;
 			
@@ -26468,6 +26540,7 @@ int get_subcategory(int sexp_id)
 		case OP_CUTSCENES_RESET_TIME_COMPRESSION:
 		case OP_SET_CAMERA_SHUDDER:
 		case OP_SUPERNOVA_START:
+		case OP_SUPERNOVA_STOP:
 			return CHANGE_SUBCATEGORY_CUTSCENES;
 
 		case OP_JUMP_NODE_SET_JUMPNODE_NAME: //CommanderDJ
@@ -28969,6 +29042,10 @@ sexp_help_struct Sexp_help[] = {
 	{ OP_SUPERNOVA_START, "supernova-start\r\n"
 		"\t1: Time in seconds until the supernova shockwave hits the player\r\n"},
 
+	{ OP_SUPERNOVA_STOP, "supernova-stop\r\n"
+		"\t Stops a supernova in progress.\r\n"
+		"\t Note this only works if the camera hasn't cut to the player's death animation yet.\r\n"},
+
 	{ OP_WEAPON_RECHARGE_PCT, "weapon-recharge-pct\r\n"
 		"\tReturns a percentage from 0 to 100\r\n"
 		"\t1: Ship name\r\n" },
@@ -29442,6 +29519,14 @@ sexp_help_struct Sexp_help[] = {
 	{ OP_ALLOW_TREASON, "allow-treason\r\n"
 		"\tTurns the Allow Traitor switch on or off in mission. Takes 0 arguments.\r\n"
 		"\t1:\tTrue/False."
+	},
+
+	// Karajorma
+	{ OP_SET_PLAYER_ORDERS, "set-player-orders\r\n"
+		"\tChanges the orders friendly AI will accept. Takes 3 or more arguments.\r\n"
+		"\t1:\tShip Name\r\n"
+		"\t2:\tTrue/False as to whether this order is allowed or not\r\n"
+		"\tRest:\tOrder"
 	},
 
 	//WMC

@@ -76,7 +76,7 @@
 #include "object/objcollide.h"
 #include "parse/scripting.h"
 #include "graphics/gropenglshader.h"
-
+#include "model/model.h"
 
 
 #define NUM_SHIP_SUBSYSTEM_SETS			20		// number of subobject sets to use (because of the fact that it's a linked list,
@@ -1384,12 +1384,12 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 	if (optional_string("$Species:")) {
 		char temp[NAME_LENGTH];
 		stuff_string(temp, F_NAME, NAME_LENGTH);
-		int i = 0;
+		int i_species = 0;
 		
 		bool found = false;
-		for (SCP_vector<species_info>::iterator sii = Species_info.begin(); sii != Species_info.end(); ++sii, ++i) {
+		for (SCP_vector<species_info>::iterator sii = Species_info.begin(); sii != Species_info.end(); ++sii, ++i_species) {
 			if (!stricmp(temp, sii->species_name)) {
-				sip->species = i;
+				sip->species = i_species;
 				found = true;
 				break;
 			}
@@ -4814,6 +4814,7 @@ void ship_set(int ship_index, int objnum, int ship_type)
 		swp->last_primary_fire_stamp[i] = -1;	
 		swp->primary_bank_rearm_time[i] = timestamp(0);		// added by Goober5000
 		swp->last_primary_fire_sound_stamp[i] = timestamp(0); // added by Halleck
+		swp->primary_bank_fof_cooldown[i] = 0.0f;
 
 		swp->primary_animation_position[i] = MA_POS_NOT_SET;
 		swp->secondary_animation_position[i] = MA_POS_NOT_SET;
@@ -5467,6 +5468,9 @@ int subsys_set(int objnum, int ignore_subsys_info)
 		model_set_instance_info(&ship_system->submodel_info_1, model_system->turn_rate, turn_accel);
 
 		model_clear_instance_info( &ship_system->submodel_info_2 );
+
+		// Clear this flag here so we correctly rebuild the turret matrix on mission load
+		model_system->flags &= ~MSS_FLAG_TURRET_MATRIX;
 	}
 
 	if ( !ignore_subsys_info ) {
@@ -8882,8 +8886,7 @@ void change_ship_type(int n, int ship_type, int by_sexp)
 
 	// extra check
 	Assert(hull_pct > 0.0f && hull_pct <= 1.0f);
-	if (hull_pct <= 0.0f) hull_pct = 0.1f;
-	if (hull_pct > 1.0f) hull_pct = 1.0f;
+    CLAMP(hull_pct, 0.1f, 1.0f);
 
 	// shield
 	if (sp->special_shield > 0) {
@@ -8896,8 +8899,7 @@ void change_ship_type(int n, int ship_type, int by_sexp)
 
 	// extra check
 	Assert(shield_pct >= 0.0f && shield_pct <= 1.0f);
-	if (shield_pct < 0.0f) shield_pct = 0.0f;
-	if (shield_pct > 1.0f) shield_pct = 1.0f;
+    CLAMP(shield_pct, 0.0f, 1.0f);
 
 	// subsystems
 	int num_saved_subsystems = 0;
@@ -8924,8 +8926,7 @@ void change_ship_type(int n, int ship_type, int by_sexp)
 
 		// extra check
 		Assert(subsys_pcts[num_saved_subsystems] >= 0.0f && subsys_pcts[num_saved_subsystems] <= 1.0f);
-		if (subsys_pcts[num_saved_subsystems] < 0.0f) subsys_pcts[num_saved_subsystems] = 0.0f;
-		if (subsys_pcts[num_saved_subsystems] > 1.0f) subsys_pcts[num_saved_subsystems] = 1.0f;
+        CLAMP(subsys_pcts[num_saved_subsystems], 0.0f, 1.0f);
 
 		num_saved_subsystems++;
 		ss = GET_NEXT(ss);
@@ -9134,10 +9135,10 @@ void change_ship_type(int n, int ship_type, int by_sexp)
 
 	// Bobboau's animation fixup
 	for( i = 0; i<MAX_SHIP_PRIMARY_BANKS;i++){
-			swp->primary_animation_position[i] = false;
+			swp->primary_animation_position[i] = MA_POS_NOT_SET;
 	}
 	for( i = 0; i<MAX_SHIP_SECONDARY_BANKS;i++){
-			swp->secondary_animation_position[i] = false;
+			swp->secondary_animation_position[i] = MA_POS_NOT_SET;
 	}
 	model_anim_set_initial_states(sp);
 
@@ -9740,6 +9741,14 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 			next_fire_delay *= 1.0f + (num_primary_banks - 1) * 0.5f;		//	50% time penalty if banks linked
 		}
 
+		if (winfo_p->fof_spread_rate > 0.0f)
+		{
+			//Adjust the primary_bank_fof_cooldown based on how long it's been since the last shot. 
+			float reset_amount = (timestamp_until(swp->last_primary_fire_stamp[bank_to_fire]) / 1000.0f) * winfo_p->fof_reset_rate;
+			swp->primary_bank_fof_cooldown[bank_to_fire] += winfo_p->fof_spread_rate + reset_amount;
+			CLAMP(swp->primary_bank_fof_cooldown[bank_to_fire], 0.0f, 1.0f);
+		}
+
 		//	MK, 2/4/98: Since you probably were allowed to fire earlier, but couldn't fire until your frame interval
 		//	rolled around, subtract out up to half the previous frametime.
 		//	Note, unless we track whether the fire button has been held down, and not tapped, it's hard to
@@ -10127,9 +10136,9 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 							}
 							
 							// create the weapon -- the network signature for multiplayer is created inside
-							// of weapon_create
-
-							weapon_objnum = weapon_create( &firing_pos, &firing_orient, weapon, OBJ_INDEX(obj), new_group_id );
+							// of weapon_create							
+							weapon_objnum = weapon_create( &firing_pos, &firing_orient, weapon, OBJ_INDEX(obj), new_group_id, 
+								0, 0, swp->primary_bank_fof_cooldown[bank_to_fire] );
 							has_fired = true;
 
 							weapon_set_tracking_info(weapon_objnum, OBJ_INDEX(obj), aip->target_objnum, aip->current_target_is_locked, aip->targeted_subsys);				
@@ -10291,6 +10300,8 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 			target = &Objects[Player_ai->target_objnum]; 
 		Script_system.SetHookObjects(2, "User", objp, "Target", target);
 		Script_system.RunCondition(CHA_ONWPFIRED, 0, NULL, objp);
+
+		Script_system.RunCondition(CHA_PRIMARYFIRE, 0, NULL, objp);
 	}
 
 	return num_fired;
@@ -11002,6 +11013,7 @@ done_secondary:
 			target = &Objects[Player_ai->target_objnum]; 
 		Script_system.SetHookObjects(2, "User", objp, "Target", target);
 		Script_system.RunCondition(CHA_ONWPFIRED, 0, NULL, objp);
+		Script_system.RunCondition(CHA_SECONDARYFIRE, 0, NULL, objp);
 	}
 
 	return num_fired;
@@ -16587,8 +16599,8 @@ float ArmorType::GetDamage(float damage_applied, int in_damage_type_idx, float d
 		}
 	}
 
-	//curr_arg is a pointer to the current calculation type value
-	float	*curr_arg = NULL;
+	//curr_arg is the current calculation type value
+	float curr_arg;
 
 	//Make sure that we _have_ an armor entry for this damage type
 	if(adtp != NULL)
@@ -16625,88 +16637,88 @@ float ArmorType::GetDamage(float damage_applied, int in_damage_type_idx, float d
 			//Set curr_arg
 			// use storage index at +Stored Value:
 			if ( (storage_idx >= 0) && (storage_idx < AT_NUM_STORAGE_LOCATIONS) ) {
-				curr_arg = &storage[storage_idx];
+				curr_arg = storage[storage_idx];
 				using_storage = true;
 			// using +value: (or error cases caught at parse, where this holda a 0.0f)
 			} else if (storage_idx == AT_CONSTANT_NOT_USED) { // save time checking all possible constants when most of the time you will be using +value:
-				curr_arg = &adtp->Arguments[i];
+				curr_arg = adtp->Arguments[i];
 			// maybe handle constants
 			} else if (storage_idx == AT_CONSTANT_BASE_DMG) {
-				curr_arg = &base_damage;
+				curr_arg = base_damage;
 				using_constant = true;
 			} else if (storage_idx == AT_CONSTANT_CURRENT_DMG) {
-				curr_arg = &damage_applied;
+				curr_arg = damage_applied;
 				using_constant = true;
 			} else if (storage_idx == AT_CONSTANT_DIFF_FACTOR) {
-				curr_arg = &diff_dmg_scale;
+				curr_arg = diff_dmg_scale;
 				using_constant = true;
 			} else if (storage_idx == AT_CONSTANT_RANDOM) {
 				constant_val = frand();
-				curr_arg = &constant_val;
+				curr_arg = constant_val;
 				using_constant = true;
 			} else if (storage_idx == AT_CONSTANT_PI) {
 				constant_val = PI;
-				curr_arg = &constant_val;
+				curr_arg = constant_val;
 				using_constant = true;
 			} else { // fail
 				constant_val = 0.0f;
-				curr_arg = &constant_val;
+				curr_arg = constant_val;
 			}
 			// new calcs go here
 			switch(adtp->Calculations[i])
 			{
 				case AT_TYPE_ADDITIVE:
-					damage_applied += *curr_arg;
+					damage_applied += curr_arg;
 					break;
 				case AT_TYPE_MULTIPLICATIVE:
-					damage_applied *= *curr_arg;
+					damage_applied *= curr_arg;
 					break;
 				case AT_TYPE_EXPONENTIAL:
-					damage_applied = powf(damage_applied, *curr_arg);
+					damage_applied = powf(damage_applied, curr_arg);
 					break;
 				case AT_TYPE_EXPONENTIAL_BASE:
-					damage_applied = powf(*curr_arg, damage_applied);
+					damage_applied = powf(curr_arg, damage_applied);
 					break;
 				case AT_TYPE_CUTOFF:
-					if(damage_applied < *curr_arg)
+					if(damage_applied < curr_arg)
 						damage_applied = 0;
 					break;
 				case AT_TYPE_REVERSE_CUTOFF:
-					if(damage_applied > *curr_arg)
+					if(damage_applied > curr_arg)
 						damage_applied = 0;
 					break;
 				case AT_TYPE_INSTANT_CUTOFF:
-					if(damage_applied < *curr_arg)
+					if(damage_applied < curr_arg)
 					{
 						damage_applied = 0;
 						end_now = true;
 					}
 					break;
 				case AT_TYPE_INSTANT_REVERSE_CUTOFF:
-					if(damage_applied > *curr_arg)
+					if(damage_applied > curr_arg)
 					{
 						damage_applied = 0;
 						end_now = true;
 					}
 					break;
 				case AT_TYPE_CAP:
-					if (damage_applied > *curr_arg)
-						damage_applied = *curr_arg;
+					if (damage_applied > curr_arg)
+						damage_applied = curr_arg;
 					break;
 				case AT_TYPE_INSTANT_CAP:
-					if (damage_applied > *curr_arg) {
-						damage_applied = *curr_arg;
+					if (damage_applied > curr_arg) {
+						damage_applied = curr_arg;
 						end_now = true;
 					}
 					break;
 				case AT_TYPE_SET:
-					damage_applied = *curr_arg;
+					damage_applied = curr_arg;
 					break;
 				case AT_TYPE_STORE:
 					if (using_storage || using_constant) {
 						Warning(LOCATION, "Cannot use +Stored Value: or +Constant: with +Store:, that would be bad. Skipping calculation.");
 					} else {
-						storage_idx =  int(floorf(*curr_arg));
+						storage_idx =  int(floorf(curr_arg));
 						// Nuke: idiotproof this, no segfault 4 u
 						if ( (storage_idx < 0) || (storage_idx >= AT_NUM_STORAGE_LOCATIONS) ) {
 							Warning(LOCATION, "+Value: for +Store: calculation out of range. Should be between 0 and %i. Read: %i, Skipping calculation.", AT_NUM_STORAGE_LOCATIONS, storage_idx);
@@ -16720,7 +16732,7 @@ float ArmorType::GetDamage(float damage_applied, int in_damage_type_idx, float d
 					if (using_storage || using_constant) {
 						Warning(LOCATION, "Cannot use +Stored Value: or +Constant: with +Load:, that would be bad. Skipping calculation.");
 					} else {
-						storage_idx =  int(floorf(*curr_arg));
+						storage_idx =  int(floorf(curr_arg));
 						// Nuke: idiotproof this, no segfault 4 u
 						if ( (storage_idx < 0) || (storage_idx >= AT_NUM_STORAGE_LOCATIONS) ) {
 							Warning(LOCATION, "+Value: for +Load: calculation out of range. Should be between 0 and %i. Read: %i, Skipping calculation.", AT_NUM_STORAGE_LOCATIONS, storage_idx);
@@ -16731,10 +16743,10 @@ float ArmorType::GetDamage(float damage_applied, int in_damage_type_idx, float d
 					}
 					break;
 				case AT_TYPE_RANDOM:  // Nuke: get a random number between damage_applied and +value:
-					if (damage_applied > *curr_arg) {
-						damage_applied = frand_range( *curr_arg, damage_applied );
+					if (damage_applied > curr_arg) {
+						damage_applied = frand_range( curr_arg, damage_applied );
 					} else {
-						damage_applied = frand_range( damage_applied, *curr_arg );
+						damage_applied = frand_range( damage_applied, curr_arg );
 					}
 				break;
 			}
