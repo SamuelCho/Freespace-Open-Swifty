@@ -69,7 +69,7 @@ void ship_weapon_do_hit_stuff(object *ship_obj, object *weapon_obj, vec3d *world
 {
 	weapon	*wp = &Weapons[weapon_obj->instance];
 	weapon_info	*wip = &Weapon_info[wp->weapon_info_index];
-	ship_obj *shipp = &Ships[ship_obj->instance];	
+	ship *shipp = &Ships[ship_obj->instance];	
 	float damage;
 	vec3d force;		
 
@@ -565,7 +565,6 @@ void collide_ship_weapon_threaded(ship_weapon_collision_query *query)
 	Assert( weapon->type == OBJ_WEAPON );
 
 	query->culled = false;
-	query->never_check_again = false;
 
 	// Don't check collisions for player if past first warpout stage.
 	if ( Player->control_mode > PCM_WARPOUT_STAGE1)	{
@@ -604,10 +603,6 @@ void collide_ship_weapon_threaded(ship_weapon_collision_query *query)
 		// Since we didn't hit, check to see if we can disable all future collisions
 		// between these two.
 		query->next_check_time = weapon_will_never_hit_threaded( weapon, ship );
-
-		if ( query->next_check_time < 0 ) {
-			query->never_check_again = true;
-		} 
 	}
 }
 
@@ -816,7 +811,7 @@ void check_inside_radius_for_big_ships_threaded( object *ship, object *weapon, s
 		// hit occured in while in sphere
 		if (hit_time < 0) {
 			// hit occured in the frame
-			pair->never_check_again = true;
+			pair->next_check_time = -1;
 		} else if (hit_time > 200) {
 			pair->next_check_time = timestamp(hit_time - 200);
 			// set next check time to time - 200
@@ -835,23 +830,7 @@ void check_inside_radius_for_big_ships_threaded( object *ship, object *weapon, s
 			return;
 		} else {
 			// no hit and within error tolerance
-			pair->never_check_again = true;
+			pair->next_check_time = -1;
 		}
 	}
-}
-
-void collide_ship_weapon_queue_query(obj_pair *pair)
-{
-	ship_weapon_collision_query query;
-
-	query.a = pair->a;
-	query.b = pair->b;
-	query.culled = false;
-	query.hit_occurred = false;
-	query.never_check_again = false;
-	query.next_check_time = -1;
-	query.pair = pair;
-	query.shield_quadrant_num = -1;
-
-	// queue up query into vector
 }

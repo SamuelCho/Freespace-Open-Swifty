@@ -1570,8 +1570,8 @@ void ModelCollideTask::querySubModelTris(bsp_collision_tree *tree, int node_inde
 	vec3d hitpos;
 
 	// check the bounding box of this node. if it passes, check left and right children
-	if ( queryRayBoundingbox( &node->min, &node->max, &Mc_p0, &Mc_direction, &hitpos ) ) {
-		if ( !(Mc->flags & MC_CHECK_RAY) && (vm_vec_dist(&hitpos, &Mc_p0) > Mc_mag) ) {
+	if ( queryRayBoundingbox( &node->min, &node->max, &this->p0, &this->direction, &hitpos ) ) {
+		if ( !(Mc->flags & MC_CHECK_RAY) && (vm_vec_dist(&hitpos, &this->p0) > this->mag) ) {
 			// The ray isn't long enough to intersect the bounding box
 			return;
 		}
@@ -1970,13 +1970,13 @@ bool ModelCollideTask::queryShieldCommon(shield_tri *tri)
 	for (int j = 0; j < 3; j++ )
 		points[j] = &this->pm->shield.verts[tri->verts[j]].pos;
 
-	if (!(Mc->flags & MC_CHECK_SPHERELINE) ) {	// Don't do this test for sphere colliding against shields
+	if (!(this->mc.flags & MC_CHECK_SPHERELINE) ) {	// Don't do this test for sphere colliding against shields
 		// Find the intersection of this ray with the plane that the Mc_pmly
 		// lies in
 		dist = fvi_ray_plane(NULL, points[0],&tri->norm,&this->p0,&this->direction,0.0f);
 
 		if ( dist < 0.0f ) return false; // If the ray is behind the plane there is no collision
-		if ( !(Mc->flags & MC_CHECK_RAY) && (dist > 1.0f) ) return false; // The ray isn't long enough to intersect the plane
+		if ( !(this->mc.flags & MC_CHECK_RAY) && (dist > 1.0f) ) return false; // The ray isn't long enough to intersect the plane
 
 		// Find the hit Mc_pmint
 		vm_vec_scale_add( &hitpoint, &this->p0, &this->direction, dist );

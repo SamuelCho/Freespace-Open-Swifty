@@ -13,6 +13,7 @@
 #define _COLLIDESTUFF_H
 
 #include "globalincs/pstypes.h"
+#include "model/model.h"
 
 struct object;
 struct CFILE;
@@ -68,6 +69,7 @@ typedef struct obj_pair	{
 	struct obj_pair *next;
 } obj_pair;
 
+
 // threaded ship weapon collision task 
 struct ship_weapon_collision_query
 {
@@ -75,8 +77,9 @@ struct ship_weapon_collision_query
 	object *a;
 	object *b;
 
+	collider_pair *pair_info;
+
 	bool culled;
-	bool never_check_again;
 	int next_check_time;
 	bool hit_occurred;
 	int shield_quadrant_num;
@@ -141,6 +144,9 @@ int collide_weapon_weapon( obj_pair * pair );
 // Returns 1 if all future collisions between these can be ignored
 // CODE is locatated in CollideShipWeapon.cpp
 int collide_ship_weapon( obj_pair * pair );
+void collide_ship_weapon_threaded(ship_weapon_collision_query *query);
+void collide_ship_weapon_threaded_response(ship_weapon_collision_query *query);
+
 void ship_weapon_do_hit_stuff(object *ship_obj, object *weapon_obj, vec3d *world_hitpos, vec3d *hitpos, int quadrant_num, int submodel_num = -1);
 
 // Checks debris-weapon collisions.  pair->a is debris and pair->b is weapon.

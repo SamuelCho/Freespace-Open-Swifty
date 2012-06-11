@@ -1724,6 +1724,23 @@ void obj_collide_pair(object *A, object *B)
 		}
 	}
 
+	// is this a weapon ship collision?
+	if ( ctype == COLLISION_OF(OBJ_SHIP, OBJ_WEAPON) || ctype == COLLISION_OF(OBJ_WEAPON, OBJ_SHIP) ) {
+		// create ship_weapon_collision_query and queue it
+		ship_weapon_collision_query new_query;
+
+		new_query.a = A;
+		new_query.b = B;
+		new_query.culled = false;
+		new_query.hit_occurred = false;
+		new_query.next_check_time = -1;
+		new_query.pair_info = collision_info;
+		new_query.shield_quadrant_num = -1;
+
+		Ship_weapon_queries.push_back(new_query);
+		return;
+	}
+
 	obj_pair new_pair;	
 
 	new_pair.a = A;
@@ -1736,4 +1753,25 @@ void obj_collide_pair(object *A, object *B)
 	} else {
 		collision_info->next_check_time = new_pair.next_check_time;
 	}
+}
+
+void obj_collide_multithread()
+{
+	int i;
+	int num_tests;
+
+	num_tests = Ship_weapon_queries.size();
+
+	#pragma omp parallel for
+	for ( i = 0; i < num_tests; ++i ) {
+		collide_ship_weapon_threaded(&Ship_weapon_queries[i]);
+	}
+
+	for ( i = 0; i < num_tests; ++i) {
+		Ship_weapon_queries[i].pair_info->next_check_time = Ship_weapon_queries[i].next_check_time;
+
+		collide_ship_weapon_threaded_response(&Ship_weapon_queries[i]);
+	}
+
+	Ship_weapon_queries.clear();
 }

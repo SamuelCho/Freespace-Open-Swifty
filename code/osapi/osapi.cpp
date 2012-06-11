@@ -18,6 +18,7 @@
 #include <winsock.h>
 #include <stdarg.h>
 #include <direct.h>
+#include <omp.h>
 
 #include "globalincs/pstypes.h"
 #include "io/key.h"
@@ -165,6 +166,8 @@ void os_init(char * wclass, char * title, char *app_name, char *version_string )
 
 	// deal with processor affinity
 	os_set_process_affinity();
+
+	omp_set_num_threads(omp_get_num_procs());
 
 	atexit(os_deinit);
 }
