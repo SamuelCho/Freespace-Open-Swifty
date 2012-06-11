@@ -1025,9 +1025,6 @@ ADE_FUNC(isValid, l_Event, NULL, "Detects whether handle is valid", "boolean", "
 }
 
 //**********HANDLE: File
-//static CFILE *Lua_file_current = NULL;
-static int Lua_file_handle_instances = 0;
-static int Lua_max_file_handle_instances = 5;
 
 ade_obj<CFILE*> l_File("file", "File handle");
 
@@ -5175,18 +5172,9 @@ ADE_FUNC(renderTechModel, l_Shipclass, "X1, Y1, X2, Y2, [Rotation %, Pitch %, Ba
 	if(x2 < x1 || y2 < y1)
 		return ade_set_args(L, "b", false);
 
-	if(rot_angles.p < 0.0f)
-		rot_angles.p = 0.0f;
-	if(rot_angles.p > 100.0f)
-		rot_angles.p = 100.0f;
-	if(rot_angles.b < 0.0f)
-		rot_angles.b = 0.0f;
-	if(rot_angles.b > 100.0f)
-		rot_angles.b = 100.0f;
-	if(rot_angles.h < 0.0f)
-		rot_angles.h = 0.0f;
-	if(rot_angles.h > 100.0f)
-		rot_angles.h = 100.0f;
+    CLAMP(rot_angles.p, 0.0f, 100.0f);
+    CLAMP(rot_angles.b, 0.0f, 100.0f);
+    CLAMP(rot_angles.h, 0.0f, 100.0f);
 
 	ship_info *sip = &Ship_info[idx];
 
@@ -5452,7 +5440,7 @@ ADE_INDEXER(l_WaypointList, "number Index", "Array of waypoints that are part of
 	//Get waypoint name
 	sprintf(wpname, "%s:%d", wlh->wlp->get_name(), calc_waypoint_index(idx) + 1);
 	waypoint *wpt = find_matching_waypoint( wpname );
-	if( idx >= 0 && (uint) idx < wlh->wlp->get_waypoints().size() && wpt != NULL ) {
+	if( (idx >= 0) && ((uint) idx < wlh->wlp->get_waypoints().size()) && (wpt != NULL) && (wpt->get_objnum() >= 0) ) {
 		return ade_set_args( L, "o", l_Waypoint.Set( object_h( &Objects[wpt->get_objnum()] ), Objects[wpt->get_objnum()].signature ) );
 	}
 
@@ -5918,6 +5906,34 @@ ADE_FUNC(__tostring, l_Subsystem, NULL, "Returns name of subsystem", "string", "
 		return ade_set_error(L, "s", "");
 
 	return ade_set_args(L, "s", ship_subsys_get_name(sso->ss));
+}
+
+ADE_VIRTVAR(ArmorClass, l_Subsystem, "string", "Current Armor class", "string", "Armor class name, or empty string if none is set")
+{
+	ship_subsys_h *sso;
+	char *s = NULL;
+	char *name = NULL;
+	
+	if(!ade_get_args(L, "o|s", l_Subsystem.GetPtr(&sso), &s))
+		return ade_set_error(L, "s", "");
+
+	if(!sso->IsValid())
+		return ade_set_error(L, "s", "");
+
+	ship_subsys *ssys = sso->ss;
+
+	int atindex = -1;
+	if (ADE_SETTING_VAR && s != NULL) {
+		atindex = armor_type_get_idx(s);
+		ssys->armor_type_idx = atindex;
+	}
+
+	if (atindex != -1)
+		name = Armor_types[atindex].GetNamePtr();
+	else
+		name = "";
+
+	return ade_set_args(L, "s", name);
 }
 
 ADE_VIRTVAR(AWACSIntensity, l_Subsystem, "number", "Subsystem AWACS intensity", "number", "AWACS intensity, or 0 if handle is invalid")
@@ -6627,6 +6643,60 @@ ADE_FUNC(__len, l_Ship, NULL, "Number of subsystems on ship", "number", "Subsyst
 	return ade_set_args(L, "i", ship_get_num_subsys(&Ships[objh->objp->instance]));
 }
 
+ADE_VIRTVAR(ShieldArmorClass, l_Ship, "string", "Current Armor class of the ships' shield", "string", "Armor class name, or empty string if none is set")
+{
+	object_h *objh;
+	char *s = NULL;
+	char *name = NULL;
+	
+	if(!ade_get_args(L, "o|s", l_Ship.GetPtr(&objh), &s))
+		return ade_set_error(L, "s", "");
+
+	if(!objh->IsValid())
+		return ade_set_error(L, "s", "");
+
+	ship *shipp = &Ships[objh->objp->instance];
+	int atindex = -1;
+	if (ADE_SETTING_VAR && s != NULL) {
+		atindex = armor_type_get_idx(s);
+		shipp->shield_armor_type_idx = atindex;
+	}
+
+	if (atindex != -1)
+		name = Armor_types[atindex].GetNamePtr();
+	else
+		name = "";
+
+	return ade_set_args(L, "s", name);
+}
+
+ADE_VIRTVAR(ArmorClass, l_Ship, "string", "Current Armor class", "string", "Armor class name, or empty string if none is set")
+{
+	object_h *objh;
+	char *s = NULL;
+	char *name = NULL;
+	
+	if(!ade_get_args(L, "o|s", l_Ship.GetPtr(&objh), &s))
+		return ade_set_error(L, "s", "");
+
+	if(!objh->IsValid())
+		return ade_set_error(L, "s", "");
+
+	ship *shipp = &Ships[objh->objp->instance];
+	int atindex = -1;
+	if (ADE_SETTING_VAR && s != NULL) {
+		atindex = armor_type_get_idx(s);
+		shipp->armor_type_idx = atindex;
+	}
+
+	if (atindex != -1)
+		name = Armor_types[atindex].GetNamePtr();
+	else
+		name = "";
+
+	return ade_set_args(L, "s", name);
+}
+
 ADE_VIRTVAR(Name, l_Ship, "string", "Ship name", "string", "Ship name, or empty string if handle is invalid")
 {
 	object_h *objh;
@@ -6810,10 +6880,12 @@ ADE_VIRTVAR(PrimaryTriggerDown, l_Ship, "boolean", "Determines if primary trigge
 	ship *shipp = &Ships[objh->objp->instance];
 
 	if(ADE_SETTING_VAR)
+    {
 		if(trig)
 			shipp->flags |= SF_TRIGGER_DOWN;
 		else
 			shipp->flags &= ~SF_TRIGGER_DOWN;
+    }
 
 	if (shipp->flags & SF_TRIGGER_DOWN)
 		return ADE_RETURN_TRUE;
@@ -7055,10 +7127,12 @@ ADE_VIRTVAR(FlagAffectedByGravity, l_Ship, "boolean", "Checks for the \"affected
 	ship *shipp = &Ships[objh->objp->instance];
 
 	if(ADE_SETTING_VAR)
+    {
 		if(set)
 			shipp->flags2 |= SF2_AFFECTED_BY_GRAVITY;
 		else
 			shipp->flags2 &= ~SF2_AFFECTED_BY_GRAVITY;
+    }
 
 	if (shipp->flags2 & SF2_AFFECTED_BY_GRAVITY)
 		return ADE_RETURN_TRUE;
@@ -7807,7 +7881,10 @@ ADE_VIRTVAR(ParentTurret, l_Weapon, "subsystem", "Turret which fired this weapon
 		}
 	}
 
-	return ade_set_args(L, "o", l_Subsystem.Set(ship_subsys_h(&Objects[wp->turret_subsys->parent_objnum], wp->turret_subsys)));
+    if(wp->turret_subsys == NULL)
+        return ade_set_error(L, "o", l_Subsystem.Set(ship_subsys_h()));
+    else
+        return ade_set_args(L, "o", l_Subsystem.Set(ship_subsys_h(&Objects[wp->turret_subsys->parent_objnum], wp->turret_subsys)));
 }
 
 ADE_VIRTVAR(HomingObject, l_Weapon, "object", "Object that weapon will home in on. Value may also be a deriviative of the 'object' class, such as 'ship'", "object", "Object that weapon is homing in on, or an invalid object handle if weapon is not homing or the weapon handle is invalid")
@@ -9709,14 +9786,8 @@ ADE_FUNC(playGameSound, l_Audio, "Sound index, [Panning (-1.0 left to 1.0 right)
 	if(pri < 0 || pri > 3)
 		pri = 0;
 
-	if(pan < -1.0f)
-		pan = -1.0f;
-	if(pan > 1.0f)
-		pan = 1.0f;
-	if(vol < 0.0f)
-		vol = 0.0f;
-	if(vol > 100.0f)
-		vol = 100.0f;
+    CLAMP(pan, -1.0f, 1.0f);
+    CLAMP(vol, 0.0f, 100.0f);
 
 	idx = snd_play(&Snds[gamesnd_get_by_tbl_index(idx)], pan, vol*0.01f, pri, voice_msg);
 
@@ -10276,11 +10347,11 @@ ADE_VIRTVAR(MouseControlStatus, l_Mouse, "boolean", "Gets and sets the retail mo
 	{
 		if (newVal)
 		{
-			Use_mouse_to_fly = true;
+			Use_mouse_to_fly = 1;
 		}
 		else
 		{
-			Use_mouse_to_fly = false;
+			Use_mouse_to_fly = 0;
 		}
 	}
 
@@ -11024,7 +11095,7 @@ ADE_FUNC(drawTargetingBrackets, l_Graphics, "object Object, [boolean draw=true, 
 	int bound_rc, pof;
 	int modelnum;
 	bool entered_frame = false;
-	SCP_list<jump_node>::iterator jnp;
+	SCP_list<CJumpNode>::iterator jnp;
 	
 	if ( !(g3_in_frame( ) > 0 ) )
 	{
@@ -11064,11 +11135,11 @@ ADE_FUNC(drawTargetingBrackets, l_Graphics, "object Object, [boolean draw=true, 
 			break;
 		case OBJ_JUMP_NODE:
 			for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
-				if(jnp->get_obj() == targetp)
+				if(jnp->GetSCPObject() == targetp)
 					break;
 			}
 			
-			modelnum = jnp->get_modelnum();
+			modelnum = jnp->GetModelNumber();
 			bound_rc = model_find_2d_bound_min( modelnum, &targetp->orient, &targetp->pos,&x1,&y1,&x2,&y2 );
 			break;
 		default: //Someone passed an invalid pointer.
@@ -12217,11 +12288,9 @@ ADE_FUNC(startMission, l_Mission, "[Filename or MISSION_* enumeration, Briefing 
 ADE_FUNC(getMissionTime, l_Mission, NULL, "Game time in seconds since the mission was started; is affected by time compression", "number", "Mission time (seconds), or 0 if game is not in a mission")
 {
 	if(!(Game_mode & GM_IN_MISSION))
-		return ade_set_error(L, "d", 0.0f);
+		return ade_set_error(L, "f", 0.0f);
 
-	double time = (double)timestamp() / 1000.0;
-
-	return ade_set_args(L, "d", time);
+	return ade_set_args(L, "x", Missiontime);
 }
 
 //WMC - These are in freespace.cpp

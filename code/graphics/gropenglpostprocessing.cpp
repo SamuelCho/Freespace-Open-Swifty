@@ -45,6 +45,19 @@ int ls_samplenum = 50;
 
 static SCP_vector<opengl_shader_t> GL_post_shader;
 
+struct opengl_shader_file_t {
+char *vert;
+	char *frag;
+
+	int flags;
+
+	int num_uniforms;
+	char* uniforms[MAX_SHADER_UNIFORMS];
+
+	int num_attributes;
+	char* attributes[MAX_SDR_ATTRIBUTES];
+};
+
 // NOTE: The order of this list *must* be preserved!  Additional shaders can be
 //       added, but the first 7 are used with magic numbers so their position
 //       is assumed to never change.
@@ -63,10 +76,10 @@ static opengl_shader_file_t GL_post_shader_files[] = {
 	{ "post-v.sdr", "brightpass-f.sdr", SDR_POST_FLAG_BRIGHT,
 		1, { "tex" } },
 
-	{ "fxaa-v.sdr", "fxaa-f.sdr", NULL, 
+	{ "fxaa-v.sdr", "fxaa-f.sdr", 0, 
 		3, { "tex0", "rt_w", "rt_h"} },
 
-	{ "post-v.sdr", "fxaapre-f.sdr", NULL,
+	{ "post-v.sdr", "fxaapre-f.sdr", 0,
 		1, { "tex"} },
 
 	{ "post-v.sdr", "ls-f.sdr", SDR_POST_FLAG_LIGHTSHAFT,
@@ -258,10 +271,10 @@ void recompile_fxaa_shader() {
 	mprintf(("Recompiling FXAA shader with preset %d\n", Cmdline_fxaa_preset));
 
 	// read vertex shader
-	vert = opengl_post_load_shader(vert_name, shader_file->flags, NULL);
+	vert = opengl_post_load_shader(vert_name, shader_file->flags, 0);
 
 	// read fragment shader
-	frag = opengl_post_load_shader(frag_name, shader_file->flags, NULL);
+	frag = opengl_post_load_shader(frag_name, shader_file->flags, 0);
 
 
 	Verify( vert != NULL );
@@ -274,7 +287,7 @@ void recompile_fxaa_shader() {
 
 
 	new_shader->flags = shader_file->flags;
-	new_shader->flags2 = NULL;
+	new_shader->flags2 = 0;
 
 	opengl_shader_set_current( new_shader );
 
@@ -542,7 +555,7 @@ void get_post_process_effect_names(SCP_vector<SCP_string> &names)
 	}
 }
 
-static bool opengl_post_compile_main_shader(int flags)
+static bool opengl_post_compile_shader(int flags)
 {
 	char *vert = NULL, *frag = NULL;
 	bool in_error = false;
@@ -674,7 +687,7 @@ void gr_opengl_post_process_set_effect(const char *name, int value)
 
 	// if not then add a new shader to the list
 	if (need_change) {
-		if ( !opengl_post_compile_main_shader(sflags) ) {
+		if ( !opengl_post_compile_shader(sflags) ) {
 			// shader added, set it as active
 			Post_active_shader_index = (int)(GL_post_shader.size() - 1);
 		} else {
@@ -720,12 +733,18 @@ void gr_opengl_post_process_set_defaults()
 extern GLuint Cockpit_depth_texture;
 void gr_opengl_post_process_save_zbuffer()
 {
-	if ( !Post_initialized ) {
-		return;
+	if (Post_initialized)
+	{
+		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, Cockpit_depth_texture, 0);
+		gr_zbuffer_clear(TRUE);
+		zbuffer_saved = true;
 	}
-	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, Cockpit_depth_texture, 0);
-	gr_zbuffer_clear(TRUE);
-	zbuffer_saved = true;
+	else
+	{
+		// If we can't save the z-buffer then just clear it so cockpits are still rendered correctly when
+		// post-processing isn't available/enabled.
+		gr_zbuffer_clear(TRUE);
+	}
 }
 
 

@@ -128,6 +128,10 @@ int		Weapon_impact_timer;			// timer, initialized at start of each mission
 // time delay between each swarm missile that is fired
 #define SWARM_MISSILE_DELAY				150
 
+// homing missiles have an extended lifetime so they don't appear to run out of gas before they can hit a moving target at extreme
+// range. Check the comment in weapon_set_tracking_info() for more details
+#define LOCKED_HOMING_EXTENDED_LIFE_FACTOR			1.2f
+
 extern int compute_num_homing_objects(object *target_objp);
 
 extern void fs2netd_add_table_validation(char *tblname);
@@ -724,15 +728,16 @@ void parse_shockwave_info(shockwave_create_info *sci, char *pre_char)
 	sprintf(buf, "%sInner Radius:", pre_char);
 	if(optional_string(buf)) {
 		stuff_float(&sci->inner_rad);
-		if (!sci->inner_rad != 0.0f) {
-			WarningEx(LOCATION, "Invalid inner Radius for Shockwave. Must be greater than 0.\n");
-			sci->inner_rad = 0.1f;
-		}
 	}
 
 	sprintf(buf, "%sOuter Radius:", pre_char);
 	if(optional_string(buf)) {
 		stuff_float(&sci->outer_rad);
+	}
+
+	if (sci->outer_rad < sci->inner_rad) {
+		Warning(LOCATION, "Shockwave outer radius must be greater than or equal to the inner radius!");
+		sci->outer_rad = sci->inner_rad;
 	}
 
 	sprintf(buf, "%sShockwave Speed:", pre_char);
@@ -812,7 +817,7 @@ void init_weapon_entry(int weap_info_index)
 	generic_anim_init(&wip->laser_glow_bitmap);
 
 	gr_init_color(&wip->laser_color_1, 255, 255, 255);
-	gr_init_color(&wip->laser_color_2, 0, 0, 0);
+	gr_init_color(&wip->laser_color_2, 255, 255, 255);
 	
 	wip->laser_length = 10.0f;
 	wip->laser_head_radius = 1.0f;
@@ -827,7 +832,6 @@ void init_weapon_entry(int weap_info_index)
 	wip->mass = 1.0f;
 	wip->max_speed = 10.0f;
 	wip->free_flight_time = 0.0f;
-	wip->free_flight_speed = 0.25f;
 	wip->fire_wait = 1.0f;
 	wip->damage = 0.0f;
 	
@@ -1018,6 +1022,9 @@ void init_weapon_entry(int weap_info_index)
 	wip->SSM_index =-1;				// tag C SSM index, wich entry in the SSM table this weapon calls -Bobboau
 	
 	wip->field_of_fire = 0.0f;
+	wip->fof_spread_rate = 0.0f;
+	wip->fof_reset_rate = 0.0f;
+	wip->max_fof_spread = 0.0f;
 	
 	wip->shots = 1;
 
@@ -1287,6 +1294,8 @@ int parse_weapon(int subtype, bool replace)
 		stuff_ubyte(&g);
 		stuff_ubyte(&b);
 		gr_init_color( &wip->laser_color_2, r, g, b );
+	} else {
+		gr_init_color( &wip->laser_color_2, wip->laser_color_1.red, wip->laser_color_1.green, wip->laser_color_1.blue );
 	}
 
 	if(optional_string("@Laser Length:")) {
@@ -1495,8 +1504,8 @@ int parse_weapon(int subtype, bool replace)
 					wip->wi_flags &= ~WIF_HOMING_ASPECT;
 				}
 
-				wip->wi_flags |= WIF_HOMING_JAVELIN | WIF_TURNS;
-				wi_flags |= WIF_HOMING_JAVELIN | WIF_TURNS;
+				wip->wi_flags |= (WIF_HOMING_JAVELIN | WIF_TURNS);
+				wi_flags |= (WIF_HOMING_JAVELIN | WIF_TURNS);
 			}
 			//If you want to add another weapon, remember you need to reset
 			//ALL homing flags.
@@ -1544,7 +1553,7 @@ int parse_weapon(int subtype, bool replace)
 				}
 			}
 		}
-		else if (wip->wi_flags & WIF_HOMING_ASPECT || wip->wi_flags & WIF_HOMING_JAVELIN)
+		else if ((wip->wi_flags & WIF_HOMING_ASPECT) || (wip->wi_flags & WIF_HOMING_JAVELIN))
 		{
 			if(optional_string("+Turn Time:")) {
 				stuff_float(&wip->turn_time);
@@ -1600,6 +1609,11 @@ int parse_weapon(int subtype, bool replace)
 					wi_flags2 |= WIF2_VARIABLE_LEAD_HOMING;
 				}
 			}
+
+			if (wip->wi_flags & WIF_LOCKED_HOMING) {
+				// locked homing missiles have a much longer lifespan than the AI think they do
+				wip->max_lifetime = wip->lifetime * LOCKED_HOMING_EXTENDED_LIFE_FACTOR; 
+			}
 		}
 		else
 		{
@@ -1640,11 +1654,9 @@ int parse_weapon(int subtype, bool replace)
 	}
 
 	if(optional_string("$Free Flight Speed:")) {
-		stuff_float(&wip->free_flight_speed);
-		if (wip->free_flight_speed < 0.01f) {
-			nprintf(("Warning", "Free Flight Speed value is too low. Resetting to default (25% of maximum)\n"));
-			wip->free_flight_speed = 0.25f;
-		}
+		float temp;
+		stuff_float(&temp);
+		nprintf(("Warning", "Ignoring free flight speed for weapon '%s'\n", wip->name));
 	}
 	//Optional one-shot sound to play at the beginning of firing
 	parse_sound("$PreLaunchSnd:", &wip->pre_launch_snd, wip->name);
@@ -2429,9 +2441,28 @@ int parse_weapon(int subtype, bool replace)
 		stuff_int(&wip->SSM_index);
 	}// SSM index -Bobboau
 
-	if( optional_string("$FOF:")){
+	if(optional_string("$FOF:")){
 		stuff_float(&wip->field_of_fire);
+
+		if(optional_string("+FOF Spread Rate:")){
+			stuff_float(&wip->fof_spread_rate);
+			if(required_string("+FOF Reset Rate:")){
+				stuff_float(&wip->fof_reset_rate);
+			}
+
+			if(required_string("+Max FOF:")){
+				float max_fof;
+				stuff_float(&max_fof);
+				wip->max_fof_spread = max_fof - wip->field_of_fire;
+
+				if (wip->max_fof_spread <= 0.0f) {
+					Warning(LOCATION, "WARNING: +Max FOF must be at least as big as $FOF for '%s'! Defaulting to match $FOF, no spread will occur!", wip->name);
+					wip->max_fof_spread = 0.0f;
+				}
+			}
+		}
 	}
+
 
 	if( optional_string("$Shots:")){
 		stuff_int(&wip->shots);
@@ -2473,12 +2504,7 @@ int parse_weapon(int subtype, bool replace)
 
 		if (optional_string("+Alpha Min:")) {
 			stuff_float(&wip->alpha_min);
-
-			if (wip->alpha_min > 1.0f)
-				wip->alpha_min = 1.0f;
-
-			if (wip->alpha_min < 0.0f)
-				wip->alpha_min = 0.0f;
+            CLAMP(wip->alpha_min, 0.0f, 1.0f);
 		}
 
 		if (optional_string("+Alpha Cycle:")) {
@@ -3649,8 +3675,8 @@ void weapon_maybe_play_warning(weapon *wp)
 			wp->weapon_flags |= WF_LOCK_WARNING_PLAYED;
 			// Use heatlock-warning sound for Heat and Javelin for now
 			// Possibly add an additional third sound later
-			if ( Weapon_info[wp->weapon_info_index].wi_flags & WIF_HOMING_HEAT ||
-				 Weapon_info[wp->weapon_info_index].wi_flags & WIF_HOMING_JAVELIN ) {
+			if ( (Weapon_info[wp->weapon_info_index].wi_flags & WIF_HOMING_HEAT) ||
+				 (Weapon_info[wp->weapon_info_index].wi_flags & WIF_HOMING_JAVELIN) ) {
 				snd_play(&Snds[ship_get_sound(Player_obj, SND_HEATLOCK_WARN)]);
 			} else {
 				Assert(Weapon_info[wp->weapon_info_index].wi_flags & WIF_HOMING_ASPECT);
@@ -3986,9 +4012,12 @@ void weapon_home(object *obj, int num, float frame_time)
 	else
 		max_speed=wip->max_speed;
 
-	//	If not 1/2 second gone by, don't home yet.
-	if ((hobjp == &obj_used_list) || ( f2fl(Missiontime - wp->creation_time) < wip->free_flight_time )) {
-		//	If this is a heat seeking homing missile and 1/2 second has elapsed since firing, find a new target.
+	//	If not [free-flight-time] gone by, don't home yet.
+	// Goober5000 - this has been fixed back to more closely follow the original logic.  Remember, the retail code
+	// had 0.5 second of free flight time, the first half of which was spent ramping up to full speed.
+	if ((hobjp == &obj_used_list) || ( f2fl(Missiontime - wp->creation_time) < (wip->free_flight_time / 2) )) {
+		//	If this is a heat seeking homing missile and [free-flight-time] has elapsed since firing
+		//	and we don't have a target (else we wouldn't be inside the IF), find a new target.
         if ((wip->wi_flags & WIF_HOMING_HEAT) &&
             (f2fl(Missiontime - wp->creation_time) > wip->free_flight_time))
         {
@@ -4000,17 +4029,18 @@ void weapon_home(object *obj, int num, float frame_time)
 		}
 
 		if (obj->phys_info.speed > max_speed) {
-			obj->phys_info.speed -= frame_time / wip->free_flight_speed;
+			obj->phys_info.speed -= frame_time * (2 / wip->free_flight_time);
 			vm_vec_copy_scale( &obj->phys_info.desired_vel, &obj->orient.vec.fvec, obj->phys_info.speed);
-		} else if ((obj->phys_info.speed < max_speed * wip->free_flight_speed) && (wip->wi_flags & WIF_HOMING_HEAT)) {
-			obj->phys_info.speed = max_speed * wip->free_flight_speed;
+		} else if ((obj->phys_info.speed < max_speed / (2 / wip->free_flight_time)) && (wip->wi_flags & WIF_HOMING_HEAT)) {
+			obj->phys_info.speed = max_speed / (2 / wip->free_flight_time);
 			vm_vec_copy_scale( &obj->phys_info.desired_vel, &obj->orient.vec.fvec, obj->phys_info.speed);
 		}
 
 		return;
 	}
 
-	// AL 4-8-98: If orgiginal target for aspect or javelin HS lock missile is lost, stop homing
+	// AL 4-8-98: If original target for aspect lock missile is lost, stop homing
+	// WCS - or javelin
 	if (wip->wi_flags & WIF_LOCKED_HOMING) {
 		if ( wp->target_sig > 0 ) {
 			if ( wp->homing_object->signature != wp->target_sig ) {
@@ -4040,11 +4070,11 @@ void weapon_home(object *obj, int num, float frame_time)
 	}
 
 	// Make sure Javelin HS missiles always home on engine subsystems if ships
-	if (wip->wi_flags & WIF_HOMING_JAVELIN &&
-		hobjp->type == OBJ_SHIP &&
-		wp->target_sig > 0 &&
-		wp->homing_subsys != NULL &&
-		wp->homing_subsys->system_info->type != SUBSYSTEM_ENGINE) {
+	if ((wip->wi_flags & WIF_HOMING_JAVELIN) &&
+		(hobjp->type == OBJ_SHIP) &&
+		(wp->target_sig > 0) &&
+		(wp->homing_subsys != NULL) &&
+		(wp->homing_subsys->system_info->type != SUBSYSTEM_ENGINE)) {
 			ship *enemy = &Ships[ship_get_by_signature(wp->target_sig)];
 			wp->homing_subsys = ship_get_closest_subsys_in_sight(enemy, SUBSYSTEM_ENGINE, &Objects[wp->objnum].pos);
 	}
@@ -4052,10 +4082,10 @@ void weapon_home(object *obj, int num, float frame_time)
 	// If Javelin HS missile doesn't home in on a subsystem but homing in on a
 	// ship, lose lock alltogether
 	// Javelins can only home in one Engines or bombs.
-	if (wip->wi_flags & WIF_HOMING_JAVELIN &&
-		hobjp->type == OBJ_SHIP &&
-		wp->target_sig > 0 &&
-		wp->homing_subsys == NULL) {
+	if ((wip->wi_flags & WIF_HOMING_JAVELIN) &&
+		(hobjp->type == OBJ_SHIP) &&
+		(wp->target_sig > 0) &&
+		(wp->homing_subsys == NULL)) {
 			wp->homing_object = &obj_used_list;
 			return;
 	}
@@ -4714,14 +4744,15 @@ void weapon_set_tracking_info(int weapon_objnum, int parent_objnum, int target_o
 				wp->homing_subsys = target_subsys;
 				weapon_maybe_play_warning(wp);
 			} else if ( (wip->wi_flags & WIF_HOMING_JAVELIN) && target_is_locked) {
-				if (Objects[target_objnum].type == OBJ_SHIP &&
-					(wp->homing_subsys == NULL ||
-					wp->homing_subsys->system_info->type != SUBSYSTEM_ENGINE)) {
+				if ((Objects[target_objnum].type == OBJ_SHIP) &&
+					( (wp->homing_subsys == NULL) ||
+					  (wp->homing_subsys->system_info->type != SUBSYSTEM_ENGINE) )) {
 						ship *target_ship = &Ships[Objects[target_objnum].instance];
 						wp->homing_subsys = ship_get_closest_subsys_in_sight(target_ship, SUBSYSTEM_ENGINE, &Objects[weapon_objnum].pos);
 						if (wp->homing_subsys == NULL) {
 							wp->homing_object = &obj_used_list;
 						} else {
+							Assert(wp->homing_subsys->parent_objnum == target_objnum);
 							wp->homing_object = &Objects[target_objnum];
 							weapon_maybe_play_warning(wp);
 						}
@@ -4735,11 +4766,12 @@ void weapon_set_tracking_info(int weapon_objnum, int parent_objnum, int target_o
 				//	immediately drop it and try to find one in its view cone.
 				if ((target_objnum != -1) && !(wip->wi_flags2 & WIF2_UNTARGETED_HEAT_SEEKER)) {
 					wp->homing_object = &Objects[target_objnum];
+					wp->homing_subsys = target_subsys;
 					weapon_maybe_play_warning(wp);
-				} else
+				} else {
 					wp->homing_object = &obj_used_list;
-
-				wp->homing_subsys = target_subsys;
+					wp->homing_subsys = NULL;
+				}
 			}
 		} else {
 			wp->target_num = -1;
@@ -4752,9 +4784,8 @@ void weapon_set_tracking_info(int weapon_objnum, int parent_objnum, int target_o
 		// DB - removed 7:14 pm 9/6/99. was totally messing up lifetimes for all weapons.
 		//	MK, 7:11 am, 9/7/99.  Put it back in, but with a proper check here to make sure it's an aspect seeker and
 		//	put a sanity check in the color changing laser code that was broken by this code.
-		if (target_is_locked && (wp->target_num != -1) &&
-			(wip->wi_flags & WIF_LOCKED_HOMING) ) {
-			wp->lifeleft *= 1.2f;
+		if (target_is_locked && (wp->target_num != -1) && (wip->wi_flags & WIF_LOCKED_HOMING) ) {
+			wp->lifeleft *= LOCKED_HOMING_EXTENDED_LIFE_FACTOR;
 			if (MULTIPLAYER_MASTER) {
 				wp->weapon_flags |= WF_HOMING_UPDATE_NEEDED;
 			}
@@ -4791,7 +4822,7 @@ inline size_t* get_pointer_to_weapon_fire_pattern_index(int weapon_type, ship* s
  * @return Index of weapon in the Objects[] array, -1 if the weapon object was not created
  */
 int Weapons_created = 0;
-int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_objnum, int group_id, int is_locked, int is_spawned)
+int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_objnum, int group_id, int is_locked, int is_spawned, float fof_cooldown)
 {
 	int			n, objnum;
 	int num_deleted;
@@ -4835,7 +4866,7 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 			return -1;
 		} else if ( wip->weapon_substitution_pattern[*position] != weapon_type ) {
 			// weapon wants to sub with weapon other than me
-			return weapon_create(pos, porient, wip->weapon_substitution_pattern[*position], parent_objnum, group_id, is_locked, is_spawned);
+			return weapon_create(pos, porient, wip->weapon_substitution_pattern[*position], parent_objnum, group_id, is_locked, is_spawned, fof_cooldown);
 		}
 	}
 
@@ -4899,9 +4930,16 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 	}
 
 	orient = &morient;
-	if(wip->field_of_fire){
+
+	float combined_fof = wip->field_of_fire;
+	// If there is a fof_cooldown value, increase the spread linearly
+	if (fof_cooldown != 0.0f) {
+		combined_fof = wip->field_of_fire + (fof_cooldown * wip->max_fof_spread);
+	}
+
+	if(combined_fof > 0.0f){
 		vec3d f;
-		vm_vec_random_cone(&f, &orient->vec.fvec, wip->field_of_fire);
+		vm_vec_random_cone(&f, &orient->vec.fvec, combined_fof);
 		vm_vec_normalize(&f);
 		vm_vector_2_matrix( orient, &f, NULL, NULL);
 	}
@@ -5520,11 +5558,18 @@ int weapon_area_calc_damage(object *objp, vec3d *pos, float inner_rad, float out
 		*damage = max_damage;
 		*blast = max_blast;
 	} else {
-		float dist_to_outer_rad_squared, total_dist_squared;
 		min_dist = dist - objp->radius;
 		Assert(min_dist < outer_rad);
-		dist_to_outer_rad_squared = (outer_rad-min_dist)*(outer_rad-min_dist);
-		total_dist_squared = (inner_rad-outer_rad)*(inner_rad-outer_rad);
+
+		float dist_to_outer_rad_squared = (outer_rad-min_dist)*(outer_rad-min_dist);
+		float total_dist_squared = (inner_rad-outer_rad)*(inner_rad-outer_rad);
+
+		// this means the inner and outer radii are basically equal... and since we aren't within the inner radius,
+		// we fudge the law of excluded middle to place ourselves outside the outer radius
+		if (total_dist_squared < 0.0001f) {
+			return -1;	// avoid divide-by-zero; we won't take damage anyway
+		}
+
 		// AL 2-24-98: drop off damage relative to square of distance
 		Assert(dist_to_outer_rad_squared <= total_dist_squared);
 		*damage = max_damage * dist_to_outer_rad_squared/total_dist_squared;
@@ -5585,13 +5630,10 @@ void weapon_area_apply_blast(vec3d *force_apply_pos, object *ship_obj, vec3d *bl
 void weapon_do_area_effect(object *wobjp, shockwave_create_info *sci, vec3d *pos, object *other_obj)
 {
 	weapon_info	*wip;
-	weapon *wp;
 	object		*objp;
 	float			damage, blast;
 
 	wip = &Weapon_info[Weapons[wobjp->instance].weapon_info_index];	
-	wp = &Weapons[wobjp->instance];
-	Assertion(sci->inner_rad != 0, "Shockwave info for weapon %s is invalid. Inner Radius needs to be greater than 0./n", wip->name);	
 
 	// only blast ships and asteroids
 	// And (some) weapons
@@ -5634,7 +5676,7 @@ void weapon_do_area_effect(object *wobjp, shockwave_create_info *sci, vec3d *pos
 		case OBJ_WEAPON:
 			target_wip = &Weapon_info[Weapons[objp->instance].weapon_info_index];
 			if (target_wip->armor_type_idx >= 0)
-				damage = Armor_types[target_wip->armor_type_idx].GetDamage(damage, wip->damage_type_idx);
+				damage = Armor_types[target_wip->armor_type_idx].GetDamage(damage, wip->damage_type_idx, 1.0f);
 
 			objp->hull_strength -= damage;
 			if (objp->hull_strength < 0.0f) {
@@ -6157,7 +6199,7 @@ void weapon_get_laser_color(color *c, object *objp)
 	winfo = &Weapon_info[wep->weapon_info_index];
 
 	// if we're a one-color laser
-	if ( (winfo->laser_color_2.red == 0) && (winfo->laser_color_2.green == 0) && (winfo->laser_color_2.blue == 0) ) {
+	if ( (winfo->laser_color_2.red == winfo->laser_color_1.red) && (winfo->laser_color_2.green == winfo->laser_color_1.green) && (winfo->laser_color_2.blue == winfo->laser_color_1.blue) ) {
 		*c = winfo->laser_color_1;
 		return;
 	}

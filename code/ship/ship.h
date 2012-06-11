@@ -125,6 +125,8 @@ typedef struct ship_weapon {
 	int primary_bank_rearm_time[MAX_SHIP_PRIMARY_BANKS];	// timestamp which indicates when bank can get new projectile
 	// end ballistic primary support
 
+	float primary_bank_fof_cooldown[MAX_SHIP_PRIMARY_BANKS];      // SUSHI: Current FOF cooldown level for the primary weapon
+
 	int secondary_bank_ammo[MAX_SHIP_SECONDARY_BANKS];			// Number of missiles left in secondary bank
 	int secondary_bank_start_ammo[MAX_SHIP_SECONDARY_BANKS];	// Number of missiles starting in secondary bank
 	int secondary_bank_capacity[MAX_SHIP_SECONDARY_BANKS];		// Max number of missiles in bank
@@ -142,8 +144,8 @@ typedef struct ship_weapon {
 	int ai_class;
 
 	int flags;								// see SW_FLAG_* defines above
-	ubyte primary_animation_position[MAX_SHIP_PRIMARY_BANKS];
-	ubyte secondary_animation_position[MAX_SHIP_SECONDARY_BANKS];
+	EModelAnimationPosition primary_animation_position[MAX_SHIP_PRIMARY_BANKS];
+	EModelAnimationPosition secondary_animation_position[MAX_SHIP_SECONDARY_BANKS];
 	int primary_animation_done_time[MAX_SHIP_PRIMARY_BANKS];
 	int  secondary_animation_done_time[MAX_SHIP_SECONDARY_BANKS];
 
@@ -162,6 +164,22 @@ int damage_type_add(char *name);
 //**************************************************************
 //WMC - Armor stuff
 
+// Nuke: some defines for difficulty scaling type
+#define ADT_DIFF_SCALE_BAD_VAL	-1 // error mode 
+#define ADT_DIFF_SCALE_FIRST	0
+#define ADT_DIFF_SCALE_LAST		1
+#define ADT_DIFF_SCALE_MANUAL	2 // this is the user defined mode where the modder has to handle difficulty scaling in their calculations
+
+// Nuke: +value: replacing constants
+// these are stored as altArguments, positive values mean storage idxes and -1 means not used, anything below that is fair game
+#define AT_CONSTANT_NOT_USED	-1	// will probibly never get used
+#define AT_CONSTANT_BAD_VAL		-2	// this conveys table error to the user 
+#define AT_CONSTANT_BASE_DMG	-3	// what the damage was at start of calculations
+#define AT_CONSTANT_CURRENT_DMG	-4	// what the damage currently is
+#define AT_CONSTANT_DIFF_FACTOR	-5	// difficulty factor (by default 0.2 (easy) to 1.0 (insane))
+#define AT_CONSTANT_RANDOM		-6	// number between 0 and 1 (redundant but saves a calculation)
+#define AT_CONSTANT_PI			-7	// because everyone likes pi
+
 struct ArmorDamageType
 {
 	friend class ArmorType;
@@ -171,11 +189,14 @@ private:
 	int					DamageTypeIndex;
 	SCP_vector<int>	Calculations;
 	SCP_vector<float>	Arguments;
+	SCP_vector<int>		altArguments;		// Nuke: to facilitate optional importation of data in place of +value: tag -nuke 
 	float				shieldpierce_pct;
 
 	// piercing effect data
 	float				piercing_start_pct;
 	int					piercing_type;
+	// Nuke: difficulty scale type
+	int					difficulty_scale_type;
 
 public:
 	void clear();
@@ -194,7 +215,7 @@ public:
 	//Get
 	char *GetNamePtr(){return Name;}
 	bool IsName(char *in_name){return (stricmp(in_name,Name)==0);}
-	float GetDamage(float damage_applied, int in_damage_type_idx);
+	float GetDamage(float damage_applied, int in_damage_type_idx, float diff_dmg_scale);
 	float GetShieldPiercePCT(int damage_type_idx);
 	int GetPiercingType(int damage_type_idx);
 	float GetPiercingLimit(int damage_type_idx);
@@ -319,7 +340,7 @@ typedef	struct ship_subsys {
 	int		turret_pick_big_attack_point_timestamp;	//	Next time to pick an attack point for this turret
 	vec3d	turret_big_attack_point;			//	local coordinate of point for this turret to attack on enemy
 
-	ubyte	turret_animation_position;
+	EModelAnimationPosition	turret_animation_position;
 	int		turret_animation_done_time;
 
 	// swarm (rapid fire) info
@@ -706,7 +727,7 @@ typedef struct ship {
 	int ab_count;
 
 	// glow points
-	SCP_vector<bool> glow_point_bank_active;
+	std::deque<bool> glow_point_bank_active;
 
 	//Animated Shader effects
 	int shader_effect_num;
@@ -719,7 +740,7 @@ typedef struct ship {
 
 	// fighter bay door stuff, parent side
 	int bay_doors_anim_done_time;		// ammount of time to transition from one animation state to another
-	ubyte bay_doors_status;			// anim status of the bay doors (closed/not-animating, opening, open/not-animating)
+	EModelAnimationPosition bay_doors_status;			// anim status of the bay doors (closed/not-animating, opening, open/not-animating)
 	int bay_doors_wanting_open;		// how many ships want/need the bay door open
 
 	// figther bay door stuff, client side

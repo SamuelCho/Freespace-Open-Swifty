@@ -37,6 +37,7 @@ extern int GLOWMAP;
 extern int CLOAKMAP;
 extern int SPECMAP;
 extern int NORMMAP;
+extern int MISCMAP;
 extern int HEIGHTMAP;
 extern vec3d G3_user_clip_normal;
 extern vec3d G3_user_clip_point;
@@ -76,8 +77,6 @@ struct opengl_vertex_buffer {
 	uint vbo_size;
 	uint ibo_size;
 
-	SCP_map<int, int> shader_ids;
-
 	opengl_vertex_buffer() :
 		array_list(NULL), index_list(NULL), vbo(0), ibo(0),
 		vbo_size(0), ibo_size(0)
@@ -106,8 +105,6 @@ void opengl_vertex_buffer::clear()
 		vglDeleteBuffersARB(1, &ibo);
 		GL_vertex_data_in -= ibo_size;
 	}
-
-	shader_ids.clear();
 }
 
 static SCP_vector<opengl_vertex_buffer> GL_vertex_buffers;
@@ -554,11 +551,15 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 
 			if ( (NORMMAP > 0) && GL_state.Light(0) && !Normalmap_override ) {
 				shader_flags |= SDR_FLAG_NORMAL_MAP;
-
-				if ( (HEIGHTMAP > 0) && !Heightmap_override ) {
-					shader_flags |= SDR_FLAG_HEIGHT_MAP;
-				}
 			}
+
+			if ( (HEIGHTMAP > 0) && !Heightmap_override ) {
+				shader_flags |= SDR_FLAG_HEIGHT_MAP;
+			}
+		}
+
+		if (MISCMAP > 0) {
+			shader_flags |= SDR_FLAG_MISC_MAP;
 		}
 	}
 
@@ -566,28 +567,15 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	if (shader_flags == GL_last_shader_flags) {
 		sdr_index = GL_last_shader_index;
 	} else {
-		SCP_map<int, int>::iterator it;
+		sdr_index = gr_opengl_maybe_create_shader(shader_flags);
 
-		it = vbp->shader_ids.find(shader_flags);
-
-		if ( it != vbp->shader_ids.end() ) {
-			sdr_index = it->second;
-
-			GL_last_shader_index = sdr_index;
-			GL_last_shader_flags = shader_flags;
-		} else {
-			sdr_index = opengl_shader_get_index(shader_flags);
-
-			if (sdr_index < 0) {
-				opengl_render_pipeline_fixed(start, bufferp, datap, flags);
-				return;
-			}
-
-			vbp->shader_ids[shader_flags] = sdr_index;
-
-			GL_last_shader_index = sdr_index;
-			GL_last_shader_flags = shader_flags;
+		if (sdr_index < 0) {
+			opengl_render_pipeline_fixed(start, bufferp, datap, flags);
+			return;
 		}
+
+		GL_last_shader_index = sdr_index;
+		GL_last_shader_flags = shader_flags;
 	}
 
 	Assert( sdr_index >= 0 );
@@ -670,14 +658,22 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		gr_opengl_tcache_set(NORMMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
 		render_pass++; // bump!
+	}
 
-		if (shader_flags & SDR_FLAG_HEIGHT_MAP) {
-			vglUniform1iARB( opengl_shader_get_uniform("sHeightmap"), render_pass );
+	if (shader_flags & SDR_FLAG_HEIGHT_MAP) {
+		vglUniform1iARB( opengl_shader_get_uniform("sHeightmap"), render_pass );
 
-			gr_opengl_tcache_set(HEIGHTMAP, tmap_type, &u_scale, &v_scale, render_pass);
+		gr_opengl_tcache_set(HEIGHTMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
-			render_pass++;
-		}
+		render_pass++;
+	}
+
+	if (shader_flags & SDR_FLAG_MISC_MAP) {
+		vglUniform1iARB( opengl_shader_get_uniform("sMiscmap"), render_pass );
+
+		gr_opengl_tcache_set(MISCMAP, tmap_type, &u_scale, &v_scale, render_pass);
+
+		render_pass++; // bump!
 	}
 
 	if ((shader_flags & SDR_FLAG_ANIMATED))

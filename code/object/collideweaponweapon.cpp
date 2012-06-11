@@ -59,7 +59,12 @@ int collide_weapon_weapon( obj_pair * pair )
 		if (!(wipA->wi_flags2 & WIF2_HARD_TARGET_BOMB)) {
 			A_radius *= 2;		// Makes bombs easier to hit
 		}
-		if ( (wipA->lifetime - wpA->lifeleft) < The_mission.ai_profile->delay_bomb_arm_timer[Game_skill_level] )
+		
+		if (wipA->wi_flags & WIF_LOCKED_HOMING) {
+			if ( (wipA->max_lifetime - wpA->lifeleft) < The_mission.ai_profile->delay_bomb_arm_timer[Game_skill_level] )
+				return 0;
+		}
+		else if ( (wipA->lifetime - wpA->lifeleft) < The_mission.ai_profile->delay_bomb_arm_timer[Game_skill_level] )
 			return 0;
 	}
 
@@ -67,7 +72,11 @@ int collide_weapon_weapon( obj_pair * pair )
 		if (!(wipB->wi_flags2 & WIF2_HARD_TARGET_BOMB)) {
 			B_radius *= 2;		// Makes bombs easier to hit
 		}
-		if ( (wipB->lifetime - wpB->lifeleft) < The_mission.ai_profile->delay_bomb_arm_timer[Game_skill_level] )
+		if (wipB->wi_flags & WIF_LOCKED_HOMING) {
+			if ( (wipB->max_lifetime - wpB->lifeleft) < The_mission.ai_profile->delay_bomb_arm_timer[Game_skill_level] )
+				return 0;
+		}
+		else if ( (wipB->lifetime - wpB->lifeleft) < The_mission.ai_profile->delay_bomb_arm_timer[Game_skill_level] )
 			return 0;
 	}
 
@@ -91,11 +100,11 @@ int collide_weapon_weapon( obj_pair * pair )
 
 			float aDamage = wipA->damage;
 			if (wipB->armor_type_idx >= 0)
-				aDamage = Armor_types[wipB->armor_type_idx].GetDamage(aDamage, wipA->damage_type_idx);
+				aDamage = Armor_types[wipB->armor_type_idx].GetDamage(aDamage, wipA->damage_type_idx, 1.0f);
 
 			float bDamage = wipB->damage;
 			if (wipA->armor_type_idx >= 0)
-				bDamage = Armor_types[wipA->armor_type_idx].GetDamage(bDamage, wipB->damage_type_idx);
+				bDamage = Armor_types[wipA->armor_type_idx].GetDamage(bDamage, wipB->damage_type_idx, 1.0f);
 
 			if (wipA->weapon_hitpoints > 0) {
 				if (wipB->weapon_hitpoints > 0) {		//	Two bombs collide, detonate both.
