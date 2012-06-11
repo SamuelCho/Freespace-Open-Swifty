@@ -125,6 +125,8 @@ typedef struct ship_weapon {
 	int primary_bank_rearm_time[MAX_SHIP_PRIMARY_BANKS];	// timestamp which indicates when bank can get new projectile
 	// end ballistic primary support
 
+	float primary_bank_fof_cooldown[MAX_SHIP_PRIMARY_BANKS];      // SUSHI: Current FOF cooldown level for the primary weapon
+
 	int secondary_bank_ammo[MAX_SHIP_SECONDARY_BANKS];			// Number of missiles left in secondary bank
 	int secondary_bank_start_ammo[MAX_SHIP_SECONDARY_BANKS];	// Number of missiles starting in secondary bank
 	int secondary_bank_capacity[MAX_SHIP_SECONDARY_BANKS];		// Max number of missiles in bank
@@ -142,8 +144,8 @@ typedef struct ship_weapon {
 	int ai_class;
 
 	int flags;								// see SW_FLAG_* defines above
-	ubyte primary_animation_position[MAX_SHIP_PRIMARY_BANKS];
-	ubyte secondary_animation_position[MAX_SHIP_SECONDARY_BANKS];
+	EModelAnimationPosition primary_animation_position[MAX_SHIP_PRIMARY_BANKS];
+	EModelAnimationPosition secondary_animation_position[MAX_SHIP_SECONDARY_BANKS];
 	int primary_animation_done_time[MAX_SHIP_PRIMARY_BANKS];
 	int  secondary_animation_done_time[MAX_SHIP_SECONDARY_BANKS];
 
@@ -338,7 +340,7 @@ typedef	struct ship_subsys {
 	int		turret_pick_big_attack_point_timestamp;	//	Next time to pick an attack point for this turret
 	vec3d	turret_big_attack_point;			//	local coordinate of point for this turret to attack on enemy
 
-	ubyte	turret_animation_position;
+	EModelAnimationPosition	turret_animation_position;
 	int		turret_animation_done_time;
 
 	// swarm (rapid fire) info
@@ -725,7 +727,7 @@ typedef struct ship {
 	int ab_count;
 
 	// glow points
-	SCP_vector<bool> glow_point_bank_active;
+	std::deque<bool> glow_point_bank_active;
 
 	//Animated Shader effects
 	int shader_effect_num;
@@ -738,7 +740,7 @@ typedef struct ship {
 
 	// fighter bay door stuff, parent side
 	int bay_doors_anim_done_time;		// ammount of time to transition from one animation state to another
-	ubyte bay_doors_status;			// anim status of the bay doors (closed/not-animating, opening, open/not-animating)
+	EModelAnimationPosition bay_doors_status;			// anim status of the bay doors (closed/not-animating, opening, open/not-animating)
 	int bay_doors_wanting_open;		// how many ships want/need the bay door open
 
 	// figther bay door stuff, client side

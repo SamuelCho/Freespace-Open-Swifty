@@ -349,6 +349,7 @@ typedef struct bsp_info {
 	vec3d	render_box_min;
 	vec3d	render_box_max;
 	float	render_sphere_radius;
+	vec3d	render_sphere_offset;
 	int		use_render_box;			// 0==do nothing, 1==only render this object if you are inside the box, -1==only if you're outside
 	int		use_render_sphere;		// 0==do nothing, 1==only render this object if you are inside the sphere, -1==only if you're outside
 	bool	gun_rotation;			// for animated weapon models
@@ -412,6 +413,7 @@ typedef struct bsp_info {
 		memset( arc_type, 0, sizeof( arc_type ) );
 		memset( &render_box_min, 0, sizeof( render_box_min ) );
 		memset( &render_box_max, 0, sizeof( render_box_max ) );
+		memset( &render_sphere_offset, 0, sizeof( render_sphere_offset ) );
 
 		buffer.clear( );
 	}
@@ -631,7 +633,8 @@ public:
 #define TM_SPECULAR_TYPE	2		// optional specular map
 #define TM_NORMAL_TYPE		3		// optional normal map
 #define TM_HEIGHT_TYPE		4		// optional height map (for parallax mapping)
-#define TM_NUM_TYPES		5		//WMC - Number of texture_info objects in texture_map
+#define TM_MISC_TYPE		5		// optional utility map
+#define TM_NUM_TYPES		6		//WMC - Number of texture_info objects in texture_map
 									//Used by scripting - if you change this, do a search
 									//to update switch() statement in lua.cpp
 // taylor
@@ -1029,6 +1032,8 @@ typedef struct mc_info {
 		this->hit_dist = other.hit_dist;
 		this->hit_point = other.hit_point;
 		this->hit_point_world = other.hit_point_world;
+        this->hit_submodel = other.hit_submodel;
+        this->hit_bitmap = other.hit_bitmap;
 		this->hit_u = other.hit_u;
 		this->hit_v = other.hit_v;
 		this->shield_hit_tri = other.shield_hit_tri;
@@ -1201,6 +1206,7 @@ typedef struct transparent_object {
 	int spec_map;
 	int norm_map;
 	int height_map;
+	int misc_map;
 	vertex_buffer *buffer;
 	unsigned int tmap_flags;
 	int i;
@@ -1211,6 +1217,7 @@ typedef struct transparent_submodel {
 	bsp_info *model;
 	matrix orient;
 	bool is_submodel;
+	bool pop_matrix;
 	SCP_vector<transparent_object> transparent_objects;
 } transparent_submodel;
 // scale the engines thrusters by this much

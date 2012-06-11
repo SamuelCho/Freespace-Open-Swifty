@@ -82,6 +82,7 @@ static float Interp_box_scale = 1.0f; // this is used to scale both detail boxes
 static vec3d Interp_render_box_min = ZERO_VECTOR;
 static vec3d Interp_render_box_max = ZERO_VECTOR;
 static float Interp_render_sphere_radius = 0.0f;
+static vec3d Interp_render_sphere_offset = ZERO_VECTOR;
 
 // -------------------------------------------------------------------
 // lighting save stuff 
@@ -363,6 +364,7 @@ void interp_clear_instance()
 	Interp_render_box_min = vmd_zero_vector;
 	Interp_render_box_max = vmd_zero_vector;
 	Interp_render_sphere_radius = 0.0f;
+	Interp_render_sphere_offset = vmd_zero_vector;
 }
 
 /**
@@ -855,6 +857,7 @@ void model_interp_tmappoly(ubyte * p,polymodel * pm)
 				SPECMAP = -1;
 				NORMMAP = -1;
 				HEIGHTMAP = -1;
+				MISCMAP = -1;
 			} else {
 
 				int vertnum = verts[i].vertnum;
@@ -948,6 +951,8 @@ void model_interp_tmappoly(ubyte * p,polymodel * pm)
 							NORMMAP = model_interp_get_texture(&tmap->textures[TM_NORMAL_TYPE], Interp_base_frametime);
 							HEIGHTMAP = model_interp_get_texture(&tmap->textures[TM_HEIGHT_TYPE], Interp_base_frametime);
 						}
+
+						MISCMAP = model_interp_get_texture(&tmap->textures[TM_MISC_TYPE], Interp_base_frametime);
 					}
 
 					//*****
@@ -979,6 +984,8 @@ void model_interp_tmappoly(ubyte * p,polymodel * pm)
 								case TM_HEIGHT_TYPE:
 									HEIGHTMAP = tex;
 									break;
+								case TM_MISC_TYPE:
+									MISCMAP = tex;
 								default:
 									break;
 							}
@@ -1018,6 +1025,7 @@ void model_interp_tmappoly(ubyte * p,polymodel * pm)
 	SPECMAP = -1;
 	NORMMAP = -1;
 	HEIGHTMAP = -1;
+	MISCMAP = -1;
 
 	if (Interp_flags & (MR_SHOW_OUTLINE|MR_SHOW_OUTLINE_PRESET) )	{
 	
@@ -2977,6 +2985,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
 		transparent_submodel ts;
 		ts.is_submodel = false;
+		ts.pop_matrix = false;
 		transparent_submodels.push_back(ts);
 		model_render_buffers(pm, pm->detail[Interp_detail_level]);
 	} else {
@@ -2993,6 +3002,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 				if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
 					transparent_submodel ts;
 					ts.is_submodel = false;
+					ts.pop_matrix = false;
 					transparent_submodels.push_back(ts);
 					model_render_children_buffers( pm, i, Interp_detail_level );
 				} else {
@@ -3018,6 +3028,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 			SPECMAP = obj->spec_map;
 			NORMMAP = obj->norm_map;
 			HEIGHTMAP = obj->height_map;
+			MISCMAP = obj->misc_map;
 
 			gr_push_scale_matrix(&obj->scale);
 			gr_set_bitmap(obj->texture, obj->blend_filter, GR_BITBLT_MODE_NORMAL, obj->alpha);
@@ -3033,10 +3044,11 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 			SPECMAP = -1;
 			NORMMAP = -1;
 			HEIGHTMAP = -1;
+			MISCMAP = -1;
 		}
 		ts->transparent_objects.clear();
 		
-		if(ts->is_submodel)
+		if(ts->pop_matrix)
 			g3_done_instance(true);
 	}
 	transparent_submodels.clear();
@@ -3237,6 +3249,7 @@ void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * po
 
 		transparent_submodel ts;
 		ts.is_submodel = false;
+		ts.pop_matrix = false;
 		transparent_submodels.push_back(ts);
 
 		model_render_buffers(pm, submodel_num);
@@ -3250,6 +3263,7 @@ void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * po
 			SPECMAP = obj->spec_map;
 			NORMMAP = obj->norm_map;
 			HEIGHTMAP = obj->height_map;
+			MISCMAP = obj->misc_map;
 
 			gr_push_scale_matrix(&obj->scale);
 			gr_set_bitmap(obj->texture, obj->blend_filter, GR_BITBLT_MODE_NORMAL, obj->alpha);
@@ -3265,6 +3279,7 @@ void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * po
 			SPECMAP = -1;
 			NORMMAP = -1;
 			HEIGHTMAP = -1;
+			MISCMAP = -1;
 		}
 		ts_i->transparent_objects.clear();
 		transparent_submodels.clear();
@@ -4368,7 +4383,12 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
 	if ( !(Interp_flags & MR_FULL_DETAIL) && model->use_render_sphere ) {
 		Interp_render_sphere_radius = model->render_sphere_radius * Interp_box_scale;
 
-		if ( (-model->use_render_sphere + in_sphere(&model->offset, Interp_render_sphere_radius)) )
+		// TODO: doesn't consider submodel rotations yet -zookeeper
+		vec3d offset;
+		model_find_submodel_offset(&offset, pm->id, mn);
+		vm_vec_add2(&offset, &model->render_sphere_offset);
+
+		if ( (-model->use_render_sphere + in_sphere(&offset, Interp_render_sphere_radius)) )
 			return;
 	}
 
@@ -4406,6 +4426,19 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
 	
 	transparent_submodel ts;
 	ts.is_submodel = true;
+	ts.pop_matrix = true;
+
+	bool childs = false;
+	i = model->first_child;
+	while (i >= 0) {
+		if ( !pm->submodel[i].is_thruster ) {
+			childs = true;
+			ts.pop_matrix = false;
+			break;
+		}
+
+		i = pm->submodel[i].next_sibling;
+	}
 	ts.model = model;
 	
 	memcpy(&ts.orient,&submodel_matrix,sizeof(matrix));
@@ -4426,6 +4459,15 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
 		}
 
 		i = pm->submodel[i].next_sibling;
+	}
+
+	if(childs)
+	{
+		ts.is_submodel = false;
+		ts.pop_matrix = true;
+		ts.model = 0;
+		ts.transparent_objects.clear();
+		transparent_submodels.push_back(ts);
 	}
 
 	Interp_flags = fl;
@@ -4464,7 +4506,12 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 	if ( !is_child && !(Interp_flags & MR_FULL_DETAIL) && model->use_render_sphere ) {
 		Interp_render_sphere_radius = model->render_sphere_radius * Interp_box_scale;
 
-		if ( (-model->use_render_sphere + in_sphere(&model->offset, Interp_render_sphere_radius)) )
+		// TODO: doesn't consider submodel rotations yet -zookeeper
+		vec3d offset;
+		model_find_submodel_offset(&offset, pm->id, mn);
+		vm_vec_add2(&offset, &model->render_sphere_offset);
+
+		if ( (-model->use_render_sphere + in_sphere(&offset, Interp_render_sphere_radius)) )
 			return;
 	}
 
@@ -4559,6 +4606,7 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 				texture_info *spec_map = &tmap->textures[TM_SPECULAR_TYPE];
 				texture_info *norm_map = &tmap->textures[TM_NORMAL_TYPE];
 				texture_info *height_map = &tmap->textures[TM_HEIGHT_TYPE];
+				texture_info *misc_map = &tmap->textures[TM_MISC_TYPE];
 
 				if (Interp_new_replacement_textures != NULL) {
 					if (Interp_new_replacement_textures[rt_begin_index + TM_SPECULAR_TYPE] >= 0) {
@@ -4575,11 +4623,17 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 						tex_replace[TM_HEIGHT_TYPE] = texture_info(Interp_new_replacement_textures[rt_begin_index + TM_HEIGHT_TYPE]);
 						height_map = &tex_replace[TM_HEIGHT_TYPE];
 					}
+
+					if (Interp_new_replacement_textures[rt_begin_index + TM_MISC_TYPE] >= 0) {
+						tex_replace[TM_MISC_TYPE] = texture_info(Interp_new_replacement_textures[rt_begin_index + TM_MISC_TYPE]);
+						misc_map = &tex_replace[TM_MISC_TYPE];
+					}
 				}
 
 				SPECMAP = model_interp_get_texture(spec_map, Interp_base_frametime);
 				NORMMAP = model_interp_get_texture(norm_map, Interp_base_frametime);
 				HEIGHTMAP = model_interp_get_texture(height_map, Interp_base_frametime);
+				MISCMAP = model_interp_get_texture(misc_map, Interp_base_frametime);
 			}
 		}
 
@@ -4600,6 +4654,7 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 			tobj.buffer = &model->buffer;
 			tobj.glow_map = GLOWMAP;
 			tobj.height_map = HEIGHTMAP;
+			tobj.misc_map = MISCMAP;
 			tobj.i = i;
 			tobj.norm_map = NORMMAP;
 			tobj.spec_map = SPECMAP;
@@ -4623,6 +4678,7 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		SPECMAP = -1;
 		NORMMAP = -1;
 		HEIGHTMAP = -1;
+		MISCMAP = -1;
 	}
 
 	gr_pop_scale_matrix();

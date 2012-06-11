@@ -841,7 +841,6 @@ void game_flash_diminish(float frametime)
 	
 	if ( Use_palette_flash )	{
 		int r,g,b;
-		static int o_r=0, o_g=0, o_b=0;
 
 		// Change the 200 to change the color range of colors.
 		r = fl2i( Game_flash_red*128.0f );  
@@ -866,10 +865,6 @@ void game_flash_diminish(float frametime)
 
 		if ( (r!=0) || (g!=0) || (b!=0) ) {
 			gr_flash( r, g, b );
-
-			o_r = r;
-			o_g = g;
-			o_b = b;
 		}
 	}
 	
@@ -1061,7 +1056,7 @@ void game_level_init(int seed)
 	Game_no_clear = 0;
 
 	// campaign wasn't ended
-	Campaign_ended_in_mission = 0;
+	Campaign_ending_via_supernova = 0;
 
 	Env_cubemap_drawn = false;
 
@@ -4079,7 +4074,7 @@ void game_simulation_frame()
 		obj_snd_do_frame();						// update the object-linked persistant sounds
 
 		game_maybe_update_sound_environment();
-		snd_update_listener(&View_position, &Player_obj->phys_info.vel, &Player_obj->orient);
+		snd_update_listener(&Eye_position, &Player_obj->phys_info.vel, &Eye_matrix);
 
 // AL: debug code used for testing ambient subspace sound (ie when enabling subspace through debug console)
 #ifndef NDEBUG
@@ -4668,9 +4663,7 @@ void lock_time_compression(bool is_locked)
 
 void change_time_compression(float multiplier)
 {
-	fix modified = F1_0;
-
-	modified = fl2f( f2fl(Game_time_compression) * multiplier );
+	fix modified = fl2f( f2fl(Game_time_compression) * multiplier );
 
 	Desired_time_compression = Game_time_compression = modified;
 	Time_compression_change_rate = 0;
@@ -5172,7 +5165,14 @@ void game_process_event( int current_state, int event )
 			break;
 
 		case GS_EVENT_DEBRIEF:
-			gameseq_set_state(GS_STATE_DEBRIEF);
+			// did we end the campaign in the main freespace 2 single player campaign?
+			// (specifically, did we successfully jump out when the supernova was in progress
+			// and the campaign was ending?)
+			if (Campaign_ending_via_supernova && (Game_mode & GM_CAMPAIGN_MODE)/* && !stricmp(Campaign.filename, "freespace2")*/) {
+				gameseq_post_event(GS_EVENT_END_CAMPAIGN);
+			} else {
+				gameseq_set_state(GS_STATE_DEBRIEF);		
+			}
 			break;
 
 		case GS_EVENT_SHIP_SELECTION:
@@ -8273,9 +8273,6 @@ int init_cdrom()
 	int i, rval;
 
 	//scan for CD, etc.
-
-	rval = 1;
-
 	i = find_freespace_cd();
 
 	rval = set_cdrom_path(i);
@@ -8307,11 +8304,10 @@ int game_cd_changed()
 		Last_cd_label_found = found;
 		if ( found )	{
 			mprintf(( "CD '%s' was inserted\n", label ));
-			changed = 1;
 		} else {
 			mprintf(( "CD '%s' was removed\n", Last_cd_label ));
-			changed = 1;
 		}
+        changed = 1;
 	} else {
 		if ( Last_cd_label_found )	{
 			if ( !stricmp( Last_cd_label, label ))	{

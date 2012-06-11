@@ -1370,6 +1370,18 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 					} else {
 						pm->submodel[n].render_sphere_radius = pm->submodel[n].rad;
 					}
+
+					if ( (p = strstr(props, "$offset:")) != NULL ) {
+						p += 8;
+						while (*p == ' ') p++;
+						pm->submodel[n].render_sphere_offset.xyz.x = (float)strtod(p, (char **)NULL);
+						while (*p != ',') p++;
+						pm->submodel[n].render_sphere_offset.xyz.y = (float)strtod(++p, (char **)NULL);
+						while (*p != ',') p++;
+						pm->submodel[n].render_sphere_offset.xyz.z = (float)strtod(++p, (char **)NULL);
+					} else {
+						pm->submodel[n].render_sphere_offset = vmd_zero_vector;
+					}
 				}
 
 				// Added for new handling of turret orientation - KeldorKatarn
@@ -1667,10 +1679,22 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 						dock_bay *bay = &pm->docking_bays[i];
 
 						cfread_string_len( props, MAX_PROP_LEN, fp );
-						if ( (p = strstr(props, "$name"))!= NULL )
+						if ( (p = strstr(props, "$name"))!= NULL ) {
 							get_user_prop_value(p+5, bay->name);
-						else
+
+							int len = strlen(bay->name);
+							if ((len > 0) && is_white_space(bay->name[len-1])) {
+								nprintf(("Model", "model '%s' has trailing whitespace on bay name '%s'; this will be trimmed\n", pm->filename, bay->name));
+								drop_trailing_white_space(bay->name);
+							}
+							if (strlen(bay->name) == 0) {
+								nprintf(("Model", "model '%s' has an empty name specified for docking point %d\n", pm->filename, i));
+							}
+						} else {
+							nprintf(("Model", "model '%s' has no name specified for docking point %d\n", pm->filename, i));
 							sprintf(bay->name, "<unnamed bay %c>", 'A' + i);
+						}
+
 						bay->num_spline_paths = cfread_int( fp );
 						if ( bay->num_spline_paths > 0 ) {
 							bay->splines = (int *)vm_malloc(sizeof(int) * bay->num_spline_paths);
@@ -2259,7 +2283,7 @@ void model_load_texture(polymodel *pm, int i, char *file)
 	else
 	{
 		// check if we should be transparent, include "-trans" but make sure to skip anything that might be "-transport"
-		if ( (strstr(tmp_name, "-trans") && !strstr(tmp_name, "-transpo")) || strstr(tmp_name, "shockwave") || strstr(tmp_name, "glass") ) {
+		if ( (strstr(tmp_name, "-trans") && !strstr(tmp_name, "-transpo")) || strstr(tmp_name, "shockwave") ) {
 			tmap->is_transparent = true;
 		}
 
@@ -2308,26 +2332,37 @@ void model_load_texture(polymodel *pm, int i, char *file)
 
 	// bump maps ---------------------------------------------------------------
 	texture_info *tnorm = &tmap->textures[TM_NORMAL_TYPE];
-	texture_info *theight = &tmap->textures[TM_HEIGHT_TYPE];
 	if ( (!Cmdline_normal && !Fred_running) || (tbase->GetTexture() < 0) ) {
 		tnorm->clear();
-		theight->clear();
 	} else {
 		strcpy_s(tmp_name, file);
 		strcat_s(tmp_name, "-normal");
 		strlwr(tmp_name);
 
 		tnorm->LoadTexture(tmp_name, pm->filename);
-
-		// try to get a height map too
-		if ( Cmdline_height && (tnorm->GetTexture() > 0) ) {
-			strcpy_s(tmp_name, file);
-			strcat_s(tmp_name, "-height");
-			strlwr(tmp_name);
-
-			theight->LoadTexture(tmp_name, pm->filename);
-		}
 	}
+
+	// try to get a height map too
+	texture_info *theight = &tmap->textures[TM_HEIGHT_TYPE];
+	if ((!Cmdline_height && !Fred_running) || (tbase->GetTexture() < 0)) {
+		theight->clear();
+	} else {
+		strcpy_s(tmp_name, file);
+		strcat_s(tmp_name, "-height");
+		strlwr(tmp_name);
+
+		theight->LoadTexture(tmp_name, pm->filename);
+	}
+
+	// Utility map -------------------------------------------------------------
+	texture_info *tmisc = &tmap->textures[TM_MISC_TYPE];
+
+	strcpy_s(tmp_name, file);
+	strcat_s(tmp_name, "-misc");
+	strlwr(tmp_name);
+
+	tmisc->LoadTexture(tmp_name, pm->filename);
+
 	// -------------------------------------------------------------------------
 
 	// See if we need to compile a new shader for this material
@@ -2345,6 +2380,8 @@ void model_load_texture(polymodel *pm, int i, char *file)
 		shader_flags |= SDR_FLAG_HEIGHT_MAP;
 	if (tspec->GetTexture() > 0 && Cmdline_env && Cmdline_spec) // No env maps without spec map
 		shader_flags |= SDR_FLAG_ENV_MAP;
+	if (tmisc->GetTexture() > 0)
+		shader_flags |= SDR_FLAG_MISC_MAP;
 
 	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT);
 	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_FOG);
@@ -3955,7 +3992,7 @@ void find_submodel_instance_point_normal(vec3d *outpnt, vec3d *outnorm, object *
 {
 	Assert(ship_obj->type == OBJ_SHIP);
 
-	outnorm = submodel_norm;
+	*outnorm = *submodel_norm;
 	vm_vec_zero(outpnt);
 	matrix submodel_instance_matrix, rotation_matrix, inv_orientation;
 

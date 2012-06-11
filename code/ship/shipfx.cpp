@@ -499,11 +499,8 @@ float shipfx_calculate_warp_time(object *objp, int warp_dir)
 	}
 	// Find rad_percent from 0 to 1, 0 being smallest ship, 1 being largest
 	float rad_percent = (objp->radius-SMALLEST_RAD) / (LARGEST_RAD-SMALLEST_RAD);
-	if ( rad_percent < 0.0f ) {
-		rad_percent = 0.0f;
-	} else if ( rad_percent > 1.0f )	{
-		rad_percent = 1.0f;
-	}
+    CLAMP(rad_percent, 0.0f, 1.0f);
+
 	float rad_time = rad_percent*(LARGEST_RAD_TIME-SMALLEST_RAD_TIME) + SMALLEST_RAD_TIME;
 
 	return rad_time;
@@ -1951,7 +1948,7 @@ void shipfx_debris_limit_speed(debris *db, ship *shipp)
 	}
 	else if(sip->debris_max_rotspeed >= 0.0f)
 	{
-		float curspeed = vm_vec_mag(&pi->rotvel);
+		curspeed = vm_vec_mag(&pi->rotvel);
 		if(curspeed > sip->debris_max_rotspeed)
 		{
 			if(fabs(currotvel) >= 0.001f)
