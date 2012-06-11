@@ -345,7 +345,7 @@ void advance_to_eoln(char *more_terminators)
 
 	terminators[0] = EOLN;
 	terminators[1] = (char)EOF_CHAR;
-	terminators[2] = NULL;
+	terminators[2] = 0;
 	if (more_terminators != NULL)
 		strcat_s(terminators, more_terminators);
 	else
@@ -786,7 +786,7 @@ void copy_to_eoln(char *outstr, char *more_terminators, char *instr, int max)
 
 	terminators[0] = EOLN;
 	terminators[1] = (char)EOF_CHAR;
-	terminators[2] = NULL;
+	terminators[2] = 0;
 	if (more_terminators != NULL)
 		strcat_s(terminators, more_terminators);
 	else
@@ -813,7 +813,7 @@ void copy_to_eoln(SCP_string &outstr, char *more_terminators, char *instr)
 
 	terminators[0] = EOLN;
 	terminators[1] = (char)EOF_CHAR;
-	terminators[2] = NULL;
+	terminators[2] = 0;
 	if (more_terminators != NULL)
 		strcat_s(terminators, more_terminators);
 	else
@@ -3403,8 +3403,13 @@ int split_str(const char *src, int max_pixel_w, SCP_vector<int> &n_chars, SCP_ve
 
 		// maybe skip leading whitespace
 		if (ignore_until_whitespace) {
-			if ( is_white_space(*src) )
+			if ( is_white_space(*src) ) {
 				ignore_until_whitespace = 0;
+
+				// don't eat the newline
+				if (*src == EOLN)
+					src--;
+			}
 
 			continue;
 		}

@@ -37,6 +37,7 @@ extern int GLOWMAP;
 extern int CLOAKMAP;
 extern int SPECMAP;
 extern int NORMMAP;
+extern int MISCMAP;
 extern int HEIGHTMAP;
 extern vec3d G3_user_clip_normal;
 extern vec3d G3_user_clip_point;
@@ -586,11 +587,15 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 
 			if ( (NORMMAP > 0) && GL_state.Light(0) && !Normalmap_override ) {
 				shader_flags |= SDR_FLAG_NORMAL_MAP;
-
-				if ( (HEIGHTMAP > 0) && !Heightmap_override ) {
-					shader_flags |= SDR_FLAG_HEIGHT_MAP;
-				}
 			}
+
+			if ( (HEIGHTMAP > 0) && !Heightmap_override ) {
+				shader_flags |= SDR_FLAG_HEIGHT_MAP;
+			}
+		}
+
+		if (MISCMAP > 0) {
+			shader_flags |= SDR_FLAG_MISC_MAP;
 		}
 	}
 
@@ -691,14 +696,22 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		gr_opengl_tcache_set(NORMMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
 		render_pass++; // bump!
+	}
 
-		if (shader_flags & SDR_FLAG_HEIGHT_MAP) {
-			vglUniform1iARB( opengl_shader_get_uniform("sHeightmap"), render_pass );
+	if (shader_flags & SDR_FLAG_HEIGHT_MAP) {
+		vglUniform1iARB( opengl_shader_get_uniform("sHeightmap"), render_pass );
 
-			gr_opengl_tcache_set(HEIGHTMAP, tmap_type, &u_scale, &v_scale, render_pass);
+		gr_opengl_tcache_set(HEIGHTMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
-			render_pass++;
-		}
+		render_pass++;
+	}
+
+	if (shader_flags & SDR_FLAG_MISC_MAP) {
+		vglUniform1iARB( opengl_shader_get_uniform("sMiscmap"), render_pass );
+
+		gr_opengl_tcache_set(MISCMAP, tmap_type, &u_scale, &v_scale, render_pass);
+
+		render_pass++; // bump!
 	}
 
 	if ((shader_flags & SDR_FLAG_ANIMATED))
