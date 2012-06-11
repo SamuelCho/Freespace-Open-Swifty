@@ -52,7 +52,8 @@ typedef struct asteroid_split_info {
 	int		max;
 } asteroid_split_info;
 
-typedef struct asteroid_info {
+class asteroid_info {
+public:
 	char		name[NAME_LENGTH];								// name for the asteroid
 	char		pof_files[NUM_DEBRIS_POFS][MAX_FILENAME_LEN];	// POF files to load/associate with ship
 	int			num_detail_levels;								// number of detail levels for this ship
@@ -77,13 +78,13 @@ typedef struct asteroid_info {
 		  damage( 0 ), blast( 0 ), initial_asteroid_strength( 0 ),
 		  fireball_radius_multiplier( -1 )
 	{
-		name[ 0 ] = NULL;
+		name[ 0 ] = 0;
 		memset( pof_files, 0, sizeof( pof_files ) );
 		memset( detail_distance, 0, sizeof( detail_distance ) );
 		memset( modelp, 0, sizeof( modelp ) );
-		memset( model_num, 0, sizeof( model_num ) );
+		memset( model_num, -1, sizeof( model_num ) );
 	}
-} asteroid_info;
+};
 
 
 #define	AF_USED					(1<<0)			// Set means used.

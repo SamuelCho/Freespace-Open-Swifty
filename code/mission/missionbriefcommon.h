@@ -138,7 +138,7 @@ typedef struct brief_stage
 		: text( ), camera_time( 0 ), flags( 0 ), formula( -1 ),
 		  num_icons( 0 ), icons( NULL ), num_lines( 0 ), lines( NULL )
 	{ 
-		voice[ 0 ] = NULL;
+		voice[ 0 ] = 0;
 		memset( &camera_pos, 0, sizeof( vec3d ) );
 		memset( &camera_orient, 0, sizeof( matrix ) );
 	}
@@ -155,7 +155,7 @@ typedef struct debrief_stage
 		: formula( -1 ), text( ),
 		  recommendation_text( )
 	{ 
-		voice[ 0 ] = NULL;
+		voice[ 0 ] = 0;
 	}
 } debrief_stage;
 
@@ -282,6 +282,6 @@ int brief_render_text(int line_offset, int x, int y, int h, float frametime, int
 
 void cmd_brief_reset();
 
-int brief_time_to_advance(int stage_num, float frametime);
+int brief_time_to_advance(int stage_num);
 
 #endif
