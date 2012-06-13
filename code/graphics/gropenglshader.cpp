@@ -67,7 +67,7 @@ static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
 	{ SDR_FLAG_HEIGHT_MAP,	1, {"sHeightmap"}, 0, {}, "Parallax Mapping" },
 	{ SDR_FLAG_ENV_MAP,		3, {"sEnvmap", "alpha_spec", "envMatrix"}, 0, {}, "Environment Mapping" },
 	{ SDR_FLAG_ANIMATED,	5, {"sFramebuffer", "effect_num", "anim_timer", "vpwidth", "vpheight"}, 0, {}, "Animated Effects" },
-	{ SDR_FLAG_TRANSFORM,	1, {"transform_tex"}, 1, {"model_id"} }
+	{ SDR_FLAG_TRANSFORM,	1, {"transform_tex"}, 1, {"model_id"} },
 	{ SDR_FLAG_MISC_MAP,	1, {"sMiscmap"}, 0, {}, "Utility mapping" }
 };
 

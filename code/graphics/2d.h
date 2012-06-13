@@ -40,6 +40,7 @@ extern int gr_global_zbuffering;
 #define SDR_FLAG_SOFT_QUAD		(1<<9)
 #define SDR_FLAG_DISTORTION		(1<<10)
 #define SDR_FLAG_MISC_MAP		(1<<11)
+#define SDR_FLAG_TRANSFORM		(1<<12)
 
 /**
  * This is a structure used by the shader to keep track

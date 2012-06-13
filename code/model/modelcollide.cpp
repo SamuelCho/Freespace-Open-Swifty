@@ -17,7 +17,7 @@
 #include "graphics/tmapper.h"
 #include "math/fvi.h"
 #include "model/modelsinc.h"
-
+#include "cmdline/cmdline.h"
 
 
 
@@ -1047,8 +1047,11 @@ void mc_check_subobj( int mn )
 			Mc->hit_bitmap = -1;
 			Mc->num_hits++;
 		} else {
-			//model_collide_sub(sm->bsp_data);
-			model_collide_bsp(model_get_bsp_collision_tree(sm->collision_tree_index), 0);
+			if ( Cmdline_new_collision_sys ) {
+				model_collide_bsp(model_get_bsp_collision_tree(sm->collision_tree_index), 0);
+			} else {
+				model_collide_sub(sm->bsp_data);
+			}
 		}
 	}
 
