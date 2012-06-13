@@ -173,6 +173,8 @@ static int FULLCLOAK = -1;
 int Interp_transform_texture = -1;
 int Interp_transparent_textures_only = 0;
 
+int Interp_no_flush = 0;
+
 // forward references
 int model_interp_sub(void *model_ptr, polymodel * pm, bsp_info *sm, int do_box_check);
 void model_really_render(int model_num, int model_instance_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1);
@@ -3097,10 +3099,12 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	}
 	transparent_submodels.clear();
 
-	gr_flush_data_states();
+	if ( !Interp_no_flush ) {
+		gr_flush_data_states();
 
-	if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-		gr_set_buffer(-1);
+		if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
+			gr_set_buffer(-1);
+		}
 	}
 
 	if (is_outlines_only_htl) {
@@ -3130,23 +3134,23 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	if (!Cmdline_nohtl)	gr_set_texture_panning(0.0, 0.0, false);
 
 	gr_zbuffer_set(GR_ZBUFF_READ);
-	model_render_insignias(pm, Interp_detail_level);	
+	//model_render_insignias(pm, Interp_detail_level);	
 
 	gr_zbias(0);  
 
 	if (FULLCLOAK != -1)	model_finish_cloak(FULLCLOAK);
 
 	if ( pm->submodel[pm->detail[0]].num_arcs )	{
-		interp_render_lightning( pm, &pm->submodel[pm->detail[0]]);
+		//interp_render_lightning( pm, &pm->submodel[pm->detail[0]]);
 	}	
 
 	if ( Interp_flags & MR_SHOW_SHIELDS )	{
-		model_render_shields(pm);
+		//model_render_shields(pm);
 	}	
 
 	// start rendering glow points -Bobboau
 	if ( (pm->n_glow_point_banks) && !is_outlines_only && !is_outlines_only_htl && !Glowpoint_override ) {
-		model_render_glow_points(pm, shipp, orient, pos);
+		//model_render_glow_points(pm, shipp, orient, pos);
 	}
 
 	if ( Interp_flags & MR_SHOW_PATHS ){

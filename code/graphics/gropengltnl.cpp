@@ -66,6 +66,7 @@ int GL_vertex_data_in = 0;
 GLint GL_max_elements_vertices = 4096;
 GLint GL_max_elements_indices = 4096;
 
+int Buffer_sdr = -1;
 
 struct opengl_vertex_buffer {
 	GLfloat *array_list;	// interleaved array
@@ -434,6 +435,7 @@ void gr_opengl_set_buffer(int idx)
 
 		if ( (Use_GLSL > 1) && !GLSL_override ) {
 			opengl_shader_set_current();
+			Buffer_sdr = -1;
 		}
 
 		return;
@@ -495,6 +497,10 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 {
 	GLint offset = (GLint)bufferp->vertex_offset;
 	GLubyte *ptr = NULL;
+
+	if ( Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
+		offset = 0;
+	}
 
 	// vertex buffer
 
@@ -639,8 +645,10 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 
 	Assert( sdr_index >= 0 );
 
-	opengl_shader_set_current( &GL_shader[sdr_index] );
-
+	if ( sdr_index != Buffer_sdr ) {
+		Buffer_sdr = sdr_index;
+		opengl_shader_set_current( &GL_shader[sdr_index] );
+	}
 
 	opengl_default_light_settings( !GL_center_alpha, (Interp_light > 0.25f) );
 	gr_opengl_set_center_alpha(GL_center_alpha);
@@ -673,7 +681,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	int n_lights = MIN(Num_active_gl_lights, GL_max_lights) - 1;
 	vglUniform1iARB( opengl_shader_get_uniform("n_lights"), n_lights );
 
-	//GL_state.Texture.ResetUsed();
+	GL_state.Texture.ResetUsed();
 
 	// base texture
 	if (shader_flags & SDR_FLAG_DIFFUSE_MAP) {
@@ -761,10 +769,24 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		render_pass++;
 	}
 
-	//GL_state.Texture.DisableUnused();
+	GL_state.Texture.DisableUnused();
 
 	// DRAW IT!!
-	DO_RENDER();
+	//DO_RENDER();
+
+	if ( Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
+		if (Cmdline_drawelements) {
+			vglDrawElementsBaseVertex(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
+		} else {
+			vglDrawRangeElementsBaseVertex(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
+		}
+	} else {
+		if (Cmdline_drawelements) {
+			glDrawElements(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start)); 
+		} else {
+			vglDrawRangeElements(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start));
+		}
+	}
 /*
 	int n_light_passes = (MIN(Num_active_gl_lights, GL_max_lights) - 1) / 3;
 
@@ -831,12 +853,12 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 */
 
 	// make sure everthing gets turned back off
-	if ( shader_flags & SDR_FLAG_TRANSFORM ) {
-		int attrib_index = opengl_shader_get_attribute("model_id");
-		if ( attrib_index >= 0 ) {
-			GL_state.Array.DisableVertexAttrib(attrib_index);
-		}
-	}
+// 	if ( shader_flags & SDR_FLAG_TRANSFORM ) {
+// 		int attrib_index = opengl_shader_get_attribute("model_id");
+// 		if ( attrib_index >= 0 ) {
+// 			GL_state.Array.DisableVertexAttrib(attrib_index);
+// 		}
+// 	}
 	GL_state.Texture.SetShaderMode(GL_FALSE);
 }
 
