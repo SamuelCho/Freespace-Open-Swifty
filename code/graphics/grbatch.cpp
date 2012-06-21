@@ -842,6 +842,7 @@ void batch_render_close()
 {
 	if ( Batch_buffer != NULL ) {
 		vm_free(Batch_buffer);
+		Batch_buffer = NULL;
 	}
 
 	Batch_buffer_size = 0;
