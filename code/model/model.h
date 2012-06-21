@@ -1125,7 +1125,6 @@ typedef struct mc_info {
 
 int model_collide(mc_info * mc_info);
 void model_collide_parse_bsp(bsp_collision_tree *tree, void *model_ptr, int version);
-void model_collide_parse_bsp_new(bsp_collision_tree *tree, void *model_ptr, int version);
 
 bsp_collision_tree *model_get_bsp_collision_tree(int tree_index);
 void model_remove_bsp_collision_tree(int tree_index);
