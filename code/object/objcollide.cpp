@@ -1469,7 +1469,7 @@ void obj_collide_pair(object *A, object *B)
 		collision_info->next_check_time = 0;
 	}
 
-	if ( valid ) {
+	if ( valid &&  A->type != OBJ_BEAM ) {
 		// if this signature is valid, make the necessary checks to see if we need to collide check
 		if ( collision_info->next_check_time == -1 ) {
 			return;
@@ -1479,12 +1479,12 @@ void obj_collide_pair(object *A, object *B)
 			}
 		}
 	} else {
-		if ( A->type == OBJ_BEAM ) {
-			if(beam_collide_early_out(A, B)){
-				collision_info->next_check_time = -1;
-				return;
-			}
-		}
+		//if ( A->type == OBJ_BEAM ) {
+			//if(beam_collide_early_out(A, B)){
+				//collision_info->next_check_time = -1;
+				//return;
+			//}
+		//}
 
 		// only check debris:weapon collisions for player
 		if (check_collision == collide_debris_weapon) {

@@ -1353,7 +1353,7 @@ char *Default_main_fragment_shader =
 "void main()\n"
 "{\n"
 "#ifdef FLAG_TRANSFORM\n"
-"	if(blown_off == 1.0)\n"
+"	if(blown_off > 0.9)\n"
 "		discard;\n"
 "#endif\n"
 "	vec3 eyeDir = vec3(normalize(-position).xyz); // Camera is at (0,0,0) in ModelView space\n"
