@@ -4472,6 +4472,7 @@ void model_update_instance(int model_instance_num, int sub_model_num, submodel_i
 
 	// Set the "blown out" flags	
 	smi->blown_off = sii->blown_off ? true : false;
+	smi_r->blown_off = sii->blown_off ? true : false;
 
 	if ( smi->blown_off )	{
 		if ( sm->my_replacement > -1 )	{
@@ -4500,6 +4501,7 @@ void model_update_instance(int model_instance_num, int sub_model_num, submodel_i
 	smi_r->prev_angs = sii->prev_angs;
 
 	smi->moved_this_frame = true;
+	smi_r->moved_this_frame = true;
 
 	// For all the detail levels of this submodel, set them also.
 	for (i=0; i<sm->num_details; i++ )	{
