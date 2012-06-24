@@ -152,6 +152,14 @@ int obj_in_view_cone( object * objp )
 	return 1;
 }
 
+inline bool obj_render_is_model(object *obj)
+{
+	return obj->type == OBJ_SHIP 
+		|| (obj->type == OBJ_WEAPON 
+			&& Weapon_info[Weapons[obj->instance].weapon_info_index].render_type == WRT_POF) 
+		|| obj->type == OBJ_ASTEROID 
+		|| obj->type == OBJ_DEBRIS;
+}
 
 // Sorts all the objects by Z and renders them
 extern int Fred_active;
@@ -233,6 +241,7 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 	Interp_no_flush = 1;
 
 	// now draw them
+	// only render models in this loop in order to minimize state changes
 	SCP_list<sorted_obj>::iterator os;
 	for (os = Sorted_objects.begin(); os != Sorted_objects.end(); ++os) {
 		object *obj = os->obj;
@@ -265,16 +274,49 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 				continue;
 			}
 		}
-		if( (obj->type == OBJ_SHIP) && Ships[obj->instance].shader_effect_active )
-			effect_ships.push_back(obj);
-		else
-			(*render_function)(obj);
+
+		if ( obj_render_is_model(obj) ) {
+			if( (obj->type == OBJ_SHIP) && Ships[obj->instance].shader_effect_active )
+				effect_ships.push_back(obj);
+			else 
+				(*render_function)(obj);
+		}
 	}
 
 	Interp_no_flush = 0;
 
+	// we're done rendering models so flush render states
 	gr_flush_data_states();
 	gr_set_buffer(-1);
+
+	// render everything else that isn't a model
+	for (os = Sorted_objects.begin(); os != Sorted_objects.end(); ++os) {
+		object *obj = os->obj;
+
+		obj->flags |= OF_WAS_RENDERED;
+
+		if ( obj_render_is_model(obj) )
+			continue;
+
+		// if we're fullneb, fire up the fog - this also generates a fog table
+		if((The_mission.flags & MISSION_FLAG_FULLNEB) && (Neb2_render_mode != NEB2_RENDER_NONE) && !Fred_running){
+			// get the fog values
+			neb2_get_adjusted_fog_values(&fog_near, &fog_far, obj);
+
+			// only reset fog if the fog mode has changed - since regenerating a fog table takes
+			// a bit of time
+			if((fog_near != gr_screen.fog_near) || (fog_far != gr_screen.fog_far)){
+				gr_fog_set(GR_FOGMODE_FOG, gr_screen.current_fog_color.red, gr_screen.current_fog_color.green, gr_screen.current_fog_color.blue, fog_near, fog_far);
+			}
+
+			// maybe skip rendering an object because its obscured by the nebula
+			if(neb2_skip_render(obj, os->z)){
+				continue;
+			}
+		}
+
+		(*render_function)(obj);
+	}
 
 	Sorted_objects.clear();
 
