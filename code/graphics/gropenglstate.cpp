@@ -1019,6 +1019,23 @@ void opengl_array_state::BindArrayBuffer(GLuint id)
 	vglBindBufferARB(GL_ARRAY_BUFFER_ARB, id);
 
 	array_buffer = id;
+
+	// if we're debinding the current VBO, make sure all the gl*Pointers rebind upon next call
+	if ( array_buffer == 0 ) {
+		for (unsigned int i = 0; i < num_client_texture_units; i++) {
+			client_texture_units[i].buffer = sizeof(uint);
+		}
+
+		vertex_array_Buffer = sizeof(uint);
+		normal_array_Buffer = sizeof(uint);
+		color_array_Buffer = sizeof(uint);
+
+		SCP_map<GLuint,opengl_vertex_attrib_unit>::iterator it;
+
+		for ( it = vertex_attrib_units.begin(); it != vertex_attrib_units.end(); it++ ) {
+			it->second.buffer = sizeof(uint);
+		}
+	}
 }
 
 void opengl_array_state::BindElementBuffer(GLuint id)
