@@ -388,7 +388,6 @@ void HudGaugeEscort::renderIconDogfight(int x, int y, int index)
 	char			buf[255];	
 	int			np_index;
 	object		*objp;
-	ship_info	*sip;
 
 	int stat_shift = 40;
 
@@ -411,7 +410,7 @@ void HudGaugeEscort::renderIconDogfight(int x, int y, int index)
 	if((Net_players[np_index].m_player->objnum >= 0) && (Net_players[np_index].m_player->objnum < MAX_OBJECTS) && (Objects[Net_players[np_index].m_player->objnum].type == OBJ_SHIP)){
 		objp = &Objects[Net_players[np_index].m_player->objnum];
 		if((objp->instance >= 0) && (objp->instance < MAX_SHIPS) && (Ships[objp->instance].ship_info_index >= 0) && (Ships[objp->instance].ship_info_index < MAX_SHIPS)){
-			sip = &Ship_info[Ships[objp->instance].ship_info_index];
+			//
 		} else {
 			return;
 		}
@@ -465,12 +464,15 @@ void hud_escort_init()
 // ----------------------------------------------------------------------
 // hud_escort_clear_all()
 //
-void hud_escort_clear_all()
+void hud_escort_clear_all(bool clear_flags)
 {
 	int i;
 
 	Num_escort_ships = 0;
 	for ( i = 0; i < Max_escort_ships; i++ ) {
+		if(clear_flags && (Escort_ships[i].objnum >= 0) && (Objects[Escort_ships[i].objnum].type == OBJ_SHIP) && (Objects[Escort_ships[i].objnum].instance >= 0)){
+			Ships[Objects[Escort_ships[i].objnum].instance].flags &= ~SF_ESCORT;
+		}
 		Escort_ships[i].obj_signature = -99;
 		Escort_ships[i].np_id = -1;
 		shield_info_reset(&Escort_ships[i].hit_info);

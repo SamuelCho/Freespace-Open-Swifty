@@ -409,7 +409,7 @@ void playercontrol_read_stick(int *axis, float frame_time)
 void read_keyboard_controls( control_info * ci, float frame_time, physics_info *pi )
 {
 	float kh=0.0f, scaled, newspeed, delta, oldspeed;
-	int axis[NUM_JOY_AXIS_ACTIONS], ignore_pitch, slew_active=1;
+	int axis[NUM_JOY_AXIS_ACTIONS], slew_active=1;
 	static int afterburner_last = 0;
 	static float analog_throttle_last = 9e9f;
 	static int override_analog_throttle = 0; 
@@ -627,15 +627,12 @@ void read_keyboard_controls( control_info * ci, float frame_time, physics_info *
 			axis[0] = axis[1] = axis[2] = axis[3] = axis[4] = 0;
 		}
 
-		ignore_pitch = FALSE;
-
 		if (Axis_map_to[JOY_HEADING_AXIS] >= 0) {
 			// check the heading on the x axis
 			if ( check_control(BANK_WHEN_PRESSED) ) {
 				delta = f2fl( axis[JOY_HEADING_AXIS] );
 				if ( (delta > 0.05f) || (delta < -0.05f) ) {
 					ci->bank -= delta;
-					ignore_pitch = TRUE;
 				}
 			} else {
 				ci->heading += f2fl( axis[JOY_HEADING_AXIS] );
@@ -1245,6 +1242,9 @@ void player_level_init()
 	Player->low_ammo_complaint_count = 0;	// number of complaints about low ammo received in this mission
 	Player->allow_ammo_timestamp = 1;		// timestamp until next 'Ammo low' message can be played
 
+	Player->praise_self_count = 0;			// number of boasts about kills received in this mission
+	Player->praise_self_timestamp = 1;		// timestamp marking time until next boast is allowed
+
 	Player->request_repair_timestamp = 1;	// timestamp until next 'requesting repair sir' message can be played
 
 	Player->repair_sound_loop = -1;
@@ -1346,9 +1346,6 @@ void player_stop_cargo_scan_sound()
 	}
 }
 
-
-#define PLAYER_ALLOW_PRAISE_INTERVAL	60000		// minimum time between praises
-
 /**
  * @brief See if there is a praise message to deliver to the player.  We want to delay the praise messages
  * a bit, to make them more realistic
@@ -1376,7 +1373,7 @@ int player_process_pending_praise()
 				else {
 					message_send_builtin_to_player(MESSAGE_PRAISE, &Ships[ship_index], MESSAGE_PRIORITY_HIGH, MESSAGE_TIME_SOON, 0, 0, -1, -1);
 				}
-				Player->allow_praise_timestamp = timestamp(PLAYER_ALLOW_PRAISE_INTERVAL*(Game_skill_level+1) );
+				Player->allow_praise_timestamp = timestamp(Builtin_messages[MESSAGE_PRAISE].min_delay * (Game_skill_level+1) );
 				Player->allow_scream_timestamp = timestamp(20000);		// prevent death scream following praise
 				Player->praise_count++;
 				return 1;
