@@ -39,20 +39,6 @@ static int Effect_num = 0;
 static float Anim_timer = 0.0f;
 
 
-/*
-struct opengl_shader_uniform_reference_t {
-	int flag;
-
-	int num_uniforms;
-	char* uniforms[MAX_SHADER_UNIFORMS];
-
-	int num_attributes;
-	char* attributes[MAX_SDR_ATTRIBUTES];
-
-	SCP_string name;
-};
-*/
-
 /**
  * Static lookup reference for main shader uniforms
  * When adding a new SDR_ flag, list all associated uniforms and attributes here
@@ -337,17 +323,19 @@ void opengl_compile_main_shader(int flags) {
 	if (new_shader.flags & SDR_FLAG_SOFT_QUAD) {
 		for (int j = 0; j < Particle_shader_flag_references; j++) {
 			if (new_shader.flags == GL_Uniform_Reference_Particle[j].flag) {
+				int k;
+
 			// Equality check needed because the combination of SDR_FLAG_SOFT_QUAD and SDR_FLAG_DISTORTION define something very different
 			// than just SDR_FLAG_SOFT_QUAD alone
-				for (int k = 0; k < GL_Uniform_Reference_Particle[j].num_uniforms; k++) {
+				for (k = 0; k < GL_Uniform_Reference_Particle[j].num_uniforms; k++) {
 					opengl_shader_init_uniform( GL_Uniform_Reference_Particle[j].uniforms[k] );
 				}
 
-				for (int k = 0; k < GL_Uniform_Reference_Particle[j].num_attributes; k++) {
+				for (k = 0; k < GL_Uniform_Reference_Particle[j].num_attributes; k++) {
 					opengl_shader_init_attribute( GL_Uniform_Reference_Particle[j].attributes[k] );
 				}
 
-				mprintf(("   %s\n", GL_Uniform_Reference_Particle[j].name.c_str()));
+				mprintf(("   %s\n", GL_Uniform_Reference_Particle[j].name));
 			}
 		}
 	} else {
@@ -365,7 +353,7 @@ void opengl_compile_main_shader(int flags) {
 					}
 				}
 
-				mprintf(("   %s\n", GL_Uniform_Reference_Main[j].name.c_str()));
+				mprintf(("   %s\n", GL_Uniform_Reference_Main[j].name));
 			}
 		}
 	}

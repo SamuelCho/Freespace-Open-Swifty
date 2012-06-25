@@ -2803,7 +2803,6 @@ void beam_handle_collisions(beam *b)
 	int idx, s_idx;
 	beam_collision r_coll[MAX_FRAME_COLLISIONS];
 	int r_coll_count = 0;
-	beam_weapon_info *bwi;
 	weapon_info *wi;
 	float widest;	
 
@@ -2817,7 +2816,6 @@ void beam_handle_collisions(beam *b)
 		Int3();
 		return;
 	}
-	bwi = &Weapon_info[b->weapon_info_index].b_info;
 	wi = &Weapon_info[b->weapon_info_index];
 
 	// get the widest part of the beam
