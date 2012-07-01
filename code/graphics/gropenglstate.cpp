@@ -743,6 +743,7 @@ void opengl_array_state::init(GLuint n_units)
 		client_texture_units[i].stride = 0;
 		client_texture_units[i].type = GL_FLOAT;
 		client_texture_units[i].buffer = 0;
+		client_texture_units[i].reset = false;
 	}
 
 	color_array_Buffer = 0;
@@ -751,12 +752,14 @@ void opengl_array_state::init(GLuint n_units)
 	color_array_type = GL_FLOAT;
 	color_array_stride = 0;
 	color_array_pointer = 0;
+	color_array_reset = false;
 
 	normal_array_Buffer = 0;
 	normal_array_Status = GL_FALSE;
 	normal_array_Type = GL_FLOAT;
 	normal_array_Stride = 0;
 	normal_array_Pointer = 0;
+	normal_array_reset = false;
 
 	vertex_array_Buffer = 0;
 	vertex_array_Status = GL_FALSE;
@@ -764,6 +767,7 @@ void opengl_array_state::init(GLuint n_units)
 	vertex_array_Type = GL_FLOAT;
 	vertex_array_Stride = 0;
 	vertex_array_Pointer = 0;
+	vertex_array_reset = false;
 
 	array_buffer = 0;
 	element_array_buffer = 0;
@@ -811,7 +815,14 @@ void opengl_array_state::TexPointer(GLint size, GLenum type, GLsizei stride, GLv
 {
 	opengl_client_texture_unit *ct_unit = &client_texture_units[active_client_texture_unit];
 
-	if ( ct_unit->pointer == pointer && ct_unit->size == size && ct_unit->type == type && ct_unit->stride == stride && ct_unit->buffer == array_buffer ) {
+	if ( 
+		!ct_unit->reset 
+		&& ct_unit->pointer == pointer 
+		&& ct_unit->size == size 
+		&& ct_unit->type == type 
+		&& ct_unit->stride == stride 
+		&& ct_unit->buffer == array_buffer 
+	) {
 		return;
 	}
 
@@ -822,6 +833,7 @@ void opengl_array_state::TexPointer(GLint size, GLenum type, GLsizei stride, GLv
 	ct_unit->stride = stride;
 	ct_unit->pointer = pointer;
 	ct_unit->buffer = array_buffer;
+	ct_unit->reset = false;
 }
 
 void opengl_array_state::EnableClientColor()
@@ -848,7 +860,14 @@ void opengl_array_state::DisableClientColor()
 
 void opengl_array_state::ColorPointer(GLint size, GLenum type, GLsizei stride, GLvoid *pointer)
 {
-	if ( color_array_size == size && color_array_type == type && color_array_stride == stride && color_array_pointer == pointer && color_array_Buffer == array_buffer ) {
+	if ( 
+		!color_array_reset 
+		&& color_array_size == size 
+		&& color_array_type == type 
+		&& color_array_stride == stride 
+		&& color_array_pointer == pointer 
+		&& color_array_Buffer == array_buffer 
+	) {
 		return;
 	}
 
@@ -859,6 +878,7 @@ void opengl_array_state::ColorPointer(GLint size, GLenum type, GLsizei stride, G
 	color_array_stride = stride;
 	color_array_pointer = pointer;
 	color_array_Buffer = array_buffer;
+	color_array_reset = false;
 }
 
 void opengl_array_state::EnableClientNormal()
@@ -885,7 +905,13 @@ void opengl_array_state::DisableClientNormal()
 
 void opengl_array_state::NormalPointer(GLenum type, GLsizei stride, GLvoid *pointer)
 {
-	if ( normal_array_Type == type && normal_array_Stride == stride && normal_array_Pointer == pointer && normal_array_Buffer == array_buffer ) {
+	if ( 
+		!normal_array_reset 
+		&& normal_array_Type == type 
+		&& normal_array_Stride == stride 
+		&& normal_array_Pointer == pointer 
+		&& normal_array_Buffer == array_buffer 
+	) {
 		return;
 	}
 
@@ -895,6 +921,7 @@ void opengl_array_state::NormalPointer(GLenum type, GLsizei stride, GLvoid *poin
 	normal_array_Stride = stride;
 	normal_array_Pointer = pointer;
 	normal_array_Buffer = array_buffer;
+	normal_array_reset = false;
 }
 
 void opengl_array_state::EnableClientVertex()
@@ -921,7 +948,14 @@ void opengl_array_state::DisableClientVertex()
 
 void opengl_array_state::VertexPointer(GLint size, GLenum type, GLsizei stride, GLvoid *pointer)
 {
-	if ( vertex_array_Size == size && vertex_array_Type == type && vertex_array_Stride == stride && vertex_array_Pointer == pointer && vertex_array_Buffer == array_buffer ) {
+	if (
+		!vertex_array_reset 
+		&& vertex_array_Size == size 
+		&& vertex_array_Type == type 
+		&& vertex_array_Stride == stride 
+		&& vertex_array_Pointer == pointer 
+		&& vertex_array_Buffer == array_buffer 
+	) {
 		return;
 	}
 
@@ -932,6 +966,7 @@ void opengl_array_state::VertexPointer(GLint size, GLenum type, GLsizei stride, 
 	vertex_array_Stride = stride;
 	vertex_array_Pointer = pointer;
 	vertex_array_Buffer = array_buffer;
+	vertex_array_reset = false;
 }
 
 void opengl_array_state::ResetVertexPointer()
@@ -974,7 +1009,16 @@ void opengl_array_state::VertexAttribPointer(GLuint index, GLint size, GLenum ty
 {
 	opengl_vertex_attrib_unit *va_unit = &vertex_attrib_units[index];
 
-	if ( va_unit->initialized && va_unit->normalized == normalized && va_unit->pointer == pointer && va_unit->size == size && va_unit->stride == stride && va_unit->type == type && va_unit->buffer == array_buffer) {
+	if ( 
+		!va_unit->reset 
+		&& va_unit->initialized 
+		&& va_unit->normalized == normalized 
+		&& va_unit->pointer == pointer 
+		&& va_unit->size == size 
+		&& va_unit->stride == stride 
+		&& va_unit->type == type 
+		&& va_unit->buffer == array_buffer
+	) {
 		return;
 	}
 
@@ -986,6 +1030,7 @@ void opengl_array_state::VertexAttribPointer(GLuint index, GLint size, GLenum ty
 	va_unit->stride = stride;
 	va_unit->type = type;
 	va_unit->buffer = array_buffer;
+	va_unit->reset = false;
 
 	va_unit->initialized = true;
 }
@@ -1020,22 +1065,19 @@ void opengl_array_state::BindArrayBuffer(GLuint id)
 
 	array_buffer = id;
 
-	// if we're debinding the current VBO, make sure all the gl*Pointers rebind upon next call
-// 	if ( array_buffer == 0 ) {
-// 		for (unsigned int i = 0; i < num_client_texture_units; i++) {
-// 			client_texture_units[i].buffer = sizeof(uint);
-// 		}
-// 
-// 		vertex_array_Buffer = sizeof(uint);
-// 		normal_array_Buffer = sizeof(uint);
-// 		color_array_Buffer = sizeof(uint);
-// 
-// 		SCP_map<GLuint,opengl_vertex_attrib_unit>::iterator it;
-// 
-// 		for ( it = vertex_attrib_units.begin(); it != vertex_attrib_units.end(); it++ ) {
-// 			it->second.buffer = sizeof(uint);
-// 		}
-// 	}
+	vertex_array_reset = true;
+	color_array_reset = true;
+	normal_array_reset = true;
+
+	for (unsigned int i = 0; i < num_client_texture_units; i++) {
+		client_texture_units[i].reset = true;
+	}
+
+	SCP_map<GLuint,opengl_vertex_attrib_unit>::iterator it;
+
+	for ( it = vertex_attrib_units.begin(); it != vertex_attrib_units.end(); it++ ) {
+		it->second.reset = true;
+	}
 }
 
 void opengl_array_state::BindElementBuffer(GLuint id)

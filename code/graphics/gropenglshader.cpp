@@ -44,17 +44,17 @@ static float Anim_timer = 0.0f;
  * When adding a new SDR_ flag, list all associated uniforms and attributes here
  */
 static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
-	{ SDR_FLAG_LIGHT,		1, {"n_lights"}, 0, {}, "Lighting" },
-	{ SDR_FLAG_FOG,			0, {}, 0, {}, "Fog Effect" },
+	{ SDR_FLAG_LIGHT,		1, {"n_lights"}, 0, { NULL }, "Lighting" },
+	{ SDR_FLAG_FOG,			0, { NULL }, 0, { NULL }, "Fog Effect" },
 	{ SDR_FLAG_DIFFUSE_MAP, 1, {"sBasemap"}, 0, {}, "Diffuse Mapping"},
-	{ SDR_FLAG_GLOW_MAP,	1, {"sGlowmap"}, 0, {}, "Glow Mapping" },
-	{ SDR_FLAG_SPEC_MAP,	1, {"sSpecmap"}, 0, {}, "Specular Mapping" },
-	{ SDR_FLAG_NORMAL_MAP,	1, {"sNormalmap"}, 0, {}, "Normal Mapping" },
-	{ SDR_FLAG_HEIGHT_MAP,	1, {"sHeightmap"}, 0, {}, "Parallax Mapping" },
-	{ SDR_FLAG_ENV_MAP,		3, {"sEnvmap", "alpha_spec", "envMatrix"}, 0, {}, "Environment Mapping" },
-	{ SDR_FLAG_ANIMATED,	5, {"sFramebuffer", "effect_num", "anim_timer", "vpwidth", "vpheight"}, 0, {}, "Animated Effects" },
-	{ SDR_FLAG_TRANSFORM,	1, {"transform_tex"}, 1, {"model_id"} },
-	{ SDR_FLAG_MISC_MAP,	1, {"sMiscmap"}, 0, {}, "Utility mapping" }
+	{ SDR_FLAG_GLOW_MAP,	1, {"sGlowmap"}, 0, { NULL }, "Glow Mapping" },
+	{ SDR_FLAG_SPEC_MAP,	1, {"sSpecmap"}, 0, { NULL }, "Specular Mapping" },
+	{ SDR_FLAG_NORMAL_MAP,	1, {"sNormalmap"}, 0, { NULL }, "Normal Mapping" },
+	{ SDR_FLAG_HEIGHT_MAP,	1, {"sHeightmap"}, 0, { NULL }, "Parallax Mapping" },
+	{ SDR_FLAG_ENV_MAP,		3, {"sEnvmap", "alpha_spec", "envMatrix"}, 0, { NULL }, "Environment Mapping" },
+	{ SDR_FLAG_ANIMATED,	5, {"sFramebuffer", "effect_num", "anim_timer", "vpwidth", "vpheight"}, 0, { NULL }, "Animated Effects" },
+	{ SDR_FLAG_TRANSFORM,	1, {"transform_tex"}, 1, {"model_id"}, "Submodel Positioning" },
+	{ SDR_FLAG_MISC_MAP,	1, {"sMiscmap"}, 0, { NULL }, "Utility mapping" }
 };
 
 static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main) / sizeof(opengl_shader_uniform_reference_t);

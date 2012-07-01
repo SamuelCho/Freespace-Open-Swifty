@@ -174,6 +174,7 @@ struct opengl_client_texture_unit
 	GLenum type;
 	GLsizei stride;
 	GLvoid *pointer;
+	bool reset;
 };
 
 struct opengl_vertex_attrib_unit
@@ -189,6 +190,7 @@ struct opengl_vertex_attrib_unit
 
 	bool used;
 	bool initialized;
+	bool reset;
 };
 
 class opengl_array_state
@@ -205,12 +207,14 @@ class opengl_array_state
 		GLenum color_array_type;
 		GLsizei color_array_stride;
 		GLvoid *color_array_pointer;
+		bool color_array_reset;
 
 		GLboolean normal_array_Status;
 		GLuint normal_array_Buffer;
 		GLenum normal_array_Type;
 		GLsizei normal_array_Stride;
 		GLvoid *normal_array_Pointer;
+		bool normal_array_reset;
 
 		GLboolean vertex_array_Status;
 		GLuint vertex_array_Buffer;
@@ -218,6 +222,7 @@ class opengl_array_state
 		GLenum vertex_array_Type;
 		GLsizei vertex_array_Stride;
 		GLvoid *vertex_array_Pointer;
+		bool vertex_array_reset;
 
 		SCP_map<GLuint, opengl_vertex_attrib_unit> vertex_attrib_units;
 

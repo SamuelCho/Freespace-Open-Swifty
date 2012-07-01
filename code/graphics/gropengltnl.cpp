@@ -204,9 +204,7 @@ void gr_opengl_update_stream_buffer(int buffer, effect_vertex *buffer_data, uint
 {
 	opengl_vertex_buffer *stream_buffer = &GL_vertex_buffers[buffer];
 
-	if ( size > stream_buffer->vbo_size ) {
-		stream_buffer->vbo_size = size;
-	}
+	stream_buffer->vbo_size = size;
 
 	vglBufferDataARB(GL_ARRAY_BUFFER_ARB, stream_buffer->vbo_size, (GLvoid*)buffer_data, GL_STREAM_DRAW_ARB);
 }
