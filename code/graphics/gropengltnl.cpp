@@ -293,7 +293,10 @@ bool gr_opengl_config_buffer(const int buffer_id, vertex_buffer *vb, bool update
 		buffer_data *bd = &vb->tex_buf[idx];
 
 		bd->index_offset = m_vbp->ibo_size;
-		m_vbp->ibo_size += bd->n_verts * ((bd->flags & VB_FLAG_LARGE_INDEX) ? sizeof(uint) : sizeof(ushort));
+		m_vbp->ibo_size += bd->n_verts * ((bd->flags & VB_FLAG_LARGE_INDEX) ? sizeof(GLuint) : sizeof(GLushort));
+
+		// try to make this always end GLuint aligned
+		m_vbp->ibo_size += m_vbp->ibo_size % sizeof(GLuint);
 	}
 
 	return true;
