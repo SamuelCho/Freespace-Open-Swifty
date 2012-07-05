@@ -1250,6 +1250,22 @@ float obj_get_collider_endpoint(int obj_num, int axis, bool min)
 		} else {
 			return max_end;
 		}
+	} else if ( Objects[obj_num].type == OBJ_WEAPON ) {
+		float min_end, max_end;
+
+		if ( Objects[obj_num].pos.a1d[axis] > Objects[obj_num].last_pos.a1d[axis] ) {
+			min_end = Objects[obj_num].last_pos.a1d[axis];
+			max_end = Objects[obj_num].pos.a1d[axis];
+		} else {
+			min_end = Objects[obj_num].pos.a1d[axis];
+			max_end = Objects[obj_num].last_pos.a1d[axis];
+		}
+
+		if ( min ) {
+			return min_end - Objects[obj_num].radius;
+		} else {
+			return max_end + Objects[obj_num].radius;
+		}
 	} else {
 		vec3d *pos = &Objects[obj_num].pos;
 
