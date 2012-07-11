@@ -2830,6 +2830,10 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 		Interp_detail_level = 0;
 	}
 
+	if ( model_instance_num >= 0 && Interp_transform_texture >= 0 ) {
+		model_interp_update_transforms(objp, Interp_detail_level);
+	}
+
 #ifndef NDEBUG
 	if ( Interp_detail_level == 0 )	{
 		MONITOR_INC( NumHiModelsRend, 1 );
@@ -2867,10 +2871,6 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 		case 4:
 			Interp_box_scale = 1.2f;
 			break;
-	}
-
-	if ( model_instance_num >= 0 && Interp_transform_texture >= 0 ) {
-		model_interp_update_transforms(objp, Interp_detail_level);
 	}
 
 	vec3d auto_back = ZERO_VECTOR;
@@ -5066,7 +5066,6 @@ void model_interp_update_transforms(object *objp, int detail_num)
 	polymodel_instance *pmi = model_get_instance(model_instance_num);
 	int i, j;
 	submodel_instance *smi;
-	vec3d world_pos;
 
 	for ( i = 0; i < pm->n_models; ++i ) {
 		smi = &pmi->submodel_render[i];
@@ -5092,26 +5091,16 @@ void model_interp_update_transforms(object *objp, int detail_num)
 			vm_vec_copy_scale(&Interp_render_box_min, &pm->submodel[i].render_box_min, Interp_box_scale);
 			vm_vec_copy_scale(&Interp_render_box_max, &pm->submodel[i].render_box_max, Interp_box_scale);
 
-			vm_vec_add(&world_pos, &objp->pos, &smi->mc_base);
-
-			if ( (-pm->submodel[i].use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &world_pos)) )
+			if ( (-pm->submodel[i].use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &pm->submodel[i].offset)) )
 				do_not_render = true;
-		}
-
-		if ( !(Interp_flags & MR_FULL_DETAIL) && pm->submodel[i].use_render_sphere ) {
+		} else if ( !(Interp_flags & MR_FULL_DETAIL) && pm->submodel[i].use_render_sphere ) {
 			Interp_render_sphere_radius = pm->submodel[i].render_sphere_radius * Interp_box_scale;
 
-			vm_vec_add(&world_pos, &objp->pos, &smi->mc_base);
-
-			if ( (-pm->submodel[i].use_render_sphere + in_sphere(&world_pos, Interp_render_sphere_radius)) )
+			if ( (-pm->submodel[i].use_render_sphere + in_sphere(&pm->submodel[i].offset, Interp_render_sphere_radius)) )
 				do_not_render = true;
 		}
 
-		if ( smi->blown_off ) {
-			do_not_render = true;
-		}
-
-		pmi->transform_buffer[i*16+15] = do_not_render ? 1.0f : 0.0f;
+		pmi->transform_buffer[i*16+15] = smi->blown_off || do_not_render ? 1.0f : 0.0f;
 
 		if ( pm->submodel[i].is_thruster ) {
 			pmi->transform_buffer[i*16+3] = 1.0f;
