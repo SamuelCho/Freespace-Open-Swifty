@@ -3139,11 +3139,6 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 		//model_render_shields(pm);
 	}	
 
-	// start rendering glow points -Bobboau
-	if ( (pm->n_glow_point_banks) && !is_outlines_only && !is_outlines_only_htl && !Glowpoint_override ) {
-		//model_render_glow_points(pm, shipp, orient, pos);
-	}
-
 	if ( Interp_flags & MR_SHOW_PATHS ){
 		if (Cmdline_nohtl) model_draw_paths(model_num);
 		else model_draw_paths_htl(model_num);
