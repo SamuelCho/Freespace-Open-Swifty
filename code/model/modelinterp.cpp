@@ -3039,6 +3039,7 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 					if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
 						transparent_submodel ts;
 						ts.is_submodel = false;
+						ts.pop_matrix = false;
 						transparent_submodels.push_back(ts);
 						model_render_children_buffers( pm, i, Interp_detail_level );
 					} else {
@@ -3048,47 +3049,47 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 				i = pm->submodel[i].next_sibling;
 			}
 		}
-	}
 
-	// Valathil - now draw the saved transparent objects
-	SCP_vector<transparent_submodel>::iterator ts;
-	SCP_vector<transparent_object>::iterator obj;
+		// Valathil - now draw the saved transparent objects
+		SCP_vector<transparent_submodel>::iterator ts;
+		SCP_vector<transparent_object>::iterator obj;
 
-	for(ts = transparent_submodels.begin(); ts != transparent_submodels.end(); ++ts)
-	{
-		if(ts->is_submodel)
-			g3_start_instance_matrix(&ts->model->offset, &ts->orient, true);
-
-		for(obj = ts->transparent_objects.begin(); obj != ts->transparent_objects.end(); ++obj)
+		for(ts = transparent_submodels.begin(); ts != transparent_submodels.end(); ++ts)
 		{
-			GLOWMAP = obj->glow_map;
-			SPECMAP = obj->spec_map;
-			NORMMAP = obj->norm_map;
-			HEIGHTMAP = obj->height_map;
-			MISCMAP = obj->misc_map;
+			if(ts->is_submodel)
+				g3_start_instance_matrix(&ts->model->offset, &ts->orient, true);
 
-			gr_push_scale_matrix(&obj->scale);
-			gr_set_bitmap(obj->texture, obj->blend_filter, GR_BITBLT_MODE_NORMAL, obj->alpha);
+			for(obj = ts->transparent_objects.begin(); obj != ts->transparent_objects.end(); ++obj)
+			{
+				GLOWMAP = obj->glow_map;
+				SPECMAP = obj->spec_map;
+				NORMMAP = obj->norm_map;
+				HEIGHTMAP = obj->height_map;
+				MISCMAP = obj->misc_map;
 
-			int zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
-		
-			gr_render_buffer(0, obj->buffer, obj->i, obj->tmap_flags);
-		
-			gr_zbuffer_set(zbuff);
-			gr_pop_scale_matrix();
+				gr_push_scale_matrix(&obj->scale);
+				gr_set_bitmap(obj->texture, obj->blend_filter, GR_BITBLT_MODE_NORMAL, obj->alpha);
 
-			GLOWMAP = -1;
-			SPECMAP = -1;
-			NORMMAP = -1;
-			HEIGHTMAP = -1;
-			MISCMAP = -1;
+				int zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
+
+				gr_render_buffer(0, obj->buffer, obj->i, obj->tmap_flags);
+
+				gr_zbuffer_set(zbuff);
+				gr_pop_scale_matrix();
+
+				GLOWMAP = -1;
+				SPECMAP = -1;
+				NORMMAP = -1;
+				HEIGHTMAP = -1;
+				MISCMAP = -1;
+			}
+			ts->transparent_objects.clear();
+
+			if(ts->pop_matrix)
+				g3_done_instance(true);
 		}
-		ts->transparent_objects.clear();
-		
-		if(ts->pop_matrix)
-			g3_done_instance(true);
+		transparent_submodels.clear();
 	}
-	transparent_submodels.clear();
 
 	if ( !Interp_no_flush ) {
 		gr_flush_data_states();
