@@ -5061,7 +5061,6 @@ void model_interp_update_transforms(object *objp, int detail_num)
 	polymodel_instance *pmi = model_get_instance(model_instance_num);
 	int i, j;
 	submodel_instance *smi;
-	vec3d world_pos;
 
 	for ( i = 0; i < pm->n_models; ++i ) {
 		smi = &pmi->submodel_render[i];
@@ -5087,18 +5086,14 @@ void model_interp_update_transforms(object *objp, int detail_num)
 			vm_vec_copy_scale(&Interp_render_box_min, &pm->submodel[i].render_box_min, Interp_box_scale);
 			vm_vec_copy_scale(&Interp_render_box_max, &pm->submodel[i].render_box_max, Interp_box_scale);
 
-			vm_vec_add(&world_pos, &objp->pos, &smi->mc_base);
-
-			if ( (-pm->submodel[i].use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &world_pos)) )
+			if ( (-pm->submodel[i].use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &smi->mc_base)) )
 				do_not_render = true;
 		}
 
 		if ( !(Interp_flags & MR_FULL_DETAIL) && pm->submodel[i].use_render_sphere ) {
 			Interp_render_sphere_radius = pm->submodel[i].render_sphere_radius * Interp_box_scale;
 
-			vm_vec_add(&world_pos, &objp->pos, &smi->mc_base);
-
-			if ( (-pm->submodel[i].use_render_sphere + in_sphere(&world_pos, Interp_render_sphere_radius)) )
+			if ( (-pm->submodel[i].use_render_sphere + in_sphere(&smi->mc_base, Interp_render_sphere_radius)) )
 				do_not_render = true;
 		}
 
