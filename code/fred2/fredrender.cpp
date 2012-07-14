@@ -905,7 +905,7 @@ void render_one_model_htl(object *objp)
 
 		if (Fred_outline)	{
 			model_set_outline_color(Fred_outline >> 16, (Fred_outline >> 8) & 0xff, Fred_outline & 0xff);
-			j |= MR_SHOW_OUTLINE;
+			j |= MR_SHOW_OUTLINE_HTL;
 		}
 
 		g3_done_instance(0);
