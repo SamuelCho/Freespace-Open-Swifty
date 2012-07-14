@@ -11,6 +11,8 @@
 #ifndef GR_OPENGLDRAW_H
 #define GR_OPENGLDRAW_H
 
+#include "graphics/gropenglstate.h"
+
 void gr_opengl_aabitmap_ex(int x, int y, int w, int h, int sx, int sy, bool resize, bool mirror);
 void gr_opengl_aabitmap(int x, int y, bool resize, bool mirror);
 void gr_opengl_string(int sx, int sy, const char *s, bool resize = true);
