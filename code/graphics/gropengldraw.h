@@ -47,6 +47,69 @@ void opengl_scene_texture_shutdown();
 void gr_opengl_scene_texture_begin();
 void gr_opengl_scene_texture_end();
 
+inline void opengl_draw_textured_quad(
+	GLfloat x1, GLfloat y1, GLfloat u1, GLfloat v1,
+	GLfloat x2, GLfloat y2, GLfloat u2, GLfloat v2 )
+{
+	GLfloat glVertices[4][4] = {
+		{ x1, y1, u1, v1 },
+		{ x1, y2, u1, v2 },
+		{ x2, y1, u2, v1 },
+		{ x2, y2, u2, v2 }
+	};
+
+	glVertexPointer(2, GL_FLOAT, sizeof(glVertices[0]), glVertices);
+	glTexCoordPointer(2, GL_FLOAT, sizeof(glVertices[0]), &(glVertices[0][2]));
+
+	glEnableClientState(GL_VERTEX_ARRAY);
+	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	glDisableClientState(GL_VERTEX_ARRAY);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+}
+
+inline void opengl_draw_coloured_quad(
+	GLint x1, GLint y1, 
+	GLint x2, GLint y2 )
+{
+	GLint glVertices[8] = {
+		x1, y1,
+		x1, y2,
+		x2, y1,
+		x2, y2
+	};
+
+	glVertexPointer(2, GL_INT, 0, glVertices);
+
+	glEnableClientState(GL_VERTEX_ARRAY);
+
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	glDisableClientState(GL_VERTEX_ARRAY);
+}
+
+inline void opengl_draw_coloured_quad(
+	GLfloat x1, GLfloat y1,
+	GLfloat x2, GLfloat y2 )
+{
+	GLfloat glVertices[8] = {
+		x1, y1,
+		x1, y2,
+		x2, y1,
+		x2, y2
+	};
+
+	glVertexPointer(2, GL_FLOAT, 0, glVertices);
+
+	glEnableClientState(GL_VERTEX_ARRAY);
+
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	glDisableClientState(GL_VERTEX_ARRAY);
+}
+
 extern int Scene_texture_initialized;
 
 extern GLuint Scene_color_texture;
