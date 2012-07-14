@@ -3108,7 +3108,7 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 		gr_set_lighting(false, false);
 	}
 
-	if (Interp_flags & MR_SHOW_PIVOTS )	{
+	if ( Interp_flags & MR_SHOW_PIVOTS && Interp_transform_texture < 0 ) {
 		model_draw_debug_points( pm, NULL );
 		model_draw_debug_points( pm, &pm->submodel[pm->detail[Interp_detail_level]] );
 
@@ -3126,26 +3126,28 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	if (!Cmdline_nohtl)	gr_set_texture_panning(0.0, 0.0, false);
 
 	gr_zbuffer_set(GR_ZBUFF_READ);
-	//model_render_insignias(pm, Interp_detail_level);	
+	if ( Interp_transform_texture < 0 ) {
+		model_render_insignias(pm, Interp_detail_level);
+	}
 
 	gr_zbias(0);  
 
 	if (FULLCLOAK != -1)	model_finish_cloak(FULLCLOAK);
 
-	if ( pm->submodel[pm->detail[0]].num_arcs )	{
-		//interp_render_lightning( pm, &pm->submodel[pm->detail[0]]);
+	if ( pm->submodel[pm->detail[0]].num_arcs && Interp_transform_texture < 0 )	{
+		interp_render_lightning( pm, &pm->submodel[pm->detail[0]]);
 	}	
 
-	if ( Interp_flags & MR_SHOW_SHIELDS )	{
-		//model_render_shields(pm);
+	if ( Interp_flags & MR_SHOW_SHIELDS && Interp_transform_texture < 0 )	{
+		model_render_shields(pm);
 	}	
 
-	if ( Interp_flags & MR_SHOW_PATHS ){
+	if ( Interp_flags & MR_SHOW_PATHS && Interp_transform_texture < 0 ){
 		if (Cmdline_nohtl) model_draw_paths(model_num);
 		else model_draw_paths_htl(model_num);
 	}
 
-	if (Interp_flags & MR_BAY_PATHS ){
+	if (Interp_flags & MR_BAY_PATHS && Interp_transform_texture < 0 ){
 		if (Cmdline_nohtl) model_draw_bay_paths(model_num);
 		else model_draw_bay_paths_htl(model_num);
 	}
