@@ -1067,10 +1067,10 @@ void mc_check_subobj( int mn )
 			Mc->hit_bitmap = -1;
 			Mc->num_hits++;
 		} else {
-			if ( Cmdline_new_collision_sys ) {
-				model_collide_bsp(model_get_bsp_collision_tree(sm->collision_tree_index), 0);
-			} else {
+			if ( Cmdline_old_collision_sys ) {
 				model_collide_sub(sm->bsp_data);
+			} else {
+				model_collide_bsp(model_get_bsp_collision_tree(sm->collision_tree_index), 0);
 			}
 		}
 	}

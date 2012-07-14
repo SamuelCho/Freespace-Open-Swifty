@@ -171,12 +171,12 @@ Flag exe_params[] =
 	{ "-disable_di_mouse",	"Don't use DirectInput for mouse control",	true,	0,					EASY_DEFAULT,		"Troubleshoot",	"", },
  #endif
 	{ "-use_gldrawelements","Don't use glDrawRangeElements",			true,	0,					EASY_DEFAULT,		"Troubleshoot",	"", },
+	{ "-old_collision",		"Use old collision detection system",		true,	0,					EASY_DEFAULT,		"Troubleshoot",	"", },
 
 	{ "-ingame_join",		"Allow in-game joining",					true,	0,					EASY_DEFAULT,		"Experimental",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-ingame_join", },
 	{ "-voicer",			"Enable voice recognition",					true,	0,					EASY_DEFAULT,		"Experimental",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-voicer", },
 	{ "-fb_explosions",		"Enable Framebuffer Shockwaves",			true,	0,					EASY_DEFAULT,		"Experimental",	"", },
 	{ "-merged_ibos",		"Enable merged index buffers",				true,	0,					EASY_DEFAULT,		"Experimental", "", },
-	{ "-new_collision",		"Enable new collision detection system",	true,	0,					EASY_DEFAULT,		"Experimental",	"", },
 
 	{ "-fps",				"Show frames per second on HUD",			false,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-fps", },
 	{ "-pos",				"Show position of camera",					false,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-pos", },
@@ -400,7 +400,7 @@ char* Cmdline_keyboard_layout = NULL;
 
 // Developer/Testing related
 cmdline_parm start_mission_arg("-start_mission", NULL);	// Cmdline_start_mission
-cmdline_parm new_collision_system("-new_collision", NULL); // Cmdline_new_collision
+cmdline_parm old_collision_system("-old_collision", NULL); // Cmdline_new_collision
 cmdline_parm dis_collisions("-dis_collisions", NULL);	// Cmdline_dis_collisions
 cmdline_parm dis_weapons("-dis_weapons", NULL);		// Cmdline_dis_weapons
 cmdline_parm noparseerrors_arg("-noparseerrors", NULL);	// Cmdline_noparseerrors  -- turns off parsing errors -C
@@ -423,7 +423,7 @@ cmdline_parm no_grab("-nograb", NULL);				// Cmdline_no_grab
 cmdline_parm reparse_mainhall_arg("-reparse_mainhall", NULL); //Cmdline_reparse_mainhall
 
 char *Cmdline_start_mission = NULL;
-int Cmdline_new_collision_sys = 0;
+int Cmdline_old_collision_sys = 0;
 int Cmdline_dis_collisions = 0;
 int Cmdline_dis_weapons = 0;
 int Cmdline_noparseerrors = 0;
@@ -1394,8 +1394,8 @@ bool SetCmdlineParams()
 		Cmdline_cache_bitmaps = 1;
 	}
 
-	if(new_collision_system.found())
-		Cmdline_new_collision_sys = 1;
+	if(old_collision_system.found())
+		Cmdline_old_collision_sys = 1;
 
 	if(dis_collisions.found())
 		Cmdline_dis_collisions = 1;

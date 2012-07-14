@@ -7345,10 +7345,10 @@ void game_shutdown(void)
 #endif
 	fs2netd_close();
 
-	if ( Cmdline_new_collision_sys ) {
-		obj_reset_colliders();
-	} else {
+	if ( Cmdline_old_collision_sys ) {
 		obj_pairs_close();		// free memory from object collision pairs
+	} else {
+		obj_reset_colliders();
 	}
 	stars_close();			// clean out anything used by stars code
 
