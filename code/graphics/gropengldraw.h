@@ -58,16 +58,17 @@ inline void opengl_draw_textured_quad(
 		{ x2, y2, u2, v2 }
 	};
 
-	glVertexPointer(2, GL_FLOAT, sizeof(glVertices[0]), glVertices);
-	glTexCoordPointer(2, GL_FLOAT, sizeof(glVertices[0]), &(glVertices[0][2]));
+	GL_state.Array.EnableClientVertex();
+	GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(glVertices[0]), glVertices);
 
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	GL_state.Array.SetActiveClientUnit(0);
+	GL_state.Array.EnableClientTexture();
+	GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(glVertices[0]), &(glVertices[0][2]));
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-	glDisableClientState(GL_VERTEX_ARRAY);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	GL_state.Array.DisableClientVertex();
+	GL_state.Array.DisableClientTexture();
 }
 
 inline void opengl_draw_coloured_quad(
@@ -81,13 +82,12 @@ inline void opengl_draw_coloured_quad(
 		x2, y2
 	};
 
-	glVertexPointer(2, GL_INT, 0, glVertices);
-
-	glEnableClientState(GL_VERTEX_ARRAY);
+	GL_state.Array.EnableClientVertex();
+	GL_state.Array.VertexPointer(2, GL_INT, 0, glVertices);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-	glDisableClientState(GL_VERTEX_ARRAY);
+	GL_state.Array.DisableClientVertex();
 }
 
 inline void opengl_draw_coloured_quad(
@@ -101,13 +101,12 @@ inline void opengl_draw_coloured_quad(
 		x2, y2
 	};
 
-	glVertexPointer(2, GL_FLOAT, 0, glVertices);
-
-	glEnableClientState(GL_VERTEX_ARRAY);
+	GL_state.Array.EnableClientVertex();
+	GL_state.Array.VertexPointer(2, GL_FLOAT, 0, glVertices);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-	glDisableClientState(GL_VERTEX_ARRAY);
+	GL_state.Array.DisableClientVertex();
 }
 
 extern int Scene_texture_initialized;
