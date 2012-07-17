@@ -242,6 +242,10 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define PFNGLUNIFORM1IARBPROC					glUniform1iARBProcPtr
 #define PFNGLUNIFORMMATRIX4FVARBPROC			glUniformMatrix4fvARBProcPtr
 #define PFNGLDRAWBUFFERSPROC					glDrawBuffersARBProcPtr
+#define PFNGLDRAWELEMENTSBASEVERTEXPROC         glDrawElementsBaseVertex
+#define PFNGLDRAWRANGEELEMENTSBASEVERTEXPROC    glDrawRangeElementsBaseVertex
+#define PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXPROC glDrawElementsInstancedBaseVertex
+#define PFNGLMULTIDRAWELEMENTSBASEVERTEXPROC    glMultiDrawElementsBaseVertex
 #endif	// __APPLE__
 
 #define vglFogCoordfEXT					GLEXT_CALL( OGL_FOG_COORDF, PFNGLFOGCOORDFEXTPROC )

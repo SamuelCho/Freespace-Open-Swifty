@@ -8,7 +8,12 @@
 #include <map>
 #include <string>
 #include <queue>
+
+#if defined __GNUC__ || defined __APPLE__
+#include <ext/hash_map>
+#else
 #include <hash_map>
+#endif
 
 #if defined(_MSC_VER) && _MSC_VER >= 1400 || !defined(_MSC_VER)
 
@@ -120,7 +125,13 @@ bool operator!=(const SCP_vm_allocator<T1>&, const SCP_vm_allocator<T2>&) throw(
 	return false;
 }
 
+#ifdef SCP_UNIX
+#define SCP_hash_map __gnu_cxx::hash_map
+#elif defined __APPLE__
+#define SCP_hash_map std::hash_map
+#else
 #define SCP_hash_map stdext::hash_map
+#endif
 
 #else
 
