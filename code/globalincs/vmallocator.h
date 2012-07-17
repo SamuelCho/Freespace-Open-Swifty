@@ -120,7 +120,7 @@ bool operator!=(const SCP_vm_allocator<T1>&, const SCP_vm_allocator<T2>&) throw(
 	return false;
 }
 
-#define SCP_hash_map std::hash_map
+#define SCP_hash_map stdext::hash_map
 
 #else
 
@@ -131,7 +131,7 @@ bool operator!=(const SCP_vm_allocator<T1>&, const SCP_vm_allocator<T2>&) throw(
 #define SCP_queue std::queue
 #define SCP_vector std::vector
 #define SCP_list std::list
-#define SCP_hash_map std::hash_map
+#define SCP_hash_map stdext::hash_map
 
 #endif
 
