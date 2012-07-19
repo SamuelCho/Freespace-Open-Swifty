@@ -498,6 +498,8 @@ void gr_opengl_string(int sx, int sy, const char *s, bool resize)
 		curChar++;
 	}
 
+	GL_state.Array.BindArrayBuffer(0);
+
 	GL_state.Array.EnableClientVertex();
 	GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(struct v4), &glVert[0].x);
 
@@ -1063,6 +1065,8 @@ void opengl_draw_primitive(int nv, vertex **verts, uint flags, float u_scale, fl
 		vertPos[j].w = sw;
 	}
 
+	GL_state.Array.BindArrayBuffer(0);
+
 	GL_state.Array.EnableClientVertex();
 	GL_state.Array.VertexPointer(4, GL_FLOAT, sizeof(struct v6), &vertPos[0].x);
 
@@ -1234,6 +1238,8 @@ void opengl_tmapper_internal3d(int nv, vertex **verts, uint flags)
 		vertvec.push_back(va->world.xyz.z);
 	}
 
+	GL_state.Array.BindArrayBuffer(0);
+
 	if (isRGB) {
 		GL_state.Array.EnableClientColor();
 		GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, 0, &colour.front());
@@ -1286,6 +1292,8 @@ void opengl_render_internal(int nverts, vertex *verts, uint flags)
 	} else if (flags & TMAP_FLAG_QUADSTRIP) {
 		gl_mode = GL_QUAD_STRIP;
 	}
+
+	GL_state.Array.BindArrayBuffer(0);
 
 	if (flags & TMAP_FLAG_TEXTURED) {
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
@@ -1367,6 +1375,8 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 
 	opengl_setup_render_states(r, g, b, alpha, tmap_type, flags);
 
+	GL_state.Array.BindArrayBuffer(0);
+
 	if (flags & TMAP_FLAG_TEXTURED) {
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
 			return;
@@ -1427,6 +1437,8 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 	Assert(Scene_depth_texture != 0);
 
 	opengl_setup_render_states(r, g, b, alpha, tmap_type, flags);
+
+	GL_state.Array.BindArrayBuffer(0);
 
 	if ( flags & TMAP_FLAG_TEXTURED ) {
 		if ( flags & TMAP_FLAG_SOFT_QUAD ) {
@@ -2420,6 +2432,8 @@ void gr_opengl_scene_texture_end()
 		glClear(GL_COLOR_BUFFER_BIT);
 		glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 
+		GL_state.Array.BindArrayBuffer(0);
+
 		if (GL_rendering_to_texture)
 		{
 			GLfloat vertices[8] = {
@@ -2530,6 +2544,8 @@ void gr_opengl_update_distortion()
 		(float)gr_screen.max_w, 0.0f,
 		0.03f*(float)gr_screen.max_w, 0.0f
 	};
+
+	GL_state.Array.BindArrayBuffer(0);
 
 	GL_state.Array.EnableClientVertex();
 	GL_state.Array.VertexPointer(2, GL_FLOAT, 0, vertices);

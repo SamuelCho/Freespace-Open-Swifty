@@ -60,6 +60,8 @@ inline void opengl_draw_textured_quad(
 		{ x2, y2, u2, v2 }
 	};
 
+	GL_state.Array.BindArrayBuffer(0);
+
 	GL_state.Array.EnableClientVertex();
 	GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(glVertices[0]), glVertices);
 

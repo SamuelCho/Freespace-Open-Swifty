@@ -516,6 +516,8 @@ int mve_video_createbuf(ubyte minor, ubyte *data)
 		glVertices[3][2] = gl_screenU;
 		glVertices[3][3] = gl_screenV;
 
+		GL_state.Array.BindArrayBuffer(0);
+
 		GL_state.Array.EnableClientVertex();
 		GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(glVertices[0]), glVertices);
 
