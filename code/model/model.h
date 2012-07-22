@@ -1019,7 +1019,8 @@ typedef struct mc_info {
 	int		edge_hit;			// Set if an edge got hit.  Only valid if MC_CHECK_THICK is set.	
 	ubyte		*f_poly;				// pointer to flat poly where we intersected
 	ubyte		*t_poly;				// pointer to tmap poly where we intersected
-		
+	bsp_collision_leaf *bsp_leaf;
+
 										// flags can be changed for the case of sphere check finds an edge hit
 	mc_info()
 	{
