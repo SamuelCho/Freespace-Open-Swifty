@@ -42,6 +42,12 @@ void gr_opengl_sphere_htl(float rad);
 
 void gr_opengl_draw_line_list(colored_vector *lines, int num);
 
+void gr_opengl_start_shadow_map(int lightid, vec3d *light_dir, vec3d ship_pos, matrix ship_orient, int model_num, bool autocenter = false);
+void gr_opengl_end_shadow_map();
+void gr_opengl_start_shadowers();
+void gr_opengl_start_parabolic_back();
+void gr_opengl_clear_shadow_map();
+
 void opengl_setup_scene_textures();
 void opengl_scene_texture_shutdown();
 void gr_opengl_scene_texture_begin();

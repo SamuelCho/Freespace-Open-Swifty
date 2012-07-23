@@ -1204,7 +1204,12 @@ void gr_opengl_zbias(int bias)
 {
 	if (bias) {
 		GL_state.PolygonOffsetFill(GL_TRUE);
-		glPolygonOffset(0.0, -i2fl(bias));
+		if(bias < 0) {
+			glPolygonOffset(1.0, -i2fl(bias));
+		}
+		else {
+			glPolygonOffset(0.0, -i2fl(bias));
+		}
 	} else {
 		GL_state.PolygonOffsetFill(GL_FALSE);
 	}
@@ -1834,6 +1839,12 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_sphere_htl			= gr_opengl_sphere_htl;
 
 	gr_screen.gf_maybe_create_shader = gr_opengl_maybe_create_shader;
+	gr_screen.gf_start_shadow_map	= gr_opengl_start_shadow_map;
+	gr_screen.gf_end_shadow_map		= gr_opengl_end_shadow_map;
+	gr_screen.gf_start_shadowers	= gr_opengl_start_shadowers;
+	gr_screen.gf_start_parabolic_back = gr_opengl_start_parabolic_back;
+	gr_screen.gf_clear_shadow_map	= gr_opengl_clear_shadow_map;
+
 	// NOTE: All function pointers here should have a Cmdline_nohtl check at the top
 	//       if they shouldn't be run in non-HTL mode, Don't keep separate entries.
 	// *****************************************************************************

@@ -30,6 +30,7 @@
 #include "graphics/gropenglshader.h"
 #include "graphics/gropengldraw.h"
 #include "hud/hudshield.h"
+#include "graphics/gropengllight.h"
 
 // flags
 #define LAB_FLAG_NORMAL				(0)		// default
@@ -625,6 +626,8 @@ void labviewer_add_model_thrusters(ship_info *sip)
 	model_set_thrust(Lab_model_num, &mst);
 }
 
+void light_set_all_relevent();
+
 void labviewer_render_model(float frametime)
 {
 	int i;
@@ -740,7 +743,16 @@ void labviewer_render_model(float frametime)
 	light_reset();
 	vec3d light_dir = vmd_zero_vector;
 	light_dir.xyz.y = 1.0f;
-	light_add_directional(&light_dir, 0.65f, 1.0f, 1.0f, 1.0f);
+	light_dir.xyz.x = 0.0000001f;
+	light_add_directional(&light_dir, 0.65f, 1.0f, 1.0f, 1.0f,-1);
+	int mx, my;
+	mouse_get_pos( &mx, &my );
+	light_dir.xyz.y = 0.0000001f;
+	light_dir.xyz.x = sin(my/150.0f);
+	light_dir.xyz.z = cos(my/150.0f);
+	vm_vec_normalize(&light_dir);
+	vm_vec_scale(&light_dir, mx*10.1f);
+	light_add_point(&light_dir,1,mx*10.2f+0.1f, 0.5f, 1.0f, 1.0f, 1.0f,-1);
 
 	light_rotate_all();
 	// lighting for techroom
@@ -799,6 +811,22 @@ void labviewer_render_model(float frametime)
 		}
 		opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS1);
 		opengl_shader_set_animated_timer(MIN((timer_get_milliseconds()-anim_timer_start)/1500.0f,2.0f));
+		if(!(flagggs & MR_NO_LIGHTING))
+		{
+			polymodel *pm = model_get(Lab_model_num);
+			light_filter_push(-1, &vmd_zero_vector, pm->rad);
+			light_set_all_relevent();
+			light_filter_pop();
+			vec3d light_dir;
+			gr_start_shadow_map(0,&light_dir,vmd_zero_vector,Lab_viewer_orient,Lab_model_num,true);
+			model_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
+			gr_end_shadow_map();
+			gr_start_shadow_map(1,&light_dir,vmd_zero_vector,Lab_viewer_orient,Lab_model_num,true);
+			model_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
+			gr_start_parabolic_back();
+			model_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
+			gr_end_shadow_map();
+		}
 		model_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, /*Lab_model_flags*/flagggs, -1, -1);
 	}
 

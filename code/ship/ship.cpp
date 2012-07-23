@@ -77,6 +77,8 @@
 #include "parse/scripting.h"
 #include "graphics/gropenglshader.h"
 #include "model/model.h"
+#include "graphics/gropengllight.h"
+#include "debris/debris.h"
 
 
 #define NUM_SHIP_SUBSYSTEM_SETS			20		// number of subobject sets to use (because of the fact that it's a linked list,
@@ -5681,6 +5683,8 @@ man_thruster_renderer *man_thruster_get_slot(int bmap_frame)
 
 //WMC - used for FTL and maneuvering thrusters
 geometry_batcher fx_batcher;
+void light_set_all_relevent();
+extern debris Hull_debris_list;
 void ship_render(object * obj)
 {
 	int num = obj->instance;
@@ -5792,7 +5796,122 @@ void ship_render(object * obj)
 		} else {
 			light_set_shadow(0);
 		}
+		polymodel *pm = model_get(sip->model_num);
+		light_filter_push(-1, &obj->pos, pm->rad);
+		light_set_all_relevent();
+		light_filter_pop();
+		vec3d light_dir;
+		gr_start_shadow_map(0,&light_dir,obj->pos,obj->orient,sip->model_num, false);
+		ship_model_start(obj);
+		model_render( sip->model_num, &obj->orient, &vmd_zero_vector,MR_NO_TEXTURING | MR_NO_LIGHTING );
+		ship_model_stop(obj);
+		object *objp;
+		ship *sp;
+		debris *db;
+		asteroid *asp;
+		//gr_start_shadowers();
+		for ( objp = GET_FIRST(&obj_used_list); objp !=END_OF_LIST(&obj_used_list); objp = GET_NEXT(objp) )
+		{	
+			vec3d diff, start, end, nearest, draw_pos;
+			float dist, dot;		
+			switch(objp->type)
+			{
+			case OBJ_SHIP:
+				if(objp == obj)
+					continue;
+				sp = &Ships[objp->instance];
+				start = obj->pos;
+				vm_vec_sub(&diff, &objp->pos, &obj->pos);
+				dot = vm_vec_dot(&diff, &light_dir);
+				vm_vec_sub(&end, &obj->pos, &light_dir);
+				vm_vec_dist_to_line(&objp->pos, &start, &end, &nearest, &dist);
+				if( dist > objp->radius + obj->radius)
+					continue;
+				vm_vec_scale_add(&draw_pos, &diff, &light_dir, -MAX(0.0f,objp->radius-dot));
+				ship_model_start(objp);
+				model_render( Ship_info[sp->ship_info_index].model_num, &objp->orient, &draw_pos,MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp));
+				ship_model_stop(objp);
+				break;
 
+			case OBJ_ASTEROID:
+				asp = &Asteroids[objp->instance];
+				start = obj->pos;
+				vm_vec_sub(&diff, &objp->pos, &obj->pos);
+				dot = vm_vec_dot(&diff, &light_dir);
+				vm_vec_sub(&end, &obj->pos, &light_dir);
+				vm_vec_dist_to_line(&objp->pos, &start, &end, &nearest, &dist);
+				if( dist > objp->radius + obj->radius)
+					continue;
+				vm_vec_scale_add(&draw_pos, &diff, &light_dir, -MAX(0.0f,objp->radius-dot));
+				model_clear_instance( Asteroid_info[asp->asteroid_type].model_num[asp->asteroid_subtype]);
+				model_render(Asteroid_info[asp->asteroid_type].model_num[asp->asteroid_subtype], &objp->orient, &draw_pos, MR_NORMAL | MR_IS_ASTEROID | MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp) );
+				break;
+
+			case OBJ_DEBRIS:
+				db = &Debris[objp->instance];
+				if ( !(db->flags & DEBRIS_USED)){
+					continue;
+				}
+				objp = &Objects[db->objnum];
+				start = obj->pos;
+				vm_vec_sub(&diff, &objp->pos, &obj->pos);
+				dot = vm_vec_dot(&diff, &light_dir);
+				vm_vec_sub(&end, &obj->pos, &light_dir);
+				vm_vec_dist_to_line(&objp->pos, &start, &end, &nearest, &dist);
+				if( dist > objp->radius + obj->radius)
+					continue;
+				vm_vec_scale_add(&draw_pos, &diff, &light_dir, -MAX(0.0f,objp->radius-dot));
+				submodel_render( db->model_num, db->submodel_num, &objp->orient, &draw_pos, MR_NO_TEXTURING | MR_NO_LIGHTING );
+				break;
+			}
+		}
+
+		gr_end_shadow_map();
+		/*gr_start_shadow_map(1,&light_dir,obj->pos,obj->orient,sip->model_num, false);
+		ship_model_start(obj);
+		model_render( sip->model_num, &obj->orient, &vmd_zero_vector,MR_NO_TEXTURING | MR_NO_LIGHTING);
+		ship_model_stop(obj);
+		for ( objp = GET_FIRST(&obj_used_list); objp !=END_OF_LIST(&obj_used_list); objp = GET_NEXT(objp) )
+		{	
+			vec3d diff;
+			switch(objp->type)
+			{
+			case OBJ_SHIP:
+				if(objp == obj)
+					continue;
+				sp = &Ships[objp->instance];
+				vm_vec_sub(&diff, &objp->pos, &obj->pos);
+				if( vm_vec_mag_squared(&diff) > (objp->radius*objp->radius + obj->radius*obj->radius))
+					continue;
+				ship_model_start(objp);
+				model_render( Ship_info[sp->ship_info_index].model_num, &objp->orient, &diff,MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp));
+				ship_model_stop(objp);
+				break;
+			}
+		}
+		gr_start_parabolic_back();
+		ship_model_start(obj);
+		for ( objp = GET_FIRST(&obj_used_list); objp !=END_OF_LIST(&obj_used_list); objp = GET_NEXT(objp) )
+		{	
+			vec3d diff;
+			switch(objp->type)
+			{
+			case OBJ_SHIP:
+				if(objp == obj)
+					continue;
+				sp = &Ships[objp->instance];
+				vm_vec_sub(&diff, &objp->pos, &obj->pos);
+				if( vm_vec_mag_squared(&diff) > (objp->radius*objp->radius + obj->radius*obj->radius))
+					continue;
+				ship_model_start(objp);
+				model_render( Ship_info[sp->ship_info_index].model_num, &objp->orient, &diff,MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp));
+				ship_model_stop(objp);
+				break;
+			}
+		}
+		model_render( sip->model_num, &obj->orient, &vmd_zero_vector,MR_NO_TEXTURING | MR_NO_LIGHTING);
+		ship_model_stop(obj);
+		gr_end_shadow_map();*/
 		ship_model_start(obj);
 
 		uint render_flags = MR_NORMAL;
@@ -6153,6 +6272,8 @@ void ship_render(object * obj)
 				}
 			}
 
+			gr_clear_shadow_map();
+
 			// always turn off fog after rendering a ship
 			gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
 			light_set_shadow(0);
@@ -6219,6 +6340,8 @@ void ship_render(object * obj)
 		}
 	}
 
+	//gr_clear_shadow_map();
+
 	//WMC - Draw animated warp effect (ie BSG thingy)
 	//WMC - based on Bobb's secondary thruster stuff
 	//which was in turn based on the beam code.
@@ -6261,17 +6384,10 @@ void ship_render_cockpit(object *objp)
 		gr_set_view_matrix(&Eye_position, &Eye_matrix);
 	}
 
-	//Zbuffer
-	int saved_zbuffer_mode = gr_zbuffer_get();
-	gr_zbuffer_set(GR_ZBUFF_NONE);
-
 	//Deal with the model
 	model_set_detail_level(0);
 	model_clear_instance(sip->cockpit_model_num);
 	model_render(sip->cockpit_model_num, &eye_ori, &pos, MR_LOCK_DETAIL | MR_NO_FOGGING, -1, -1, Player_cockpit_textures);
-
-	//Zbuffer
-	gr_zbuffer_set(saved_zbuffer_mode);
 
 	if (!Cmdline_nohtl) 
 	{

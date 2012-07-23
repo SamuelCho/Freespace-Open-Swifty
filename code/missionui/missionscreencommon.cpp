@@ -1511,6 +1511,7 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 	gr_reset_clip();
 }
 
+void light_set_all_relevent();
 void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *rotation_buffer, vec3d *closeup_pos, float closeup_zoom, float rev_rate, int flags, bool resize, int effect)
 {
 	//WMC - Can't draw a non-model
@@ -1634,6 +1635,7 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 			light_reset();
 			vec3d light_dir = vmd_zero_vector;
 			light_dir.xyz.y = 1.0f;
+			light_dir.xyz.x = 0.0000001f;
 			light_add_directional(&light_dir, 0.65f, 1.0f, 1.0f, 1.0f);
 			light_rotate_all();
 			// lighting for techroom
@@ -1641,6 +1643,16 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 			// render the ships
 			model_clear_instance(model_id);
 			model_set_detail_level(0);
+			light_filter_push(-1, &vmd_zero_vector, pm->rad);
+			light_set_all_relevent();
+			light_filter_pop();
+			gr_reset_clip();
+			gr_zbuffer_set(true);
+			gr_start_shadow_map(0,&light_dir,vmd_zero_vector,model_orient,model_id,true);
+			model_render(model_id, &model_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
+			gr_set_clip(x1, y1, x2, y2, resize);
+			gr_end_shadow_map();
+			gr_zbuffer_set(false);
 			gr_set_color(80,49,160);
 			opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS2);
 			opengl_shader_set_animated_timer(-clip);
@@ -1650,6 +1662,7 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 					g3_start_user_clip_plane(&plane_point,&wire_normal);
 				
 				model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_ANIMATED_SHADER);
+				if(time >= 1.5f)
 				g3_stop_user_clip_plane();
 			}
 

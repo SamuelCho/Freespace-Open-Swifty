@@ -454,6 +454,65 @@ void gr_opengl_post_process_end()
 	GL_state.Texture.Enable(Scene_color_texture);
 
 	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, Scene_texture_u_scale, Scene_texture_u_scale);
+	GL_state.Texture.SetActiveUnit(1);
+	GL_state.Texture.Enable();
+
+	
+	//Shadow Map debug window
+	/*GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Cockpit_depth_texture);
+
+	glBegin(GL_QUADS);
+		glTexCoord3f(0.0f, 0.0f, 1.0f);
+		glVertex2f(-0.5f, -1.0f);
+
+		glTexCoord3f(1.0f, 0.0f, 1.0f);
+		glVertex2f(0.0f, -1.0f);
+
+		glTexCoord3f(1.0f, 1.0f, 1.0f);
+		glVertex2f(0.0f, -0.5f);
+
+		glTexCoord3f(0.0f, 1.0f, 1.0f);
+		glVertex2f(-0.5f, -0.5f);
+	glEnd();
+	
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(shadow_map[0]);
+
+	glBegin(GL_QUADS);
+		glTexCoord3f(0.0f, 0.0f, 1.0f);
+		glVertex2f(-1.0f, -1.0f);
+
+		glTexCoord3f(1.0f, 0.0f, 1.0f);
+		glVertex2f(-0.5f, -1.0f);
+
+		glTexCoord3f(1.0f, 1.0f, 1.0f);
+		glVertex2f(-0.5f, -0.5f);
+
+		glTexCoord3f(0.0f, 1.0f, 1.0f);
+		glVertex2f(-1.0f, -0.5f);
+	glEnd();
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_depth_texture);
+
+	glBegin(GL_QUADS);
+		glTexCoord3f(0.0f, 0.0f, 1.0f);
+		glVertex2f(-1.0f, -0.5f);
+
+		glTexCoord3f(1.0f, 0.0f, 1.0f);
+		glVertex2f(-0.5f, -0.5f);
+
+		glTexCoord3f(1.0f, 1.0f, 1.0f);
+		glVertex2f(-0.5f, -0.0f);
+
+		glTexCoord3f(0.0f, 1.0f, 1.0f);
+		glVertex2f(-1.0f, -0.0f);
+	glEnd();
+	*/
 	// Done!
 
 	GL_state.Texture.SetActiveUnit(1);	GL_state.Texture.Disable();

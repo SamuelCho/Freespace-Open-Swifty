@@ -40,6 +40,8 @@ extern char* Default_post_vertex_shader;
 extern char* Default_fxaa_prepass_shader;
 extern char* Default_particle_vertex_shader;
 extern char* Default_particle_fragment_shader;
+extern char* Default_shadowmap_vertex_shader;
+extern char* Default_shadowmap_fragment_shader;
 extern char* Default_lightshaft_fragment_shader;
 extern char* Default_video_vertex_shader;
 extern char* Default_video_fragment_shader;
@@ -69,6 +71,8 @@ def_file Default_files[] =
 	{ "fxaapre-f.sdr",			Default_fxaa_prepass_shader},
 	{ "soft-v.sdr",				Default_particle_vertex_shader},
 	{ "soft-f.sdr",				Default_particle_fragment_shader},
+	{ "sm-v.sdr",				Default_shadowmap_vertex_shader},
+	{ "sm-f.sdr",				Default_shadowmap_fragment_shader},
 	{ "ls-f.sdr",				Default_lightshaft_fragment_shader},
 	{ "video-v.sdr",			Default_video_vertex_shader},
 	{ "video-f.sdr",			Default_video_fragment_shader}
@@ -1230,6 +1234,13 @@ $Add:			0								\n\
 //===========================================================
 
 char* Default_main_vertex_shader = 
+"#ifdef FLAG_LIGHT\n"
+"uniform mat4 shadow_mv_matrix;\n"
+"uniform mat4 shadow_proj_matrix;\n"
+"uniform mat4 model_matrix;\n"
+"uniform vec3 cam_pos;\n"
+"varying vec4 shadow_vec;\n"
+"#endif\n"
 "#ifdef FLAG_ENV_MAP\n"
 "uniform mat4 envMatrix;\n"
 "varying vec3 envReflect;\n"
@@ -1246,12 +1257,21 @@ char* Default_main_vertex_shader =
 "{\n"
 "	gl_TexCoord[0] = gl_TextureMatrix[0] * gl_MultiTexCoord0;\n"
 "	gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_Vertex;\n"
+
 "	gl_FrontColor = gl_Color;\n"
 "	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
+
 " // Transform the normal into eye space and normalize the result.\n"
 "	position = gl_ModelViewMatrix * gl_Vertex;\n"
 "	vec3 normal = normalize(gl_NormalMatrix * gl_Normal);\n"
 "	lNormal = normal;\n"
+"	#ifdef FLAG_LIGHT\n"
+"	//gl_Position = shadow_proj_matrix * shadow_mv_matrix * model_matrix * gl_Vertex;\n"
+"	shadow_vec = shadow_proj_matrix * shadow_mv_matrix * model_matrix * gl_Vertex;\n"
+"	shadow_vec += 1.0;\n"
+"	shadow_vec *= 0.5;\n"
+"	//shadow_vec.z -= 0.001+0.1*pow(1.0-abs(dot(gl_LightSource[0].position.xyz,normal)),16.0);\n"
+"	#endif\n"
 " #ifdef FLAG_NORMAL_MAP\n"
 " // Setup stuff for normal maps\n"
 "	vec3 t = normalize(gl_NormalMatrix * gl_MultiTexCoord1.xyz);\n"
@@ -1275,6 +1295,8 @@ char* Default_main_vertex_shader =
 
 char *Default_main_fragment_shader = 
 "#ifdef FLAG_LIGHT\n"
+"varying vec4 shadow_vec;\n"
+"uniform sampler2DShadow shadow_map;\n"
 "uniform int n_lights;\n"
 "#endif\n"
 "#ifdef FLAG_DIFFUSE_MAP\n"
@@ -1357,6 +1379,19 @@ char *Default_main_fragment_shader =
 "   #endif\n"
 "  #endif\n"
 "	vec3 lightDir;\n"
+"	vec3 offset[8]; float off = 1.0/8192.0;\n"
+"	offset[0] = vec3(off,off,0.0);\n"
+"	offset[1] = vec3(-off,off,0.0);\n"
+"	offset[2] = vec3(off,-off,0.0);\n"
+"	offset[3] = vec3(-off,-off,0.0);\n"
+"	offset[4] = vec3(0.0,off,0.0);\n"
+"	offset[5] = vec3(0,-off,0.0);\n"
+"	offset[6] = vec3(off,0.0,0.0);\n"
+"	offset[7] = vec3(-off,0.0,0.0);\n"
+"	vec4 sample_a = vec4( shadow2D(shadow_map,shadow_vec.xyz + offset[0]).r, shadow2D(shadow_map,shadow_vec.xyz + offset[1]).r, shadow2D(shadow_map,shadow_vec.xyz + offset[2]).r, shadow2D(shadow_map,shadow_vec.xyz + offset[3]).r );\n"
+"	vec4 sample_b = vec4( shadow2D(shadow_map,shadow_vec.xyz + offset[4]).r, shadow2D(shadow_map,shadow_vec.xyz + offset[5]).r, shadow2D(shadow_map,shadow_vec.xyz + offset[6]).r, shadow2D(shadow_map,shadow_vec.xyz + offset[7]).r );\n"
+"	vec2 sample_c = vec2( dot( sample_a, vec4(0.25) ), dot( sample_b, vec4(0.25) ) );\n"
+"	float shadow = dot( sample_c, vec2(0.5) );\n"
 "	lightAmbient = gl_FrontMaterial.emission + (gl_LightModel.ambient * gl_FrontMaterial.ambient);\n"
 "	float dist;\n"
 "	#pragma optionNV unroll all\n"
@@ -1367,6 +1402,8 @@ char *Default_main_fragment_shader =
 "	  #endif\n"
 "		float specularIntensity = 1.0;\n"
 "		float attenuation = 1.0;\n"
+"		if(i > 0)\n"
+"			shadow = 1.0;\n"
 "		// Attenuation and light direction\n"
 "	  #if SHADER_MODEL > 2\n"
 "		if (gl_LightSource[i].position.w == 1.0) {\n"
@@ -1394,12 +1431,14 @@ char *Default_main_fragment_shader =
 "		} else {\n"
 "			// Directional light source\n"
 "			lightDir = normalize(gl_LightSource[i].position.xyz);\n"
-"			specularIntensity = SPEC_INTENSITY_DIRECTIONAL;\n"
+
+"			specularIntensity = SPEC_INTENSITY_DIRECTIONAL * shadow;\n"
 "		}\n"
+
 "		vec3 half_vec = normalize(lightDir + eyeDir);\n"
 "		// Ambient and Diffuse\n"
-"		lightAmbient += (gl_FrontLightProduct[i].ambient * attenuation);\n"
-"		lightDiffuse += (gl_FrontLightProduct[i].diffuse * (max(dot(normal, lightDir), 0.0)) * attenuation);\n"
+"		lightAmbient += (gl_FrontLightProduct[i].ambient * attenuation)*shadow;\n"
+"		lightDiffuse += (gl_FrontLightProduct[i].diffuse * (max(dot(normal, lightDir), 0.0)) * attenuation)*shadow;\n"
 "		// Specular\n"
 "		float NdotHV = clamp(dot(normal, half_vec), 0.0, 1.0);\n"
 "		lightSpecular += ((gl_FrontLightProduct[i].specular * pow(NdotHV, gl_FrontMaterial.shininess)) * attenuation) * specularIntensity;\n"
@@ -1477,6 +1516,7 @@ char *Default_main_fragment_shader =
 "	 #endif\n"
 "	}\n"
 " #else\n"
+" #ifndef FLAG_LIGHT\n vec3 shadow_vec = vec3(0,0,0);\n#endif\n" 
 "	gl_FragColor = fragmentColor;\n"
 " #endif\n"
 "}";
@@ -2267,7 +2307,43 @@ char* Default_particle_fragment_shader =
 " #endif\n"
 "}";
 
-char* Default_lightshaft_fragment_shader = 
+char* Default_shadowmap_vertex_shader = 
+"#ifdef FLAG_PARABOLIC\n"
+"	uniform float znear;\n"
+"	uniform float zfar;\n"
+"	uniform float zscale;\n"
+"#endif\n"
+"void main()\n"
+"{\n"
+"	gl_FrontColor = vec4(1.0);\n"
+"#ifdef FLAG_PARABOLIC\n"
+"	gl_Position = gl_ModelViewMatrix * gl_Vertex;\n"
+"	gl_Position.z *= zscale;\n"
+"	gl_FrontColor = vec4(0.0, 0.0, 0.0, gl_Position.z/zfar + 0.5);\n"
+"	float depth = length(gl_Position.xyz);\n"
+"	gl_Position.xyz /= depth;\n"
+"	gl_Position.z += 1.0;\n"
+"	gl_Position.xy /= gl_Position.z;\n"
+"	gl_Position.z = (depth - znear) / (zfar - znear) *2.0 - 1.0;\n"
+"	gl_Position.w = 1.0;\n"
+"#else\n"
+"	gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_Vertex;\n"
+"#endif\n"
+" #ifdef __GLSL_CG_DATA_TYPES\n"
+" // Check necessary for ATI specific behavior\n"
+"	gl_ClipVertex = (gl_ModelViewMatrix * gl_Vertex);\n"
+" #endif\n"
+"}\n";
+
+char* Default_shadowmap_fragment_shader =
+"void main()\n"
+"{\n"
+"	if(gl_Color.a <= 0.5)\n"
+"		discard;\n"
+"	gl_FragColor = vec4(1.0);\n"
+"}\n"; 
+
+char* Default_lightshaft_fragment_shader =
 "uniform sampler2D scene;\n"
 "uniform sampler2D cockpit;\n"
 "uniform vec2 sun_pos;\n"

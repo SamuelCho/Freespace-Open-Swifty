@@ -61,11 +61,32 @@ static int GL_htl_2d_matrix_set = 0;
 static GLfloat GL_env_texture_matrix[16] = { 0.0f };
 static bool GL_env_texture_matrix_set = false;
 
+static GLdouble eyex, eyey, eyez;
+static GLdouble vmatrix[16];
+
+static vec3d last_view_pos;
+static matrix last_view_orient;
+
+vec3d shadow_ref_point;
+
+static bool use_last_view = false;
+static GLfloat lmatrix[2][16];
+static GLfloat lprojmatrix[2][16];
+static GLfloat modelmatrix[16];
+
 int GL_vertex_data_in = 0;
 
 GLint GL_max_elements_vertices = 4096;
 GLint GL_max_elements_indices = 4096;
 
+GLuint shadow_map[3];
+static GLuint shadow_fbo;
+vec3d saved_Eye;
+float minx = 0.0f, miny = 0.0f, minz = 0.0f, maxx = 0.0f, maxy = 0.0f, maxz = 0.0f, znear = 0.0f, zfar = 0.0f;
+bool shadowers = false;
+GLint saved_fb = 0;
+bool in_shadow_map = false;
+int parabolic = 0;
 
 struct opengl_vertex_buffer {
 	GLfloat *array_list;	// interleaved array
@@ -439,6 +460,58 @@ void opengl_destroy_all_buffers()
 void opengl_tnl_init()
 {
 	GL_vertex_buffers.reserve(MAX_POLYGON_MODELS);
+
+	//Setup shadow map framebuffer
+	vglGenFramebuffersEXT(1, &shadow_fbo);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo);
+
+	glGenTextures(3, shadow_map);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(shadow_map[0]);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_REF_DEPTH_TO_TEXTURE_EXT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
+	glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE_ARB, GL_INTENSITY);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, 2048, 2048, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(shadow_map[1]);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_REF_DEPTH_TO_TEXTURE_EXT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
+	glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE_ARB, GL_INTENSITY);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, 2048, 2048, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(shadow_map[2]);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_REF_DEPTH_TO_TEXTURE_EXT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
+	glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE_ARB, GL_INTENSITY);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, 2048, 2048, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, shadow_map[0], 0);	
+
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 }
 
 void opengl_tnl_shutdown()
@@ -500,6 +573,8 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 
 extern bool Scene_framebuffer_in_frame;
 extern GLuint Framebuffer_fallback_texture_id;
+extern matrix Object_matrix;
+extern vec3d Object_position;
 static void opengl_render_pipeline_program(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags)
 {
 	float u_scale, v_scale;
@@ -561,6 +636,12 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		if (MISCMAP > 0) {
 			shader_flags |= SDR_FLAG_MISC_MAP;
 		}
+	}
+
+	if ( in_shadow_map ) {
+		shader_flags = SDR_FLAG_SHADOW_MAP;
+		if ( parabolic )
+			shader_flags |= SDR_FLAG_PARABOLIC;
 	}
 
 	// find proper shader
@@ -676,6 +757,39 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		render_pass++; // bump!
 	}
 
+	if(shader_flags & SDR_FLAG_LIGHT)
+	{
+		memset( modelmatrix, 0, sizeof(modelmatrix) );
+		modelmatrix[0]  = Object_matrix.vec.rvec.xyz.x;   modelmatrix[4]  = Object_matrix.vec.uvec.xyz.x;   modelmatrix[8]  = Object_matrix.vec.fvec.xyz.x;
+		modelmatrix[1]  = Object_matrix.vec.rvec.xyz.y;   modelmatrix[5]  = Object_matrix.vec.uvec.xyz.y;   modelmatrix[9]  = Object_matrix.vec.fvec.xyz.y;
+		modelmatrix[2]  = Object_matrix.vec.rvec.xyz.z;   modelmatrix[6]  = Object_matrix.vec.uvec.xyz.z;   modelmatrix[10] = Object_matrix.vec.fvec.xyz.z;
+		modelmatrix[12] = Object_position.xyz.x - shadow_ref_point.xyz.x;
+		modelmatrix[13] = Object_position.xyz.y - shadow_ref_point.xyz.y;
+		modelmatrix[14] = Object_position.xyz.z - shadow_ref_point.xyz.z;
+		modelmatrix[15] = 1.0f;
+		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_mv_matrix_a"), 1, GL_FALSE, lmatrix[0]);
+		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_proj_matrix_a"), 1, GL_FALSE, lprojmatrix[0]);
+		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_mv_matrix_b"), 1, GL_FALSE, lmatrix[1]);
+		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_proj_matrix_b"), 1, GL_FALSE, lprojmatrix[1]);
+		vglUniformMatrix4fvARB( opengl_shader_get_uniform("model_matrix"), 1, GL_FALSE, modelmatrix );
+		vglUniform1fARB( opengl_shader_get_uniform("znear"), znear );
+		vglUniform1fARB( opengl_shader_get_uniform("zfar"), zfar );
+		vglUniform1iARB( opengl_shader_get_uniform("shadow_map_a"), render_pass );
+		GL_state.Texture.SetActiveUnit(render_pass);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(shadow_map[0]);
+		render_pass++; // bump!
+		vglUniform1iARB( opengl_shader_get_uniform("shadow_map_front"), render_pass );
+		GL_state.Texture.SetActiveUnit(render_pass);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(shadow_map[1]);
+		render_pass++; // bump!
+		vglUniform1iARB( opengl_shader_get_uniform("shadow_map_back"), render_pass );
+		GL_state.Texture.SetActiveUnit(render_pass);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(shadow_map[2]);
+		render_pass++; // bump!
+	}
 	if ((shader_flags & SDR_FLAG_ANIMATED))
 	{
 		GL_state.Texture.SetActiveUnit(render_pass);
@@ -689,6 +803,13 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 			GL_state.Texture.Enable(Framebuffer_fallback_texture_id);
 		vglUniform1iARB( opengl_shader_get_uniform("sFramebuffer"), render_pass );
 		render_pass++;
+	}
+
+	if (shader_flags & SDR_FLAG_PARABOLIC)
+	{
+		vglUniform1fARB( opengl_shader_get_uniform("znear"), znear );
+		vglUniform1fARB( opengl_shader_get_uniform("zfar"), zfar );
+		vglUniform1fARB( opengl_shader_get_uniform("zscale"), (float)parabolic );
 	}
 	// DRAW IT!!
 	DO_RENDER();
@@ -1236,15 +1357,6 @@ void gr_opengl_end_projection_matrix()
 	GL_htl_projection_matrix_set = 0;
 }
 
-
-static GLdouble eyex, eyey, eyez;
-static GLdouble vmatrix[16];
-
-static vec3d last_view_pos;
-static matrix last_view_orient;
-
-static bool use_last_view = false;
-
 void gr_opengl_set_view_matrix(vec3d *pos, matrix *orient)
 {
 	if (Cmdline_nohtl)
@@ -1572,4 +1684,190 @@ void gr_opengl_set_state_block(int handle)
 {
 /*	if(handle < 0) return;
 	glCallList(handle);*/
+}
+
+extern opengl_light *opengl_lights;
+extern int opengl_check_framebuffer();
+void gr_opengl_start_shadow_map(int lightid, vec3d *light_dir, vec3d ship_pos, matrix ship_orient, int model_num, bool autocenter )
+{
+	polymodel *pmp = model_get(model_num);
+	opengl_light *lp = &opengl_lights[lightid]; 
+	shadow_ref_point = ship_pos;
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &saved_fb);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo);
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, shadow_map[lightid], 0);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	gr_opengl_set_lighting(false,false);
+	if(opengl_lights[lightid].occupied)
+	{
+		in_shadow_map = true;
+		matrix orient, bb_orient;
+		vec3d pos;
+		vec3d bb_center, bb_temp, bb_r; 
+		float ship_radius = MAX(100.0f,pmp->rad);
+		float ship_dist;
+		vec3d ship_light;
+				
+		if(opengl_lights[lightid].type == LT_POINT)
+		{
+			light_dir->xyz.x = lp->Position[0];
+			light_dir->xyz.y = lp->Position[1];
+			light_dir->xyz.z = lp->Position[2];
+			vm_vec_sub(&ship_light, light_dir, &ship_pos);
+			ship_dist = vm_vec_mag(&ship_light);
+			*light_dir = ship_light;
+			
+			
+			light_dir->xyz.z = -light_dir->xyz.z;
+			if(vm_vec_mag_quick(light_dir) < 0.00001f)
+			{
+				light_dir->xyz.x = 1.0f;
+			}
+			vm_vec_scale(light_dir, -1.0f);
+			vm_vector_2_matrix(&bb_orient, light_dir, NULL, NULL);
+			vm_vec_scale(light_dir, -1.0f);
+			vm_vector_2_matrix(&orient, light_dir, NULL, NULL);
+			light_dir->xyz.z = -light_dir->xyz.z;
+			
+			
+			pos = *light_dir;
+			parabolic = 1;
+		}
+
+		if(opengl_lights[lightid].type == LT_DIRECTIONAL)
+		{
+			light_dir->xyz.x = -lp->Position[0];
+			light_dir->xyz.y = -lp->Position[1];
+			light_dir->xyz.z = lp->Position[2];
+			vm_vector_2_matrix(&orient, light_dir, NULL, NULL);
+			light_dir->xyz.z = -lp->Position[2];
+			vm_vector_2_matrix(&bb_orient, light_dir, NULL, NULL);
+			vm_vec_copy_scale(&pos, light_dir, -ship_radius);
+		}
+
+		for(int i = 0; i < 8; i++)
+		{
+			if(autocenter)
+				vm_vec_sub(&bb_center, &pmp->bounding_box[i], &pmp->autocenter);
+			else
+				bb_center = pmp->bounding_box[i];
+			vm_vec_unrotate(&bb_temp, &bb_center, &ship_orient);
+			vm_vec_rotate(&bb_r, &bb_temp, &bb_orient);
+			
+			if(!i)
+			{
+				minx = bb_r.xyz.x;
+				maxx = bb_r.xyz.x;
+				miny = bb_r.xyz.y;
+				maxy = bb_r.xyz.y;
+				minz = bb_r.xyz.z;
+				maxz = bb_r.xyz.z;
+			}
+			else
+			{
+				minx = MIN(bb_r.xyz.x, minx);
+				maxx = MAX(bb_r.xyz.x, maxx);
+				miny = MIN(bb_r.xyz.y, miny);
+				maxy = MAX(bb_r.xyz.y, maxy);
+				minz = MIN(bb_r.xyz.z, minz);
+				maxz = MAX(bb_r.xyz.z, maxz);
+			}
+		}
+		if(opengl_lights[lightid].type == LT_POINT)
+		{
+			znear = 0.0f;//MAX(0.0f, ship_dist + minz);
+			zfar = ship_dist + maxz;
+		}
+		glMatrixMode(GL_MODELVIEW);
+		glPushMatrix();
+		glLoadIdentity();
+
+		// store the result in our matrix
+		memset( lmatrix[lightid], 0, sizeof(lmatrix[lightid]) );
+		lmatrix[lightid][0]  = orient.vec.rvec.xyz.x;   lmatrix[lightid][1]  = orient.vec.uvec.xyz.x;   lmatrix[lightid][2]  = -orient.vec.fvec.xyz.x;
+		lmatrix[lightid][4]  = orient.vec.rvec.xyz.y;   lmatrix[lightid][5]  = orient.vec.uvec.xyz.y;   lmatrix[lightid][6]  = -orient.vec.fvec.xyz.y;
+		lmatrix[lightid][8]  = -orient.vec.rvec.xyz.z;   lmatrix[lightid][9]  = -orient.vec.uvec.xyz.z;   lmatrix[lightid][10] = orient.vec.fvec.xyz.z;
+		lmatrix[lightid][15] = 1.0;
+
+		glLoadMatrixf(lmatrix[lightid]);
+	
+		glTranslatef(-pos.xyz.x, -pos.xyz.y, -pos.xyz.z);
+		//glScalef(1.0f, 1.0f, -1.0f);
+		
+		glMatrixMode(GL_PROJECTION);
+		glPushMatrix();
+		glLoadIdentity();
+		//glOrtho(minx, maxx, -miny, -maxy, 0, ship_radius*2.0f);
+		glOrtho(-minx, -maxx, miny, maxy, 0.0f, ship_radius + maxz);
+		
+			//glFrustum(-minx / (ship_radius+minz), -maxx / (ship_radius+minz), miny / (ship_radius+minz), maxy / (ship_radius+minz), ship_radius+minz, ship_radius+maxz);
+		//glOrtho(ship_radius, -ship_radius, -ship_radius, ship_radius, 0, ship_radius*2.0f);
+		glGetFloatv(GL_MODELVIEW_MATRIX, lmatrix[lightid]);
+		glGetFloatv(GL_PROJECTION_MATRIX, lprojmatrix[lightid]);
+		glViewport(0, 0, 2048, 2048);
+		glDrawBuffer(GL_NONE);
+		glReadBuffer(GL_NONE);
+
+	}
+	saved_Eye = Eye_position;
+	Eye_position = vmd_zero_vector;
+}
+
+
+void gr_opengl_end_shadow_map()
+{
+		gr_zbuffer_set(ZBUFFER_TYPE_FULL);
+		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, saved_fb);
+		if(saved_fb)
+		{
+			GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
+			vglDrawBuffers(2, buffers);
+		}
+		Eye_position = saved_Eye;
+		if(!in_shadow_map)
+			return;
+		in_shadow_map = false;
+		glMatrixMode(GL_PROJECTION);
+		glPopMatrix();
+		if(shadowers)
+			glPopMatrix();
+		shadowers = false;
+		parabolic = 0;
+		glMatrixMode(GL_MODELVIEW);
+		glPopMatrix();
+
+		glViewport(gr_screen.offset_x, (gr_screen.max_h - gr_screen.offset_y - gr_screen.clip_height), gr_screen.clip_width, gr_screen.clip_height);
+
+		glCullFace(GL_BACK);
+}
+
+void gr_opengl_start_shadowers()
+{
+	if(!in_shadow_map)
+		return;
+	shadowers = true;
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	glOrtho(-minx, -maxx, miny, maxy, 0.0f, 200000.0f);
+}
+
+void gr_opengl_start_parabolic_back()
+{
+	if(!in_shadow_map)
+		return;
+	parabolic = -1;
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, shadow_map[2], 0);
+	gr_zbuffer_set(ZBUFFER_TYPE_FULL);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	gr_zbuffer_set(ZBUFFER_TYPE_WRITE);
+	glCullFace(GL_FRONT);
+}
+
+void gr_opengl_clear_shadow_map()
+{
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &saved_fb);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, saved_fb);
 }

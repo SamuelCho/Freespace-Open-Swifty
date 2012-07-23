@@ -1226,6 +1226,27 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 				}
 				model_calc_bound_box(pm->submodel[n].bounding_box, &pm->submodel[n].min, &pm->submodel[n].max);
 
+				/*bool recalc = false;
+				for(int l = 0; l < 3; l++)
+				{
+					if(pm->mins.a1d[l] > pm->submodel[n].min.a1d[l])
+					{
+						pm->mins.a1d[l] = pm->submodel[n].min.a1d[l];
+						recalc = true;
+					}
+				}
+				for(int l = 0; l < 3; l++)
+				{
+					if(pm->maxs.a1d[l] < pm->submodel[n].max.a1d[l])
+					{
+						pm->maxs.a1d[l] = pm->submodel[n].max.a1d[l];
+						recalc = true;
+					}
+				}
+
+				if(recalc)
+					model_calc_bound_box(pm->bounding_box, &pm->mins, &pm->maxs);*/
+
 				pm->submodel[n].movement_type = cfread_int(fp);
 				pm->submodel[n].movement_axis = cfread_int(fp);
 

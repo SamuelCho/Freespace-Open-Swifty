@@ -451,6 +451,8 @@ void tech_common_render()
 	}
 }
 
+void light_set_all_relevent();
+
 void techroom_ships_render(float frametime)
 {
 	// render all the common stuff
@@ -522,6 +524,7 @@ void techroom_ships_render(float frametime)
 	light_reset();
 	vec3d light_dir = vmd_zero_vector;
 	light_dir.xyz.y = 1.0f;	
+	light_dir.xyz.x = 0.0000001f;	
 	light_add_directional(&light_dir, 0.85f, 1.0f, 1.0f, 1.0f);
 	light_rotate_all();
 	// lighting for techroom
@@ -530,6 +533,15 @@ void techroom_ships_render(float frametime)
 
 	model_clear_instance(Techroom_ship_modelnum);
 	model_set_detail_level(0);
+	polymodel *pm = model_get(Techroom_ship_modelnum);
+	light_filter_push(-1, &vmd_zero_vector, pm->rad);
+	light_set_all_relevent();
+	light_filter_pop();
+	gr_reset_clip();
+	gr_start_shadow_map(0,&light_dir,vmd_zero_vector,Techroom_ship_orient,Techroom_ship_modelnum,true);
+	model_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
+	gr_set_clip(Tech_ship_display_coords[gr_screen.res][SHIP_X_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_Y_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_W_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_H_COORD]);
+	gr_end_shadow_map();
 	model_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER);
 
 	Glowpoint_use_depth_buffer = true;

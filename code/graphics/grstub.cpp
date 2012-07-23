@@ -645,6 +645,25 @@ void gr_stub_bm_page_in_start()
 {
 }
 
+void gr_stub_start_shadow_map(int lightid, vec3d *light_dir, vec3d ship_pos, matrix ship_orient, int model_num, bool autocenter )
+{
+}
+
+void gr_stub_end_shadow_map()
+{
+}
+
+void gr_stub_start_shadowers()
+{
+}
+
+void gr_stub_start_parabolic_back()
+{
+}
+
+void gr_stub_clear_shadow_map()
+{
+}
 
 bool gr_stub_init() 
 {
@@ -811,5 +830,10 @@ bool gr_stub_init()
 	gr_screen.gf_line_htl			= gr_stub_draw_htl_line;
 	gr_screen.gf_sphere_htl			= gr_stub_draw_htl_sphere;
 
+	gr_screen.gf_start_shadow_map	= gr_stub_start_shadow_map;
+	gr_screen.gf_end_shadow_map		= gr_stub_end_shadow_map;
+	gr_screen.gf_start_shadowers	= gr_stub_start_shadowers;
+	gr_screen.gf_start_parabolic_back = gr_stub_start_parabolic_back;
+	gr_screen.gf_clear_shadow_map	= gr_stub_clear_shadow_map;
 	return true;
 }

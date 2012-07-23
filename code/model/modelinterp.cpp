@@ -2953,7 +2953,10 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 	// Draw the subobjects	
 	i = pm->submodel[pm->detail[Interp_detail_level]].first_child;
-
+	if(Interp_flags & MR_NO_TEXTURING)
+		gr_zbias(-8192);
+	else
+		gr_zbias(0);
 	while( i >= 0 )	{
 		if ( !pm->submodel[i].is_thruster ) {
 			// When in htl mode render with htl method unless its a jump node
@@ -2969,7 +2972,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		i = pm->submodel[i].next_sibling;
 	}	
 
-	gr_zbias(0);	
+		
 
 	model_radius = pm->submodel[pm->detail[Interp_detail_level]].rad;
 
@@ -3078,7 +3081,8 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	if (!Cmdline_nohtl)	gr_set_texture_panning(0.0, 0.0, false);
 
 	gr_zbuffer_set(GR_ZBUFF_READ);
-	model_render_insignias(pm, Interp_detail_level);	
+	if(!(Interp_flags & MR_NO_TEXTURING))
+		model_render_insignias(pm, Interp_detail_level);	
 
 	gr_zbias(0);  
 
@@ -4608,6 +4612,18 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 				NORMMAP = model_interp_get_texture(norm_map, Interp_base_frametime);
 				HEIGHTMAP = model_interp_get_texture(height_map, Interp_base_frametime);
 				MISCMAP = model_interp_get_texture(misc_map, Interp_base_frametime);
+			}
+		}
+		else { //Check for invisible textures so retail boxes dont show up in the shadow maps - Valathil
+			if ( (Interp_new_replacement_textures != NULL) && (Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
+				tex_replace[TM_BASE_TYPE] = texture_info(Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE]);
+				texture = model_interp_get_texture(&tex_replace[TM_BASE_TYPE], Interp_base_frametime);
+			} else {
+				texture = model_interp_get_texture(&tmap->textures[TM_BASE_TYPE], Interp_base_frametime);
+			}
+
+			if (texture < 0) {
+				continue;
 			}
 		}
 

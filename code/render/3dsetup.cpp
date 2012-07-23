@@ -288,7 +288,7 @@ void g3_start_instance_matrix(vec3d *pos,matrix *orient, bool set_api)
 	vm_matrix_x_matrix(&tempm,&tempm2,&View_matrix);
 	View_matrix = tempm;
 
-	vm_matrix_x_matrix(&Object_matrix,orient,&instance_stack[instance_depth-1].om);
+	vm_matrix_x_matrix(&Object_matrix,&instance_stack[instance_depth-1].om,orient);
 
 	// Update the lighting matrix
 	matrix saved_orient = Light_matrix;

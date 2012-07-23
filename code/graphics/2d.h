@@ -40,6 +40,8 @@ extern int gr_global_zbuffering;
 #define SDR_FLAG_SOFT_QUAD		(1<<9)
 #define SDR_FLAG_DISTORTION		(1<<10)
 #define SDR_FLAG_MISC_MAP		(1<<11)
+#define SDR_FLAG_SHADOW_MAP		(1<<12)
+#define SDR_FLAG_PARABOLIC		(1<<13)
 
 /**
  * This is a structure used by the shader to keep track
@@ -471,6 +473,13 @@ typedef struct screen {
 	void (*gf_sphere_htl)(float rad);
 
 	int (*gf_maybe_create_shader)(int flags);
+
+	void (*gf_start_shadow_map)(int lightid, vec3d *light_dir, vec3d ship_pos, matrix ship_orient, int model_num, bool autocenter);
+	void (*gf_end_shadow_map)();
+	void (*gf_start_shadowers)();
+	void (*gf_start_parabolic_back)();
+	void (*gf_clear_shadow_map)();
+
 } screen;
 
 // handy macro
@@ -754,6 +763,12 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_sphere_htl					GR_CALL(*gr_screen.gf_sphere_htl)
 
 #define gr_maybe_create_shader			GR_CALL(*gr_screen.gf_maybe_create_shader)
+
+#define gr_start_shadow_map				GR_CALL(*gr_screen.gf_start_shadow_map)
+#define gr_end_shadow_map				GR_CALL(*gr_screen.gf_end_shadow_map)
+#define gr_start_shadowers				GR_CALL(*gr_screen.gf_start_shadowers)
+#define gr_start_parabolic_back			GR_CALL(*gr_screen.gf_start_parabolic_back)
+#define gr_clear_shadow_map				GR_CALL(*gr_screen.gf_clear_shadow_map)
 
 // color functions
 void gr_get_color( int *r, int *g, int  b );

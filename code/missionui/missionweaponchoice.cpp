@@ -886,6 +886,16 @@ void wl_render_overhead_view(float frametime)
 			light_rotate_all();
 
 			model_clear_instance(wl_ship->model_num);
+			polymodel *pm = model_get(wl_ship->model_num);
+			light_filter_push(-1, &vmd_zero_vector, pm->rad);
+			void light_set_all_relevent();
+			light_set_all_relevent();
+			light_filter_pop();
+			gr_reset_clip();
+			gr_start_shadow_map(0,&light_dir,vmd_zero_vector,object_orient,wl_ship->model_num,true);
+			model_render(wl_ship->model_num, &object_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
+			gr_set_clip(Wl_overhead_coords[gr_screen.res][0], Wl_overhead_coords[gr_screen.res][1], gr_screen.res == 0 ? 291 : 467, gr_screen.res == 0 ? 226 : 362);
+			gr_end_shadow_map();
 			model_render(wl_ship->model_num, &object_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1);
 
 			batch_render_all();
@@ -896,7 +906,6 @@ void wl_render_overhead_view(float frametime)
 			vec3d subobj_pos;
 			int x, y;
 			int xc, yc;
-			polymodel *pm = model_get(wl_ship->model_num);
 			int num_found = 2;
 
 			//Render selected primary lines
