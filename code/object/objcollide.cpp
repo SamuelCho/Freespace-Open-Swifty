@@ -1157,6 +1157,12 @@ void obj_collide_retime_cached_pairs(int checkdly)
 
 void obj_sort_and_collide()
 {
+	if (Cmdline_dis_collisions)
+		return;
+
+	if ( !(Game_detail_flags & DETAIL_FLAG_COLLISION) )
+		return;
+
 	SCP_vector<int> sort_list_y;
 	SCP_vector<int> sort_list_z;
 
