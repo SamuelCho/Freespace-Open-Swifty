@@ -1065,10 +1065,8 @@ int collide_ship_ship( obj_pair * pair )
 	Assert( A->type == OBJ_SHIP );
 	Assert( B->type == OBJ_SHIP );
 
-	if (reject_due_collision_groups(A,B)) {
-		pair->next_check_time = timestamp(0);
+	if (reject_due_collision_groups(A,B))
 		return 0;
-	}
 
 	// If the player is one of the two colliding ships, flag this... it is used in
 	// several places this function.

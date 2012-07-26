@@ -1498,7 +1498,7 @@ void obj_collide_pair(object *A, object *B)
 			collision_info->b = B;
 			collision_info->signature_a = A->signature;
 			collision_info->signature_b = B->signature;
-			collision_info->next_check_time = 0;
+			collision_info->next_check_time = timestamp(0);
 		}
 	} else {
 		collision_info->a = A;
@@ -1506,7 +1506,7 @@ void obj_collide_pair(object *A, object *B)
 		collision_info->signature_a = A->signature;
 		collision_info->signature_b = B->signature;
 		collision_info->initialized = true;
-		collision_info->next_check_time = 0;
+		collision_info->next_check_time = timestamp(0);
 	}
 
 	if ( valid &&  A->type != OBJ_BEAM ) {
@@ -1514,7 +1514,7 @@ void obj_collide_pair(object *A, object *B)
 		if ( collision_info->next_check_time == -1 ) {
 			return;
 		} else {
-			if ( collision_info->next_check_time != 0 && !timestamp_elapsed(collision_info->next_check_time) ) {
+			if ( !timestamp_elapsed(collision_info->next_check_time) ) {
 				return;
 			}
 		}
@@ -1589,6 +1589,7 @@ void obj_collide_pair(object *A, object *B)
 	new_pair.a = A;
 	new_pair.b = B;
 	new_pair.check_collision = check_collision;
+	new_pair.next_check_time = collision_info->next_check_time;
 
 	if ( check_collision(&new_pair) ) {
 		// don't have to check ever again
