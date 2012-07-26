@@ -880,7 +880,7 @@ void create_vertex_buffer(polymodel *pm)
 			if ( pm->use_thruster_buffers ) {
 				gr_pack_buffer(pm->vertex_buffer_id, &pm->thruster_buffers[i]);
 
-				pm->thruster_buffers->release();
+				pm->thruster_buffers[i].release();
 			}
 		}
 	}
