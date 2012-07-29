@@ -41,6 +41,7 @@ extern int gr_global_zbuffering;
 #define SDR_FLAG_DISTORTION		(1<<10)
 #define SDR_FLAG_MISC_MAP		(1<<11)
 #define SDR_FLAG_TRANSFORM		(1<<12)
+#define SDR_FLAG_TEAMCOLOR		(1<<13)
 
 /**
  * This is a structure used by the shader to keep track
@@ -72,6 +73,15 @@ typedef struct color {
 	int		magic;		
 } color;
 
+// Used by the team coloring code
+typedef struct team_color {
+	struct {
+		float r, g, b;
+	} base;
+	struct {
+		float r, g, b;
+	} stripe;
+} team_color;
 
 typedef struct tsb_t {
 	vec3d tangent;
@@ -485,6 +495,10 @@ typedef struct screen {
 	void (*gf_update_transformation_tex)(uint tex_id, int n_models, float *data);
 
 	void (*gf_flush_data_states)();
+
+	void (*gf_set_team_color)(SCP_string team);
+	void (*gf_enable_team_color)();
+	void (*gf_disable_team_color)();
 } screen;
 
 // handy macro
@@ -781,6 +795,10 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_update_transform_tex			GR_CALL(*gr_screen.gf_update_transformation_tex)
 
 #define gr_flush_data_states			GR_CALL(*gr_screen.gf_flush_data_states)
+
+#define gr_set_team_color				GR_CALL(*gr_screen.gf_set_team_color)
+#define gr_enable_team_color			GR_CALL(*gr_screen.gf_enable_team_color)
+#define gr_disable_team_color			GR_CALL(*gr_screen.gf_disable_team_color)
 
 // color functions
 void gr_get_color( int *r, int *g, int  b );

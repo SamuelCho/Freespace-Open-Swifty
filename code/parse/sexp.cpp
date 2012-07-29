@@ -552,6 +552,7 @@ sexp_oper Operators[] = {
 	{ "nebula-change-storm",		OP_NEBULA_CHANGE_STORM,				1, 1 }, // phreak
 	{ "nebula-toggle-poof",			OP_NEBULA_TOGGLE_POOF,				2, 2 }, // phreak
 	{ "set-skybox-model",			OP_SET_SKYBOX_MODEL,				1, 1 },	// taylor
+	{ "set-skybox-orientation",		OP_SET_SKYBOX_ORIENT,				3, 3 },	// Goober5000
 
 	//HUD funcs -C
 	{ "hud-disable",			OP_HUD_DISABLE,					1, 1 },	// Goober5000
@@ -15435,10 +15436,28 @@ void sexp_set_post_effect(int node)
 	gr_post_process_set_effect(name, amount);
 }
 
+// Goober5000
+void sexp_set_skybox_orientation(int n)
+{
+	matrix m;
+	angles a;
+
+	a.p = fl_radians(eval_num(n) % 360);
+	n = CDR(n);
+
+	a.b = fl_radians(eval_num(n) % 360);
+	n = CDR(n);
+
+	a.h = fl_radians(eval_num(n) % 360);
+	n = CDR(n);
+
+	vm_angles_2_matrix(&m, &a);
+	stars_set_background_orientation(&m);
+}
+
 // taylor - load and set a skybox model
 void sexp_set_skybox_model(int n)
 {
-	for ( ; n != -1; n = CDR(n)) {
 	if ( !stricmp("default", CTEXT(n)) ) {
 		stars_set_background_model( The_mission.skybox_model, NULL );
 	} else {
@@ -15447,7 +15466,6 @@ void sexp_set_skybox_model(int n)
 		// there is less slowdown when it actually swaps out - taylor
 		stars_set_background_model( CTEXT(n), NULL );
 	}
-			}
 }
 
 // taylor - preload a skybox model.  this doesn't set anything as viewable, just loads it into memory
@@ -18246,7 +18264,7 @@ int sexp_is_secondary_selected(int node)
 	}
 
 	// is this the bank currently selected
-	if(bank == shipp->weapons.current_secondary_bank){
+	if( (bank == shipp->weapons.current_primary_bank) || ((shipp->flags & SF_PRIMARY_LINKED) && !(Weapon_info[shipp->weapons.primary_bank_weapons[bank]].wi_flags3 & WIF3_NOLINK)) ){
 		return SEXP_TRUE;
 	}
 
@@ -22099,6 +22117,11 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = SEXP_TRUE;
 				break;
 
+			case OP_SET_SKYBOX_ORIENT:
+				sexp_set_skybox_orientation(node);
+				sexp_val = SEXP_TRUE;
+				break;
+
 			case OP_TURRET_TAGGED_SPECIFIC:
 				sexp_turret_tagged_specific(node);
 				sexp_val = SEXP_TRUE;
@@ -23304,6 +23327,7 @@ int query_operator_return_type(int op)
 		case OP_DEACTIVATE_GLOW_POINT_BANK:
 		case OP_ACTIVATE_GLOW_POINT_BANK:
 		case OP_SET_SKYBOX_MODEL:
+		case OP_SET_SKYBOX_ORIENT:
 		case OP_SET_SUPPORT_SHIP:
 		case OP_SET_ARRIVAL_INFO:
 		case OP_SET_DEPARTURE_INFO:
@@ -25058,10 +25082,10 @@ int query_operator_argument_type(int op, int argnum)
 
 		// taylor
 		case OP_SET_SKYBOX_MODEL:
-			if (argnum == 0)
-				return OPF_SKYBOX_MODEL_NAME;
-			else
-				return OPF_STRING;
+			return OPF_SKYBOX_MODEL_NAME;
+
+		case OP_SET_SKYBOX_ORIENT:
+			return OPF_NUMBER;
 
 		// Goober5000 - this is complicated :)
 		case OP_SET_SUPPORT_SHIP:
@@ -26857,6 +26881,7 @@ int get_subcategory(int sexp_id)
 			return CHANGE_SUBCATEGORY_SPECIAL;
 
 		case OP_SET_SKYBOX_MODEL:
+		case OP_SET_SKYBOX_ORIENT:
 		case OP_MISSION_SET_NEBULA:
 		case OP_ADD_BACKGROUND_BITMAP:
 		case OP_REMOVE_BACKGROUND_BITMAP:
@@ -30276,11 +30301,17 @@ sexp_help_struct Sexp_help[] = {
 
 	// taylor
 	{ OP_SET_SKYBOX_MODEL, "set-skybox-model\r\n"
-		"\tSets the current skybox model\r\n\r\n"
-		"Takes 1 argument...\r\n"
+		"\tSets the current skybox model.  Takes 1 argument...\r\n"
 		"\t1:\tModel filename (with .pof extension) to switch to\r\n\r\n"
-		"If the model filename is set to \"default\" with no extension then it will switch to the mission supplied default skybox."
+		"Note: If the model filename is set to \"default\" with no extension then it will switch to the mission supplied default skybox."
+	},
 
+	// Goober5000
+	{ OP_SET_SKYBOX_ORIENT, "set-skybox-orientation\r\n"
+		"\tSets the current skybox orientation.  Takes 3 arguments...\r\n"
+		"\t1:\tPitch\r\n"
+		"\t2:\tBank\r\n"
+		"\t3:\tHeading\r\n"
 	},
 
 	{ OP_ADD_BACKGROUND_BITMAP, "add-background-bitmap\r\n"
