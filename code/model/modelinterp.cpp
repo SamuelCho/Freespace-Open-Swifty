@@ -3481,6 +3481,17 @@ void submodel_get_two_random_points_better(int model_num, int submodel_num, vec3
 
 	int nv = tree->n_verts;
 
+	// this is not only because of the immediate div-0 error but also because of the less immediate expectation for at least one point (preferably two) to be found
+	if (nv <= 0) {
+		Error(LOCATION, "Model %d ('%s') must have at least one point from submodel_get_points_internal!", model_num, (pm == NULL) ? "<null model?!?>" : pm->filename);
+
+		// in case people ignore the error...
+		vm_vec_zero(v1);
+		vm_vec_zero(v2);
+
+		return;
+	}
+
 	Assert(nv > 0);	// Goober5000 - to avoid div-0 error
 	int vn1 = (myrand()>>5) % nv;
 	int vn2 = (myrand()>>5) % nv;

@@ -604,6 +604,10 @@ void model_collide_bsp_poly(bsp_collision_tree *tree, int leaf_index)
 
 void model_collide_bsp(bsp_collision_tree *tree, int node_index)
 {
+	if ( tree->node_list == NULL || tree->n_verts <= 0) {
+		return;
+	}
+
 	bsp_collision_node *node = &tree->node_list[node_index];
 	vec3d hitpos;
 
@@ -721,6 +725,22 @@ void model_collide_parse_bsp(bsp_collision_tree *tree, void *model_ptr, int vers
 
 	int n_verts = model_collide_parse_bsp_defpoints(p);
 
+	if ( n_verts <= 0) {
+		tree->point_list = NULL;
+		tree->n_verts = 0;
+
+		tree->n_nodes = 0;
+		tree->node_list = NULL;
+
+		tree->n_leaves = 0;
+		tree->leaf_list = NULL;
+
+		// finally copy the vert list.
+		tree->vert_list = NULL;
+
+		return;
+	}
+
 	p += chunk_size;
 
 	bsp_collision_node new_node;
@@ -761,15 +781,23 @@ void model_collide_parse_bsp(bsp_collision_tree *tree, void *model_ptr, int vers
 			node_buffer[i].back = -1;
 
 			if ( w(p+36) ) {
-				node_buffer.push_back(new_node);
-				node_buffer[i].front = (node_buffer.size() - 1);
-				bsp_datap[node_buffer[i].front] = p+w(p+36);
+				next_chunk_type = w(p+w(p+36));
+
+				if ( next_chunk_type != OP_EOF ) {
+					node_buffer.push_back(new_node);
+					node_buffer[i].front = (node_buffer.size() - 1);
+					bsp_datap[node_buffer[i].front] = p+w(p+36);
+				}
 			}
 
 			if ( w(p+40) ) {
-				node_buffer.push_back(new_node);
-				node_buffer[i].back = (node_buffer.size() - 1);
-				bsp_datap[node_buffer[i].back] = p+w(p+40);
+				next_chunk_type = w(p+w(p+40));
+				
+				if ( next_chunk_type != OP_EOF ) {
+					node_buffer.push_back(new_node);
+					node_buffer[i].back = (node_buffer.size() - 1);
+					bsp_datap[node_buffer[i].back] = p+w(p+40);
+				}
 			}
 
 			next_p = p + chunk_size;
