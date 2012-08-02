@@ -18,8 +18,8 @@
 
 #include <list>
 #include "weapon/weapon.h"
-#include "Debris/debris.h"
-#include "Asteroid/asteroid.h"
+#include "debris/debris.h"
+#include "asteroid/asteroid.h"
 
 
 typedef struct sorted_obj {
