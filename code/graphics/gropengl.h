@@ -638,10 +638,10 @@ typedef GLboolean (APIENTRYP PFNGLISPROGRAMARBPROC) (GLuint program);
 #ifndef GL_ARB_draw_elements_base_vertex
 #define GL_ARB_draw_elements_base_vertex 1
 #ifdef __APPLE__
-typedef void (* glDrawElementsBaseVertex) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, GLint basevertex);
-typedef void (* glDrawRangeElementsBaseVertex) (GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices, GLint basevertex);
-typedef void (* glDrawElementsInstancedBaseVertex) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, GLsizei primcount, GLint basevertex);
-typedef void (* glMultiDrawElementsBaseVertex) (GLenum mode, const GLsizei *count, GLenum type, const GLvoid* *indices, GLsizei primcount, const GLint *basevertex);
+typedef void (* glDrawElementsBaseVertexProcPtr) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, GLint basevertex);
+typedef void (* glDrawRangeElementsBaseVertexProcPtr) (GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices, GLint basevertex);
+typedef void (* glDrawElementsInstancedBaseVertexProcPtr) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, GLsizei primcount, GLint basevertex);
+typedef void (* glMultiDrawElementsBaseVertexProcPtr) (GLenum mode, const GLsizei *count, GLenum type, const GLvoid* *indices, GLsizei primcount, const GLint *basevertex);
 #else
 typedef void (APIENTRYP PFNGLDRAWELEMENTSBASEVERTEXPROC) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, GLint basevertex);
 typedef void (APIENTRYP PFNGLDRAWRANGEELEMENTSBASEVERTEXPROC) (GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices, GLint basevertex);
