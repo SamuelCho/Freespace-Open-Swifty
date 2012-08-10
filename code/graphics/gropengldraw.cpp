@@ -1487,8 +1487,6 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 				attrib_index = opengl_shader_get_attribute("radius_in");
 				GL_state.Array.EnableVertexAttrib(attrib_index);
 				GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
-				//vglEnableVertexAttribArrayARB(attrib_index);
-				//vglVertexAttribPointerARB(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
 
 			}
 			if(flags & TMAP_FLAG_DISTORTION_THRUSTER)
@@ -1496,8 +1494,6 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 				attrib_index = opengl_shader_get_attribute("offset_in");
 				GL_state.Array.EnableVertexAttrib(attrib_index);
 				GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
-				//GL_state.Array.EnableVertexAttrib(attrib_index);
-				//GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
 			}
 			GL_state.Texture.SetActiveUnit(1);
 			GL_state.Texture.SetTarget(GL_TEXTURE_2D);
