@@ -1847,9 +1847,6 @@ void opengl_setup_function_pointers()
 
 	gr_screen.gf_flush_data_states	= gr_opengl_flush_data_states;
 
-	gr_screen.gf_set_team_color		= gr_opengl_set_team_color;
-	gr_screen.gf_enable_team_color  = gr_opengl_enable_team_color;
-	gr_screen.gf_disable_team_color = gr_opengl_disable_team_color;
 	// NOTE: All function pointers here should have a Cmdline_nohtl check at the top
 	//       if they shouldn't be run in non-HTL mode, Don't keep separate entries.
 	// *****************************************************************************

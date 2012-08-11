@@ -16,7 +16,6 @@
 #include "InitialStatus.h"
 #include "Management.h"
 #include "globalincs/linklist.h"
-#include "globalincs/alphacolors.h"
 #include "object/objectdock.h"
 
 #ifdef _DEBUG
@@ -81,7 +80,6 @@ void initial_status::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_VELOCITY_SPIN, m_velocity_spin);
 	DDX_Control(pDX, IDC_SHIELDS_SPIN, m_shields_spin);
 	DDX_Control(pDX, IDC_DAMAGE_SPIN, m_damage_spin);
-	DDX_Control(pDX, IDC_TEAMSELECT, m_team_color_setting);
 	DDX_Text(pDX, IDC_DAMAGE, m_damage);
 	DDV_MinMaxInt(pDX, m_damage, 0, 100);
 	DDX_Check(pDX, IDC_HAS_SHIELDS, m_has_shields);
@@ -145,7 +143,7 @@ BOOL initial_status::OnInitDialog()
 	int z, vflag, sflag, hflag;
 	ship_subsys *ptr;
 	CString str;
-	object *objp = NULL;
+	object *objp;
 
 	m_ship = cur_ship;
 	if (m_ship == -1) {
@@ -378,28 +376,6 @@ BOOL initial_status::OnInitDialog()
 	if (hflag)
 		GetDlgItem(IDC_HULL)->SetWindowText("");
 
-	if (objp != NULL) {
-		if (objp->type == OBJ_SHIP) {
-			ship* shipp = &Ships[objp->instance];
-			int i = 0;
-
-			if (Ship_info[shipp->ship_info_index].uses_team_colors) {
-				for (SCP_vector<SCP_string>::iterator tni = Team_Names.begin(); tni != Team_Names.end(); ++tni) {
-					int z = m_team_color_setting.AddString(tni->c_str());
-					if (!stricmp(tni->c_str(), shipp->team_name.c_str())) {
-						m_team_color_setting.SetCurSel(i);
-					}
-					m_team_color_setting.SetItemData(z, i);
-					i++;
-
-				}
-				m_team_color_setting.EnableWindow();
-			} else {
-				m_team_color_setting.EnableWindow(FALSE);
-			}
-		}
-	}
-
 	return TRUE;
 }
 
@@ -532,7 +508,6 @@ void initial_status::OnOK()
 			Ships[m_ship].flags2 &= ~SF2_AFTERBURNER_LOCKED;
 	}
 
-	Ships[m_ship].team_name = Team_Names[m_team_color_setting.GetCurSel()];
 
 	update_docking_info();
 
