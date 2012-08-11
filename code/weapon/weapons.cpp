@@ -46,6 +46,7 @@
 #include "network/multiutil.h"
 #include "parse/scripting.h"
 #include "stats/scoring.h"
+#include "mod_table/mod_table.h"
 
 
 #ifndef NDEBUG
@@ -96,8 +97,6 @@ int missile_model = -1;
 int     First_secondary_index = -1;
 int		Default_cmeasure_index = -1;
 
-int Default_weapon_select_effect = 2;
-
 static int *used_weapons = NULL;
 
 int	Num_spawn_types = 0;
@@ -123,7 +122,7 @@ int		Weapon_impact_timer;			// timer, initialized at start of each mission
 #define FLAK_DAMAGE_SCALE				0.05f
 
 //default time of a homing weapon to not home
-#define HOMING_DEFAULT_FREE_FLIGHT_TIME	0.25f
+#define HOMING_DEFAULT_FREE_FLIGHT_TIME	0.5f
 
 // time delay between each swarm missile that is fired
 #define SWARM_MISSILE_DELAY				150
@@ -1218,9 +1217,9 @@ int parse_weapon(int subtype, bool replace)
 		stuff_string(effect, F_NAME, NAME_LENGTH);
 		if (!stricmp(effect, "FS2"))
 			wip->selection_effect = 2;
-		if (!stricmp(effect, "FS1"))
+		else if (!stricmp(effect, "FS1"))
 			wip->selection_effect = 1;
-		if (!stricmp(effect, "off"))
+		else if (!stricmp(effect, "off"))
 			wip->selection_effect = 0;
 	}	
 
@@ -4034,13 +4033,20 @@ void weapon_home(object *obj, int num, float frame_time)
 			send_homing_weapon_info(num);
 		}
 
-		if (obj->phys_info.speed > max_speed) {
-			obj->phys_info.speed -= frame_time * (2 / wip->free_flight_time);
-			vm_vec_copy_scale( &obj->phys_info.desired_vel, &obj->orient.vec.fvec, obj->phys_info.speed);
-		} else if ((obj->phys_info.speed < max_speed / (2 / wip->free_flight_time)) && (wip->wi_flags & WIF_HOMING_HEAT)) {
-			obj->phys_info.speed = max_speed / (2 / wip->free_flight_time);
-			vm_vec_copy_scale( &obj->phys_info.desired_vel, &obj->orient.vec.fvec, obj->phys_info.speed);
+		// since free_flight_time can now be 0, guard against that
+		if (wip->free_flight_time > 0.0f) {
+			if (obj->phys_info.speed > max_speed) {
+				obj->phys_info.speed -= frame_time * (2 / wip->free_flight_time);
+			} else if ((obj->phys_info.speed < max_speed / (2 / wip->free_flight_time)) && (wip->wi_flags & WIF_HOMING_HEAT)) {
+				obj->phys_info.speed = max_speed / (2 / wip->free_flight_time);
+			}
 		}
+		// no free_flight_time, so immediately set desired speed
+		else {
+			obj->phys_info.speed = max_speed;
+		}
+		// set velocity using whatever speed we have
+		vm_vec_copy_scale( &obj->phys_info.desired_vel, &obj->orient.vec.fvec, obj->phys_info.speed);
 
 		return;
 	}

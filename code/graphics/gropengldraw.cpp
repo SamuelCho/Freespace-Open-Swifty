@@ -1754,7 +1754,7 @@ void gr_opengl_shade(int x, int y, int w, int h, bool resize)
 	glColor4ub( (GLubyte)gr_screen.current_shader.r, (GLubyte)gr_screen.current_shader.g,
 				(GLubyte)gr_screen.current_shader.b, (GLubyte)gr_screen.current_shader.c );
 
-	opengl_draw_coloured_quad(x1, y1, x2, y2);
+	opengl_draw_coloured_quad((GLint)x1, (GLint)y1, (GLint)x2, (GLint)y2);
 
 	gr_opengl_end_2d_matrix();
 }
@@ -1780,7 +1780,7 @@ void gr_opengl_flash(int r, int g, int b)
 
 	glColor4ub( (GLubyte)r, (GLubyte)g, (GLubyte)b, 255 );
 
-	opengl_draw_coloured_quad(x1, y1, x2, y2);
+	opengl_draw_coloured_quad((GLint)x1, (GLint)y1, (GLint)x2, (GLint)y2);
 }
 
 void gr_opengl_flash_alpha(int r, int g, int b, int a)
@@ -1805,7 +1805,7 @@ void gr_opengl_flash_alpha(int r, int g, int b, int a)
 
 	glColor4ub( (GLubyte)r, (GLubyte)g, (GLubyte)b, (GLubyte)a );
 
-	opengl_draw_coloured_quad(x1, y1, x2, y2);
+	opengl_draw_coloured_quad((GLint)x1, (GLint)y1, (GLint)x2, (GLint)y2);
 }
 
 
