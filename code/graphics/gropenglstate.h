@@ -384,6 +384,7 @@ inline GLenum opengl_state::DepthFunc(GLenum new_val)
 	return depthfunc_Value;
 }
 
+
 extern opengl_state GL_state;
 
 void gr_opengl_flush_data_states();

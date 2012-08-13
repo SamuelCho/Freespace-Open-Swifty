@@ -1841,10 +1841,13 @@ void opengl_setup_function_pointers()
 
 	gr_screen.gf_maybe_create_shader = gr_opengl_maybe_create_shader;
 
+<<<<<<< HEAD
 	gr_screen.gf_create_transformation_tex		= gr_opengl_create_transformation_tex;
 	gr_screen.gf_destroy_transformation_tex		= gr_opengl_destroy_transformation_tex;
 	gr_screen.gf_update_transformation_tex		= gr_opengl_update_transformation_tex;
 
+=======
+>>>>>>> master
 	gr_screen.gf_flush_data_states	= gr_opengl_flush_data_states;
 
 	gr_screen.gf_set_team_color		= gr_opengl_set_team_color;
