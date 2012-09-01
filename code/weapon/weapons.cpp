@@ -867,6 +867,11 @@ void init_weapon_entry(int weap_info_index)
 	wip->turn_time = 1.0f;
 	wip->fov = 0;				//should be cos(pi), not pi
 	
+	wip->uncaged = false;
+	wip->multi_lock = false;
+
+	wip->acquire_method = WLOCK_PIXEL;
+
 	wip->min_lock_time = 0.0f;
 	wip->lock_pixels_per_sec = 50;
 	wip->catchup_pixels_per_sec = 50;
@@ -6640,4 +6645,24 @@ float weapon_get_damage_scale(weapon_info *wip, object *wep, object *target)
 	}
 	
 	return total_scale;
+}
+
+// Given a weapon, figure out how many independent locks we can have with it.
+int weapon_get_max_missile_seekers(weapon_info *wip)
+{
+	int max_target_locks;
+
+	if ( wip->multi_lock ) {
+		if ( wip->wi_flags & WIF_SWARM ) {
+			max_target_locks = wip->swarm_count;
+		} else if ( wip->wi_flags & WIF_CORKSCREW ) {
+			max_target_locks = wip->cs_num_fired;
+		} else {
+			max_target_locks = 1;
+		}
+	} else {
+		max_target_locks = 1;
+	}
+
+	return max_target_locks;
 }

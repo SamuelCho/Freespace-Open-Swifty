@@ -138,6 +138,10 @@ extern int Num_weapon_subtypes;
 #define WBF_FAST_FIRING				(1<<0)		// burst is to use only the firewait to determine firing delays
 #define WBF_RANDOM_LENGTH			(1<<1)		// burst is to fire random length bursts
 
+// constants for weapon lock acquire methods
+#define WLOCK_PIXEL		0
+#define WLOCK_TIMER		1
+
 //particle names go here -nuke
 #define PSPEW_NONE		-1			//used to disable a spew, useful for xmts
 #define PSPEW_DEFAULT	0			//std fs2 pspew
@@ -366,11 +370,18 @@ typedef struct weapon_info {
 	// swarm count
 	short swarm_count;						// how many swarm missiles are fired for this weapon
 
+	bool uncaged;							// if true, lock up contacts not targeted and targeted
+	bool multi_lock;
+	ushort max_seeking;						// how many seekers can be active at a time if multilock is enabled. A value of one will lock stuff up one by one.
+	ushort max_seekers_per_target;			// how many seekers can be attached to a target.
+
 	//	Specific to ASPECT homing missiles.
+	int acquire_method;
 	float	min_lock_time;						// minimum time (in seconds) to achieve lock
 	int	lock_pixels_per_sec;				// pixels/sec moved while locking
 	int	catchup_pixels_per_sec;			// pixels/sec moved while catching-up for a lock				
-	int	catchup_pixel_penalty;			// number of extra pixels to move while locking as a penalty for catching up for a lock			
+	int	catchup_pixel_penalty;			// number of extra pixels to move while locking as a penalty for catching up for a lock		
+	float lock_fov;
 
 	//	Specific to HEAT homing missiles.
 	float	fov;
@@ -638,5 +649,8 @@ void weapon_hit_do_sound(object *hit_obj, weapon_info *wip, vec3d *hitpos, bool 
 
 // return a scale factor for damage which should be applied for 2 collisions
 float weapon_get_damage_scale(weapon_info *wip, object *wep, object *target);
+
+// Swifty - return number of max simultaneous locks 
+int weapon_get_max_missile_seekers(weapon_info *wip);
 
 #endif

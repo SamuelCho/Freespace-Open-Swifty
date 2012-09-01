@@ -10764,8 +10764,9 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 		}
 	}
 
-
-
+	if ( !allow_swarm ) {
+		ship_queue_missile_locks(shipp, wip);
+	}
 
 	// if trying to fire a swarm missile, make sure being called from right place
 	if ( (wip->wi_flags & WIF_SWARM) && !allow_swarm ) {
@@ -10775,6 +10776,7 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 		} else {
 			shipp->num_swarm_missiles_to_fire = wip->swarm_count;
 		}
+
 		shipp->swarm_missile_bank = bank;
 		return 1;		//	Note: Missiles didn't get fired, but the frame interval code will fire them.
 	}
@@ -10823,6 +10825,31 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 		if ( bank > pm->n_missiles ) {
 			nprintf(("WARNING","WARNING ==> Tried to fire bank %d, but ship has only %d banks\n", bank+1, pm->n_missiles));
 			return 0;		// we can make a quick out here!!!
+		}
+
+		int target_objnum;
+		ship_subsys *target_subsys;
+		int locked;
+
+		if (obj->flags & OF_PLAYER_SHIP ) {
+			// use missile lock slots
+			if ( shipp->missile_locks_firing.size() > 0 ) {
+				lock_info lock_data = shipp->missile_locks_firing.back();
+
+				shipp->missile_locks_firing.pop_back();
+
+				target_objnum = OBJ_INDEX(lock_data.obj);
+				target_subsys = lock_data.subsys;
+				locked = 1;
+			} else {
+				target_objnum = -1;
+				target_subsys = NULL;
+				locked = 0;
+			}
+		} else {
+			target_objnum = aip->target_objnum;
+			target_subsys = aip->targeted_subsys;
+			locked = aip->current_target_is_locked;
 		}
 
 		num_slots = pm->missile_banks[bank].num_slots;
@@ -10917,8 +10944,8 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 
 			// create the weapon -- for multiplayer, the net_signature is assigned inside
 			// of weapon_create
-			weapon_num = weapon_create( &firing_pos, &firing_orient, weapon, OBJ_INDEX(obj), -1, aip->current_target_is_locked);
-			weapon_set_tracking_info(weapon_num, OBJ_INDEX(obj), aip->target_objnum, aip->current_target_is_locked, aip->targeted_subsys);
+			weapon_num = weapon_create( &firing_pos, &firing_orient, weapon, OBJ_INDEX(obj), -1, locked);
+			weapon_set_tracking_info(weapon_num, OBJ_INDEX(obj), target_objnum, locked, target_subsys);
 			has_fired = true;
 
 
@@ -17382,3 +17409,30 @@ bool ship_has_sound(object *objp, GameSoundsIndex id)
 		return true;
 }
 
+void ship_clear_lock(lock_info *slot)
+{
+	slot->dist_to_lock = -1;
+	slot->indicator_start_x = -1;
+	slot->indicator_start_y = -1;
+	slot->indicator_visible = false;
+	slot->indicator_x = -1;
+	slot->indicator_start_y = -1;
+	slot->locked = false;
+	slot->obj = NULL;
+	slot->subsys = NULL;
+	slot->time_to_lock = -1;
+}
+
+void ship_queue_missile_locks(ship *shipp, weapon_info *wip)
+{
+	size_t i;
+
+	shipp->missile_locks_firing.clear();
+
+	// queue up valid missile locks
+	for ( i = 0; i < shipp->missile_locks.size(); ++i ) {
+		if ( shipp->missile_locks[i].locked ) {
+			shipp->missile_locks_firing.push_back(shipp->missile_locks[i]);
+		}
+	}
+}

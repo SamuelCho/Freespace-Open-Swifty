@@ -94,6 +94,7 @@ char Lockspin_fname[NUM_HUD_RETICLE_STYLES][GR_NUM_RESOLUTIONS][MAX_FILENAME_LEN
 };
 
 void hud_lock_determine_lock_point(vec3d *lock_world_pos_out);
+void hud_lock_determine_lock_point(lock_info *current_lock, weapon_info *wip, vec3d *lock_world_pos_out);
 
 // hud_init_missile_lock() is called at the beginning of a mission
 //
@@ -317,6 +318,10 @@ void hud_lock_reset(float lock_time_scale)
 
 	// reset the lock anim time elapsed
 	Lock_anim.time_elapsed = 0.0f;
+
+	for ( size_t i = 0; i < Player_ship->missile_locks.size(); ++i ) {
+		ship_clear_lock(&Player_ship->missile_locks[i]);
+	}
 }
 
 // Determine if the locking code has a point to track
@@ -469,6 +474,17 @@ void hud_lock_check_if_target_in_lock_cone()
 	} else {
 		Player->target_in_lock_cone = 0;
 	}
+}
+
+void hud_lock_check_if_target_in_lock_cone(lock_info *current_lock, weapon_info *wip, vec3d *lock_world_pos)
+{
+	float		dist, dot;
+	vec3d	vec_to_target;
+
+	dist = vm_vec_normalized_dir(&vec_to_target, &lock_world_pos, &Player_obj->pos);
+	dot = vm_vec_dot(&Player_obj->orient.vec.fvec, &vec_to_target);
+
+	current_lock->target_in_lock_cone = dot > wip->lock_fov;
 }
 
 // return 1 if current secondary weapon is different than previous secondary weapon
@@ -637,6 +653,694 @@ void hud_do_lock_indicator(float frametime)
 		if ( Missile_lock_loop != -1 && snd_is_playing(Missile_lock_loop) ) {
 			snd_stop(Missile_lock_loop);
 			Missile_lock_loop = -1;
+		}
+	}
+}
+
+void hud_lock_acquire_current_target(object *target_objp, ship_subsys *target_subsys, weapon_info *wip)
+{
+	ship			*target_shipp=NULL;
+	int			lock_in_range=0;
+	float			best_lock_dot=-1.0f, lock_dot=-1.0f;
+	ship_subsys	*ss;
+	ship_subsys *best_ss = NULL;
+	vec3d		subsys_world_pos, vec_to_lock;
+
+	if ( target_objp->type == OBJ_SHIP ) {
+		target_shipp = &Ships[target_objp->instance];
+	}
+
+	target_subsys = NULL;
+
+	// if a large ship, lock to pos closest to center and within range
+	if ( (target_shipp) && (Ship_info[target_shipp->ship_info_index].flags & (SIF_BIG_SHIP|SIF_HUGE_SHIP)) ) {
+		// check all the subsystems and the center of the ship
+
+		// assume best lock pos is the center of the ship
+		lock_in_range = hud_lock_world_pos_in_range(&target_objp->pos, &vec_to_lock);
+		vm_vec_normalize(&vec_to_lock);
+		if ( lock_in_range ) {
+			best_lock_dot=vm_vec_dot(&Player_obj->orient.vec.fvec, &vec_to_lock);
+		} 
+		// take center if reasonable dot
+		if ( best_lock_dot > 0.95 ) {
+			return;
+		}
+
+		// iterate through subsystems to see if we can get a better choice
+		ss = GET_FIRST(&target_shipp->subsys_list);
+		while ( ss != END_OF_LIST( &target_shipp->subsys_list ) ) {
+
+			// get world pos of subsystem
+			get_subsystem_world_pos(target_objp, ss, &subsys_world_pos);
+
+			if ( hud_lock_world_pos_in_range(&subsys_world_pos, &vec_to_lock) ) {
+				vm_vec_normalize(&vec_to_lock);
+				lock_dot=vm_vec_dot(&Player_obj->orient.vec.fvec, &vec_to_lock);
+				if ( lock_dot > best_lock_dot ) {
+					best_lock_dot=lock_dot;
+					target_subsys = ss;
+				}
+			}
+			ss = GET_NEXT( ss );
+		}
+	}
+}
+
+object* hud_lock_acquire_uncaged_target(object *tobjp, ship_subsys *tsubsys, weapon_info *wip)
+{
+	object *A;
+	vec3d vec_to_target;
+	float dist;
+	float dot;
+
+	ship *sp;
+	ship_subsys	*ss;
+	vec3d ss_pos;
+	float ss_dist;
+	float ss_dot;
+
+	size_t i = 0;
+	bool locked;
+
+	object* best_obj = NULL;
+	ship_subsys *best_subsys = NULL;
+
+	float best_dist = 0.0f;
+	float best_dot = 0.0f;
+
+	for ( A = GET_FIRST(&obj_used_list); A !=END_OF_LIST(&obj_used_list); A = GET_NEXT(A) ) {
+		if ( A->type != OBJ_SHIP ) {
+			continue;
+		}
+
+		if ( !hud_lock_world_pos_in_range(&A->pos, &vec_to_target) ) {
+			continue;
+		}
+
+		dot = vm_vec_dot(&Player_obj->orient.vec.fvec, &vec_to_target);
+		if ( dot < wip->lock_fov ) {
+			continue;
+		}
+
+		sp = &Ships[A->instance];
+		ss = NULL;
+
+		ship_subsys *current_best_subsys = NULL;
+		float best_subsys_dot = 0.0f;
+		vec3d current_best_subsys_pos;
+
+		if ( Ship_info[sp->ship_info_index].flags & (SIF_BIG_SHIP|SIF_HUGE_SHIP) ) {
+			for (ss = GET_FIRST(&sp->subsys_list); ss != END_OF_LIST(&sp->subsys_list); ss = GET_NEXT(ss) ) {
+				get_subsystem_world_pos(A, ss, &ss_pos);
+
+				if ( !hud_lock_world_pos_in_range(&ss_pos, &vec_to_target)  ) {
+					continue;
+				}
+
+				ss_dot = vm_vec_dot(&Player_obj->orient.vec.fvec, &vec_to_target);
+				if ( ss_dot < wip->lock_fov ) {
+					continue;
+				}
+
+				if ( ship_subsystem_in_sight(A, ss, &Eye_position, &ss_pos) ) {
+					continue;
+				}
+
+				// check for existing locks
+				for ( i = 0; i < Player_ship->missile_locks.size(); ++i ) {
+					if ( Player_ship->missile_locks[i].obj_num == OBJ_INDEX(A) ) {
+						if ( Player_ship->missile_locks[i].subsys != NULL && Player_ship->missile_locks[i].subsys == ss) {
+							continue;
+						}
+					} else {
+						continue;
+					}
+				}
+
+				if ( ss_dot > best_subsys_dot ) {
+					current_best_subsys = ss;
+					best_subsys_dot = ss_dot;
+				}
+			}
+		}
+
+		for ( i = 0; i < Player_ship->missile_locks.size(); ++i ) {
+			if ( OBJ_INDEX(Player_ship->missile_locks[i].obj) == OBJ_INDEX(A) && Player_ship->missile_locks[i].subsys == NULL ) {
+				locked = true;
+				break;
+			}
+		}
+
+		if ( locked && current_best_subsys == NULL ) {
+			// we got nothing so bail to the next ship in the list
+			continue;
+		}
+
+		if ( !locked && dot > best_subsys_dot ) {
+			current_best_subsys = NULL;
+		} else if ( current_best_subsys != NULL ) {
+			dot = best_subsys_dot;
+		}
+
+		// see if this is the best lock candidate
+		if ( best_obj == NULL || best_dot > dot ) {
+			best_dot = dot;
+			best_obj = A;
+			best_subsys = current_best_subsys;
+		}
+	}
+
+	tobjp = best_obj;
+	tsubsys = best_subsys;
+}
+
+void hud_lock_determine_lock_target(lock_info *lock_slot, weapon_info *wip)
+{
+	if ( wip->uncaged ) {
+		// if this weapon is uncaged, grab the best possible target within the player's lock cone and weapon distance
+		bool remove;
+		vec3d vec_to_target;
+		vec3d target_pos;
+		object *objp;
+		float dist, dot;
+		int i;
+
+		if ( lock_slot->obj != NULL ) {
+			// lock slot occupied; do a check to see if this is a valid lock
+			objp = lock_slot->obj;
+
+			if ( lock_slot->subsys ) {
+				vm_vec_unrotate(&target_pos, &Player->locking_subsys->system_info->pnt, &objp->orient);
+				vm_vec_add2(&target_pos, &objp->pos);
+			} else {
+				target_pos = objp->pos;
+			}
+
+			dist = vm_vec_normalized_dir(&vec_to_target, &target_pos, &Eye_position);
+			dot = vm_vec_dot(&Player_obj->orient.vec.fvec, &vec_to_target);
+
+			if ( dist > MIN(wip->max_speed * wip->lifetime, wip->weapon_range) || dot < wip->lock_fov) {
+				// set this lock slot to empty
+				ship_clear_lock(lock_slot);
+			}
+		} else {
+			// not using an else because the previous block may have 
+			// invalidated the target that was previously in this lock slot
+			hud_lock_acquire_uncaged_target(lock_slot->obj, lock_slot->subsys, wip);
+		}
+	} else {
+		// if caged, we're locking on the current target
+		lock_slot->obj = &Objects[Player_ai->target_objnum];
+
+		// Allow locking on ships and bombs (only targeted weapon allowed is a bomb, so don't bother checking flags)
+		if ( lock_slot->obj->type != OBJ_SHIP && lock_slot->obj->type != OBJ_WEAPON ) {
+			ship_clear_lock(lock_slot);
+			return;
+		}
+
+		// If subsystem is targeted, we must try to lock on that
+		if ( Player_ai->targeted_subsys && !(wip->wi_flags & WIF_HOMING_JAVELIN) ) {
+			lock_slot->subsys = Player_ai->targeted_subsys;
+		} else if ( wip->wi_flags & WIF_HOMING_JAVELIN && lock_slot->obj->type == OBJ_SHIP) {
+			if ( Player_ai->targeted_subsys ) {
+				vec3d subobj_pos;
+
+				vm_vec_unrotate(&subobj_pos, &Player->locking_subsys->system_info->pnt, &lock_slot->obj->orient);
+				vm_vec_add2(&subobj_pos, &lock_slot->obj->pos);
+
+				int target_subsys_in_sight = ship_subsystem_in_sight(lock_slot->obj, Player_ai->targeted_subsys, &Player_obj->pos, &subobj_pos);
+
+				if ( !target_subsys_in_sight || Player->locking_subsys->system_info->type != SUBSYSTEM_ENGINE ) {
+					lock_slot->subsys = ship_get_closest_subsys_in_sight(&Ships[lock_slot->obj->instance], SUBSYSTEM_ENGINE, &Player_obj->pos);
+				}
+			} else {
+				lock_slot->subsys = ship_get_closest_subsys_in_sight(&Ships[lock_slot->obj->instance], SUBSYSTEM_ENGINE, &Player_obj->pos);
+
+				if (lock_slot->subsys == NULL) {
+					lock_slot->obj = NULL;
+					return;
+				}
+			}
+		} else {
+			hud_lock_acquire_current_target(lock_slot->obj, lock_slot->subsys, wip);
+		}
+	}
+}
+
+// Decide which point lock should be homing on
+void hud_lock_determine_lock_point(lock_info *current_lock, weapon_info *wip, vec3d *lock_world_pos_out)
+{
+	vec3d vec_to_lock_pos;
+	vec3d lock_local_pos;
+
+	Assert(current_lock->obj != NULL);
+
+	current_lock->current_target_sx = -1;
+	current_lock->current_target_sy = -1;
+
+	if ( current_lock->subsys ) {
+		get_subsystem_world_pos(current_lock->obj, current_lock->subsys, lock_world_pos_out);
+	} else {
+		*lock_world_pos_out = current_lock->obj->pos;
+	}
+
+	*lock_world_pos_out=lock_world_pos;
+
+	vm_vec_sub(&vec_to_lock_pos,&lock_world_pos,&Player_obj->pos);
+	vm_vec_rotate(&lock_local_pos,&vec_to_lock_pos,&Player_obj->orient);
+
+	if ( lock_local_pos.xyz.z > 0.0f ) {
+		// Get the location of our target in the "virtual frame" where the locking computation will be done
+		float w = 1.0f / lock_local_pos.xyz.z;
+		float sx = ((gr_screen.clip_center_x*2.0f) + (lock_local_pos.xyz.x*(gr_screen.clip_center_x*2.0f)*w))*0.5f;
+		float sy = ((gr_screen.clip_center_y*2.0f) - (lock_local_pos.xyz.y*(gr_screen.clip_center_y*2.0f)*w))*0.5f;
+
+		current_lock->current_target_sx = (int)sx;
+		current_lock->current_target_sy = (int)sy;
+	}
+}
+
+void hud_calculate_lock_start_pos(lock_info *current_lock)
+{
+	double hypotenuse;
+	double delta_y;
+	double delta_x;
+	double target_mag, target_x, target_y;
+
+	delta_x = current_lock->current_target_sx - gr_screen.clip_center_x;
+	delta_y = current_lock->current_target_sy - gr_screen.clip_center_y;
+
+	if ( (delta_x == 0.0) && (delta_y == 0.0) ) {
+		current_lock->indicator_start_x = fl2i(gr_screen.clip_center_x + Lock_start_dist);
+		current_lock->indicator_start_y = fl2i(gr_screen.clip_center_y);
+		return;
+	}
+
+	hypotenuse = _hypot(delta_y, delta_x);
+
+	if (hypotenuse >= Lock_start_dist) {
+		current_lock->indicator_start_x = fl2i(gr_screen.clip_center_x);
+		current_lock->indicator_start_y = fl2i(gr_screen.clip_center_y);
+		return;
+	}
+
+	target_mag = Lock_start_dist - hypotenuse;
+	target_x = target_mag * (delta_x / hypotenuse);
+	target_y = target_mag * (delta_y / hypotenuse);
+
+	current_lock->indicator_start_x = fl2i(gr_screen.clip_center_x - target_x);
+	current_lock->indicator_start_y = fl2i(gr_screen.clip_center_y - target_y);
+
+	CLAMP(current_lock->indicator_start_x, gr_screen.clip_left, gr_screen.clip_right);
+	CLAMP(current_lock->indicator_start_y, gr_screen.clip_top, gr_screen.clip_bottom);
+}
+
+void hud_calculate_lock_slot_time(lock_info *current_lock, weapon_info *wip, float frametime)
+{
+	if ( current_lock->target_in_lock_cone ) {
+		if ( !current_lock->indicator_visible ) {
+			hud_calculate_lock_start_pos(current_lock);
+			current_lock->last_dist_to_target = 0.0f;
+
+			current_lock->indicator_x = current_lock->indicator_start_x;
+			current_lock->indicator_y = current_lock->indicator_start_y;
+			current_lock->indicator_visible = true;
+
+			current_lock->time_to_lock = i2fl(wip->min_lock_time);
+			current_lock->catching_up = 0;
+		}
+
+		current_lock->need_new_start_pos = true;
+
+		if ( current_lock->locked ) {
+			current_lock->indicator_x = current_lock->current_target_sx;
+			current_lock->indicator_y = current_lock->current_target_sy;
+			return;
+		}
+
+		current_lock->time_to_lock -= frametime;
+	} else {
+		current_lock->time_to_lock += frametime;
+	}
+}
+
+void hud_calculate_lock_slot_position(lock_info *current_lock, float frametime)
+{
+	ship_weapon *swp;
+	weapon_info	*wip;
+
+	float pixels_moved_while_locking;
+	float pixels_moved_while_degrading;
+	//static int Need_new_start_pos = 0;
+
+	//static double accumulated_x_pixels, accumulated_y_pixels;
+	double int_portion;
+
+	//static float last_dist_to_target;
+
+	//static int catching_up;
+
+	//static int maintain_lock_count = 0;
+
+	//static float catch_up_distance = 0.0f;
+
+	double hypotenuse, delta_x, delta_y;
+
+	swp = &Player_ship->weapons;
+	wip = &Weapon_info[swp->secondary_bank_weapons[swp->current_secondary_bank]];
+
+	size_t i;
+
+	if ( current_lock->target_in_lock_cone ) {
+		if ( !current_lock->indicator_visible ) {
+			hud_calculate_lock_start_pos(current_lock);
+			current_lock->last_dist_to_target = 0.0f;
+
+			current_lock->indicator_x = current_lock->indicator_start_x;
+			current_lock->indicator_y = current_lock->indicator_start_y;
+			current_lock->indicator_visible = true;
+
+			current_lock->time_to_lock = i2fl(wip->min_lock_time);
+			current_lock->catching_up = 0;
+		}
+
+		current_lock->need_new_start_pos = true;
+
+		if ( current_lock->locked ) {
+			current_lock->indicator_x = current_lock->current_target_sx;
+			current_lock->indicator_y = current_lock->current_target_sy;
+			return;
+		}
+
+		delta_x = current_lock->indicator_x - current_lock->current_target_sx;
+		delta_y = current_lock->indicator_y - current_lock->current_target_sy;
+
+		if (!delta_y && !delta_x) {
+			hypotenuse = 0;
+		}
+		else {
+			hypotenuse = _hypot(delta_y, delta_x);
+		}
+
+		current_lock->dist_to_lock = (float)hypotenuse;
+
+		if ( current_lock->last_dist_to_target == 0) {
+			current_lock->last_dist_to_target = current_lock->dist_to_lock;
+		}
+
+		//nprintf(("Alan","dist to target: %.2f\n",Players[Player_num].lock_dist_to_target));
+		//nprintf(("Alan","last to target: %.2f\n\n",last_dist_to_target));
+
+		if ( current_lock->catching_up ) {
+			//nprintf(("Alan","IN CATCH UP MODE  catch_up_dist is %.2f\n",catch_up_distance));	
+			if ( current_lock->dist_to_lock < current_lock->catch_up_distance )
+				current_lock->catching_up = 0;
+		}
+		else {
+			//nprintf(("Alan","IN NORMAL MODE\n"));
+			if ( (current_lock->dist_to_lock - current_lock->last_dist_to_target) > 2.0f ) {
+				current_lock->catching_up = 1;
+				current_lock->catch_up_distance = current_lock->last_dist_to_target + wip->catchup_pixel_penalty;
+			}
+		}
+
+		current_lock->last_dist_to_target = current_lock->dist_to_lock;
+
+		if (!current_lock->catching_up) {
+			current_lock->time_to_lock -= frametime;
+			if ( current_lock->time_to_lock < 0.0f )
+				current_lock->time_to_lock = 0.0f;
+		}
+
+		float lock_pixels_per_sec;
+		if (current_lock->time_to_lock > 0) {
+			lock_pixels_per_sec = current_lock->dist_to_lock / current_lock->time_to_lock;
+		} else {
+			lock_pixels_per_sec = i2fl(wip->lock_pixels_per_sec);
+		}
+
+		if (lock_pixels_per_sec > wip->lock_pixels_per_sec) {
+			lock_pixels_per_sec = i2fl(wip->lock_pixels_per_sec);
+		}
+
+		if ( current_lock->catching_up ) {
+			pixels_moved_while_locking = wip->catchup_pixels_per_sec * frametime;
+		} else {
+			pixels_moved_while_locking = lock_pixels_per_sec * frametime;
+		}
+
+		if ((delta_x != 0) && (hypotenuse != 0)) {
+			current_lock->accumulated_x_pixels += pixels_moved_while_locking * delta_x/hypotenuse; 
+		}
+
+		if ((delta_y != 0) && (hypotenuse != 0)) {
+			current_lock->accumulated_y_pixels += pixels_moved_while_locking * delta_y/hypotenuse; 
+		}
+
+		if (fl_abs((float)current_lock->accumulated_x_pixels) > 1.0f) {
+			modf(current_lock->accumulated_x_pixels, &int_portion);
+
+			current_lock->indicator_x -= (int)int_portion;
+
+			if ( fl_abs((float)current_lock->indicator_x - (float)current_lock->current_target_sx) < fl_abs((float)int_portion) )
+				current_lock->indicator_x = current_lock->current_target_sx;
+
+			current_lock->accumulated_x_pixels -= int_portion;
+		}
+
+		if (fl_abs((float)current_lock->accumulated_y_pixels) > 1.0f) {
+			modf(current_lock->accumulated_y_pixels, &int_portion);
+
+			current_lock->indicator_y -= (int)int_portion;
+
+			if ( fl_abs((float)current_lock->indicator_y - (float)current_lock->current_target_sy) < fl_abs((float)int_portion) )
+				current_lock->indicator_y = current_lock->current_target_sy;
+
+			current_lock->accumulated_y_pixels -= int_portion;
+		}
+
+		if (!current_lock->time_to_lock) {
+			if ( (current_lock->indicator_x == current_lock->current_target_sx) && (current_lock->indicator_y == current_lock->current_target_sy) ) {
+				if (current_lock->maintain_lock_count++ > 1) {
+					current_lock->locked = true;
+				}
+			} else {
+				current_lock->maintain_lock_count = 0;
+			}
+		}
+
+	} else {
+		current_lock->locked = false;
+
+		if (!current_lock->indicator_visible) {
+			return;
+		}
+
+		current_lock->catching_up = 0;
+		current_lock->last_dist_to_target = 0.0f;
+
+		if (current_lock->need_new_start_pos) {
+			hud_calculate_lock_start_pos(current_lock);
+			current_lock->need_new_start_pos = 0;
+			current_lock->accumulated_x_pixels = 0.0f;
+			current_lock->accumulated_y_pixels = 0.0f;
+		}
+
+		delta_x = current_lock->indicator_x - current_lock->indicator_start_x;
+		delta_y = current_lock->indicator_y - current_lock->indicator_start_y;
+
+		if (!delta_y && !delta_x) {
+			hypotenuse = 0;
+		}
+		else {
+			hypotenuse = _hypot(delta_y, delta_x);
+		}
+
+		current_lock->time_to_lock += frametime;
+
+		if (current_lock->time_to_lock > wip->min_lock_time)
+			current_lock->time_to_lock = i2fl(wip->min_lock_time);
+
+		pixels_moved_while_degrading = 2.0f * wip->lock_pixels_per_sec * frametime;
+
+		if ((delta_x != 0) && (hypotenuse != 0))
+			current_lock->accumulated_x_pixels += pixels_moved_while_degrading * delta_x/hypotenuse; 
+
+		if ((delta_y != 0) && (hypotenuse != 0))
+			current_lock->accumulated_y_pixels += pixels_moved_while_degrading * delta_y/hypotenuse; 
+
+		if (fl_abs((float)current_lock->accumulated_x_pixels) > 1.0f) {
+			modf(current_lock->accumulated_x_pixels, &int_portion);
+
+			current_lock->indicator_x -= (int)int_portion;
+
+			if ( fl_abs((float)current_lock->indicator_x - (float)current_lock->indicator_start_x) < fl_abs((float)int_portion) )
+				current_lock->indicator_x = current_lock->indicator_start_x;
+
+			current_lock->accumulated_x_pixels -= int_portion;
+		}
+
+		if (fl_abs((float)current_lock->accumulated_y_pixels) > 1.0f) {
+			modf(current_lock->accumulated_y_pixels, &int_portion);
+
+			current_lock->indicator_y -= (int)int_portion;
+
+			if ( fl_abs((float)current_lock->indicator_y - (float)current_lock->indicator_start_y) < fl_abs((float)int_portion) )
+				current_lock->indicator_y = current_lock->indicator_start_y;
+
+			current_lock->accumulated_y_pixels -= int_portion;
+		}
+
+		if ( (current_lock->indicator_x == current_lock->indicator_start_x) && (current_lock->indicator_y == current_lock->indicator_start_y) ) {
+			current_lock->indicator_visible = false;
+		}
+	}
+}
+
+// Determine if point to lock on is in range
+int hud_lock_target_in_range(lock_info *lock_slot)
+{
+	vec3d		target_world_pos, vec_to_target;
+
+	if ( lock_slot == NULL || lock_slot->obj == NULL ) {
+		return 0;
+	}
+
+	if ( lock_slot->subsys != NULL ) {
+		vm_vec_unrotate(&target_world_pos, &lock_slot->subsys->system_info->pnt, &lock_slot->obj->orient);
+		vm_vec_add2(&target_world_pos, &targetp->pos);
+	} else {
+		if ( Player->locking_subsys ) {
+			vm_vec_unrotate(&target_world_pos, &lock_slot->subsys->system_info->pnt, &lock_slot->obj->orient);
+			vm_vec_add2(&target_world_pos, &lock_slot->obj->pos);
+		} else {
+			target_world_pos = lock_slot->obj->pos;
+		}
+	}
+
+	return hud_lock_world_pos_in_range(&target_world_pos, &vec_to_target);
+}
+
+void hud_do_lock_indicators(float frametime)
+{
+	ship_weapon *swp;
+	weapon_info	*wip;
+
+	// if i'm a multiplayer observer, bail here
+	if((Game_mode & GM_MULTIPLAYER) && ((Net_player->flags & NETINFO_FLAG_OBSERVER) || (Player_obj->type == OBJ_OBSERVER)) ){
+		return;
+	}
+
+	Assert(Player_ai->target_objnum >= 0);
+
+	// be sure to unset this flag, then possibly set later in this function so that
+	// threat indicators work properly.
+	Player_ai->ai_flags &= ~AIF_SEEK_LOCK;
+
+	if ( hud_abort_lock() ) {
+		hud_lock_reset();
+		return;
+	}
+
+	// if there is an EMP effect active, never update lock
+	if(emp_active_local()){
+		hud_lock_reset();
+		return;
+	}
+
+	swp = &Player_ship->weapons;
+	wip = &Weapon_info[swp->secondary_bank_weapons[swp->current_secondary_bank]];
+
+	if ( !(wip->wi_flags & WIF_LOCKED_HOMING) ) {
+		hud_lock_reset();
+		return;		
+	}
+
+	Lock_start_dist = wip->min_lock_time * wip->lock_pixels_per_sec;
+
+	// if secondary weapons change, reset the lock
+	if ( hud_lock_secondary_weapon_changed(swp) ) {
+		hud_lock_reset();
+	}
+		
+	Player_ai->last_secondary_index = swp->current_secondary_bank;
+
+	int max_target_locks = weapon_get_max_missile_seekers(wip);
+
+	// make sure ship has enough lock slots
+	if ( Player_ship->missile_locks.size() < max_target_locks) {
+		lock_info new_slots;
+		ship_clear_lock(&new_slots);
+
+		Player_ship->missile_locks.resize(max_target_locks, new_slots);
+	}
+
+	lock_info *lock_slot;
+	int num_active_seekers = 0;
+	vec3d current_lock_world_pos;
+	bool play_tracking_sound = false;
+
+	// go through all lock slots in play and do missile locks
+	for ( size_t i = 0; i < max_target_locks; ++i ) {
+		// need a check to see if we've exhausted our alloted simultaneous locks. if so, just check if already locked targets are valid.
+		lock_slot = &Player_ship->missile_locks[i];
+
+		hud_lock_determine_lock_target(lock_slot, wip);
+
+		if ( lock_slot->obj == NULL ) {
+			// reset this lock and continue
+			ship_clear_lock(lock_slot);
+			continue;
+		}
+
+		if ( num_active_seekers >= wip->max_seeking ) {
+			continue;
+		}
+
+		hud_lock_determine_lock_point(lock_slot, wip, &current_lock_world_pos);
+
+		hud_lock_check_if_target_in_lock_cone(lock_slot, wip, &current_lock_world_pos);
+
+		// we can probably move this check into hud_lock_determine_lock_target
+		if ( !hud_lock_target_in_range(lock_slot) ) {
+			lock_slot->target_in_lock_cone = false;
+		}
+
+		/*if ( wip->acquire_method == WLOCK_TIMER ) {
+			hud_calculate_lock_slot_time(lock_slot, wip, frametime);
+		} else {
+			hud_calculate_lock_slot_position(lock_slot, frametime);
+		}*/
+
+		bool current_lock_status = lock_slot->locked;
+
+		hud_calculate_lock_slot_position(lock_slot, frametime);
+
+		if ( current_lock_status == false && lock_slot->locked == true ) {
+			if ( Missile_lock_loop != -1 && snd_is_playing(Missile_lock_loop) ) {
+				snd_stop(Missile_lock_loop);
+			}
+
+			Missile_lock_loop = snd_play(&Snds[ship_get_sound(Player_obj, SND_MISSILE_LOCK)]);
+		} else if ( lock_slot->locked == false ) {
+			Player_ai->ai_flags |= AIF_SEEK_LOCK;		// set this flag so multiplayer's properly track lock on other ships
+		}
+
+		// if there's at least one lock_slot current locking, play the looping sound
+		if ( lock_slot->indicator_visible && !lock_slot->locked ) {
+			play_tracking_sound = true;
+		}
+	}
+
+	if ( play_tracking_sound ) {
+		if ( Missile_track_loop == -1 ) {	
+			Missile_track_loop = snd_play_looping( &Snds[ship_get_sound(Player_obj, SND_MISSILE_TRACKING)], 0.0f , -1, -1);
+		}
+	} else {
+		if ( Missile_track_loop > -1 )	{
+			snd_stop(Missile_track_loop);
+			Missile_track_loop = -1;
 		}
 	}
 }

@@ -632,6 +632,9 @@ typedef struct ship {
 	vec3d	wash_rot_axis;
 	int		wash_timestamp;
 
+	SCP_vector<lock_info> missile_locks;
+	SCP_vector<lock_info> missile_locks_firing;
+
 	int	num_swarm_missiles_to_fire;	// number of swarm missiles that need to be launched
 	int	next_swarm_fire;					// timestamp of next swarm missile to fire
 	int	next_swarm_path;					// next path number for swarm missile to take
@@ -1403,6 +1406,32 @@ extern ship Ships[MAX_SHIPS];
 extern ship	*Player_ship;
 extern int	*Player_cockpit_textures;
 
+// structure to keep track of ship locks
+typedef struct lock_info {
+	object *obj;
+	ship_subsys *subsys;
+
+	int current_target_sx;
+	int current_target_sy;
+
+	bool locked;
+	int maintain_lock_count;
+	int indicator_x;
+	int indicator_y;
+	int indicator_start_x;
+	int indicator_start_y;
+	bool indicator_visible;
+	int time_to_lock;
+	int dist_to_lock;
+	int catching_up;
+	float catch_up_distance;
+	int last_dist_to_target;
+	float accumulated_x_pixels;
+	float accumulated_y_pixels;
+	bool need_new_start_pos;
+	bool target_in_lock_cone;
+} lock_info;
+
 // Data structure to track the active missiles
 typedef struct ship_obj {
 	ship_obj		 *next, *prev;
@@ -1959,5 +1988,8 @@ bool ship_has_sound(object *objp, GameSoundsIndex id);
  * @return An index into Ship_info[], location of the default player ship.
  */
 int get_default_player_ship_index();
+
+// Clears a lock_info struct with defaults
+void ship_clear_lock(lock_info *slot);
 
 #endif
