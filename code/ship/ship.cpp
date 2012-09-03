@@ -10771,7 +10771,9 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 	// if trying to fire a swarm missile, make sure being called from right place
 	if ( (wip->wi_flags & WIF_SWARM) && !allow_swarm ) {
 		Assert(wip->swarm_count > 0);
-		if(wip->swarm_count <= 0){
+		if ( wip->multi_lock ) {
+			shipp->num_swarm_missiles_to_fire = shipp->missile_locks_firing.size();
+		} else if(wip->swarm_count <= 0){
 			shipp->num_swarm_missiles_to_fire = SWARM_DEFAULT_NUM_MISSILES_FIRED;
 		} else {
 			shipp->num_swarm_missiles_to_fire = wip->swarm_count;
@@ -10785,7 +10787,11 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 	if ( (wip->wi_flags & WIF_CORKSCREW) && !allow_swarm ) {
 		//phreak 11-9-02 
 		//changed this from 4 to custom number defined in tables
-		shipp->num_corkscrew_to_fire = (ubyte)(shipp->num_corkscrew_to_fire + (ubyte)wip->cs_num_fired);
+		if ( wip->multi_lock ) {
+			shipp->num_corkscrew_to_fire = shipp->missile_locks_firing.size();
+		} else {
+			shipp->num_corkscrew_to_fire = (ubyte)(shipp->num_corkscrew_to_fire + (ubyte)wip->cs_num_fired);
+		}
 		shipp->corkscrew_missile_bank = bank;
 		return 1;		//	Note: Missiles didn't get fired, but the frame interval code will fire them.
 	}	
@@ -10836,7 +10842,9 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 			if ( shipp->missile_locks_firing.size() > 0 ) {
 				lock_info lock_data = shipp->missile_locks_firing.back();
 
-				shipp->missile_locks_firing.pop_back();
+				if ( wip->multi_lock ) {
+					shipp->missile_locks_firing.pop_back();
+				}
 
 				target_objnum = OBJ_INDEX(lock_data.obj);
 				target_subsys = lock_data.subsys;
@@ -17411,16 +17419,47 @@ bool ship_has_sound(object *objp, GameSoundsIndex id)
 
 void ship_clear_lock(lock_info *slot)
 {
-	slot->dist_to_lock = -1;
+	vec3d zero_vec = ZERO_VECTOR;
+
+	slot->accumulated_x_pixels = 0;
+	slot->accumulated_y_pixels = 0;
+
+	slot->catch_up_distance = 0.0f;
+
+	slot->catching_up = 0;
+
+	slot->current_target_sx = -1;
+	slot->current_target_sy = -1;
+
+	slot->dist_to_lock = 0.0f;
+
 	slot->indicator_start_x = -1;
 	slot->indicator_start_y = -1;
+
 	slot->indicator_visible = false;
+
 	slot->indicator_x = -1;
-	slot->indicator_start_y = -1;
+	slot->indicator_y = -1;
+
+	slot->last_dist_to_target = 0.0f;
+
+	slot->locked_timestamp = 0;
+
+	slot->maintain_lock_count = 0;
+
+	slot->need_new_start_pos = 0;
+
+	slot->target_in_lock_cone = false;
+
+	slot->world_pos = zero_vec;
+
 	slot->locked = false;
+
 	slot->obj = NULL;
 	slot->subsys = NULL;
-	slot->time_to_lock = -1;
+
+
+	slot->time_to_lock = -1.0f;
 }
 
 void ship_queue_missile_locks(ship *shipp, weapon_info *wip)

@@ -870,6 +870,8 @@ void init_weapon_entry(int weap_info_index)
 	wip->uncaged = false;
 	wip->multi_lock = false;
 
+	wip->max_seeking = 1;
+
 	wip->acquire_method = WLOCK_PIXEL;
 
 	wip->min_lock_time = 0.0f;
@@ -877,6 +879,7 @@ void init_weapon_entry(int weap_info_index)
 	wip->catchup_pixels_per_sec = 50;
 	wip->catchup_pixel_penalty = 50;
 	wip->seeker_strength = 1.0f;
+	wip->lock_fov = 0.85f;
 
 	wip->swarm_count = -1;
 	// *Default is 150  -Et1
@@ -1618,6 +1621,14 @@ int parse_weapon(int subtype, bool replace)
 					wip->wi_flags2 |= WIF2_VARIABLE_LEAD_HOMING;
 					wi_flags2 |= WIF2_VARIABLE_LEAD_HOMING;
 				}
+			}
+
+			if ( optional_string("+Uncaged:") ) {
+				stuff_boolean(&wip->uncaged);
+			}
+
+			if ( optional_string("+Independent Seekers:") ) {
+				stuff_boolean(&wip->multi_lock);
 			}
 
 			if (wip->wi_flags & WIF_LOCKED_HOMING) {

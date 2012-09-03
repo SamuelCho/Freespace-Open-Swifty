@@ -20,6 +20,7 @@
 #include "model/modelanim.h"
 #include "palman/palman.h"
 #include "weapon/trails.h"
+#include "weapon/weapon.h"
 #include "ai/ai.h"
 #include "network/multi_obj.h"
 #include "hud/hudparse.h"
@@ -270,6 +271,36 @@ typedef struct cockpit_display_info {
 	int offset[2];
 	int size[2];
 } cockpit_display_info;
+
+// structure to keep track of ship locks
+typedef struct lock_info {
+	object *obj;
+	ship_subsys *subsys;
+
+	vec3d world_pos;
+
+	int current_target_sx;
+	int current_target_sy;
+
+	bool locked;
+	int maintain_lock_count;
+	int indicator_x;
+	int indicator_y;
+	int indicator_start_x;
+	int indicator_start_y;
+	bool indicator_visible;
+	float time_to_lock;
+	float dist_to_lock;
+	int catching_up;
+	float catch_up_distance;
+	float last_dist_to_target;
+	double accumulated_x_pixels;
+	double accumulated_y_pixels;
+	bool need_new_start_pos;
+	bool target_in_lock_cone;
+
+	int locked_timestamp;
+} lock_info;
 
 // Goober5000
 #define SSF_CARGO_REVEALED		(1 << 0)
@@ -1406,32 +1437,6 @@ extern ship Ships[MAX_SHIPS];
 extern ship	*Player_ship;
 extern int	*Player_cockpit_textures;
 
-// structure to keep track of ship locks
-typedef struct lock_info {
-	object *obj;
-	ship_subsys *subsys;
-
-	int current_target_sx;
-	int current_target_sy;
-
-	bool locked;
-	int maintain_lock_count;
-	int indicator_x;
-	int indicator_y;
-	int indicator_start_x;
-	int indicator_start_y;
-	bool indicator_visible;
-	int time_to_lock;
-	int dist_to_lock;
-	int catching_up;
-	float catch_up_distance;
-	int last_dist_to_target;
-	float accumulated_x_pixels;
-	float accumulated_y_pixels;
-	bool need_new_start_pos;
-	bool target_in_lock_cone;
-} lock_info;
-
 // Data structure to track the active missiles
 typedef struct ship_obj {
 	ship_obj		 *next, *prev;
@@ -1991,5 +1996,8 @@ int get_default_player_ship_index();
 
 // Clears a lock_info struct with defaults
 void ship_clear_lock(lock_info *slot);
+
+// queue up locks
+void ship_queue_missile_locks(ship *shipp, weapon_info *wip);
 
 #endif
