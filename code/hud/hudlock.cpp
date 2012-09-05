@@ -1521,7 +1521,7 @@ void HudGaugeLock::renderLockTrianglesNew(int center_x, int center_y, int start_
 		Lock_anim.sx = center_x - Lockspin_half_w;
 		Lock_anim.sy = center_y - Lockspin_half_h;
 
-		float time_elapsed = i2fl(start_timestamp - timestamp())/1000.0f;
+		float time_elapsed = i2fl(timestamp() - start_timestamp)/1000.0f;
 		Lock_anim.time_elapsed = time_elapsed;
 
 		// if it's still animating
