@@ -95,6 +95,7 @@ typedef struct {
 #define SW_FLAG_BEAM_FREE					(1<<0)							// if this is a beam weapon, its free to fire
 #define SW_FLAG_TURRET_LOCK				(1<<1)							//	is this turret is free to fire or locked
 #define SW_FLAG_TAGGED_ONLY				(1<<2)							// only fire if target is tagged
+#define SW_FLAG_TRIGGER_LOCK				(1<<3)							// indicates that the trigger is held down
 
 typedef struct ship_weapon {
 	int num_primary_banks;					// Number of primary banks (same as model)
