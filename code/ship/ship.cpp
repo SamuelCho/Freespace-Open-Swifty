@@ -17511,7 +17511,7 @@ bool ship_start_secondary_fire(object* objp)
 	wip = &Weapon_info[weapon];
 
 	if ( wip->wi_flags3 & WIF3_TRIGGER_LOCK ) {
-		// 
+		swp->flags |= SW_FLAG_TRIGGER_LOCK;
 
 		return true;
 	} else {
@@ -17521,5 +17521,39 @@ bool ship_start_secondary_fire(object* objp)
 
 bool ship_stop_secondary_fire(object* objp)
 {
+	ship *shipp;
+	ship_info *sip;
+	ship_weapon *swp;
+	weapon_info *wip;
 
+	Assert( obj != NULL );
+
+	if ( objp->type != OBJ_SHIP ) {
+		return;
+	}
+
+	int n = objp->instance;
+
+	Assert( n >= 0 && n < MAX_SHIPS );
+	Assert( Ships[n].objnum == OBJ_INDEX(obj) );
+
+	shipp = &Ships[n];
+	sip = &Ship_info[shipp->ship_info_index];
+	swp = &shipp->weapons;
+
+	int bank = swp->current_secondary_bank;
+
+	if ( bank < 0 || bank > sip->num_secondary_banks ) {
+		return;
+	}
+
+	int weapon = swp->secondary_bank_weapons[bank];
+
+	Assert( (swp->secondary_bank_weapons[bank] >= 0) && (swp->secondary_bank_weapons[bank] < MAX_WEAPON_TYPES) );
+
+	wip = &Weapon_info[weapon];
+
+	if ( wip->wi_flags3 & WIF3_TRIGGER_LOCK ) {
+		swp->flags &= (~SW_FLAG_TRIGGER_LOCK);
+	}
 }

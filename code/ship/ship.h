@@ -1593,6 +1593,9 @@ extern int ship_fire_primary_debug(object *objp);	//	Fire the debug laser.
 extern int ship_stop_fire_primary(object * obj);
 extern int ship_fire_primary(object * objp, int stream_weapons, int force = 0);
 extern int ship_fire_secondary(object * objp, int allow_swarm = 0 );
+extern bool ship_start_secondary_fire(object* objp);
+extern void ship_stop_secondary_fire(object* objp);
+
 extern int ship_launch_countermeasure(object *objp, int rand_val = -1);
 
 // for special targeting lasers

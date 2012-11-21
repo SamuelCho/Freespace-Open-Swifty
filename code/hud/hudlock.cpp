@@ -1337,7 +1337,7 @@ void hud_do_lock_indicators(float frametime)
 	swp = &Player_ship->weapons;
 	wip = &Weapon_info[swp->secondary_bank_weapons[swp->current_secondary_bank]];
 
-	if ( !(wip->wi_flags & WIF_LOCKED_HOMING) ) {
+	if ( !(wip->wi_flags & WIF_LOCKED_HOMING) || ( (wip->wi_flags3 & WIF3_TRIGGER_LOCK) && !(swp->flags & SW_FLAG_TRIGGER_LOCK) ) ) {
 		hud_lock_reset();
 		return;		
 	}
