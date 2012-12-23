@@ -375,6 +375,9 @@ typedef struct weapon_info {
 	ushort max_seeking;						// how many seekers can be active at a time if multilock is enabled. A value of one will lock stuff up one by one.
 	ushort max_seekers_per_target;			// how many seekers can be attached to a target.
 
+	bool trigger_lock;						// Trigger must be held down and released to lock and fire.
+	bool launch_reset_locks;				// Lock indicators reset after firing
+
 	//	Specific to ASPECT homing missiles.
 	int acquire_method;
 	float	min_lock_time;						// minimum time (in seconds) to achieve lock

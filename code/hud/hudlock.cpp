@@ -513,6 +513,17 @@ int hud_abort_lock()
 		}
 	}
 
+	// Reset locks on launch if this weapon allows it and if we've recently fired.
+	weapon_info	*wip;
+	ship_weapon	*swp;
+
+	swp = &Player_ship->weapons;
+	wip = &Weapon_info[swp->secondary_bank_weapons[swp->current_secondary_bank]];
+
+	if ( wip->launch_reset_locks && !timestamp_elapsed(swp->next_secondary_fire_stamp[swp->current_secondary_bank]) ) {
+		return 1;
+	}
+
 	return 0;
 }
 
@@ -1337,7 +1348,7 @@ void hud_do_lock_indicators(float frametime)
 	swp = &Player_ship->weapons;
 	wip = &Weapon_info[swp->secondary_bank_weapons[swp->current_secondary_bank]];
 
-	if ( !(wip->wi_flags & WIF_LOCKED_HOMING) || ( (wip->wi_flags3 & WIF3_TRIGGER_LOCK) && !(swp->flags & SW_FLAG_TRIGGER_LOCK) ) ) {
+	if ( !(wip->wi_flags & WIF_LOCKED_HOMING) ) {
 		hud_lock_reset();
 		return;		
 	}
@@ -1379,6 +1390,13 @@ void hud_do_lock_indicators(float frametime)
 		}
 
 		if ( num_active_seekers >= wip->max_seeking ) {
+			ship_clear_lock(lock_slot);
+			continue;
+		}
+
+		if ( lock_slot->locked && wip->trigger_lock && !(swp->flags & SW_FLAG_TRIGGER_LOCK) ) {
+			// only reset locks that are not locked if this is a trigger dependent weapon 
+			// and player isn't holding down trigger
 			ship_clear_lock(lock_slot);
 			continue;
 		}

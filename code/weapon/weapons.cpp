@@ -869,6 +869,8 @@ void init_weapon_entry(int weap_info_index)
 	
 	wip->uncaged = false;
 	wip->multi_lock = false;
+	wip->trigger_lock = false;
+	wip->launch_reset_locks = false;
 
 	wip->max_seeking = 1;
 
@@ -1629,6 +1631,14 @@ int parse_weapon(int subtype, bool replace)
 
 			if ( optional_string("+Independent Seekers:") ) {
 				stuff_boolean(&wip->multi_lock);
+			}
+
+			if ( optional_string("+Trigger Hold:") ) {
+				stuff_boolean(&wip->trigger_lock);
+			}
+
+			if ( optional_string("+Reset On Launch:") ) {
+				stuff_boolean(&wip->launch_reset_locks);
 			}
 
 			if (wip->wi_flags & WIF_LOCKED_HOMING) {
