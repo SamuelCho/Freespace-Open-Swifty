@@ -486,9 +486,8 @@ int hud_abort_lock()
 {
 	int target_team;
 
-	if ( Player_ai->target_objnum >= 0 ) {
-		target_team = obj_team(&Objects[Player_ai->target_objnum]);
-	}
+	weapon_info	*wip;
+	ship_weapon	*swp;
 
 	if ( Player_ship->weapons.num_secondary_banks <= 0 ) {
 		return 1;
@@ -504,22 +503,23 @@ int hud_abort_lock()
 		return 1;
 	}
 
+	swp = &Player_ship->weapons;
+	wip = &Weapon_info[swp->secondary_bank_weapons[swp->current_secondary_bank]];
+
 	// if we're on the same team and the team doesn't attack itself, then don't lock!
-	if ( (Player_ai->target_objnum >= 0) && (Player_ship->team == target_team) && (!iff_x_attacks_y(Player_ship->team, target_team)) )
-	{
-		// if we're in multiplayer dogfight, ignore this
-		if(!MULTI_DOGFIGHT) {
-			return 1;
+	if ( (Player_ai->target_objnum >= 0) ) {
+		target_team = obj_team(&Objects[Player_ai->target_objnum]);
+
+		if ( ( Player_ship->team == target_team) && ( !iff_x_attacks_y(Player_ship->team, target_team) ) ) {
+			// if we're in multiplayer dogfight, ignore this
+			// remember to check if we're firing a missile that doesn't require a current target
+			if(!MULTI_DOGFIGHT || wip->target_restrict == LR_ANY_TARGETS) {
+				return 1;
+			}
 		}
 	}
 
 	// Reset locks on launch if this weapon allows it and if we've recently fired.
-	weapon_info	*wip;
-	ship_weapon	*swp;
-
-	swp = &Player_ship->weapons;
-	wip = &Weapon_info[swp->secondary_bank_weapons[swp->current_secondary_bank]];
-
 	if ( wip->launch_reset_locks && !timestamp_elapsed(swp->next_secondary_fire_stamp[swp->current_secondary_bank]) ) {
 		return 1;
 	}
@@ -801,6 +801,65 @@ void hud_lock_acquire_current_target(object *target_objp, ship_subsys *target_su
 	}
 }
 
+void hud_lock_acquire_uncaged_subsystem(weapon_info *wip, lock_info *lock, float *best_dot, int *least_num_locks)
+{
+	Assert( lock->obj->type == OBJ_SHIP );
+
+	ship *sp = &Ships[lock->obj->instance];
+	ship_subsys	*ss;
+
+	float ss_dot;
+	vec3d ss_pos;
+	vec3d vec_to_target;
+
+	int current_num_locks = 0;
+
+	if ( Ship_info[sp->ship_info_index].flags & (SIF_BIG_SHIP|SIF_HUGE_SHIP) ) {
+		for (ss = GET_FIRST(&sp->subsys_list); ss != END_OF_LIST(&sp->subsys_list); ss = GET_NEXT(ss) ) {
+			get_subsystem_world_pos(lock->obj, ss, &ss_pos);
+
+			if ( !hud_lock_world_pos_in_range(&ss_pos, &vec_to_target)  ) {
+				continue;
+			}
+
+			vm_vec_normalize(&vec_to_target);
+			ss_dot = vm_vec_dot(&Player_obj->orient.vec.fvec, &vec_to_target);
+
+			if ( ss_dot < wip->lock_fov ) {
+				continue;
+			}
+
+			if ( ship_subsystem_in_sight(lock->obj, ss, &Eye_position, &ss_pos) ) {
+				continue;
+			}
+
+			// check for existing locks
+			current_num_locks = 0;
+
+			for ( size_t i = 0; i < Player_ship->missile_locks.size(); ++i ) {
+				if ( Player_ship->missile_locks[i].obj != NULL && OBJ_INDEX(Player_ship->missile_locks[i].obj) == OBJ_INDEX(lock->obj) ) {
+					if ( Player_ship->missile_locks[i].subsys != NULL && Player_ship->missile_locks[i].subsys == ss ) {
+						if ( !Player_ship->missile_locks[i].locked ) {
+							// we're already currently locking on this subsystem so let's not throw another aspect lock on it.
+							continue;
+						}
+
+						++current_num_locks;
+					}
+				}
+			}
+
+			if ( current_num_locks < wip->max_seekers_per_target
+				&& current_num_locks <= *least_num_locks
+				&& ss_dot > *best_dot ) {
+					lock->subsys = ss;
+					*best_dot = ss_dot;
+					*least_num_locks = current_num_locks;
+			}
+		}
+	}
+}
+
 void hud_lock_acquire_uncaged_target(lock_info *current_lock, weapon_info *wip)
 {
 	object *A;
@@ -809,19 +868,24 @@ void hud_lock_acquire_uncaged_target(lock_info *current_lock, weapon_info *wip)
 
 	ship *sp;
 	ship_subsys	*ss;
-	vec3d ss_pos;
-	float ss_dot;
 
 	size_t i = 0;
-	bool locked;
 
 	object* best_obj = NULL;
 	ship_subsys *best_subsys = NULL;
 
 	float best_dot = 0.0f;
 
+	int current_num_locks = 0;
+	int least_num_locks = INT_MAX;
+	bool actively_locking = false;
+
 	for ( A = GET_FIRST(&obj_used_list); A !=END_OF_LIST(&obj_used_list); A = GET_NEXT(A) ) {
 		if ( A->type != OBJ_SHIP ) {
+			continue;
+		}
+
+		if ( A->flags & OF_SHOULD_BE_DEAD ) {
 			continue;
 		}
 
@@ -834,77 +898,63 @@ void hud_lock_acquire_uncaged_target(lock_info *current_lock, weapon_info *wip)
 			continue;
 		}
 
+		vm_vec_normalize(&vec_to_target);
 		dot = vm_vec_dot(&Player_obj->orient.vec.fvec, &vec_to_target);
-		if ( dot < wip->lock_fov ) {
+
+		/*if ( dot < 0.95f ) {
+			// broad test to see if we should bother to even check
 			continue;
-		}
+		}*/
 
 		sp = &Ships[A->instance];
 		ss = NULL;
 
-		ship_subsys *current_best_subsys = NULL;
-		float best_subsys_dot = 0.0f;
-
 		if ( Ship_info[sp->ship_info_index].flags & (SIF_BIG_SHIP|SIF_HUGE_SHIP) ) {
-			for (ss = GET_FIRST(&sp->subsys_list); ss != END_OF_LIST(&sp->subsys_list); ss = GET_NEXT(ss) ) {
-				get_subsystem_world_pos(A, ss, &ss_pos);
+			lock_info temp_lock;
 
-				if ( !hud_lock_world_pos_in_range(&ss_pos, &vec_to_target)  ) {
-					continue;
-				}
+			temp_lock.obj = A;
+			temp_lock.subsys = NULL;
 
-				ss_dot = vm_vec_dot(&Player_obj->orient.vec.fvec, &vec_to_target);
-				if ( ss_dot < wip->lock_fov ) {
-					continue;
-				}
+			float ss_dot = 0.0f;
+			int ss_num_locks = INT_MAX;
 
-				if ( ship_subsystem_in_sight(A, ss, &Eye_position, &ss_pos) ) {
-					continue;
-				}
+			hud_lock_acquire_uncaged_subsystem(wip, &temp_lock, &ss_dot, &ss_num_locks);
 
-				// check for existing locks
-				for ( i = 0; i < Player_ship->missile_locks.size(); ++i ) {
-					if ( Player_ship->missile_locks[i].obj != NULL && OBJ_INDEX(Player_ship->missile_locks[i].obj) == OBJ_INDEX(A) ) {
-						if ( Player_ship->missile_locks[i].subsys != NULL && Player_ship->missile_locks[i].subsys == ss) {
-							continue;
-						}
-					} else {
+			if ( temp_lock.subsys != NULL && ss_num_locks < wip->max_seekers_per_target && ss_num_locks <= least_num_locks && ss_dot > best_dot ) {
+				best_subsys = temp_lock.subsys;
+				best_obj = A;
+				best_dot = ss_dot;
+				least_num_locks = ss_num_locks;
+			}
+		} else {
+			if ( dot < wip->lock_fov ) {
+				continue;
+			}
+
+			current_num_locks = 0;
+			actively_locking = false;
+
+			for ( i = 0; i < Player_ship->missile_locks.size(); ++i ) {
+				if ( Player_ship->missile_locks[i].obj != NULL && OBJ_INDEX(Player_ship->missile_locks[i].obj) == OBJ_INDEX(A) && Player_ship->missile_locks[i].subsys == NULL ) {
+					if ( !Player_ship->missile_locks[i].locked ) {
+						// we're already currently locking on this subsystem so let's not throw another aspect lock on it.
+						actively_locking = true;
 						continue;
 					}
-				}
 
-				if ( ss_dot > best_subsys_dot ) {
-					current_best_subsys = ss;
-					best_subsys_dot = ss_dot;
+					current_num_locks++;
 				}
 			}
-		}
 
-		locked = false;
-
-		for ( i = 0; i < Player_ship->missile_locks.size(); ++i ) {
-			if ( Player_ship->missile_locks[i].obj != NULL && OBJ_INDEX(Player_ship->missile_locks[i].obj) == OBJ_INDEX(A) && Player_ship->missile_locks[i].subsys == NULL ) {
-				locked = true;
-				break;
+			if ( !actively_locking 
+				&& current_num_locks < wip->max_seekers_per_target
+				&& current_num_locks <= least_num_locks
+				&& dot > best_dot ) {
+					best_subsys = NULL;
+					best_obj = A;
+					best_dot = dot;
+					least_num_locks = current_num_locks;
 			}
-		}
-
-		if ( locked && current_best_subsys == NULL ) {
-			// we got nothing so bail to the next ship in the list
-			continue;
-		}
-
-		if ( !locked && dot > best_subsys_dot ) {
-			current_best_subsys = NULL;
-		} else if ( current_best_subsys != NULL ) {
-			dot = best_subsys_dot;
-		}
-
-		// see if this is the best lock candidate
-		if ( best_obj == NULL || best_dot < dot ) {
-			best_dot = dot;
-			best_obj = A;
-			best_subsys = current_best_subsys;
 		}
 	}
 
@@ -914,7 +964,11 @@ void hud_lock_acquire_uncaged_target(lock_info *current_lock, weapon_info *wip)
 
 void hud_lock_determine_lock_target(lock_info *lock_slot, weapon_info *wip)
 {
-	if ( wip->uncaged ) {
+	if ( lock_slot->obj != NULL ) {
+		return;
+	}
+
+	if ( wip->target_restrict == LR_ANY_TARGETS ) {
 		// if this weapon is uncaged, grab the best possible target within the player's lock cone and weapon distance
 		vec3d vec_to_target;
 		vec3d target_pos;
@@ -922,6 +976,7 @@ void hud_lock_determine_lock_target(lock_info *lock_slot, weapon_info *wip)
 		float dist, dot;
 
 		if ( lock_slot->obj != NULL ) {
+
 			// lock slot occupied; do a check to see if this is a valid lock
 			objp = lock_slot->obj;
 
@@ -946,7 +1001,78 @@ void hud_lock_determine_lock_target(lock_info *lock_slot, weapon_info *wip)
 			ship_clear_lock(lock_slot);
 			hud_lock_acquire_uncaged_target(lock_slot, wip);
 		}
+	} else if ( wip->target_restrict == LR_CURRENT_TARGET_SUBSYS ) {
+		if ( lock_slot->obj != NULL ) {
+			return;
+		}
+
+		if ( Player_ai->target_objnum < 0 ) {
+			ship_clear_lock(lock_slot);
+			return;
+		}
+
+		lock_slot->obj = &Objects[Player_ai->target_objnum];
+
+		// Allow locking on ships and bombs (only targeted weapon allowed is a bomb, so don't bother checking flags)
+		if ( lock_slot->obj->type != OBJ_SHIP && lock_slot->obj->type != OBJ_WEAPON ) {
+			ship_clear_lock(lock_slot);
+			return;
+		}
+
+		if ( lock_slot->obj->type == OBJ_SHIP && Ship_info[Ships[lock_slot->obj->instance].ship_info_index].flags & (SIF_BIG_SHIP|SIF_HUGE_SHIP) ) {
+			float dot = 0.0f;
+			int num_locks = INT_MAX;
+			lock_info temp_lock;
+
+			temp_lock.obj = lock_slot->obj;
+			temp_lock.subsys = NULL;
+
+			hud_lock_acquire_uncaged_subsystem(wip, &temp_lock, &dot, &num_locks);
+
+			ship_clear_lock(lock_slot);
+
+			if ( temp_lock.subsys != NULL ) {
+				lock_slot->obj = temp_lock.obj;
+				lock_slot->subsys = temp_lock.subsys;
+			}
+		} else {
+			// If subsystem is targeted, we must try to lock on that
+			if ( Player_ai->targeted_subsys && !(wip->wi_flags & WIF_HOMING_JAVELIN) ) {
+				lock_slot->subsys = Player_ai->targeted_subsys;
+			} else if ( wip->wi_flags & WIF_HOMING_JAVELIN && lock_slot->obj->type == OBJ_SHIP) {
+				if ( Player_ai->targeted_subsys ) {
+					vec3d subobj_pos;
+
+					vm_vec_unrotate(&subobj_pos, &Player->locking_subsys->system_info->pnt, &lock_slot->obj->orient);
+					vm_vec_add2(&subobj_pos, &lock_slot->obj->pos);
+
+					int target_subsys_in_sight = ship_subsystem_in_sight(lock_slot->obj, Player_ai->targeted_subsys, &Player_obj->pos, &subobj_pos);
+
+					if ( !target_subsys_in_sight || Player->locking_subsys->system_info->type != SUBSYSTEM_ENGINE ) {
+						lock_slot->subsys = ship_get_closest_subsys_in_sight(&Ships[lock_slot->obj->instance], SUBSYSTEM_ENGINE, &Player_obj->pos);
+					}
+				} else {
+					lock_slot->subsys = ship_get_closest_subsys_in_sight(&Ships[lock_slot->obj->instance], SUBSYSTEM_ENGINE, &Player_obj->pos);
+
+					if (lock_slot->subsys == NULL) {
+						lock_slot->obj = NULL;
+						return;
+					}
+				}
+			} else {
+				hud_lock_acquire_current_target(lock_slot->obj, lock_slot->subsys, wip);
+			}
+		}
 	} else {
+		if ( lock_slot->obj != NULL ) {
+			return;
+		}
+
+		if ( Player_ai->target_objnum < 0 ) {
+			ship_clear_lock(lock_slot);
+			return;
+		}
+
 		// if caged, we're locking on the current target
 		lock_slot->obj = &Objects[Player_ai->target_objnum];
 
@@ -1389,14 +1515,12 @@ void hud_do_lock_indicators(float frametime)
 			continue;
 		}
 
-		if ( num_active_seekers >= wip->max_seeking ) {
+		if ( lock_slot->obj->flags & OF_SHOULD_BE_DEAD ) {
 			ship_clear_lock(lock_slot);
 			continue;
 		}
 
-		if ( lock_slot->locked && wip->trigger_lock && !(swp->flags & SW_FLAG_TRIGGER_LOCK) ) {
-			// only reset locks that are not locked if this is a trigger dependent weapon 
-			// and player isn't holding down trigger
+		if ( num_active_seekers >= wip->max_seeking ) {
 			ship_clear_lock(lock_slot);
 			continue;
 		}
@@ -1413,6 +1537,13 @@ void hud_do_lock_indicators(float frametime)
 		// we can probably move this check into hud_lock_determine_lock_target
 		if ( !hud_lock_target_in_range(lock_slot) ) {
 			lock_slot->target_in_lock_cone = false;
+		}
+
+		if ( !lock_slot->locked && wip->trigger_lock && !(swp->flags & SW_FLAG_TRIGGER_LOCK) ) {
+			// only reset locks that are not locked if this is a trigger dependent weapon 
+			// and player isn't holding down trigger
+			ship_clear_lock(lock_slot);
+			continue;
 		}
 
 		/*if ( wip->acquire_method == WLOCK_TIMER ) {

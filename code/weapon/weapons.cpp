@@ -867,12 +867,13 @@ void init_weapon_entry(int weap_info_index)
 	wip->turn_time = 1.0f;
 	wip->fov = 0;				//should be cos(pi), not pi
 	
-	wip->uncaged = false;
+	wip->target_restrict = LR_CURRENT_TARGET;
 	wip->multi_lock = false;
 	wip->trigger_lock = false;
 	wip->launch_reset_locks = false;
 
 	wip->max_seeking = 1;
+	wip->max_seekers_per_target = 1;
 
 	wip->acquire_method = WLOCK_PIXEL;
 
@@ -1625,8 +1626,16 @@ int parse_weapon(int subtype, bool replace)
 				}
 			}
 
-			if ( optional_string("+Uncaged:") ) {
-				stuff_boolean(&wip->uncaged);
+			if ( optional_string("+Lock Restriction:") ) {
+				if ( optional_string("current target, any subsystem") ) {
+					wip->target_restrict = LR_CURRENT_TARGET_SUBSYS;
+				} else if ( optional_string("any target") ) {
+					wip->target_restrict = LR_ANY_TARGETS;
+				} else if ( optional_string("current target") ) {
+					wip->target_restrict = LR_CURRENT_TARGET;
+				} else {
+					wip->target_restrict = LR_CURRENT_TARGET;
+				}
 			}
 
 			if ( optional_string("+Independent Seekers:") ) {
@@ -1639,6 +1648,14 @@ int parse_weapon(int subtype, bool replace)
 
 			if ( optional_string("+Reset On Launch:") ) {
 				stuff_boolean(&wip->launch_reset_locks);
+			}
+
+			if ( optional_string("+Max Seekers Per Target:") ) {
+				stuff_int(&wip->max_seekers_per_target);
+			}
+
+			if ( optional_string("+Max Active Seekers:") ) {
+				stuff_int(&wip->max_seeking);
 			}
 
 			if (wip->wi_flags & WIF_LOCKED_HOMING) {

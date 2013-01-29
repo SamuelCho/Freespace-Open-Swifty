@@ -142,6 +142,11 @@ extern int Num_weapon_subtypes;
 #define WLOCK_PIXEL		0
 #define WLOCK_TIMER		1
 
+// constants for weapon lock restrictions
+#define LR_CURRENT_TARGET				0		// Only lock current target and subsystem
+#define LR_CURRENT_TARGET_SUBSYS		1		// 
+#define LR_ANY_TARGETS					2
+
 //particle names go here -nuke
 #define PSPEW_NONE		-1			//used to disable a spew, useful for xmts
 #define PSPEW_DEFAULT	0			//std fs2 pspew
@@ -370,10 +375,10 @@ typedef struct weapon_info {
 	// swarm count
 	short swarm_count;						// how many swarm missiles are fired for this weapon
 
-	bool uncaged;							// if true, lock up contacts not targeted and targeted
+	int target_restrict;
 	bool multi_lock;
-	ushort max_seeking;						// how many seekers can be active at a time if multilock is enabled. A value of one will lock stuff up one by one.
-	ushort max_seekers_per_target;			// how many seekers can be attached to a target.
+	int max_seeking;						// how many seekers can be active at a time if multilock is enabled. A value of one will lock stuff up one by one.
+	int max_seekers_per_target;			// how many seekers can be attached to a target.
 
 	bool trigger_lock;						// Trigger must be held down and released to lock and fire.
 	bool launch_reset_locks;				// Lock indicators reset after firing
