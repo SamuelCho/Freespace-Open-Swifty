@@ -330,7 +330,7 @@ int CFred_mission_save::save_mission_info()
 #endif		
 
 	if ( optional_string_fred("+Game Type Flags:")){
-		parse_comments(2);
+		parse_comments(1);
 	} else {
 		fout("\n+Game Type Flags:");
 	}	
@@ -338,7 +338,7 @@ int CFred_mission_save::save_mission_info()
 	fout(" %d", The_mission.game_type);
 
 	if (optional_string_fred("+Flags:")){
-		parse_comments(2);
+		parse_comments(1);
 	} else {
 		fout("\n+Flags:");
 	}
@@ -420,7 +420,7 @@ int CFred_mission_save::save_mission_info()
 	}
 
 	if ( optional_string_fred("+Disallow Support:")){
-		parse_comments(2);
+		parse_comments(1);
 	} else {
 		fout("\n+Disallow Support:");
 	}
@@ -431,14 +431,14 @@ int CFred_mission_save::save_mission_info()
 	if (Format_fs2_open != FSO_FORMAT_RETAIL)
 	{
 		if ( optional_string_fred("+Hull Repair Ceiling:")) {
-			parse_comments(2);
+			parse_comments(1);
 		} else {
 			fout("\n+Hull Repair Ceiling:");
 		}
 		fout(" %f", The_mission.support_ships.max_hull_repair_val);
 
 		if ( optional_string_fred("+Subsystem Repair Ceiling:")) {
-			parse_comments(2);
+			parse_comments(1);
 		} else {
 			fout("\n+Subsystem Repair Ceiling:");
 		}
@@ -3297,7 +3297,7 @@ void CFred_mission_save::save_ai_goals(ai_goal *goalp, int ship)
 int CFred_mission_save::save_events()
 {
 	SCP_string sexp_out;
-	int i;
+	int i, j, add_flag;
 
 	fred_parse_flag = 0;
 	required_string_fred("#Events");
@@ -3327,7 +3327,13 @@ int CFred_mission_save::save_events()
 			fout("\n+Repeat Count:");
 		}
 
-		fout(" %d", Mission_events[i].repeat_count);
+		// if we have a trigger count but no repeat count, we want the event to loop until it has triggered enough times
+		if ( Mission_events[i].repeat_count == 1 && Mission_events[i].trigger_count != 1) {
+			fout(" -1"); 
+		}
+		else {
+			fout(" %d", Mission_events[i].repeat_count);
+		}
 
 		if (Format_fs2_open != FSO_FORMAT_RETAIL && Mission_events[i].trigger_count != 1 ) {
 			if ( optional_string_fred("+Trigger Count:", "$Formula:")){
@@ -3398,6 +3404,24 @@ int CFred_mission_save::save_events()
 				fout("\n+Team:");
 			} 
 			fout(" %d", Mission_events[i].team);
+		}
+
+		if (Format_fs2_open != FSO_FORMAT_RETAIL && Mission_events[i].mission_log_flags != 0 ) {
+			if ( optional_string_fred("+Event Log Flags: (", "$Formula:")){
+				parse_comments();
+			} else {
+				fso_comment_push(";;FSO 3.6.11;;");
+				fout_version("\n+Event Log Flags: (");
+				fso_comment_pop(); 
+			}
+
+			for (j = 0; j < MAX_MISSION_EVENT_LOG_FLAGS ; j++) {
+				add_flag = 1 << j; 
+				if (Mission_events[i].mission_log_flags & add_flag ) {
+					fout(" \"%s\"", Mission_event_log_flags[j]);
+				}
+			}
+			fout(" )"); 
 		}
 
 		fso_comment_pop();
@@ -3842,9 +3866,13 @@ void CFred_mission_save::save_turret_info(ship_subsys *ptr, int ship)
 			fout("\n+Primary Banks:");
 
 		fout(" ( ");
-		for (i=0; i<wp->num_primary_banks; i++)
-			fout("\"%s\" ", Weapon_info[wp->primary_bank_weapons[i]].name);
-
+		for (i=0; i<wp->num_primary_banks; i++) {
+			if (wp->primary_bank_weapons[i] != -1) { // Just in case someone has set a weapon bank to empty
+				fout("\"%s\" ", Weapon_info[wp->primary_bank_weapons[i]].name);
+			} else {
+				fout("\"\" ");
+			}
+		}
 		fout(")");
 	}
 
@@ -3861,9 +3889,13 @@ void CFred_mission_save::save_turret_info(ship_subsys *ptr, int ship)
 			fout("\n+Secondary Banks:");
 
 		fout(" ( ");
-		for (i=0; i<wp->num_secondary_banks; i++)
-			fout("\"%s\" ", Weapon_info[wp->secondary_bank_weapons[i]].name);
-
+		for (i=0; i<wp->num_secondary_banks; i++) {
+			if (wp->secondary_bank_weapons[i] != -1) {
+				fout("\"%s\" ", Weapon_info[wp->secondary_bank_weapons[i]].name);
+			} else {
+				fout("\"\" ");
+			}
+		}
 		fout(")");
 	}
 

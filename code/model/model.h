@@ -137,8 +137,13 @@ typedef struct polymodel_instance {
 #define MSS_FLAG2_TURRET_ONLY_TARGET_IF_CAN_FIRE (1 << 1)	// Turrets only target things they're allowed to shoot at (e.g. if check-hull fails, won't keep targeting)
 #define MSS_FLAG2_NO_DISAPPEAR					 (1 << 2)	// Submodel won't disappear when subsystem destroyed
 #define MSS_FLAG2_COLLIDE_SUBMODEL				 (1 << 3)	// subsystem takes damage only from hits which impact the associated submodel
+#define MSS_FLAG2_DESTROYED_ROTATION			 (1 << 4)   // allows subobjects to continue to rotate even if they have been destroyed
 
 #define NUM_SUBSYSTEM_FLAGS			33
+
+// all subsys flags set in model file, used to copy only these flags for different table entries using the same model
+#define MSS_MODEL_FLAG_MASK				(MSS_FLAG_CREWPOINT | MSS_FLAG_ROTATES | MSS_FLAG_TRIGGERED | MSS_FLAG_ARTILLERY | MSS_FLAG_STEPPED_ROTATE)
+#define MSS_MODEL_FLAG2_MASK			0
 
 // definition of stepped rotation struct
 typedef struct stepped_rotation {
@@ -658,6 +663,9 @@ public:
 };
 
 #define MAX_REPLACEMENT_TEXTURES MAX_MODEL_TEXTURES * TM_NUM_TYPES
+
+// Goober5000 - since we need something < 0
+#define REPLACE_WITH_INVISIBLE	-47
 
 //used to describe a polygon model
 typedef struct polymodel {

@@ -2223,12 +2223,14 @@ void stuff_float(float *f)
 	diag_printf("Stuffed float: %f\n", *f);
 }
 
-int stuff_float_optional(float *f)
+int stuff_float_optional(float *f, bool raw)
 {
 	int skip_len;
 	bool comma = false;
 	
-	ignore_white_space();
+	if (!raw)
+		ignore_white_space();
+
 	skip_len = strspn(Mp, "+-0123456789.");
 	if(*(Mp+skip_len) == ',') {
 		comma = true;
@@ -2265,9 +2267,35 @@ void stuff_int(int *i)
 	diag_printf("Stuffed int: %i\n", *i);
 }
 
+int stuff_int_optional(int *i, bool raw)
+{
+	int skip_len;
+	bool comma = false;
+	
+	if (!raw)
+		ignore_white_space();
+
+	skip_len = strspn(Mp, "+-0123456789");
+	if(*(Mp+skip_len) == ',') {
+		comma = true;
+	}
+	
+	if(skip_len == 0)
+	{
+		if(comma) {
+			Mp++;
+			return 1;
+		} else {
+			return 0;
+		}
+	}
+
+	stuff_int(i);
+	return 2;
+}
+
 int stuff_int_or_variable (int &i, bool positive_value = false);
 int stuff_int_or_variable (int *ilp, int count, bool positive_value = false);
-
 
 // Stuffs an int value or the value of a number variable. Returns the index of the variable or NOT_SET_BY_SEXP_VARIABLE.
 int stuff_int_or_variable (int &i, bool positive_value)
@@ -2557,7 +2585,7 @@ int stuff_string_list(SCP_vector<SCP_string>& slp)
 
 	ignore_white_space();
 
-	char buf[NAME_LENGTH];
+	SCP_string buf;
 
 	while (*Mp != ')') {
 		if(*Mp != '\"') {
@@ -2565,8 +2593,9 @@ int stuff_string_list(SCP_vector<SCP_string>& slp)
 		}
 		//Assert ( *Mp == '\"' );					// should always be enclosed in quotes
 
+		buf = "";
 		get_string( buf );
-		slp.push_back(SCP_string(buf));
+		slp.push_back( buf );
 		ignore_white_space();
 	}
 
@@ -3524,16 +3553,16 @@ char *stristr(const char *str, const char *substr)
 	char substr_ch_upper = (char)toupper(*substr);
 
 	// find the maximum distance to search
-	char *upper_bound = (char *)str + strlen(str) - strlen(substr);
+	const char *upper_bound = str + strlen(str) - strlen(substr);
 
 	// loop through every character of str
-	for (char *start = (char *)str; start <= upper_bound; start++)
+	for (const char *start = str; start <= upper_bound; start++)
 	{
 		// check first character of substr
 		if ((*start == substr_ch_upper) || (*start == substr_ch_lower))
 		{
 			// first character matched, so check the rest
-			for (char *str_ch = start+1, *substr_ch = (char *)substr+1; *substr_ch != '\0'; str_ch++, substr_ch++)
+			for (const char *str_ch = start+1, *substr_ch = substr+1; *substr_ch != '\0'; str_ch++, substr_ch++)
 			{
 				// character match?
 				if (*str_ch == *substr_ch)
@@ -3548,7 +3577,7 @@ char *stristr(const char *str, const char *substr)
 			}
 
 			// finished inner loop with success!
-			return start;
+			return const_cast<char*>(start);
 		}
 
 stristr_continue_outer_loop:

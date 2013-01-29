@@ -33,7 +33,10 @@
 #include "network/multi.h"
 #include "network/multimsgs.h"
 #include "network/multiutil.h"
+#include "mod_table/mod_table.h"
 
+SCP_vector<SCP_string> Builtin_moods;
+int Current_mission_mood;
 
 int Valid_builtin_message_types[MAX_BUILTIN_MESSAGE_TYPES]; 
 // here is the list of the builtin message names and the settings which control how frequently
@@ -309,7 +312,7 @@ int add_avi( char *avi_name )
 	// would have returned if a slot existed.
 	strcpy_s( extra.name, avi_name );
 	extra.num = -1;
-	extra.anim_data = NULL;
+	generic_anim_unload(&extra.anim_data);
 	Message_avis.push_back(extra); 
 	Num_message_avis++;
 	return ((int)Message_avis.size() - 1);
@@ -416,6 +419,49 @@ void message_parse(bool importing_from_fsm)
 		}
 	}
 
+	if ( optional_string("$Mood:")) {
+		SCP_string buf; 
+		bool found = false;
+
+		stuff_string(buf, F_NAME); 
+		for (SCP_vector<SCP_string>::iterator iter = Builtin_moods.begin(); iter != Builtin_moods.end(); ++iter) {
+			if (iter->compare(buf) == 0) {
+				msg.mood = iter - Builtin_moods.begin();
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			// found a mood, but it's not in the list of moods at the start of the table
+			Warning(LOCATION, "Message.tbl has an entry for mood type %s, but this mood is not in the #Moods section of the table.", buf.c_str()); 
+		}
+	}
+	else {
+		msg.mood = 0;
+	}
+
+	if ( optional_string("$Exclude Mood:")) {
+		SCP_vector<SCP_string> buff;
+		bool found = false;
+
+		stuff_string_list(buff); 
+		for (SCP_vector<SCP_string>::iterator parsed_moods = buff.begin(); parsed_moods != buff.end(); ++parsed_moods) {
+			for (SCP_vector<SCP_string>::iterator iter = Builtin_moods.begin(); iter != Builtin_moods.end(); ++iter) {
+				if (!stricmp(iter->c_str(), parsed_moods->c_str())) {
+					msg.excluded_moods.push_back(iter - Builtin_moods.begin());
+					found = true;
+					break;
+				}
+			}
+
+			if (!found) {
+				// found a mood, but it's not in the list of moods at the start of the table
+				Warning(LOCATION, "Message.tbl has an entry for exclude mood type %s, but this mood is not in the #Moods section of the table.", parsed_moods->c_str()); 
+			}
+		}
+	}
+
 	Num_messages++;
 	Messages.push_back(msg); 
 }
@@ -463,6 +509,21 @@ void message_frequency_parse()
 	}	
 }
 
+void message_moods_parse()
+{	
+
+	while (required_string_either("#End", "$Mood:")){
+		SCP_string buf; 
+
+		required_string("$Mood:");
+		stuff_string(buf, F_NAME);
+
+		Builtin_moods.push_back(buf);
+	}
+
+	required_string("#End");
+}
+
 void parse_msgtbl()
 {
 	int i, j;
@@ -498,10 +559,16 @@ void parse_msgtbl()
 
 	// now we can start parsing
 	if (optional_string("#Message Frequencies")) {
-		while ( required_string_either("#Personas", "$Name:")) {
+		while (!required_string_3("$Name:", "#Personas", "#Moods" )) {
 			message_frequency_parse();
 		}
 	}	
+
+	Builtin_moods.push_back("Default");
+	if (optional_string("#Moods")) {
+		message_moods_parse();
+	}	
+
 
 	required_string("#Personas");
 	while ( required_string_either("#Messages", "$Persona:")){
@@ -599,6 +666,8 @@ void messages_init()
 		table_read = 1;
 	}
 
+	Current_mission_mood = 0;
+
 	// reset the number of messages that we have for this mission
 	Num_messages = Num_builtin_messages;
 	Num_message_avis = Num_builtin_avis;
@@ -622,7 +691,7 @@ void messages_init()
 	// this forces a reload of the AVI's and waves for builtin messages.  Needed because the flic and
 	// sound system also get reset between missions!
 	for (i = 0; i < Num_builtin_avis; i++ ) {
-		Message_avis[i].anim_data = NULL;
+		generic_anim_unload(&Message_avis[i].anim_data);
 	}
 
 	for (i = 0; i < Num_builtin_waves; i++ ){
@@ -663,8 +732,6 @@ void messages_init()
 // free a loaded avi
 void message_mission_free_avi(int m_index)
 {
-	int rc = 0, try_count = 0;
-
 	// check for bogus index
 	if ( (m_index < 0) || (m_index >= Num_message_avis) )
 		return;
@@ -674,21 +741,7 @@ void message_mission_free_avi(int m_index)
 	if ( !hud_gauge_active(HUD_TALKING_HEAD) )
 		return;
 
-	if (Message_avis[m_index].anim_data != NULL) {
-		do {
-			rc = anim_free( Message_avis[m_index].anim_data );
-			try_count++;
-
-			// -2 is to catch a point where the data isn't valid and we want
-			// to just abort right now rather than to keep trying
-			if (rc == -2)
-				break;
-
-			// stop at 25 tries to avoid a possible endless loop
-		} while ( rc && (try_count < 25) );
-
-		Message_avis[m_index].anim_data = NULL;
-	}
+	generic_anim_unload(&Message_avis[m_index].anim_data);
 }
 
 // called to do cleanup when leaving a mission
@@ -1045,7 +1098,7 @@ bool message_play_wave( message_q *q )
 // input:	time	=>		time of voice clip, in ms
 //				ani	=>		pointer to anim data
 //				reverse	=>	flag to indicate that the start should be time ms from the end (used for death screams)
-int message_calc_anim_start_frame(int time, anim *ani, int reverse)
+void message_calc_anim_start_frame(int time, generic_anim *ani, int reverse)
 {
 	float	wave_time, anim_time;
 	int	start_frame;
@@ -1054,23 +1107,24 @@ int message_calc_anim_start_frame(int time, anim *ani, int reverse)
 
 	// If no voice clip exists, start from beginning of anim
 	if ( time <= 0 ) {
-		return start_frame;
+		return;
 	}
 
 	// convert time to seconds
 	wave_time = time/1000.0f;
-	anim_time = ani->time;
+	anim_time = ani->total_time;
 
 	// If voice clip is longer than anim, start from beginning of anim
 	if ( wave_time >= (anim_time) ) {
-		return start_frame;
+		return;
 	}
 
+	float fps = ani->num_frames / ani->total_time;
 	if ( reverse ) {
-		start_frame = (ani->total_frames-1) - fl2i(ani->fps * wave_time + 0.5f);
+		start_frame = (ani->num_frames-1) - fl2i(fps * wave_time + 0.5f);
 	} else {
 		int num_frames_extra;
-		num_frames_extra = fl2i(ani->fps * (anim_time - wave_time) + 0.5f);
+		num_frames_extra = fl2i(fps * (anim_time - wave_time) + 0.5f);
 		if ( num_frames_extra > 0 ) {
 			start_frame=rand()%num_frames_extra;
 		}
@@ -1081,7 +1135,8 @@ int message_calc_anim_start_frame(int time, anim *ani, int reverse)
 		start_frame=0;
 	}
 
-	return start_frame;
+	ani->current_frame = start_frame;
+	ani->anim_time = start_frame / fps;
 }
 
 // Play animation associated with message
@@ -1182,13 +1237,15 @@ void message_play_anim( message_q *q )
 	// the avi, set the top level index to -1 to avoid multiple tries at loading the flick.
 
 	// if there is something already here that's not this same file then go ahead a let go of it - taylor
-	if ( (anim_info->anim_data != NULL) && !strstr(anim_info->anim_data->name, ani_name) ) {
+	if ( !strstr(anim_info->anim_data.filename, ani_name) ) {
 		message_mission_free_avi( m->avi_info.index );
 	}
 
-	anim_info->anim_data = anim_load( ani_name, CF_TYPE_ANY, 0 );
+	generic_anim_init(&anim_info->anim_data, ani_name);
+	if(!Full_color_head_anis)
+			anim_info->anim_data.use_hud_color = true;
 
-	if ( anim_info->anim_data == NULL ) {
+	if ( generic_anim_stream(&anim_info->anim_data) < 0 ) {
 		nprintf (("messaging", "Cannot load message avi %s.  Will not play.\n", ani_name));
 		m->avi_info.index = -1;			// if cannot load the avi -- set this index to -1 to avoid trying to load multiple times
 	}
@@ -1205,9 +1262,10 @@ void message_play_anim( message_q *q )
 		if ( hud_disabled() ) {
 			return;
 		}
-
-		Playing_messages[Num_messages_playing].anim_data = anim_info->anim_data;
-		Playing_messages[Num_messages_playing].start_frame = message_calc_anim_start_frame(Message_wave_duration, anim_info->anim_data, is_death_scream);
+		
+		anim_info->anim_data.direction = GENERIC_ANIM_DIRECTION_NOLOOP;
+		Playing_messages[Num_messages_playing].anim_data = &anim_info->anim_data;
+		message_calc_anim_start_frame(Message_wave_duration, &anim_info->anim_data, is_death_scream);
 		Playing_messages[Num_messages_playing].play_anim = true;
 	}
 }
@@ -1826,9 +1884,12 @@ void message_send_unique_to_player( char *id, void *data, int m_source, int prio
 	nprintf (("messaging", "Couldn't find message id %s to send to player!\n", id ));
 }
 
-#define BUILTIN_MATCHES_TYPE		0
-#define BUILTIN_MATCHES_SPECIES		1
-#define	BUILTIN_MATCHES_EXACTLY		2
+#define BUILTIN_MATCHES_TYPE					0
+#define BUILTIN_MATCHES_SPECIES					1
+#define BUILTIN_MATCHES_PERSONA_CHECK_MOOD		2
+#define BUILTIN_MATCHES_PERSONA_EXCLUDED		3
+#define BUILTIN_MATCHES_PERSONA					4
+#define	BUILTIN_MATCHES_PERSONA_MOOD			5
 
 typedef	struct matching_builtin {
 		int type_of_match;
@@ -1921,8 +1982,27 @@ void message_send_builtin_to_player( int type, ship *shipp, int priority, int ti
 			// NOTE: doesn't need to be nested under the species condition above
 			if ( (persona_index >= 0) && (Messages[i].persona_index == persona_index) ) {
 				// condition 3: type + species + persona index match	
-				current_builtin->type_of_match =  BUILTIN_MATCHES_EXACTLY; 
+				current_builtin->type_of_match =  BUILTIN_MATCHES_PERSONA_CHECK_MOOD; 
 			}
+
+			// check if the personas mood suits this particular message, first check if it is excluded
+			if (!Messages[i].excluded_moods.empty() && (current_builtin->type_of_match ==  BUILTIN_MATCHES_PERSONA_CHECK_MOOD)) {
+				for (SCP_vector<int>::iterator iter = Messages[i].excluded_moods.begin(); iter != Messages[i].excluded_moods.end(); ++iter) {
+					if (*iter == Current_mission_mood) {
+						current_builtin->type_of_match =  BUILTIN_MATCHES_PERSONA_EXCLUDED; 
+						break; 
+					}
+				}
+			}
+
+			if (current_builtin->type_of_match ==  BUILTIN_MATCHES_PERSONA_CHECK_MOOD) {
+				if (Current_mission_mood == Messages[i].mood) {
+					current_builtin->type_of_match =  BUILTIN_MATCHES_PERSONA_MOOD; 
+				}
+				else {
+					current_builtin->type_of_match =  BUILTIN_MATCHES_PERSONA; 
+				}
+			}			
 
 			if (current_builtin->type_of_match == best_match) {
 				num_matching_builtins++;
@@ -1938,14 +2018,17 @@ void message_send_builtin_to_player( int type, ship *shipp, int priority, int ti
 		}
 	}
 
-	if (best_match == BUILTIN_MATCHES_SPECIES) {
-		nprintf(("messaging", "Couldn't find builtin message %s for persona %d\n", Builtin_messages[type].name, persona_index ));
-		nprintf(("messaging", "using a message for any persona of that species\n"));
+	if (best_match == BUILTIN_MATCHES_PERSONA_EXCLUDED) {
+		mprintf(("MESSAGING", "Couldn't find builtin message %s for persona %d with a none excluded mood\n", Builtin_messages[type].name, persona_index ));
+		mprintf(("MESSAGING", "using an excluded message for this persona\n"));
+	}else if (best_match == BUILTIN_MATCHES_SPECIES) {
+		mprintf(("MESSAGING", "Couldn't find builtin message %s for persona %d\n", Builtin_messages[type].name, persona_index ));
+		mprintf(("MESSAGING", "using a message for any persona of that species\n"));
 	} else if (best_match == BUILTIN_MATCHES_TYPE) {
-		nprintf(("messaging", "Couldn't find builtin message %s for persona %d\n", Builtin_messages[type].name, persona_index ));
-		nprintf(("messaging", "looking for message for any persona of any species\n"));
+		mprintf(("MESSAGING", "Couldn't find builtin message %s for persona %d\n", Builtin_messages[type].name, persona_index ));
+		mprintf(("MESSAGING", "looking for message for any persona of any species\n"));
 	} else if (best_match < 0) {
-		nprintf(("messaging", "Couldn't find any builtin message of type %d\n", type ));
+		mprintf(("MESSAGING", "Couldn't find any builtin message of type %d\n", type ));
 		Int3();
 		return; 
 	}

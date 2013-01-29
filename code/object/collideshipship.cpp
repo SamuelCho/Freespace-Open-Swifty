@@ -72,7 +72,9 @@ int ships_are_docking(object *objp1, object *objp2)
 		if (aip1->goal_objnum == OBJ_INDEX(objp2)){
 			return 1;
 		}
-	} else if (aip2->mode == AIM_DOCK) {
+	}
+
+	if (aip2->mode == AIM_DOCK) {
 		if (aip2->goal_objnum == OBJ_INDEX(objp1)){
 			return 1;
 		}
@@ -236,8 +238,14 @@ int ship_ship_check_collision(collision_info_struct *ship_ship_hit_info, vec3d *
 
 	SCP_vector<int> submodel_vector;
 	int valid_hit_occured = 0;
-	polymodel *pm;
+	polymodel *pm, *pm_light;
 	polymodel_instance *pmi;
+		
+	pm_light = model_get(Ship_info[light_shipp->ship_info_index].model_num);
+
+	if(pm_light->submodel[pm_light->detail[0]].no_collisions) {
+		return 0;
+	}
 
 	if (model_collide(&mc)) {
 
@@ -308,8 +316,6 @@ int ship_ship_check_collision(collision_info_struct *ship_ship_hit_info, vec3d *
 						model_instance_find_world_point(&ship_ship_hit_info->light_collision_cm_pos, &int_light_pos, mc.model_num, mc.model_instance_num, mc.hit_submodel, &heavy_obj->orient, &zero);
 					}
 				}
-				// Don't look at this submodel again
-				pmi->submodel[*smv].collision_checked = true;
 			}
 
 		}
@@ -679,11 +685,11 @@ void calculate_ship_ship_collision_physics(collision_info_struct *ship_ship_hit_
 		light_local_vel.xyz.z < light_sip->collision_physics.landing_max_z &&
 		light_local_vel.xyz.z > light_sip->collision_physics.landing_min_z &&
 		light_local_vel.xyz.y > light_sip->collision_physics.landing_min_y &&
-		abs(light_local_vel.xyz.x) < light_sip->collision_physics.landing_max_x &&
+		fl_abs(light_local_vel.xyz.x) < light_sip->collision_physics.landing_max_x &&
 		light_uvec_dot_norm > 0 &&
 		light_fvec_dot_norm < light_sip->collision_physics.landing_max_angle &&
 		light_fvec_dot_norm > light_sip->collision_physics.landing_min_angle &&
-		abs(light_rvec_dot_norm) < light_sip->collision_physics.landing_max_rot_angle)
+		fl_abs(light_rvec_dot_norm) < light_sip->collision_physics.landing_max_rot_angle)
 	{
 		ship_ship_hit_info->is_landing = true;
 	}
@@ -776,11 +782,11 @@ void calculate_ship_ship_collision_physics(collision_info_struct *ship_ship_hit_
 		light_local_vel.xyz.z < light_sip->collision_physics.reorient_max_z  &&
 		light_local_vel.xyz.z > light_sip->collision_physics.reorient_min_z &&
 		light_local_vel.xyz.y > light_sip->collision_physics.reorient_min_y &&
-		abs(light_local_vel.xyz.x) < light_sip->collision_physics.reorient_max_x &&
+		fl_abs(light_local_vel.xyz.x) < light_sip->collision_physics.reorient_max_x &&
 		light_uvec_dot_norm > 0 &&
 		light_fvec_dot_norm < light_sip->collision_physics.reorient_max_angle &&
 		light_fvec_dot_norm > light_sip->collision_physics.reorient_min_angle &&
-		abs(light_rvec_dot_norm) < light_sip->collision_physics.reorient_max_rot_angle) 
+		fl_abs(light_rvec_dot_norm) < light_sip->collision_physics.reorient_max_rot_angle) 
 	{
 		vec3d landing_delta_rotvel;
 		landing_delta_rotvel.xyz.x = (light_fvec_dot_norm * light_sip->collision_physics.reorient_mult) 

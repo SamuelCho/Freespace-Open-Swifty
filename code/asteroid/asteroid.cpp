@@ -64,6 +64,9 @@ asteroid_field	Asteroid_field;
 
 static int		Asteroid_impact_explosion_ani;
 static float	Asteroid_impact_explosion_radius;
+char	Asteroid_icon_closeup_model[NAME_LENGTH];
+vec3d	Asteroid_icon_closeup_position;
+float	Asteroid_icon_closeup_zoom;	
 
 #define	ASTEROID_CHECK_WRAP_TIMESTAMP			2000	// how often an asteroid gets checked for wrapping
 #define	ASTEROID_UPDATE_COLLIDE_TIMESTAMP	2000	// how often asteroid is checked for impending collisions with escort ships
@@ -435,6 +438,7 @@ void asteroid_sub_create(object *parent_objp, int asteroid_type, vec3d *relvec)
  */
 void asteroid_load(int asteroid_info_index, int asteroid_subtype)
 {
+	int i;
 	asteroid_info	*asip;
 
 	Assert( asteroid_info_index < (int)Asteroid_info.size() );
@@ -451,13 +455,25 @@ void asteroid_load(int asteroid_info_index, int asteroid_subtype)
 
 	asip->model_num[asteroid_subtype] = model_load( asip->pof_files[asteroid_subtype], 0, NULL );
 
-	if (asip->model_num[asteroid_subtype] > -1) {
-		asip->modelp[asteroid_subtype] = model_get(asip->model_num[asteroid_subtype]);
+	if (asip->model_num[asteroid_subtype] >= 0)
+	{
+		polymodel *pm = asip->modelp[asteroid_subtype] = model_get(asip->model_num[asteroid_subtype]);
 		
+		if ( asip->num_detail_levels != pm->n_detail_levels )
+		{
+			if ( !Is_standalone )
+			{
+				// just log to file for standalone servers
+				Warning(LOCATION, "For asteroid '%s', detail level\nmismatch (POF needs %d)", asip->name, pm->n_detail_levels );
+			}
+			else
+			{
+				nprintf(("Warning",  "For asteroid '%s', detail level mismatch (POF needs %d)", asip->name, pm->n_detail_levels));
+			}
+		}	
 		// Stuff detail level distances.
-		for (int i = 0; i < asip->num_detail_levels; i++) {
-			asip->modelp[asteroid_subtype]->detail_depth[i] = i2fl(asip->detail_distance[i]);
-		}
+		for ( i=0; i<pm->n_detail_levels; i++ )
+			pm->detail_depth[i] = (i < asip->num_detail_levels) ? i2fl(asip->detail_distance[i]) : 0.0f;
 	}
 }
 
@@ -1790,7 +1806,7 @@ void asteroid_parse_section(asteroid_info *asip)
 	required_string( "$POF file2:" );
 	stuff_string(asip->pof_files[1], F_NAME, MAX_FILENAME_LEN);
 
-	if ( (stristr(asip->name,"Asteroid") != NULL) ) {
+	if ( (stristr(asip->name, "Asteroid") != NULL) ) {
 		required_string( "$POF file3:" );
 		stuff_string(asip->pof_files[2], F_NAME, MAX_FILENAME_LEN);
 	}
@@ -2006,6 +2022,24 @@ void asteroid_parse_tbl()
 
 	required_string("$Impact Explosion Radius:");
 	stuff_float(&Asteroid_impact_explosion_radius);
+
+	if (optional_string("$Briefing Icon Closeup Model:")) {
+		stuff_string(Asteroid_icon_closeup_model, F_NAME, NAME_LENGTH);
+	} else {
+		strcpy_s(Asteroid_icon_closeup_model, Asteroid_info[ASTEROID_TYPE_LARGE].pof_files[0]);	// magic file from retail
+	}
+
+	if (optional_string("$Briefing Icon Closeup Position:")) {
+		stuff_vec3d(&Asteroid_icon_closeup_position);
+	} else {
+		vm_vec_make(&Asteroid_icon_closeup_position, 0.0f, 0.0f, -334.0f);  // magic numbers from retail
+	}
+
+	if (optional_string("$Briefing Icon Closeup Zoom:")) {
+		stuff_float(&Asteroid_icon_closeup_zoom);
+	} else {
+		Asteroid_icon_closeup_zoom = 0.5f;	// magic number from retail
+	}
 
 	// close localization
 	lcl_ext_close();

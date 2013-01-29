@@ -270,8 +270,7 @@ typedef struct icon_move_info
 	float				last_dist;
 } icon_move_info;
 
-#define MAX_MOVE_ICONS	10
-icon_move_info	Icon_movers[MAX_MOVE_ICONS];
+icon_move_info	Icon_movers[MAX_BRIEF_ICONS];
 icon_move_info	Icon_move_list;	// head of linked list
 
 // fading out icons
@@ -438,7 +437,7 @@ void brief_move_icon_reset()
 	int i;
 
 	list_init(&Icon_move_list);
-	for ( i = 0; i < MAX_MOVE_ICONS; i++ )
+	for ( i = 0; i < MAX_BRIEF_ICONS; i++ )
 		Icon_movers[i].used = 0;
 }
 
@@ -774,18 +773,19 @@ void brief_render_fade_outs(float frametime)
 			}
 
 			bm_get_info( fi->fade_anim.first_frame, &w, &h, NULL);
+			float screenX = tv.screen.xyw.x;
+			float screenY = tv.screen.xyw.y;
+			gr_unsize_screen_posf( &screenX, &screenY );
 
-			gr_resize_screen_pos( &w, &h );
-
-			bxf = tv.screen.xyw.x - w / 2.0f + 0.5f;
-			byf = tv.screen.xyw.y - h / 2.0f + 0.5f;
+			bxf = screenX - w / 2.0f + 0.5f;
+			byf = screenY - h / 2.0f + 0.5f;
 			bx = fl2i(bxf);
 			by = fl2i(byf);
 
 			if ( fi->fade_anim.first_frame >= 0 ) {
 				fi->fade_anim.sx = bx;
 				fi->fade_anim.sy = by;
-				hud_anim_render(&fi->fade_anim, frametime, 1, 0, 0, 0, false);
+				hud_anim_render(&fi->fade_anim, frametime, 1, 0, 0, 0, true);
 			}
 		}
 	}
@@ -1528,13 +1528,7 @@ void brief_set_text_color(int color_index)
  */
 bool is_a_word_separator(char character)
 {
-	return character<=33					//  2 characters including (space) and !
-		|| (35<=character && character<=38)	//  4 characters #$%&
-		|| (42<=character && character<=44)	//  3 characters *+,
-		|| (character == 47)				//  1 character  /
-		|| (59<=character && character<=64)	//  6 characters ;<=>?@
-		|| (91<=character && character<=95)	//  5 characters [\]^_
-		|| (123<=character);				//  5 characters {|}~
+	return character <= 32;					//  all control characters including space, newline, and tab
 }
 
 /**
@@ -1680,12 +1674,12 @@ int brief_get_free_move_icon()
 {
 	int i;
 
-	for ( i = 0; i < MAX_MOVE_ICONS; i++ ) {
+	for ( i = 0; i < MAX_BRIEF_ICONS; i++ ) {
 		if ( Icon_movers[i].used == 0 )
 			break;
 	}
 	
-	if ( i == MAX_MOVE_ICONS ) 
+	if ( i == MAX_BRIEF_ICONS ) 
 		return -1;
 
 	Icon_movers[i].used = 1;
@@ -1722,7 +1716,7 @@ int brief_set_move_list(int new_stage, int current_stage, float time)
 
 					k = brief_get_free_move_icon();				
 					if ( k == -1 ) {
-						Int3();	// should never happen, get Alan
+						Warning(LOCATION, "Too many briefing icons are moving simultaneously!");
 						return 0;
 					}
 					imi = &Icon_movers[k];

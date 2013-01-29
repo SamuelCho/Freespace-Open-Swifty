@@ -122,6 +122,7 @@
 #include "osapi/osapi.h"
 #include "osapi/osregistry.h"
 #include "parse/encrypt.h"
+#include "parse/generic_log.h"
 #include "parse/lua.h"
 #include "parse/parselo.h"
 #include "parse/scripting.h"
@@ -464,7 +465,7 @@ void game_do_training_checks();
 void game_shutdown(void);
 void game_show_event_debug(float frametime);
 void game_event_debug_init();
-void game_frame(int paused = false);
+void game_frame(bool paused = false);
 void demo_upsell_show_screens();
 void game_start_subspace_ambient_sound();
 void game_stop_subspace_ambient_sound();
@@ -1947,6 +1948,10 @@ void game_init()
 
 	multi_init();	
 
+	// start up the mission logfile
+	logfile_init(LOGFILE_EVENT_LOG);
+	log_string(LOGFILE_EVENT_LOG,"FS2_Open Mission Log - Opened \n\n", 1);
+
 	// standalone's don't use the joystick and it seems to sometimes cause them to not get shutdown properly
 	if(!Is_standalone){
 		joy_init();
@@ -2505,7 +2510,7 @@ void game_set_view_clip(float frametime)
 		if (g3_in_frame() == 0) {
 			// Ensure that the bars are black
 			gr_set_color(0,0,0);
-			gr_set_bitmap(0); // Valathil - Dont ask me why this has to be here but otherwise the black bars dont draw
+			gr_set_bitmap(0); // Valathil - Don't ask me why this has to be here but otherwise the black bars don't draw
 			gr_rect(0, 0, gr_screen.max_w, yborder, false);
 			gr_rect(0, gr_screen.max_h-yborder, gr_screen.max_w, yborder, false);
 		} else {
@@ -3665,7 +3670,7 @@ void game_render_frame( camid cid )
 	if(draw_viewer_last && Viewer_obj)
 	{
 		gr_post_process_save_zbuffer();
-		ship_render(Viewer_obj);
+		ship_render_show_ship_cockpit(Viewer_obj);
 	}
 
 
@@ -4244,7 +4249,7 @@ void bars_do_frame(float frametime)
 		if (g3_in_frame() == 0) {
 			//Set rectangles
 			gr_set_color(0,0,0);
-			gr_set_bitmap(0); // Valathil - Dont ask me why this has to be here but otherwise the black bars dont draw
+			gr_set_bitmap(0); // Valathil - Don't ask me why this has to be here but otherwise the black bars don't draw
 			gr_rect(0, 0, gr_screen.max_w, yborder, false);
 			gr_rect(0, gr_screen.max_h-yborder, gr_screen.max_w, yborder, false);
 		} else {
@@ -4259,7 +4264,7 @@ void bars_do_frame(float frametime)
 
 		if (g3_in_frame() == 0) {
 			gr_set_color(0,0,0);
-			gr_set_bitmap(0); // Valathil - Dont ask me why this has to be here but otherwise the black bars dont draw
+			gr_set_bitmap(0); // Valathil - Don't ask me why this has to be here but otherwise the black bars don't draw
 			gr_rect(0, 0, gr_screen.max_w, yborder, false);
 			gr_rect(0, gr_screen.max_h-yborder, gr_screen.max_w, yborder, false);
 		} else {
@@ -4306,7 +4311,7 @@ void game_render_post_frame()
 #define DEBUG_GET_TIME(x)
 #endif
 
-void game_frame(int paused)
+void game_frame(bool paused)
 {
 #ifndef NDEBUG
 	fix total_time1, total_time2;
@@ -4316,9 +4321,6 @@ void game_frame(int paused)
 	fix clear_time1=0, clear_time2=0;
 #endif
 	int actually_playing;
-
-	//vec3d eye_pos;
-	//matrix eye_orient;
 
 #ifndef NDEBUG
 	if (Framerate_delay) {
@@ -4478,6 +4480,10 @@ void game_frame(int paused)
 					}
 				}
 			}
+
+			// Goober5000 - check if we should red-alert
+			// (this is approximately where the red_alert_check_status() function tree began in the pre-HUD-overhaul code)
+			red_alert_maybe_move_to_next_mission();
 
 			DEBUG_GET_TIME( render3_time2 )
 			DEBUG_GET_TIME( render2_time1 )
@@ -6135,7 +6141,9 @@ void game_enter_state( int old_state, int new_state )
 			//Set the current hud
 			set_current_hud();
 
-			ship_init_cockpit_displays(Player_ship);
+			if ( !Is_standalone ) {
+				ship_init_cockpit_displays(Player_ship);
+			}
 
 			Game_mode |= GM_IN_MISSION;
 
@@ -7316,6 +7324,7 @@ void game_shutdown(void)
 	mission_parse_close();		// clear out any extra memory that may be in use by mission parsing
 	multi_voice_close();			// close down multiplayer voice (including freeing buffers, etc)
 	multi_log_close();
+	logfile_close(LOGFILE_EVENT_LOG); // close down the mission log
 #ifdef MULTI_USE_LAG
 	multi_lag_close();
 #endif

@@ -230,6 +230,7 @@ typedef struct weapon {
 	float damage_ship[MAX_WEP_DAMAGE_SLOTS];    // damage applied from each player
 	int   damage_ship_id[MAX_WEP_DAMAGE_SLOTS]; // signature of the damager (corresponds to each entry in damage_ship)
 
+	int hud_in_flight_snd_sig;					// Signature of the sound played while the weapon is in flight
 } weapon;
 
 
@@ -301,6 +302,13 @@ typedef struct spawn_weapon_info
 extern weapon Weapons[MAX_WEAPONS];
 
 #define WEAPON_TITLE_LEN			48
+
+enum InFlightSoundType
+{
+	TARGETED,
+	UNTARGETED,
+	ALWAYS
+};
 
 typedef struct weapon_info {
 	char	name[NAME_LENGTH];				// name of this weapon
@@ -534,6 +542,10 @@ typedef struct weapon_info {
 
 	int			score; //Optional score for destroying the weapon
 
+	int hud_tracking_snd; // Sound played when this weapon tracks a target
+	int hud_locked_snd; // Sound played when this weapon locked onto a target
+	int hud_in_flight_snd; // Sound played while the weapon is in flight
+	InFlightSoundType in_flight_play_type; // The status when the sound should be played
 } weapon_info;
 
 // Data structure to track the active missiles
@@ -618,7 +630,7 @@ int weapon_create_group_id();
 
 // Passing a group_id of -1 means it isn't in a group.  See weapon_create_group_id for more 
 // help on weapon groups.
-int weapon_create( vec3d * pos, matrix * orient, int weapon_type, int parent_obj, int group_id=-1, int is_locked = 0, int is_spawned = 0, float fof_cooldown = 0.0f);
+int weapon_create( vec3d * pos, matrix * orient, int weapon_type, int parent_obj, int group_id=-1, int is_locked = 0, int is_spawned = 0, float fof_cooldown = 0.0f, ship_subsys * src_turret = NULL);
 void weapon_set_tracking_info(int weapon_objnum, int parent_objnum, int target_objnum, int target_is_locked = 0, ship_subsys *target_subsys = NULL);
 
 // for weapons flagged as particle spewers, spew particles. wheee
@@ -657,6 +669,12 @@ void weapon_hit_do_sound(object *hit_obj, weapon_info *wip, vec3d *hitpos, bool 
 
 // return a scale factor for damage which should be applied for 2 collisions
 float weapon_get_damage_scale(weapon_info *wip, object *wep, object *target);
+
+// Pauses all running weapon sounds
+void weapon_pause_sounds();
+
+// Unpauses all running weapon sounds
+void weapon_unpause_sounds();
 
 // Swifty - return number of max simultaneous locks 
 int weapon_get_max_missile_seekers(weapon_info *wip);

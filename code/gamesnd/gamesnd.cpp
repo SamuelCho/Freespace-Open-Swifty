@@ -99,7 +99,33 @@ int gamesnd_get_by_iface_name(const char* name)
 	Assert( Snds_iface.size() <= INT_MAX );
 	Assert( Snds_iface.size() == Snds_iface_handle.size() );
 	
-	return gamesnd_lookup_name(name, Snds_iface);
+	int index = gamesnd_lookup_name(name, Snds_iface);
+
+	if (index < 0)
+	{
+		int i = 0;
+		for(SCP_vector<game_snd>::iterator snd = Snds_iface.begin(); snd != Snds_iface.end(); ++snd)
+		{
+			char *p = strrchr( snd->filename, '.' );
+			if(p == NULL)
+			{
+				if(!stricmp(snd->filename, name))
+				{
+					index = i;
+					break;
+				}
+			}
+			else if(!strnicmp(snd->filename, name, p-snd->filename))
+			{
+				index = i;
+				break;
+			}
+
+			i++;
+		}
+	}
+
+	return index;
 }
 
 int gamesnd_get_by_tbl_index(int index)
@@ -357,8 +383,27 @@ void parse_gamesnd_old(game_snd* gs)
 	}
 	else
 	{
+		// silly retail, not abiding by its own format...
+		if (!stricmp(gs->filename, "l_hit.wav") || !stricmp(gs->filename, "m_hit.wav"))
+		{
+			ignore_gray_space();
+			if (stuff_int_optional(&temp, true) == 2)
+			{
+				mprintf(("Dutifully ignoring the extra sound values for retail sound %s, '%s'...\n", gs->name.c_str(), gs->filename));
+				ignore_gray_space();
+				stuff_int_optional(&temp, true);
+			}
+		}
+
 		gs->min = 0;
 		gs->max = 0;
+	}
+
+	// check for extra values per Mantis #2408
+	ignore_gray_space();
+	if (stuff_int_optional(&temp, true) == 2)
+	{
+		Warning(LOCATION, "Unexpected extra value %d found for sound '%s' (filename '%s')!  Check the format of the sounds.tbl (or .tbm) entry.", temp, gs->name.c_str(), gs->filename);
 	}
 
 	advance_to_eoln(NULL);
@@ -385,6 +430,7 @@ void parse_gamesnd_new(game_snd* gs)
 
 	if (optional_string("+3D Sound:"))
 	{
+		gs->flags |= GAME_SND_USE_DS3D;
 		required_string("+Attenuation start:");
 		
 		stuff_int(&gs->min);

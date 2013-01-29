@@ -36,6 +36,7 @@
 #include "pngutils/pngutils.h"
 #include "jpgutils/jpgutils.h"
 #include "parse/parselo.h"
+#include "network/multiutil.h"
 
 #define BMPMAN_INTERNAL
 #include "bmpman/bm_internal.h"
@@ -633,6 +634,37 @@ int bm_load_duplicate(char *filename)
 	Bm_ignore_duplicates = 0;
 
 	return ret;
+}
+
+/**
+ * This function is used to reload a different bitmap into an existing slot.
+ * This should only be used if you are certain the new picture has the same type, dimensions etc.
+ *
+ * @return negative if the given handle doesn't exist, the filename was empty or the slot is still locked
+ * @return the bitmap_handle on success
+ */
+int bm_reload(int bitmap_handle, char* filename)
+{
+	if ( !bm_inited )
+		bm_init();
+
+	// if no file was passed then get out now
+	if ( (filename == NULL) || (strlen(filename) <= 0) )
+		return -1;
+
+	int bitmapnum = bitmap_handle % MAX_BITMAPS;
+
+	if ( bm_bitmaps[bitmapnum].type == BM_TYPE_NONE )
+		return -1;
+
+	if ( bm_bitmaps[bitmapnum].ref_count )
+	{
+		nprintf(("BmpMan", "Trying to reload a bitmap that is still locked. Filename: %s, ref_count: %d", bm_bitmaps[bitmapnum].filename, bm_bitmaps[bitmapnum].ref_count));		
+		return -1;
+	}
+
+	strncpy(bm_bitmaps[bitmapnum].filename, filename, MAX_FILENAME_LEN);
+	return bitmap_handle;
 }
 
 DCF(bm_frag,"Shows BmpMan fragmentation")
@@ -1617,7 +1649,7 @@ MONITOR( SizeBitmapPage )
  *
  * Only lock a bitmap when you need it! This will convert it into the appropriate format also.
  */
-bitmap * bm_lock( int handle, ubyte bpp, ubyte flags )
+bitmap * bm_lock( int handle, ubyte bpp, ubyte flags, bool nodebug)
 {
 	bitmap			*bmp;
 	bitmap_entry	*be;
@@ -1677,7 +1709,7 @@ bitmap * bm_lock( int handle, ubyte bpp, ubyte flags )
 	#endif
 
 	// read the file data
-	if ( gr_bm_lock( be->filename, handle, bitmapnum, bpp, flags ) == -1 ) {
+	if ( gr_bm_lock( be->filename, handle, bitmapnum, bpp, flags, nodebug ) == -1 ) {
 		// oops, this isn't good - reset and return NULL
 		bm_unlock( bitmapnum );
 		bm_unload( bitmapnum );
@@ -1888,10 +1920,11 @@ int bm_release(int handle, int clear_render_targets)
  *
  * @param handle				index into ::bm_bitmaps ( index returned from bm_load() or bm_create() )
  * @param clear_render_targets	Whether to release a render target
+ * @param nodebug               Exclude certain debug messages
  *
  * @return	1 on successful release, 0 otherwise
  */
-int bm_unload( int handle, int clear_render_targets )
+int bm_unload( int handle, int clear_render_targets, bool nodebug )
 {
 	bitmap_entry *be;
 	bitmap *bmp;
@@ -1913,7 +1946,7 @@ int bm_unload( int handle, int clear_render_targets )
 	Assert( be->handle == handle );		// INVALID BITMAP HANDLE!
 
 	// If it is locked, cannot free it.
-	if (be->ref_count != 0) {
+	if (be->ref_count != 0  && !nodebug) {
 		nprintf(("BmpMan", "Tried to unload %s that has a lock count of %d.. not unloading\n", be->filename, be->ref_count));
 		return 0;
 	}
@@ -1925,7 +1958,7 @@ int bm_unload( int handle, int clear_render_targets )
 		if ( be->load_count > 0 )
 			be->load_count--;
 
-		if ( be->load_count != 0 ) {
+		if ( be->load_count != 0  && !nodebug) {
 			nprintf(("BmpMan", "Tried to unload %s that has a load count of %d.. not unloading\n", be->filename, be->load_count + 1));
 			return 0;
 		}
@@ -1941,11 +1974,13 @@ int bm_unload( int handle, int clear_render_targets )
 			return 1;
 
 		for (i = 0; i < bm_bitmaps[first].info.ani.num_frames; i++) {
-			nprintf(("BmpMan", "Unloading %s frame %d.  %dx%dx%d\n", be->filename, i, bmp->w, bmp->h, bmp->bpp));
+			if(!nodebug)
+				nprintf(("BmpMan", "Unloading %s frame %d.  %dx%dx%d\n", be->filename, i, bmp->w, bmp->h, bmp->bpp));
 			bm_free_data(first+i);		// clears flags, bbp, data, etc
 		}
 	} else {
-		nprintf(("BmpMan", "Unloading %s.  %dx%dx%d\n", be->filename, bmp->w, bmp->h, bmp->bpp));
+		if(!nodebug)
+			nprintf(("BmpMan", "Unloading %s.  %dx%dx%d\n", be->filename, bmp->w, bmp->h, bmp->bpp));
 		bm_free_data(n);		// clears flags, bbp, data, etc
 	}
 
@@ -2218,7 +2253,6 @@ void bm_page_in_start()
 	gr_bm_page_in_start();
 }
 
-extern int Multi_ping_timestamp;
 extern void multi_ping_send_all();
 
 void bm_page_in_stop()
@@ -2251,15 +2285,7 @@ void bm_page_in_stop()
 
 				n++;
 
-				// send out a ping if we are multi so that psnet2 doesn't kill us off for a long load
-				// NOTE that we can't use the timestamp*() functions here since they won't increment
-				//      during this loading process
-				if (Game_mode & GM_MULTIPLAYER) {
-					if ( (Multi_ping_timestamp == -1) || (Multi_ping_timestamp <= timer_get_milliseconds()) ) {
-						multi_ping_send_all();
-						Multi_ping_timestamp = timer_get_milliseconds() + 10000; // timeout is 10 seconds between pings
-					}
-				}
+				multi_send_anti_timeout_ping();
 
 				if ( (bm_bitmaps[i].info.ani.first_frame == 0) || (bm_bitmaps[i].info.ani.first_frame == i) ) {
 #ifndef NDEBUG
@@ -2812,14 +2838,23 @@ int bm_set_render_target(int handle, int face)
 			//if we are moving from the back buffer to a texture save whatever the current settings are
 			gr_screen.save_max_w = gr_screen.max_w;
 			gr_screen.save_max_h = gr_screen.max_h;
+
+			gr_screen.save_max_w_unscaled = gr_screen.max_w_unscaled;
+			gr_screen.save_max_h_unscaled = gr_screen.max_h_unscaled;
 		}
 
 		if (n < 0) {
 			gr_screen.max_w = gr_screen.save_max_w;
 			gr_screen.max_h = gr_screen.save_max_h;
+
+			gr_screen.max_w_unscaled = gr_screen.save_max_w_unscaled;
+			gr_screen.max_h_unscaled = gr_screen.save_max_h_unscaled;
 		} else {
 			gr_screen.max_w = bm_bitmaps[n].bm.w;
 			gr_screen.max_h = bm_bitmaps[n].bm.h;
+
+			gr_screen.max_w_unscaled = bm_bitmaps[n].bm.w;
+			gr_screen.max_h_unscaled = bm_bitmaps[n].bm.h;
 		}
 
 		gr_screen.rendering_to_face = face;

@@ -90,9 +90,13 @@ typedef struct eval_enemy_obj_struct {
 /**
  * Is object in turret field of view?
  *
- * @param dist Distance from turret to center point of object
+ * @param objp  Pointer to object to test
+ * @param ss    Ship turret subsystem to test from
+ * @param tvec  Turret initial vector
+ * @param tpos  Turret initial position
+ * @param dist  Distance from turret to center point of object
  *
- * @return 1 if objp is in fov of the specified turret, tp.  Otherwise return 0.
+ * @return 1 if objp is in fov of the specified turret.  Otherwise return 0.
  */
 int object_in_turret_fov(object *objp, ship_subsys *ss, vec3d *tvec, vec3d *tpos, float dist)
 {
@@ -1211,6 +1215,11 @@ int find_turret_enemy(ship_subsys *turret_subsys, int objnum, vec3d *tpos, vec3d
  * Given an object and a turret on that object, return the global position and forward vector
  * of the turret.
  *
+ * @param objp  Pointer to object
+ * @param tp    Turrent model system on that object
+ * @param gpos  [Output] Global absolute position of gun firing point
+ * @param gvec  [Output] Global vector
+ *
  * @note The gun normal is the unrotated gun normal, (the center of the FOV cone), not
  * the actual gun normal given using the current turret heading.  But it _is_ rotated into the model's orientation
  * in global space.
@@ -1230,8 +1239,12 @@ void ship_get_global_turret_info(object *objp, model_subsystem *tp, vec3d *gpos,
  * gun to fire next in the ship specific info for this turret subobject.  Use this info
  * to determine which position to fire from next.
  *
- * @param gpos  Absolute position of gun firing point
- * @param gvec  Vector from *gpos to *targetp
+ * @param objp          Pointer to object
+ * @param ssp           Pointer to turret subsystem
+ * @param gpos          Absolute position of gun firing point
+ * @param gvec          Vector from *gpos to *targetp
+ * @param use_angles    Use current angles
+ * @param targetp       Pointer to target object
  */
 void ship_get_global_turret_gun_info(object *objp, ship_subsys *ssp, vec3d *gpos, vec3d *gvec, int use_angles, vec3d *targetp)
 {
@@ -1425,7 +1438,7 @@ float	aifft_compute_turret_dot(object *objp, object *enemy_objp, vec3d *abs_gunp
 
 // NOTE:  Do not change this value unless you understand exactly what it means and what it does.
 //        It refers to how many (non-destroyed) subsystems (and turrets) will be scanned for possible
-//        targetting, per turret, per frame.  A higher value will process more systems at once,
+//        targeting, per turret, per frame.  A higher value will process more systems at once,
 //        but it will be much slower to scan though them.  It is not necessary to scan all
 //        non-destroyed subsystem each frame for each turret.  Also, "aifft_max_checks" is balanced
 //        against the original value, be sure to account for this discrepancy with any changes.
@@ -1795,12 +1808,13 @@ bool turret_fire_weapon(int weapon_num, ship_subsys *turret, int parent_objnum, 
 				// so we need to get the position info separately for each shot
 				ship_get_global_turret_gun_info(&Objects[parent_objnum], turret, turret_pos, turret_fvec, 1, NULL);
 
-				weapon_objnum = weapon_create( turret_pos, &turret_orient, turret_weapon_class, parent_objnum, -1, 1);
+				weapon_objnum = weapon_create( turret_pos, &turret_orient, turret_weapon_class, parent_objnum, -1, 1, 0,0.0f, turret);
 				weapon_set_tracking_info(weapon_objnum, parent_objnum, turret->turret_enemy_objnum, 1, turret->targeted_subsys);		
 			
 
 				objp=&Objects[weapon_objnum];
 				wp=&Weapons[objp->instance];
+				wip=&Weapon_info[wp->weapon_info_index];
 
 				//nprintf(("AI", "Turret_time_enemy_in_range = %7.3f\n", ss->turret_time_enemy_in_range));		
 				if (weapon_objnum != -1) {
@@ -1872,6 +1886,9 @@ bool turret_fire_weapon(int weapon_num, ship_subsys *turret, int parent_objnum, 
 	}
 
 	turret->flags |= SSF_HAS_FIRED; //set has fired flag for scriptng - nuke
+
+	//Fire animation stuff
+	model_anim_start_type(turret, TRIGGER_TYPE_TURRET_FIRED, ANIMATION_SUBTYPE_ALL, 1);
 	return true;
 }
 
@@ -1911,7 +1928,7 @@ void turret_swarm_fire_from_turret(turret_swarm_info *tsi)
 	vm_vector_2_matrix(&turret_orient, &turret_fvec, NULL, NULL);
 
 	// create weapon and homing info
-	weapon_objnum = weapon_create(&turret_pos, &turret_orient, tsi->weapon_class, tsi->parent_objnum, -1, 1);
+	weapon_objnum = weapon_create(&turret_pos, &turret_orient, tsi->weapon_class, tsi->parent_objnum, -1, 1, 0, 0.0f, tsi->turret);
 	weapon_set_tracking_info(weapon_objnum, tsi->parent_objnum, tsi->target_objnum, 1, tsi->target_subsys);
 
 	// do other cool stuff if weapon is created.

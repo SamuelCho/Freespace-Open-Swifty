@@ -301,6 +301,11 @@ int gr_stub_set_cull(int cull)
 	return 0;
 }
 
+int gr_stub_set_color_buffer(int mode)
+{
+	return 0;
+}
+
 void gr_stub_set_gamma(float gamma)
 {
 }
@@ -381,6 +386,20 @@ void gr_stub_zbuffer_clear(int mode)
 {
 }
 
+int gr_stub_stencil_set(int mode)
+{
+	return 0;
+}
+
+void gr_stub_stencil_clear()
+{
+}
+
+int gr_stub_alpha_mask_set(int mode, float alpha)
+{
+	return 0;
+}
+
 /*void gr_stub_shade(int x,int y,int w,int h)
 {
 }*/
@@ -456,6 +475,10 @@ void gr_stub_draw_line_list(colored_vector *lines, int num)
 }
 
 void gr_stub_flush_data_states()
+{
+}
+
+void gr_stub_update_texture(int bitmap_handle, int bpp, ubyte* data, int width, int height)
 {
 }
 
@@ -549,7 +572,7 @@ int gr_stub_bm_load(ubyte type, int n, char *filename, CFILE *img_cfp, int *w, i
 	return 0;
 }
 
-int gr_stub_bm_lock(char *filename, int handle, int bitmapnum, ubyte bpp, ubyte flags)
+int gr_stub_bm_lock(char *filename, int handle, int bitmapnum, ubyte bpp, ubyte flags, bool nodebug)
 {
 	ubyte c_type = BM_TYPE_NONE;
 	ubyte true_bpp;
@@ -670,6 +693,18 @@ void gr_stub_bm_page_in_start()
 {
 }
 
+int gr_stub_maybe_create_shader(int flags) {
+	return -1;
+}
+
+void gr_stub_set_team_color(const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime) {
+}
+
+void gr_stub_enable_team_color() {
+}
+
+void gr_stub_disable_team_color() {
+}
 
 bool gr_stub_init() 
 {
@@ -735,6 +770,11 @@ bool gr_stub_init()
 	gr_screen.gf_zbuffer_get		= gr_stub_zbuffer_get;
 	gr_screen.gf_zbuffer_set		= gr_stub_zbuffer_set;
 	gr_screen.gf_zbuffer_clear		= gr_stub_zbuffer_clear;
+
+	gr_screen.gf_stencil_set		= gr_stub_stencil_set;
+	gr_screen.gf_stencil_clear		= gr_stub_stencil_clear;
+
+	gr_screen.gf_alpha_mask_set		= gr_stub_alpha_mask_set;
 	
 	gr_screen.gf_save_screen		= gr_stub_save_screen;
 	gr_screen.gf_restore_screen		= gr_stub_restore_screen;
@@ -762,6 +802,7 @@ bool gr_stub_init()
 	gr_screen.gf_bm_set_render_target	= gr_stub_bm_set_render_target;
 
 	gr_screen.gf_set_cull			= gr_stub_set_cull;
+	gr_screen.gf_set_color_buffer	= gr_stub_set_color_buffer;
 
 	gr_screen.gf_cross_fade			= gr_stub_cross_fade;
 
@@ -842,7 +883,14 @@ bool gr_stub_init()
 	gr_screen.gf_line_htl			= gr_stub_draw_htl_line;
 	gr_screen.gf_sphere_htl			= gr_stub_draw_htl_sphere;
 
+	gr_screen.gf_maybe_create_shader = gr_stub_maybe_create_shader;
+
 	gr_screen.gf_flush_data_states	= gr_stub_flush_data_states;
 
+	gr_screen.gf_set_team_color		= gr_stub_set_team_color;
+	gr_screen.gf_enable_team_color  = gr_stub_enable_team_color;
+	gr_screen.gf_disable_team_color = gr_stub_disable_team_color;
+
+	gr_screen.gf_update_texture = gr_stub_update_texture;
 	return true;
 }

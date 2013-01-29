@@ -115,8 +115,11 @@ $Default Campaign File Name: FreeSpace2									\n\
 ;; Sets the delay before a directive will appear on the screen (ms)		\n\
 $Directive Wait Time: 3000												\n\
 																		\n\
-;; Turns off the HUD when in-game cutscenes are playing					\n\
-$Cutscene camera disables HUD: YES										\n\
+;; If set, shows the HUD during in-game cutscenes						\n\
+$Cutscene camera displays HUD: NO										\n\
+																		\n\
+;; If set, uses the colors of the ANI instead of the colors of the HUD	\n\
+$Full color head animations: NO											\n\
 																		\n\
 																		\n\
 #SEXP SETTINGS															\n\
@@ -132,16 +135,19 @@ $Use Alternate Chaining Behavior: NO									\n\
 																		\n\
 																		\n\
 #GRAPHICS SETTINGS														\n\
+																		\n\
 ;; When set, this enables the loading of external shader files			\n\
 $Enable external shaders: NO											\n\
 																		\n\
 																		\n\
 #OTHER SETTINGS															\n\
 																		\n\
-;; DESCRIPTION NEEDED!													\n\
+;; If not set, a hit to a turret's barrels will not count as a hit to	\n\
+;; the turret unless it is also within the turret base's radius.		\n\
 $Fixed Turret Collisions: NO											\n\
-																		\n\
-;; If not set, will damage nearest subsystem first						\n\
+																		\n""\
+;; If not set, hits will damage nearest subsystem first, rather than the\n\
+;; impacted physical subsystem first.									\n\
 $Damage Impacted Subsystem First: NO									\n\
 																		\n\
 ;; used when no ani is specified or ship_select_3d is active			\n\
@@ -150,6 +156,8 @@ $Default ship select effect: FS2										\n\
 ;; used when no ani is specified or weapon_select_3d is active			\n\
 $Default weapon select effect: FS2										\n\
 																		\n\
+;; Enable weapons to inherit their parent object's collision group setting \n\
+$Weapons inherit parent collision group: NO								\n\
 																		\n\
 #END																	\n\
 ";
@@ -836,7 +844,7 @@ $AI Maybe Links Energy Weapons: 90, 60, 40, 20, 10						\n\
 																		\n\
 ;; maximum number of missiles allowed to be homing in on a player at a	\n\
 ;; given time (single-player only; no restriction in multiplayer)		\n\
-$Max Missles Locked on Player: 2, 3, 4, 7, 99							\n\
+$Max Missiles Locked on Player: 2, 3, 4, 7, 99							\n\
 																		\n\
 ;; maximum number of ships allowed to be attacking the player at a		\n\
 ;; given time (single-player only; no restriction in multiplayer)		\n\
@@ -899,7 +907,8 @@ $Stalemate Time Threshold: 0, 0, 0, 0, 0								\n\
 ;; for a dogfight stalemate												\n\
 $Stalemate Distance Threshold: 0, 0, 0, 0, 0							\n\
 																		\n\
-;; factor applied to the speed at which the player's shields recharge	\n\
+;; Sets the factor applied to the speed at which the player's shields	\n\
+;; recharge																\n\
 $Player Shield Recharge Scale: 4, 2, 1.5, 1.25, 1						\n\
 																		\n\
 ;; factor applied to the speed at which the player's weapons recharge	\n\
@@ -1037,7 +1046,7 @@ $score assists based on damage caused: NO								\n\
 $allow event and goal scoring in multiplayer: NO						\n\
 																		\n\
 ;; if set, the AI will properly link primaries according to				\n\
-;; specified percentages of energy levels instead of retail behavior	\n\
+;; specified percentages of energy levels, instead of retail behavior	\n\
 ;; where it mistakenly linked according to absolute energy levels		\n\
 $fix linked primary weapon decision bug: NO								\n\
 																		\n\
@@ -1061,7 +1070,7 @@ $multi allow empty primaries:		NO									\n\
 ;; allow a player to commit into a multiplayer game without secondaries	\n\
 $multi allow empty secondaries:		NO									\n\
 																		\n\
-;; if set, allows turrets target other weapons that bombs assuming		\n\
+;; if set, allows turrets target other weapons than bombs assuming		\n\
 ;; it is within allowed target priorities								\n\
 $allow turrets target weapons freely: NO								\n\
 																		\n\
@@ -1072,17 +1081,33 @@ $use only single fov for turrets:		NO								\n\
 ;; allow AI ships to dodge weapons vertically as well as horizontally	\n\
 $allow vertical dodge:	NO												\n\
 																		\n""\
+;; If set makes beam turrets use same FOV rules as other weapons do.	\n\
+;; Prevents beam from a turret from following the target beyond the		\n\
+;; turret's FOV.														\n\
+$force beam turrets to use normal fov: NO								\n\
+																		\n\
 ;; Fixes a bug where AI class is not properly set if set in the mission	\n\
 ;; This should be YES if you want anything in AI.tbl to mean anything	\n\
 $fix AI class bug:	NO													\n\
+																		\n\
+;; TBD																	\n\
+$turrets ignore targets radius in range checks: NO						\n\
 																		\n\
 ;; If set, the AI will NOT make extra effort to avoid ramming the player\n\
 ;; during dogfights. This results in more aggressive AI.				\n\
 $no extra collision avoidance vs player:	NO							\n\
 																		\n\
-;; If set, the game will check if the dying ship is a player's wingman, \n\
-;; before making it give a death scream					 				\n\
-$perform less checks for death screams:	NO								\n\
+;; If set, the game will not check if the dying ship is a player's		\n\
+;; wingman, or if the maximum number of screams have been played, or 	\n\
+;; even if the dying ship is on the player's team before making it give	\n\
+;; a death scream										 				\n\
+$perform fewer checks for death screams:	NO							\n\
+																		\n\
+;; TBD																	\n\
+$advanced turret fov edge checks: NO									\n\
+																		\n\
+;; TBD																	\n\
+$require turrets to have target in fov: NO								\n\
 																		\n\
 ;; If set, allows shield management for all ships						\n\
 ;; (including capships).												\n\
@@ -1091,13 +1116,29 @@ $all ships manage shields:				NO								\n\
 ;; If set, ai aims using ship center instead of first gunpoint			\n\
 $ai aims from ship center:			NO									\n\
 																		\n\
-;; If set, prevents fighters from linking their weapons in the first	\n\
-;; few minutes of the mission											\n\
-$allow primary link delay:				YES								\n\
+;; If set, allows AI fighters to link their weapons at the beginning of	\n\
+;; a mission instead of imposing a delay of 30s to 120s					\n\
+$allow primary link at mission start:	NO								\n\
 																		\n\
 ;; If set, prevents beams from instantly killing all weapons from first	\n\
 ;; hit, instead allows weapon hitpoints to be used instead				\n\
 $allow beams to damage bombs:			NO								\n\
+																		\n\
+;; TBD																	\n\
+$disable weapon damage scaling for player:	NO							\n""\
+																		\n\
+;; TBD																	\n\
+$countermeasures affect aspect seekers:	NO								\n\
+																		\n\
+;; TBD																	\n\
+$ai path mode:	normal													\n\
+																		\n\
+;; TBD																	\n\
+$no warp camera:	NO													\n\
+																		\n\
+;; If set, this flag overrides the retail behavior whereby a ship		\n\
+;; assigned to guard a ship in a wing will instead guard the entire wing\n\
+$ai guards specific ship in wing:	NO									\n\
 																		\n\
 #End																	\n\
 ";
@@ -1261,16 +1302,25 @@ char* Default_main_vertex_shader =
 "#ifdef FLAG_FOG\n"
 "varying float fogDist;\n"
 "#endif\n"
+"#ifdef FLAG_THRUSTER\n"
+"uniform float thruster_scale;\n"
+"#endif\n"
 "varying vec4 position;\n"
 "varying vec3 lNormal;\n"
 "void main()\n"
 "{\n"
 "	gl_TexCoord[0] = gl_TextureMatrix[0] * gl_MultiTexCoord0;\n"
-"	gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_Vertex;\n"
+"	vec4 vertex = gl_Vertex;\n"
+" #ifdef FLAG_THRUSTER\n"
+"	if(vertex.z < -1.5) {\n"
+"		vertex.z *= thruster_scale;\n"
+"	}\n"
+" #endif\n"
+"	gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vertex;\n"
 "	gl_FrontColor = gl_Color;\n"
 "	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
 " // Transform the normal into eye space and normalize the result.\n"
-"	position = gl_ModelViewMatrix * gl_Vertex;\n"
+"	position = gl_ModelViewMatrix * vertex;\n"
 "	vec3 normal = normalize(gl_NormalMatrix * gl_Normal);\n"
 "	lNormal = normal;\n"
 " #ifdef FLAG_NORMAL_MAP\n"
@@ -1288,7 +1338,7 @@ char* Default_main_vertex_shader =
 " #ifdef FLAG_FOG\n"
 "	fogDist = clamp((gl_Position.z - gl_Fog.start) * 0.75 * gl_Fog.scale, 0.0, 1.0);\n"
 " #endif\n"
-"	gl_ClipVertex = (gl_ModelViewMatrix * gl_Vertex);\n"
+"	gl_ClipVertex = (gl_ModelViewMatrix * vertex);\n"
 "}";
 
 char *Default_main_fragment_shader = 
@@ -1297,6 +1347,10 @@ char *Default_main_fragment_shader =
 "#endif\n"
 "#ifdef FLAG_DIFFUSE_MAP\n"
 "uniform sampler2D sBasemap;\n"
+"uniform int desaturate;\n"
+"uniform float desaturate_r;\n"
+"uniform float desaturate_g;\n"
+"uniform float desaturate_b;\n"
 "#endif\n"
 "#ifdef FLAG_GLOW_MAP\n"
 "uniform sampler2D sGlowmap;\n"
@@ -1514,6 +1568,15 @@ char *Default_main_fragment_shader =
 "	 #endif\n"
 "	}\n"
 " #else\n"
+"	#ifdef FLAG_DIFFUSE_MAP\n"
+"		if(desaturate == 1) {\n"
+"			float intensity = 0.0;\n"
+"			intensity = (fragmentColor.r + fragmentColor.g + fragmentColor.b)/3.0;\n"
+"			float alpha = fragmentColor.a;\n"
+"			fragmentColor = vec4(desaturate_r, desaturate_g, desaturate_b, 1.0) * intensity;\n"
+"			fragmentColor.a = alpha;\n"
+"		}\n"
+"	#endif\n"
 "	gl_FragColor = fragmentColor;\n"
 " #endif\n"
 "}";
@@ -2242,12 +2305,13 @@ char* Default_particle_vertex_shader =
 "#ifdef FLAG_DISTORTION\n"
 "attribute float offset_in;\n"
 "varying float offset_out;\n"
+"uniform float use_offset;\n"
 "#endif\n"
 "void main()\n"
 "{\n"
 "	radius = radius_in;\n"
 "	#ifdef FLAG_DISTORTION\n"
-"	offset_out = offset_in;\n"
+"	offset_out = offset_in * use_offset;\n"
 "	#endif\n"
 "	gl_TexCoord[0] = gl_MultiTexCoord0;\n"
 "	gl_Position = ftransform();\n"

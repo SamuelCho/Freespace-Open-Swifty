@@ -299,7 +299,7 @@ void shipfx_maybe_create_live_debris_at_ship_death( object *ship_obj )
 
 }
 
-void shipfx_blow_off_subsystem(object *ship_obj,ship *ship_p,ship_subsys *subsys, vec3d *exp_center)
+void shipfx_blow_off_subsystem(object *ship_obj,ship *ship_p,ship_subsys *subsys, vec3d *exp_center, bool no_explosion)
 {
 	vec3d subobj_pos;
 	int model_num = Ship_info[ship_p->ship_info_index].model_num;
@@ -312,7 +312,7 @@ void shipfx_blow_off_subsystem(object *ship_obj,ship *ship_p,ship_subsys *subsys
 	shipfx_remove_submodel_ship_sparks(ship_p, psub->subobj_num);
 
 	// create debris shards
-	if (!(subsys->flags & SSF_VANISHED)) {
+	if (!(subsys->flags & SSF_VANISHED) && !no_explosion) {
 		shipfx_blow_up_model(ship_obj, model_num, psub->subobj_num, 50, &subobj_pos );
 
 		// create live debris objects, if any
@@ -655,8 +655,7 @@ int compute_special_warpout_stuff(object *objp, float *speed, float *warp_time, 
 	}
 	
 	if (!valid_reference_ship) {
-		Int3();
-		mprintf(("special warpout reference ship not found\n"));
+		mprintf(("Special warpout reference ship is not a Knossos\n"));
 		return -1;
 	}
 	sip = &Ship_info[Ships[objp->instance].ship_info_index];
@@ -1121,7 +1120,7 @@ int shipfx_eye_in_shadow( vec3d *eye_pos, object * src_obj, int sun_n )
 
 					if ( mc.bsp_leaf ) {
 						if ( mc.bsp_leaf->tmap_num < 255 ) {
-							polymodel *pm = model_get(sip->cockpit_model_num);
+							polymodel *pm = model_get(sip->model_num);
 							int tmap_num = mc.bsp_leaf->tmap_num;
 
 							if ( !(pm->maps[tmap_num].is_transparent) && strcmp(bm_get_filename(mc.hit_bitmap), "glass.dds") ) {
@@ -3886,9 +3885,9 @@ int WE_BSG::warpShipClip()
 
 	if(direction == WD_WARP_OUT && stage > 0)
 	{
-		vec3d pos;
-		vm_vec_scale_add(&pos, &objp->pos, &objp->orient.vec.fvec, objp->radius);
-		g3_start_user_clip_plane( &pos, &objp->orient.vec.fvec );
+		vec3d position;
+		vm_vec_scale_add(&position, &objp->pos, &objp->orient.vec.fvec, objp->radius);
+		g3_start_user_clip_plane( &position, &objp->orient.vec.fvec );
 	}
 	return 1;
 }
@@ -3967,10 +3966,10 @@ int WE_BSG::getWarpPosition(vec3d *output)
 	if(!this->isValid())
 		return 0;
 
-	vec3d pos;
-	vm_vec_scale_add(&pos, &objp->pos, &objp->orient.vec.fvec, objp->radius);
+	vec3d position;
+	vm_vec_scale_add(&position, &objp->pos, &objp->orient.vec.fvec, objp->radius);
 
-	*output = pos;
+	*output = position;
 	return 1;
 }
 

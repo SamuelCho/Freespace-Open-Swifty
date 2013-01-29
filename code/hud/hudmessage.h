@@ -14,6 +14,7 @@
 
 #include "hud/hud.h"
 #include "anim/packunpack.h"
+#include "graphics/generic.h"
 
 #define MAX_HUD_LINE_LEN			256			// maximum number of characters for a HUD message
 
@@ -37,7 +38,7 @@ typedef struct HUD_message_data {
 typedef struct line_node {
 	line_node* next;
 	line_node* prev;
-	int time;  // timestamp when message was added
+	fix time;  // timestamp when message was added
 	int source;  // who/what the source of the message was (for color coding)
 	int x;
 	int y;
@@ -86,6 +87,7 @@ protected:
 	int Step_size;
 	int Total_life;
 	int Line_h;
+	bool Hidden_by_comms_menu;
 
 	int Window_width;
 	int Window_height;
@@ -105,6 +107,7 @@ public:
 	void initScrollTime(int ms);
 	void initStepSize(int h);
 	void initTotalLife(int ms);
+	void initHiddenByCommsMenu(bool hide);
 
 	void clearMessages();
 	void processMessageBuffer();
@@ -124,7 +127,8 @@ class HudGaugeTalkingHead: public HudGauge // HUD_TALKING_HEAD
 	int Anim_offsets[2];
 	int Anim_size[2];
 
-	anim_instance *head_anim;
+	generic_anim *head_anim;
+	
 	int msg_id;
 public:
 	HudGaugeTalkingHead();

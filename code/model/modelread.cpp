@@ -268,6 +268,10 @@ void model_unload(int modelnum, int force)
 			Ship_info[i].model_num = -1;
 		}
 
+		if ( pm->id == Ship_info[i].cockpit_model_num ) {
+			Ship_info[i].cockpit_model_num = -1;
+		}
+
 		if ( pm->id == Ship_info[i].model_num_hud ) {
 			Ship_info[i].model_num_hud = -1;
 		}
@@ -400,7 +404,8 @@ void model_copy_subsystems( int n_subsystems, model_subsystem *d_sp, model_subsy
 		for ( j = 0; j < n_subsystems; j++ ) {
 			dest = &d_sp[j];
 			if ( !subsystem_stricmp( source->subobj_name, dest->subobj_name) ) {
-				dest->flags = source->flags;
+				dest->flags |= (source->flags & MSS_MODEL_FLAG_MASK);
+				dest->flags2 |= (source->flags2 & MSS_MODEL_FLAG2_MASK);
 				dest->subobj_num = source->subobj_num;
 				dest->model_num = source->model_num;
 				dest->pnt = source->pnt;
@@ -1054,7 +1059,13 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 				pm->n_models = cfread_int(fp);
 //				mprintf(( "Num models = %d\n", pm->n_models ));
 #endif
-				
+
+				// Check for unrealistic radii
+				if ( pm->rad <= 0.1f )
+				{
+					Warning(LOCATION, "Model <%s> has a radius <= 0.1f\n", filename);
+				}
+
 				pm->submodel = (bsp_info *)vm_malloc( sizeof(bsp_info)*pm->n_models );
 				Assert(pm->submodel != NULL );
 				for ( i = 0; i < pm->n_models; i++ )
@@ -1226,6 +1237,12 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 				cfread_string_len(pm->submodel[n].name, MAX_NAME_LEN, fp);		// get the name
 				cfread_string_len(props, MAX_PROP_LEN, fp);			// and the user properties
 
+				// Check for unrealistic radii
+				if ( pm->submodel[n].rad <= 0.1f )
+				{
+					Warning(LOCATION, "Submodel <%s> in model <%s> has a radius <= 0.1f\n", pm->submodel[n].name, filename);
+				}
+				
 				// sanity first!
 				if (maybe_swap_mins_maxs(&pm->submodel[n].min, &pm->submodel[n].max)) {
 					Warning(LOCATION, "Inverted bounding box on submodel '%s' of model '%s'!  Swapping values to compensate.", pm->submodel[n].name, pm->filename);
@@ -1682,8 +1699,8 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 						if ( (p = strstr(props, "$name"))!= NULL ) {
 							get_user_prop_value(p+5, bay->name);
 
-							int len = strlen(bay->name);
-							if ((len > 0) && is_white_space(bay->name[len-1])) {
+							int length = strlen(bay->name);
+							if ((length > 0) && is_white_space(bay->name[length-1])) {
 								nprintf(("Model", "model '%s' has trailing whitespace on bay name '%s'; this will be trimmed\n", pm->filename, bay->name));
 								drop_trailing_white_space(bay->name);
 							}
@@ -1719,6 +1736,32 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 						for (j = 0; j < bay->num_slots; j++) {
 							cfread_vector( &(bay->pnt[j]), fp );
 							cfread_vector( &(bay->norm[j]), fp );
+							if(vm_vec_mag(&(bay->norm[j])) <= 0.0f) {
+								Warning(LOCATION, "Model '%s' dock point '%s' has a null normal. ", filename, bay->name);
+							}
+						}
+
+						if(vm_vec_same(&bay->pnt[0], &bay->pnt[1])) {
+							Warning(LOCATION, "Model '%s' has two identical docking slot positions on docking port '%s'. This is not allowed.  A new second slot position will be generated.", filename, bay->name);
+
+							// just move the second point over by some amount
+							bay->pnt[1].xyz.z += 10.0f;
+						}
+
+						vec3d diff;
+						vm_vec_normalized_dir(&diff, &bay->pnt[0], &bay->pnt[1]);
+						float dot = vm_vec_dotprod(&diff, &bay->norm[0]);
+						if(fl_abs(dot) > 0.99f) {
+							Warning(LOCATION, "Model '%s', docking port '%s' has docking slot positions that lie on the same axis as the docking normal.  This will cause a NULL VEC crash when docked to another ship.  A new docking normal will be generated.", filename, bay->name);
+
+							// generate a simple rotation matrix in all three dimensions (though bank is probably not needed)
+							angles a = { PI_2, PI_2, PI_2 };
+							matrix m;
+							vm_angles_2_matrix(&m, &a);
+
+							// rotate the docking normal
+							vec3d temp = bay->norm[0];
+							vm_vec_rotate(&bay->norm[0], &temp, &m);
 						}
 					}
 				}
@@ -2283,7 +2326,7 @@ void model_load_texture(polymodel *pm, int i, char *file)
 	else
 	{
 		// check if we should be transparent, include "-trans" but make sure to skip anything that might be "-transport"
-		if ( (strstr(tmp_name, "-trans") && !strstr(tmp_name, "-transpo")) || strstr(tmp_name, "shockwave") ) {
+		if ( (strstr(tmp_name, "-trans") && !strstr(tmp_name, "-transpo")) || strstr(tmp_name, "shockwave") || strstr(tmp_name, "nameplate") ) {
 			tmap->is_transparent = true;
 		}
 
@@ -4087,13 +4130,17 @@ void model_get_rotating_submodel_list(SCP_vector<int> *submodel_vector, object *
 	bsp_info *child_submodel;
 	
 	child_submodel = &pm->submodel[pm->detail[0]];
+	
+	if(child_submodel->no_collisions) { // if detail0 has $no_collision set dont check childs
+		return;
+	}
 
 	int i = child_submodel->first_child;
 	while ( i >= 0 )	{
 		child_submodel = &pm->submodel[i];
 
 		// Don't check it or its children if it is destroyed or it is a replacement (non-moving)
-		if ( !child_submodel->blown_off && (child_submodel->i_replace == -1) )	{
+		if ( !child_submodel->blown_off && (child_submodel->i_replace == -1) && !child_submodel->no_collisions && !child_submodel->nocollide_this_only)	{
 
 			// Only look for submodels that rotate
 			if (child_submodel->movement_type == MOVEMENT_TYPE_ROT) {
@@ -4752,7 +4799,7 @@ int model_create_bsp_collision_tree()
 bsp_collision_tree *model_get_bsp_collision_tree(int tree_index)
 {
 	Assert(tree_index >= 0);
-	Assert(tree_index < Bsp_collision_tree_list.size());
+	Assert((uint) tree_index < Bsp_collision_tree_list.size());
 
 	return &Bsp_collision_tree_list[tree_index];
 }

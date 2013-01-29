@@ -305,7 +305,7 @@ void mve_audio_play()
 // call this in shutdown to stop and close audio
 static void mve_audio_stop()
 {
-	if (!audiobuf_created) {
+	if (!audiobuf_created || mas == NULL) {
 		return;
 	}
 
@@ -700,7 +700,7 @@ int mve_video_init(ubyte *data)
 		glTexImage2D(GL_state.Texture.GetTarget(), 0, GL_RGB5_A1, wp2, hp2, 0, GL_BGRA_EXT, GL_UNSIGNED_SHORT_1_5_5_5_REV, NULL);
 
 		// set our color so that we can make sure that it's correct
-		glColor3f(1.0f, 1.0f, 1.0f);
+		GL_state.Color(255, 255, 255, 255);
 	}
 
 	memset(g_palette, 0, 768);

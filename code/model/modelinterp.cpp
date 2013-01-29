@@ -110,10 +110,11 @@ static color Interp_outline_color;
 static int Interp_detail_level_locked = 0;
 static uint Interp_flags = 0;
 static uint Interp_tmap_flags = 0;
+bool Interp_desaturate = false;
 
 // If non-zero, then the subobject gets scaled by Interp_thrust_scale.
-static int Interp_thrust_scale_subobj = 0;
-static float Interp_thrust_scale = 0.1f;
+int Interp_thrust_scale_subobj = 0;
+float Interp_thrust_scale = 0.1f;
 static float Interp_thrust_scale_x = 0.0f;//added -bobboau
 static float Interp_thrust_scale_y = 0.0f;//added -bobboau
 
@@ -2485,6 +2486,9 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 	for (i = 0; i < pm->n_glow_point_banks; i++ ) {
 		glow_point_bank *bank = &pm->glow_point_banks[i];
 
+		if (pm->submodel[bank->submodel_parent].blown_off)
+			continue;
+
 		if (bank->is_on) {
 			if ( (shipp != NULL) && !(shipp->glow_point_bank_active[i]) )
 				continue;
@@ -2740,6 +2744,10 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	if ( Interp_flags & MR_ANIMATED_SHADER )
 		Interp_tmap_flags |= TMAP_ANIMATED_SHADER;
 
+	if ( Interp_desaturate ) {
+		Interp_tmap_flags |= TMAP_FLAG_DESATURATE;
+	}
+
 	save_gr_zbuffering_mode = gr_zbuffering_mode;
 	zbuf_mode = gr_zbuffering_mode;
 
@@ -2899,7 +2907,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 	if (is_outlines_only_htl) {
 		gr_set_fill_mode( GR_FILL_MODE_WIRE );
-
+		gr_set_color_fast( &Interp_outline_color );
 		// lines shouldn't be rendered with textures or special RGB colors (assuming preset colors)
 		Interp_flags |= MR_NO_TEXTURING;
 		Interp_tmap_flags &= ~TMAP_FLAG_TEXTURED;
@@ -3193,6 +3201,26 @@ void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * po
 
 	//set to true since D3d and OGL need the api matrices set
 	g3_start_instance_matrix(pos, orient, true);
+	bool set_autocen = false;
+	vec3d auto_back = ZERO_VECTOR;
+	if (Interp_flags & MR_AUTOCENTER) {
+		// standard autocenter using data in model
+		if (pm->flags & PM_FLAG_AUTOCEN) {
+			auto_back = pm->autocenter;
+			vm_vec_scale(&auto_back, -1.0f);
+			set_autocen = true;
+		}
+		// fake autocenter if we are a missile and don't already have autocen info
+		else if (Interp_flags & MR_IS_MISSILE) {
+            auto_back.xyz.x = -( (pm->submodel[pm->detail[Interp_detail_level]].max.xyz.x + pm->submodel[pm->detail[Interp_detail_level]].min.xyz.x) / 2.0f );
+            auto_back.xyz.y = -( (pm->submodel[pm->detail[Interp_detail_level]].max.xyz.y + pm->submodel[pm->detail[Interp_detail_level]].min.xyz.y) / 2.0f );
+			auto_back.xyz.z = -( (pm->submodel[pm->detail[Interp_detail_level]].max.xyz.z + pm->submodel[pm->detail[Interp_detail_level]].min.xyz.z) / 2.0f );
+			set_autocen = true;
+		}
+
+		if (set_autocen)
+			g3_start_instance_matrix(&auto_back, NULL, true);
+	}
 
 	if (is_outlines_only_htl) {
 		gr_set_fill_mode( GR_FILL_MODE_WIRE );
@@ -3314,13 +3342,16 @@ void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * po
 	if ( !(Interp_flags & MR_NO_LIGHTING ) )	{
 		light_filter_pop();	
 	}
-
+	if (set_autocen)
+		g3_done_instance(true);
 	g3_done_instance(true);
 
 	// turn off fog after each model renders, RT This fixes HUD being fogged when debris is in target box
 	if(The_mission.flags & MISSION_FLAG_FULLNEB){
 		gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
 	}
+
+	gr_flush_data_states();
 }
 
 // Fills in an array with points from a model.
@@ -3431,31 +3462,33 @@ void submodel_get_two_random_points_better(int model_num, int submodel_num, vec3
 {
 	polymodel *pm = model_get(model_num);
 
-	if ( submodel_num < 0 )	{
-		submodel_num = pm->detail[0];
+	if (pm != NULL) {
+		if ( submodel_num < 0 )	{
+			submodel_num = pm->detail[0];
+		}
+
+		bsp_collision_tree *tree = model_get_bsp_collision_tree(pm->submodel[submodel_num].collision_tree_index);
+
+		int nv = tree->n_verts;
+
+		// this is not only because of the immediate div-0 error but also because of the less immediate expectation for at least one point (preferably two) to be found
+		if (nv <= 0) {
+			Error(LOCATION, "Model %d ('%s') must have at least one point from submodel_get_points_internal!", model_num, (pm == NULL) ? "<null model?!?>" : pm->filename);
+
+			// in case people ignore the error...
+			vm_vec_zero(v1);
+			vm_vec_zero(v2);
+
+			return;
+		}
+
+		Assert(nv > 0);	// Goober5000 - to avoid div-0 error
+		int vn1 = (myrand()>>5) % nv;
+		int vn2 = (myrand()>>5) % nv;
+
+		*v1 = tree->point_list[vn1];
+		*v2 = tree->point_list[vn2];
 	}
-
-	bsp_collision_tree *tree = model_get_bsp_collision_tree(pm->submodel[submodel_num].collision_tree_index);
-
-	int nv = tree->n_verts;
-
-	// this is not only because of the immediate div-0 error but also because of the less immediate expectation for at least one point (preferably two) to be found
-	if (nv <= 0) {
-		Error(LOCATION, "Model %d ('%s') must have at least one point from submodel_get_points_internal!", model_num, (pm == NULL) ? "<null model?!?>" : pm->filename);
-
-		// in case people ignore the error...
-		vm_vec_zero(v1);
-		vm_vec_zero(v2);
-
-		return;
-	}
-
-	Assert(nv > 0);	// Goober5000 - to avoid div-0 error
-	int vn1 = (myrand()>>5) % nv;
-	int vn2 = (myrand()>>5) % nv;
-
-	*v1 = tree->point_list[vn1];
-	*v2 = tree->point_list[vn2];
 }
 
 // If MR_FLAG_OUTLINE bit set this color will be used for outlines.
@@ -3860,14 +3893,11 @@ void parse_defpoint(int off, ubyte *bsp_data)
 int check_values(vec3d *N)
 {
 	// Values equal to -1.#IND0
-	if((N->xyz.x * N->xyz.x) < 0 ||
-	   (N->xyz.y * N->xyz.y) < 0 ||
-	   (N->xyz.z * N->xyz.z) < 0 ||
-	   !is_valid_vec(N))
+	if(!is_valid_vec(N))
 	{
-		N->xyz.x = 1;
-		N->xyz.y = 0;
-		N->xyz.z = 0;
+		N->xyz.x = 1.0f;
+		N->xyz.y = 0.0f;
+		N->xyz.z = 0.0f;
 		return 1;
 	}
 
@@ -4572,7 +4602,9 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		forced_blend_filter = GR_ALPHABLEND_FILTER;
 	}
 
-	gr_push_scale_matrix(&scale);
+	if (!Interp_thrust_scale_subobj) {
+		gr_push_scale_matrix(&scale);
+	}
 
 	size_t buffer_size = model->buffer.tex_buf.size();
 
@@ -4590,10 +4622,15 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		}
 		else if ( !no_texturing ) {
 			// pick the texture, animating it if necessary
-			if ( (Interp_new_replacement_textures != NULL) && (Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
+			if ( (Interp_new_replacement_textures != NULL) && (Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE] == REPLACE_WITH_INVISIBLE) ) {
+				// invisible textures aren't rendered, but we still have to skip assigning the underlying model texture
+				texture = -1;
+			} else if ( (Interp_new_replacement_textures != NULL) && (Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
+				// an underlying texture is replaced with a real new texture
 				tex_replace[TM_BASE_TYPE] = texture_info(Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE]);
 				texture = model_interp_get_texture(&tex_replace[TM_BASE_TYPE], Interp_base_frametime);
 			} else {
+				// we just use the underlying texture
 				texture = model_interp_get_texture(&tmap->textures[TM_BASE_TYPE], Interp_base_frametime);
 			}
 
@@ -4652,6 +4689,8 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 				HEIGHTMAP = model_interp_get_texture(height_map, Interp_base_frametime);
 				MISCMAP = model_interp_get_texture(misc_map, Interp_base_frametime);
 			}
+		} else {
+			alpha = forced_alpha;
 		}
 
 		if ( (texture == -1) && !no_texturing ) {
