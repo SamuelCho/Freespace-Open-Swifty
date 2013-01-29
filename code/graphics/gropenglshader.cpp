@@ -47,7 +47,7 @@ static float Anim_timer = 0.0f;
 static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
 	{ SDR_FLAG_LIGHT,		1, {"n_lights"}, 0, { NULL }, "Lighting" },
 	{ SDR_FLAG_FOG,			0, { NULL }, 0, { NULL }, "Fog Effect" },
-	{ SDR_FLAG_DIFFUSE_MAP, 1, {"sBasemap"}, 0, { NULL }, "Diffuse Mapping"},
+	{ SDR_FLAG_DIFFUSE_MAP, 5, {"sBasemap", "desaturate", "desaturate_r", "desaturate_g", "desaturate_b"}, 0, { NULL }, "Diffuse Mapping"},
 	{ SDR_FLAG_GLOW_MAP,	1, {"sGlowmap"}, 0, { NULL }, "Glow Mapping" },
 	{ SDR_FLAG_SPEC_MAP,	1, {"sSpecmap"}, 0, { NULL }, "Specular Mapping" },
 	{ SDR_FLAG_NORMAL_MAP,	1, {"sNormalmap"}, 0, { NULL }, "Normal Mapping" },
@@ -55,7 +55,8 @@ static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
 	{ SDR_FLAG_ENV_MAP,		3, {"sEnvmap", "alpha_spec", "envMatrix"}, 0, { NULL }, "Environment Mapping" },
 	{ SDR_FLAG_ANIMATED,	5, {"sFramebuffer", "effect_num", "anim_timer", "vpwidth", "vpheight"}, 0, { NULL }, "Animated Effects" },
 	{ SDR_FLAG_MISC_MAP,	1, {"sMiscmap"}, 0, { NULL }, "Utility mapping" },
-	{ SDR_FLAG_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, {}, "Team Colors" }
+	{ SDR_FLAG_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, { NULL }, "Team Colors" },
+	{ SDR_FLAG_THRUSTER,	1, {"thruster_scale"}, 0, { NULL }, "Thruster scaling" }
 };
 
 static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main) / sizeof(opengl_shader_uniform_reference_t);
@@ -64,7 +65,7 @@ static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main)
  * Static lookup referene for particle shader uniforms
  */
 static opengl_shader_uniform_reference_t GL_Uniform_Reference_Particle[] = {
-	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION), 5, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer"}, 1, { "offset_in" }, "Distorted Particles" },
+	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION), 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 1, { "offset_in" }, "Distorted Particles" },
 	{ (SDR_FLAG_SOFT_QUAD),	6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, { "radius_in" }, "Depth-blended Particles" }
 };
 
@@ -81,32 +82,34 @@ void opengl_shader_check_info_log(GLhandleARB shader_object);
  */
 void opengl_shader_set_current(opengl_shader_t *shader_obj)
 {
-	Current_shader = shader_obj;
-
-	if (Current_shader != NULL) {
-		vglUseProgramObjectARB(Current_shader->program_id);
+	if (shader_obj != NULL) {
+		if(!Current_shader || (Current_shader->program_id != shader_obj->program_id)) {
+			Current_shader = shader_obj;
+			vglUseProgramObjectARB(Current_shader->program_id);
 
 #ifndef NDEBUG
-		if ( opengl_check_for_errors("shader_set_current()") ) {
-			vglValidateProgramARB(Current_shader->program_id);
+			if ( opengl_check_for_errors("shader_set_current()") ) {
+				vglValidateProgramARB(Current_shader->program_id);
 
-			GLint obj_status = 0;
-			vglGetObjectParameterivARB(Current_shader->program_id, GL_OBJECT_VALIDATE_STATUS_ARB, &obj_status);
+				GLint obj_status = 0;
+				vglGetObjectParameterivARB(Current_shader->program_id, GL_OBJECT_VALIDATE_STATUS_ARB, &obj_status);
 
-			if ( !obj_status ) {
-				opengl_shader_check_info_log(Current_shader->program_id);
+				if ( !obj_status ) {
+					opengl_shader_check_info_log(Current_shader->program_id);
 	
-				mprintf(("VALIDATE INFO-LOG:\n"));
+					mprintf(("VALIDATE INFO-LOG:\n"));
 
-				if (strlen(GLshader_info_log) > 5) {
-					mprintf(("%s\n", GLshader_info_log));
-				} else {
-					mprintf(("<EMPTY>\n"));
+					if (strlen(GLshader_info_log) > 5) {
+						mprintf(("%s\n", GLshader_info_log));
+					} else {
+						mprintf(("<EMPTY>\n"));
+					}
 				}
 			}
-		}
 #endif
+		}
 	} else {
+		Current_shader = NULL;
 		vglUseProgramObjectARB(0);
 	}
 }
@@ -235,6 +238,10 @@ static char *opengl_load_shader(char *filename, int flags)
 
 	if (flags & SDR_FLAG_TEAMCOLOR) {
 		sflags += "#define FLAG_TEAMCOLOR\n";
+	}
+
+	if (flags & SDR_FLAG_THRUSTER) {
+		sflags += "#define FLAG_THRUSTER\n";
 	}
 
 	const char *shader_flags = sflags.c_str();

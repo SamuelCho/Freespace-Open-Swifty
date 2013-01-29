@@ -103,7 +103,7 @@ bool is_subsys_destroyed(ship *shipp, int submodel)
 // do_subobj_destroyed_stuff is called when a subobject for a ship is killed.  Separated out
 // to separate function on 10/15/97 by MWA for easy multiplayer access.  It does all of the
 // cool things like blowing off the model (if applicable, writing the logs, etc)
-void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos )
+void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos, bool no_explosion )
 {
 	ship_info *sip;
 	object *ship_obj;
@@ -121,7 +121,7 @@ void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos
 	// create fireballs when subsys destroy for large ships.
 	object* objp = &Objects[ship_p->objnum];
 
-	if (!(subsys->flags & SSF_VANISHED)) {
+	if (!(subsys->flags & SSF_VANISHED) && !no_explosion) {
 		if (objp->radius > 100.0f) {
 			// number of fireballs determined by radius of subsys
 			int num_fireballs;
@@ -230,7 +230,9 @@ void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos
 		mission_log_add_entry(LOG_SHIP_SUBSYS_DESTROYED, ship_p->ship_name, psub->subobj_name, log_index );
 		if ( ship_obj == Player_obj )
 		{
-			snd_play( &Snds[SND_SUBSYS_DIE_1], 0.0f );
+			if (!no_explosion) {
+				snd_play( &Snds[SND_SUBSYS_DIE_1], 0.0f );
+			}
 			if (strlen(psub->alt_dmg_sub_name))
 				HUD_printf(XSTR( "Your %s subsystem has been destroyed", 499), psub->alt_dmg_sub_name);
 			else {
@@ -264,7 +266,7 @@ void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos
 	}
 
 	if ( psub->subobj_num > -1 )	{
-		shipfx_blow_off_subsystem(ship_obj,ship_p,subsys,&g_subobj_pos);
+		shipfx_blow_off_subsystem(ship_obj,ship_p,subsys,&g_subobj_pos,no_explosion);
 		subsys->submodel_info_1.blown_off = 1;
 	}
 
@@ -272,7 +274,7 @@ void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos
 		subsys->submodel_info_2.blown_off = 1;
 	}
 
-	if (notify) {
+	if (notify && !no_explosion) {
 		// play sound effect when subsys gets blown up
 		int sound_index=-1;
 		if ( Ship_info[ship_p->ship_info_index].flags & SIF_HUGE_SHIP ) {

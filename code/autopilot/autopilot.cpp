@@ -225,7 +225,7 @@ extern object* Autopilot_flight_leader;
 //        * Control switched from player to AI
 //        * Time compression to 32x
 //        * Lock time compression -WMC
-//        * Tell AI to fly to targetted Nav Point (for all nav-status wings/ships)
+//        * Tell AI to fly to targeted Nav Point (for all nav-status wings/ships)
 //		  * Sets max waypoint speed to the best-speed of the slowest ship tagged
 bool StartAutopilot()
 {
@@ -1336,7 +1336,7 @@ int FindNav(char *Nav)
 {
 	for (int i = 0; i < MAX_NAVPOINTS; i++)
 	{
-		if (!stricmp(Navs[i].NavName, Nav))
+		if (!stricmp(Navs[i].m_NavName, Nav))
 			return i;
 	}
 
@@ -1401,7 +1401,7 @@ bool AddNav_Ship(char *Nav, char *TargetName, int flags)
 	// Create the NavPoint struct
 	NavPoint tnav;
 
-	strncpy(tnav.NavName, Nav, 32);
+	strncpy(tnav.m_NavName, Nav, 32);
 	tnav.flags = NP_SHIP | flags;
 
 	Assert(!(tnav.flags & NP_WAYPOINT));
@@ -1447,7 +1447,7 @@ bool AddNav_Waypoint(char *Nav, char *WP_Path, int node, int flags)
 	// Create the NavPoint struct
 	NavPoint tnav;
 
-	strncpy(tnav.NavName, Nav, 32);
+	strncpy(tnav.m_NavName, Nav, TOKEN_LENGTH);
 	tnav.flags = NP_WAYPOINT | flags;
 
 	Assert(!(tnav.flags & NP_SHIP));
@@ -1570,7 +1570,23 @@ bool Nav_UnSet_Visited(char *Nav)
 	return Nav_UnSet_Flag(Nav, NP_VISITED);
 }
 
+// ********************************************************************************************
+// Selects a navpoint by name.
+void SelectNav(char *Nav)
+{
+	for (int i = 0; i < MAX_NAVPOINTS; i++)
+	{
+		if (!stricmp(Navs[i].m_NavName, Nav))
+			if (!(Nav_Get_Flags(Nav) & NP_HIDDEN || Nav_Get_Flags(Nav) & NP_NOACCESS)) CurrentNav = i;
+	}
+}
 
+// ********************************************************************************************
+// Deselects any navpoint selected.
+void DeselectNav()
+{
+  CurrentNav = 0;
+}
 
 //+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 

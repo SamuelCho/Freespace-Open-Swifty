@@ -596,7 +596,7 @@ static SCP_vector<batch_item> distortion_map;
 
 // Used for sending verts to the vertex buffer
 effect_vertex *Batch_buffer = NULL;
-int Batch_buffer_size = 0;
+size_t Batch_buffer_size = 0;
 
 static size_t find_good_batch_item(int texture)
 {
@@ -935,12 +935,13 @@ void batch_load_buffer_distortion_map_bitmaps(effect_vertex* buffer, int *n_vert
 int batch_get_size()
 {
 	int n_to_render = 0;
+	SCP_vector<batch_item>::iterator bi;
 
-	for (SCP_vector<batch_item>::iterator bi = geometry_map.begin(); bi != geometry_map.end(); ++bi) {
+	for (bi = geometry_map.begin(); bi != geometry_map.end(); ++bi) {
 		n_to_render += bi->batch.need_to_render();
 	}
 
-	for (SCP_vector<batch_item>::iterator bi = distortion_map.begin(); bi != distortion_map.end(); ++bi) {
+	for (bi = distortion_map.begin(); bi != distortion_map.end(); ++bi) {
 		if ( bi->laser )
 			continue;
 

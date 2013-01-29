@@ -1053,6 +1053,10 @@ void init_weapon_entry(int weap_info_index)
 	wip->target_lead_scaler = 0.0f;
 
 	wip->selection_effect = Default_weapon_select_effect;
+
+	wip->hud_locked_snd = -1;
+	wip->hud_tracking_snd = -1;
+	wip->hud_in_flight_snd = -1;
 }
 
 // function to parse the information for a specific weapon type.	
@@ -1682,7 +1686,38 @@ int parse_weapon(int subtype, bool replace)
 	parse_sound("$Disarmed ImpactSnd:", &wip->impact_snd, wip->name);
 
 	parse_sound("$FlyBySnd:", &wip->flyby_snd, wip->name);
+
+	parse_sound("$TrackingSnd:", &wip->hud_tracking_snd, wip->name);
 	
+	parse_sound("$LockedSnd:", &wip->hud_locked_snd, wip->name);
+
+	parse_sound("$InFlightSnd:", &wip->hud_in_flight_snd, wip->name);
+
+	if (optional_string("+Inflight sound type:"))
+	{
+		SCP_string type;
+
+		stuff_string(type, F_NAME);
+
+		if (!stricmp(type.c_str(), "TARGETED"))
+		{
+			wip->in_flight_play_type = TARGETED;
+		}
+		else if (!stricmp(type.c_str(), "UNTARGETED"))
+		{
+			wip->in_flight_play_type = UNTARGETED;
+		}
+		else if (!stricmp(type.c_str(), "ALWAYS"))
+		{
+			wip->in_flight_play_type = ALWAYS;
+		}
+		else
+		{
+			Warning(LOCATION, "Unknown in-flight sound type \"%s\"!", type.c_str());
+			wip->in_flight_play_type = ALWAYS;
+		}
+	}
+
 	if(optional_string("$Model:"))
 	{
 		wip->render_type = WRT_POF;
@@ -2371,7 +2406,7 @@ int parse_weapon(int subtype, bool replace)
 					} else {
 						wip->particle_spewers[spew_index].particle_spew_type = PSPEW_DEFAULT;
 					}
-				// for compatability with existing tables that dont have a type tag
+				// for compatability with existing tables that don't have a type tag
 				} else if (wip->particle_spewers[spew_index].particle_spew_type == PSPEW_NONE) { // make sure the ommission of type wanst to edit an existing entry
 					wip->particle_spewers[spew_index].particle_spew_type = PSPEW_DEFAULT;
 				}
@@ -2797,13 +2832,14 @@ void parse_weaponstbl(char *filename)
 //uses a simple bucket sort to sort weapons, order of importance is:
 //Lasers
 //Beams
+//Child primary weapons
 //Fighter missiles and bombs
 //Capital missiles and bombs
-//Child weapons
+//Child secondary weapons
 void weapon_sort_by_type()
 {
-	weapon_info *lasers = NULL, *big_lasers = NULL, *beams = NULL, *missiles = NULL, *big_missiles = NULL, *child_weapons = NULL;
-	int num_lasers = 0, num_big_lasers = 0, num_beams = 0, num_missiles = 0, num_big_missiles = 0, num_child = 0;
+	weapon_info *lasers = NULL, *big_lasers = NULL, *beams = NULL, *missiles = NULL, *big_missiles = NULL, *child_primaries = NULL, *child_secondaries = NULL;
+	int num_lasers = 0, num_big_lasers = 0, num_beams = 0, num_missiles = 0, num_big_missiles = 0, num_child_primaries = 0, num_child_secondaries = 0;
 	int i, weapon_index;
 
 	// get the initial count of each weapon type
@@ -2814,7 +2850,9 @@ void weapon_sort_by_type()
 				continue;
 
 			case WP_LASER:
-				if (Weapon_info[i].wi_flags & WIF_BIG_ONLY)
+				if (Weapon_info[i].wi_flags & WIF_CHILD)
+					num_child_primaries++;
+				else if (Weapon_info[i].wi_flags & WIF_BIG_ONLY)
 					num_big_lasers++;
 				else
 					num_lasers++;
@@ -2826,7 +2864,7 @@ void weapon_sort_by_type()
 
 			case WP_MISSILE:
 				if (Weapon_info[i].wi_flags & WIF_CHILD)
-					num_child++;
+					num_child_secondaries++;
 				else if (Weapon_info[i].wi_flags & WIF_BIG_ONLY)
 					num_big_missiles++;
 				else
@@ -2870,10 +2908,16 @@ void weapon_sort_by_type()
 		num_big_missiles = 0;
 	}
 
-	if (num_child) {
-		child_weapons = new weapon_info[num_child];
-		Verify( child_weapons != NULL );
-		num_child = 0;
+	if (num_child_primaries) {
+		child_primaries = new weapon_info[num_child_primaries];
+		Verify( child_primaries != NULL );
+		num_child_primaries = 0;
+	}
+
+	if (num_child_secondaries) {
+		child_secondaries = new weapon_info[num_child_secondaries];
+		Verify( child_secondaries != NULL );
+		num_child_secondaries = 0;
 	}
 
 	// fill the buckets
@@ -2884,7 +2928,9 @@ void weapon_sort_by_type()
 				continue;
 
 			case WP_LASER:
-				if (Weapon_info[i].wi_flags & WIF_BIG_ONLY)
+				if (Weapon_info[i].wi_flags & WIF_CHILD)
+					child_primaries[num_child_primaries++] = Weapon_info[i];
+				else if (Weapon_info[i].wi_flags & WIF_BIG_ONLY)
 					big_lasers[num_big_lasers++] = Weapon_info[i];
 				else
 					lasers[num_lasers++] = Weapon_info[i];
@@ -2896,7 +2942,7 @@ void weapon_sort_by_type()
 
 			case WP_MISSILE:
 				if (Weapon_info[i].wi_flags & WIF_CHILD)
-					child_weapons[num_child++] = Weapon_info[i];
+					child_secondaries[num_child_secondaries++] = Weapon_info[i];
 				else if (Weapon_info[i].wi_flags & WIF_BIG_ONLY)
 					big_missiles[num_big_missiles++] = Weapon_info[i];
 				else
@@ -2920,6 +2966,9 @@ void weapon_sort_by_type()
 	for (i = 0; i < num_beams; i++, weapon_index++)
 		Weapon_info[weapon_index] = beams[i];
 
+	for (i = 0; i < num_child_primaries; i++, weapon_index++)
+		Weapon_info[weapon_index] = child_primaries[i];
+
 	// designate start of secondary weapons so that we'll have the correct offset later on
 	First_secondary_index = weapon_index;
 
@@ -2929,8 +2978,8 @@ void weapon_sort_by_type()
 	for (i = 0; i < num_big_missiles; i++, weapon_index++)
 		Weapon_info[weapon_index] = big_missiles[i];
 
-	for (i = 0; i < num_child; i++, weapon_index++)
-		Weapon_info[weapon_index] = child_weapons[i];
+	for (i = 0; i < num_child_secondaries; i++, weapon_index++)
+		Weapon_info[weapon_index] = child_secondaries[i];
 
 
 	if (lasers)			delete [] lasers;
@@ -2938,7 +2987,8 @@ void weapon_sort_by_type()
 	if (beams)			delete [] beams;
 	if (missiles)		delete [] missiles;
 	if (big_missiles)	delete [] big_missiles;
-	if (child_weapons)	delete [] child_weapons;
+	if (child_primaries)	delete [] child_primaries;
+	if (child_secondaries)	delete [] child_secondaries;
 }
 
 /**
@@ -3243,7 +3293,6 @@ void weapon_do_post_parse()
 	weapon_info *wip;
 	int first_cmeasure_index = -1;
 	int i;
-	char *weakp;
 
 	weapon_sort_by_type();	// NOTE: This has to be first thing!
 	weapon_clean_entries();
@@ -3265,22 +3314,6 @@ void weapon_do_post_parse()
 		// catch a fall back cmeasure index, just in case
 		if ( (first_cmeasure_index < 0) && (wip->wi_flags & WIF_CMEASURE) )
 			first_cmeasure_index = i;
-
-		// if we are a "#weak" weapon then popup a warning if we don't have the "player allowed" flag set
-		if ( !(wip->wi_flags & WIF_PLAYER_ALLOWED) && ((weakp = stristr(wip->name, "#weak")) != NULL) ) {
-			int idx = -1;
-			char non_weak[NAME_LENGTH];
-			memset(non_weak, 0, NAME_LENGTH);	// Valathil
-
-			strncpy(non_weak, wip->name, weakp - wip->name);	// Valathil taking into account the possibility of another suffix after #weak
-			idx = weapon_info_lookup(non_weak);
-
-			// only add the flag if the non-weak version is also player-allowed
-			if ( (idx >= 0) && (Weapon_info[idx].wi_flags & WIF_PLAYER_ALLOWED) ) {
-				mprintf(("Weapon '%s' requires the \"player allowed\" flag, but it's not listed!  Adding it by default.\n", wip->name));
-				wip->wi_flags |= WIF_PLAYER_ALLOWED;
-			}
-		}
 	}
 
 	// catch cmeasure fallback
@@ -3625,7 +3658,7 @@ void weapon_render(object *obj)
 		}
 
 		default:
-			Warning(LOCATION, "Unknown weapon rendering type = %i\n", wip->render_type);
+			Warning(LOCATION, "Unknown weapon rendering type = %i for weapon %s\n", wip->render_type, wip->name);
 	}
 }
 
@@ -3663,6 +3696,11 @@ void weapon_delete(object *obj)
 	if (wp->trail_ptr != NULL) {
 		trail_object_died(wp->trail_ptr);
 		wp->trail_ptr = NULL;
+	}
+
+	if (wp->hud_in_flight_snd_sig >= 0 && snd_is_playing(wp->hud_in_flight_snd_sig))
+	{
+		snd_stop(wp->hud_in_flight_snd_sig);
 	}
 
 	wp->objnum = -1;
@@ -4701,6 +4739,33 @@ void weapon_process_post(object * obj, float frame_time)
 		}
 	}
 
+	if (wip->hud_in_flight_snd >= 0 && obj->parent_sig == Player_obj->signature)
+	{
+		bool play_sound = false;
+		switch (wip->in_flight_play_type)
+		{
+		case TARGETED:
+			play_sound = wp->homing_object != &obj_used_list;
+			break;
+		case UNTARGETED:
+			play_sound = wp->homing_object == &obj_used_list;
+			break;
+		case ALWAYS:
+			play_sound = true;
+			break;
+		default:
+			Error(LOCATION, "Unknown in-flight sound status %d!", (int) wip->in_flight_play_type);
+			break;
+		}
+
+		if (play_sound)
+		{
+			if (wp->hud_in_flight_snd_sig < 0 || !snd_is_playing(wp->hud_in_flight_snd_sig))
+			{
+				wp->hud_in_flight_snd_sig = snd_play_looping(&Snds[wip->hud_in_flight_snd]);
+			}
+		}
+	}
 }
 
 /**
@@ -4805,9 +4870,13 @@ void weapon_set_tracking_info(int weapon_objnum, int parent_objnum, int target_o
 	}
 }
 
-inline size_t* get_pointer_to_weapon_fire_pattern_index(int weapon_type, ship* shipp) {
+inline size_t* get_pointer_to_weapon_fire_pattern_index(int weapon_type, ship* shipp, ship_subsys * src_turret) {
 	Assert( shipp != NULL );
 	ship_weapon* ship_weapon_p = &(shipp->weapons);
+	if(src_turret)
+	{
+		ship_weapon_p = &src_turret->weapons;
+	}
 	Assert( ship_weapon_p != NULL );
 
 	// search for the corresponding bank pattern index for the weapon_type that is being fired.
@@ -4832,7 +4901,7 @@ inline size_t* get_pointer_to_weapon_fire_pattern_index(int weapon_type, ship* s
  * @return Index of weapon in the Objects[] array, -1 if the weapon object was not created
  */
 int Weapons_created = 0;
-int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_objnum, int group_id, int is_locked, int is_spawned, float fof_cooldown)
+int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_objnum, int group_id, int is_locked, int is_spawned, float fof_cooldown, ship_subsys * src_turret)
 {
 	int			n, objnum;
 	int num_deleted;
@@ -4866,7 +4935,7 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 		ship* parent_shipp = &(Ships[parent_objp->instance]);
 		Assert( parent_shipp != NULL );
 
-		size_t *position = get_pointer_to_weapon_fire_pattern_index(weapon_type, parent_shipp);
+		size_t *position = get_pointer_to_weapon_fire_pattern_index(weapon_type, parent_shipp, src_turret);
 		Assertion( position != NULL, "'%s' is trying to fire a weapon that is not selected", Ships[parent_objp->instance].ship_name );
 
 		*position = ++(*position) % wip->weapon_substitution_pattern.size();
@@ -4887,11 +4956,7 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 		//if ( !(Objects[parent_objnum].flags & OF_PLAYER_SHIP) )
 		//	return -1;
 
-		if ( Cmdline_old_collision_sys ) {
-			num_deleted = collide_remove_weapons();
-		} else {
-			num_deleted = 0;
-		}
+		num_deleted = collide_remove_weapons();
 
 		nprintf(("WARNING", "Deleted %d weapons because of lack of slots\n", num_deleted));
 		if (num_deleted == 0){
@@ -5192,6 +5257,7 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 		pm = model_get(Weapon_info[wp->weapon_info_index].model_num);
 
 		for (i=0; i<pm->n_detail_levels; i++){
+			// for weapons, detail levels are all preset to -1
 			if (wip->detail_distance[i] >= 0)
 				pm->detail_depth[i] = i2fl(wip->detail_distance[i]);
 			else
@@ -5222,6 +5288,7 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 	wp->alpha_backward = 0;
 
 	wp->collisionOccured = false;
+	wp->hud_in_flight_snd_sig = -1;
 
 	Num_weapons++;
 
@@ -5231,6 +5298,10 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 	{
 		wp->damage_ship[i] = 0.0f;
 		wp->damage_ship_id[i] = -1;
+	}
+
+	if (Weapons_inherit_parent_collision_group) {
+		Objects[objnum].collision_group_id = Objects[parent_objnum].collision_group_id;
 	}
 
 	return objnum;
@@ -5537,7 +5608,7 @@ void weapon_do_electronics_effect(object *ship_objp, vec3d *blast_pos, int wi_in
 }
 
 /**
- * Calculate teh damage for an object based on the location of an area-effect
+ * Calculate the damage for an object based on the location of an area-effect
  * explosion.
  *
  * @param objp			Object pointer ship receiving blast effect
@@ -5555,23 +5626,33 @@ void weapon_do_electronics_effect(object *ship_objp, vec3d *blast_pos, int wi_in
  */
 int weapon_area_calc_damage(object *objp, vec3d *pos, float inner_rad, float outer_rad, float max_blast, float max_damage, float *blast, float *damage, float limit)
 {
-	float			dist, max_dist, min_dist;
+	float dist;
+	vec3d box_pt;
 
-	max_dist = objp->radius + outer_rad;
-	dist = vm_vec_dist_quick(&objp->pos, pos);	
-	if ( (dist > max_dist) || (dist > (limit+objp->radius)) ) {
+	// if object receiving the blast is a ship, use the bbox for distances
+	// otherwise use the objects radius
+	// could possibly exclude SIF_SMALL_SHIP (& other small objects) from using the bbox
+	if (objp->type == OBJ_SHIP) {
+		int inside = get_nearest_bbox_point(objp, pos, &box_pt);
+		if (inside) {
+			dist = 0.0001f;
+		} else {
+			dist = vm_vec_dist_quick(pos, &box_pt);
+		}
+	} else {
+		dist = vm_vec_dist_quick(&objp->pos, pos) - objp->radius;
+	}
+
+	if ( (dist > outer_rad) || (dist > limit) ) {
 		return -1;	// spheres don't intersect at all
 	}
 
-	if ( dist < (inner_rad+objp->radius) ) {
+	if ( dist < inner_rad ) {
 		// damage is maximum within inner radius
 		*damage = max_damage;
 		*blast = max_blast;
 	} else {
-		min_dist = dist - objp->radius;
-		Assert(min_dist < outer_rad);
-
-		float dist_to_outer_rad_squared = (outer_rad-min_dist)*(outer_rad-min_dist);
+		float dist_to_outer_rad_squared = (outer_rad-dist)*(outer_rad-dist);
 		float total_dist_squared = (inner_rad-outer_rad)*(inner_rad-outer_rad);
 
 		// this means the inner and outer radii are basically equal... and since we aren't within the inner radius,
@@ -5583,8 +5664,7 @@ int weapon_area_calc_damage(object *objp, vec3d *pos, float inner_rad, float out
 		// AL 2-24-98: drop off damage relative to square of distance
 		Assert(dist_to_outer_rad_squared <= total_dist_squared);
 		*damage = max_damage * dist_to_outer_rad_squared/total_dist_squared;
-
-		*blast =  (min_dist - outer_rad) * max_blast /(inner_rad - outer_rad);
+		*blast =  (dist - outer_rad) * max_blast /(inner_rad - outer_rad);
 	}
 
 	return 0;
@@ -6264,7 +6344,7 @@ void weapon_maybe_spew_particle(object *obj)
 				wp->particle_spew_time[psi] = timestamp(wip->particle_spewers[0].particle_spew_time);
 
 				// turn normals and origins to world space if we need to
-				if (!vm_vec_same(&wip->particle_spewers[psi].particle_spew_offset, &vmd_zero_vector)) {	// dont xform unused vectors
+				if (!vm_vec_same(&wip->particle_spewers[psi].particle_spew_offset, &vmd_zero_vector)) {	// don't xform unused vectors
 					vm_vec_unrotate(&spawn_pos, &wip->particle_spewers[psi].particle_spew_offset, &obj->orient);
 				} else {
 					spawn_pos = vmd_zero_vector;
@@ -6379,7 +6459,7 @@ void weapon_maybe_spew_particle(object *obj)
 						vm_vec_rand_vec_quick(&input_vel);
 						vm_vec_scale(&input_vel, wip->particle_spewers[psi].particle_spew_scale);
 						
-						if (wip->particle_spewers[psi].particle_spew_z_scale != 1.0f) {	// dont do the extra math for spherical effect
+						if (wip->particle_spewers[psi].particle_spew_z_scale != 1.0f) {	// don't do the extra math for spherical effect
 							temp_vel = input_vel;
 							temp_vel.xyz.z *= wip->particle_spewers[psi].particle_spew_z_scale;	// for an oviod particle effect to better combine with laser effects
 							vm_vec_unrotate(&input_vel, &temp_vel, &obj->orient);				// so it has to be rotated
@@ -6640,4 +6720,36 @@ float weapon_get_damage_scale(weapon_info *wip, object *wep, object *target)
 	}
 	
 	return total_scale;
+}
+
+void pause_in_flight_sounds()
+{
+	for (int i = 0; i < MAX_WEAPONS; i++)
+	{
+		if (Weapons[i].objnum != -1)
+		{
+			weapon* wp = &Weapons[i];
+
+			if (wp->hud_in_flight_snd_sig >= 0 && snd_is_playing(wp->hud_in_flight_snd_sig))
+			{
+				// Stop sound, it will be restarted in the first frame after the game is unpaused
+				snd_stop(wp->hud_in_flight_snd_sig);
+			}
+		}
+	}
+}
+
+void weapon_pause_sounds()
+{
+	// Pause all beam sounds
+	beam_pause_sounds();
+
+	// Pause in-flight sounds
+	pause_in_flight_sounds();
+}
+
+void weapon_unpause_sounds()
+{
+	// Pause all beam sounds
+	beam_unpause_sounds();
 }

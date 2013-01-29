@@ -95,6 +95,7 @@
 #include "asteroid/asteroid.h"
 #include "mod_table/mod_table.h"
 #include "ship/afterburner.h"
+#include "globalincs/alphacolors.h"
 
 #ifndef NDEBUG
 #include "hud/hudmessage.h"
@@ -104,6 +105,7 @@
 #include "object/objectshield.h"
 #include "network/multi_sexp.h"
 #include "io/keycontrol.h"
+#include "parse/generic_log.h"
 
 
 
@@ -113,555 +115,609 @@
 
 sexp_oper Operators[] = {
 //   Operator, Identity, Min / Max arguments
-	{ "+",					OP_PLUS,			2,	INT_MAX	},
-	{ "-",					OP_MINUS,			2,	INT_MAX	},
-	{ "*",					OP_MUL,				2,	INT_MAX	},
-	{ "/",					OP_DIV,				2,	INT_MAX	},
-	{ "mod",				OP_MOD,				2,	INT_MAX	},
-	{ "rand",				OP_RAND,			2,	3	},
-	{ "rand-multiple",		OP_RAND_MULTIPLE,	2,	3	},	// Goober5000
-	{ "abs",				OP_ABS,				1,	1 },	// Goober5000
-	{ "min",				OP_MIN,				1,	INT_MAX },	// Goober5000
-	{ "max",				OP_MAX,				1,	INT_MAX },	// Goober5000
-	{ "avg",				OP_AVG,				1,	INT_MAX },	// Goober5000
-	{ "pow",				OP_POW,				2,	2 },	// Goober5000
-	{ "signum",				OP_SIGNUM,			1,	1 },	// Goober5000
-	{ "set-bit",			OP_SET_BIT,			2,	2 },	// Goober5000
-	{ "unset-bit",			OP_UNSET_BIT,		2,	2 },	// Goober5000
-	{ "is-bit-set",			OP_IS_BIT_SET,		2,	2 },	// Goober5000
-	{ "bitwise-and",		OP_BITWISE_AND,		2,	INT_MAX },	// Goober5000
-	{ "bitwise-or",			OP_BITWISE_OR,		2,	INT_MAX },	// Goober5000
-	{ "bitwise-not",		OP_BITWISE_NOT,		1,	1 },	// Goober5000
-	{ "bitwise-xor",		OP_BITWISE_XOR,		2,	2 },	// Goober5000
+	//Arithmetic Category
+	{ "+",								OP_PLUS,								2,	INT_MAX,	SEXP_ARITHMETIC_OPERATOR,	},
+	{ "-",								OP_MINUS,								2,	INT_MAX,	SEXP_ARITHMETIC_OPERATOR,	},
+	{ "*",								OP_MUL,									2,	INT_MAX,	SEXP_ARITHMETIC_OPERATOR,	},
+	{ "/",								OP_DIV,									2,	INT_MAX,	SEXP_ARITHMETIC_OPERATOR,	},
+	{ "mod",							OP_MOD,									2,	INT_MAX,	SEXP_ARITHMETIC_OPERATOR,	},
+	{ "rand",							OP_RAND,								2,	3,			SEXP_ARITHMETIC_OPERATOR,	},
+	{ "rand-multiple",					OP_RAND_MULTIPLE,						2,	3,			SEXP_ARITHMETIC_OPERATOR,	},	// Goober5000
+	{ "abs",							OP_ABS,									1,	1,			SEXP_ARITHMETIC_OPERATOR,	},	// Goober5000
+	{ "min",							OP_MIN,									1,	INT_MAX,	SEXP_ARITHMETIC_OPERATOR,	},	// Goober5000
+	{ "max",							OP_MAX,									1,	INT_MAX,	SEXP_ARITHMETIC_OPERATOR,	},	// Goober5000
+	{ "avg",							OP_AVG,									1,	INT_MAX,	SEXP_ARITHMETIC_OPERATOR,	},	// Goober5000
+	{ "pow",							OP_POW,									2,	2,			SEXP_ARITHMETIC_OPERATOR,	},	// Goober5000
+	{ "signum",							OP_SIGNUM,								1,	1,			SEXP_ARITHMETIC_OPERATOR,	},	// Goober5000
+	{ "set-bit",						OP_SET_BIT,								2,	2,			SEXP_ARITHMETIC_OPERATOR,	},	// Goober5000
+	{ "unset-bit",						OP_UNSET_BIT,							2,	2,			SEXP_ARITHMETIC_OPERATOR,	},	// Goober5000
+	{ "is-bit-set",						OP_IS_BIT_SET,							2,	2,			SEXP_BOOLEAN_OPERATOR,		},	// Goober5000
+	{ "bitwise-and",					OP_BITWISE_AND,							2,	INT_MAX,	SEXP_ARITHMETIC_OPERATOR,	},	// Goober5000
+	{ "bitwise-or",						OP_BITWISE_OR,							2,	INT_MAX,	SEXP_ARITHMETIC_OPERATOR,	},	// Goober5000
+	{ "bitwise-not",					OP_BITWISE_NOT,							1,	1,			SEXP_ARITHMETIC_OPERATOR,	},	// Goober5000
+	{ "bitwise-xor",					OP_BITWISE_XOR,							2,	2,			SEXP_ARITHMETIC_OPERATOR,	},	// Goober5000
 
-	{ "true",							OP_TRUE,							0,	0,			},
-	{ "false",							OP_FALSE,						0,	0,			},
-	{ "and",								OP_AND,							2,	INT_MAX,	},
-	{ "and-in-sequence",				OP_AND_IN_SEQUENCE,			2, INT_MAX, },
-	{ "or",								OP_OR,							2,	INT_MAX,	},
-	{ "not",								OP_NOT,							1, 1,			},
-	{ "xor",								OP_XOR,							2, INT_MAX,			},	// Goober5000
-	{ "=",								OP_EQUALS,						2,	INT_MAX,	},
-	{ "!=",								OP_NOT_EQUAL,						2,	INT_MAX,	},	// Goober5000
-	{ ">",								OP_GREATER_THAN,				2,	INT_MAX,	},
-	{ ">=",								OP_GREATER_OR_EQUAL,				2,	INT_MAX,	},	// Goober5000
-	{ "<",								OP_LESS_THAN,					2,	INT_MAX,	},
-	{ "<=",								OP_LESS_OR_EQUAL,					2,	INT_MAX,	},	// Goober5000
-	{ "string-equals",						OP_STRING_EQUALS,				2,	INT_MAX,	},
-	{ "string-greater-than",				OP_STRING_GREATER_THAN,			2,	INT_MAX,	},
-	{ "string-less-than",					OP_STRING_LESS_THAN,			2,	INT_MAX,	},
-	{ "perform-actions",			OP_PERFORM_ACTIONS,						2,	INT_MAX,	},	// Goober5000
-	{ "has-time-elapsed",			OP_HAS_TIME_ELAPSED,			1,	1,			},
+	//Logical Category
+	{ "true",							OP_TRUE,								0,	0,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "false",							OP_FALSE,								0,	0,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "and",							OP_AND,									2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "and-in-sequence",				OP_AND_IN_SEQUENCE,						2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "or",								OP_OR,									2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "not",							OP_NOT,									1,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "xor",							OP_XOR,									2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},	// Goober5000
+	{ "=",								OP_EQUALS,								2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "!=",								OP_NOT_EQUAL,							2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},	// Goober5000
+	{ ">",								OP_GREATER_THAN,						2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ ">=",								OP_GREATER_OR_EQUAL,					2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},	// Goober5000
+	{ "<",								OP_LESS_THAN,							2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "<=",								OP_LESS_OR_EQUAL,						2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},	// Goober5000
+	{ "string-equals",					OP_STRING_EQUALS,						2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "string-greater-than",			OP_STRING_GREATER_THAN,					2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "string-less-than",				OP_STRING_LESS_THAN,					2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "perform-actions",				OP_PERFORM_ACTIONS,						2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},	// Goober5000
+	{ "has-time-elapsed",				OP_HAS_TIME_ELAPSED,					1,	1,			SEXP_BOOLEAN_OPERATOR,	},
 
-	{ "is-goal-true-delay",					OP_GOAL_TRUE_DELAY,				2, 2,	},
-	{ "is-goal-false-delay",				OP_GOAL_FALSE_DELAY,				2, 2,	},
-	{ "is-goal-incomplete",					OP_GOAL_INCOMPLETE,				1, 1,	},
-	{ "is-event-true",						OP_EVENT_TRUE,							1, 1,			},
-	{ "is-event-true-delay",				OP_EVENT_TRUE_DELAY,				2, 3,	},
-	{ "is-event-true-msecs-delay",			OP_EVENT_TRUE_MSECS_DELAY,			2, 3,	},
-	{ "is-event-false",						OP_EVENT_FALSE,						1, 1,			},
-	{ "is-event-false-delay",				OP_EVENT_FALSE_DELAY,			2, 3,	},
-	{ "is-event-false-msecs-delay",			OP_EVENT_FALSE_MSECS_DELAY,		2, 3,	},
-	{ "is-event-incomplete",				OP_EVENT_INCOMPLETE,				1, 1,	},
-	{ "is-previous-goal-true",				OP_PREVIOUS_GOAL_TRUE,			2, 3,	},
-	{ "is-previous-goal-false",				OP_PREVIOUS_GOAL_FALSE,			2, 3,	},
-	{ "is-previous-goal-incomplete",		OP_PREVIOUS_GOAL_INCOMPLETE,	2, 3,	},
-	{ "is-previous-event-true",				OP_PREVIOUS_EVENT_TRUE,			2, 3,	},
-	{ "is-previous-event-false",			OP_PREVIOUS_EVENT_FALSE,		2, 3,	},
-	{ "is-previous-event-incomplete",		OP_PREVIOUS_EVENT_INCOMPLETE,	2, 3,	},
+	//Event/Goals Category
+	{ "is-goal-true-delay",				OP_GOAL_TRUE_DELAY,						2,	2,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-goal-false-delay",			OP_GOAL_FALSE_DELAY,					2,	2,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-goal-incomplete",				OP_GOAL_INCOMPLETE,						1,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-event-true",					OP_EVENT_TRUE,							1,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-event-true-delay",			OP_EVENT_TRUE_DELAY,					2,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-event-true-msecs-delay",		OP_EVENT_TRUE_MSECS_DELAY,				2,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-event-false",					OP_EVENT_FALSE,							1,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-event-false-delay",			OP_EVENT_FALSE_DELAY,					2,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-event-false-msecs-delay",		OP_EVENT_FALSE_MSECS_DELAY,				2,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-event-incomplete",			OP_EVENT_INCOMPLETE,					1,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-previous-goal-true",			OP_PREVIOUS_GOAL_TRUE,					2,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-previous-goal-false",			OP_PREVIOUS_GOAL_FALSE,					2,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-previous-goal-incomplete",	OP_PREVIOUS_GOAL_INCOMPLETE,			2,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-previous-event-true",			OP_PREVIOUS_EVENT_TRUE,					2,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-previous-event-false",		OP_PREVIOUS_EVENT_FALSE,				2,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-previous-event-incomplete",	OP_PREVIOUS_EVENT_INCOMPLETE,			2,	3,			SEXP_BOOLEAN_OPERATOR,	},
 
-	{ "is-destroyed",							OP_IS_DESTROYED,						1,	INT_MAX,	},
-	{ "is-destroyed-delay",					OP_IS_DESTROYED_DELAY,				2,	INT_MAX,	},
-	{ "is-subsystem-destroyed",			OP_IS_SUBSYSTEM_DESTROYED,			2, 2,			},
-	{ "is-subsystem-destroyed-delay",	OP_IS_SUBSYSTEM_DESTROYED_DELAY,	3, 3,			},
-	{ "is-disabled",							OP_IS_DISABLED,						1, INT_MAX,	},
-	{ "is-disabled-delay",					OP_IS_DISABLED_DELAY,				2, INT_MAX,	},
-	{ "is-disarmed",							OP_IS_DISARMED,						1, INT_MAX,	},
-	{ "is-disarmed-delay",					OP_IS_DISARMED_DELAY,				2, INT_MAX,	},
-	{ "has-docked",							OP_HAS_DOCKED,							3, 3,			},
-	{ "has-docked-delay",					OP_HAS_DOCKED_DELAY,					4, 4,			},
-	{ "has-undocked",							OP_HAS_UNDOCKED,						3, 3,			},
-	{ "has-undocked-delay",					OP_HAS_UNDOCKED_DELAY,				4, 4,			},
-	{ "has-arrived",							OP_HAS_ARRIVED,						1, INT_MAX,	},
-	{ "has-arrived-delay",					OP_HAS_ARRIVED_DELAY,				2, INT_MAX,	},
-	{ "has-departed",							OP_HAS_DEPARTED,						1, INT_MAX,	},
-	{ "has-departed-delay",					OP_HAS_DEPARTED_DELAY,				2, INT_MAX,	},
-	{ "are-waypoints-done",					OP_WAYPOINTS_DONE,					2, 2,			},
-	{ "are-waypoints-done-delay",			OP_WAYPOINTS_DONE_DELAY,			3, 4,			},
-	{ "is-nav-visited",					OP_NAV_IS_VISITED,				1, 1 }, // Kazan
-	{ "ship-type-destroyed",				OP_SHIP_TYPE_DESTROYED,				2, 2,			},
-	{ "percent-ships-destroyed",			OP_PERCENT_SHIPS_DESTROYED,		2, INT_MAX,	},
-	{ "percent-ships-disabled",			OP_PERCENT_SHIPS_DISABLED,			2, INT_MAX,	},
-	{ "percent-ships-disarmed",			OP_PERCENT_SHIPS_DISARMED,			2, INT_MAX,	},
-	{ "percent-ships-departed",			OP_PERCENT_SHIPS_DEPARTED,			2, INT_MAX,	},
-	{ "percent-ships-arrived",			OP_PERCENT_SHIPS_ARRIVED,			2, INT_MAX,	},
-	{ "depart-node-delay",					OP_DEPART_NODE_DELAY,				3, INT_MAX, },	
-	{ "destroyed-or-departed-delay",		OP_DESTROYED_DEPARTED_DELAY,		2, INT_MAX, },	
+	//Objectives Category
+	{ "is-destroyed",					OP_IS_DESTROYED,						1,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-destroyed-delay",				OP_IS_DESTROYED_DELAY,					2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-subsystem-destroyed",			OP_IS_SUBSYSTEM_DESTROYED,				2,	2,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-subsystem-destroyed-delay",	OP_IS_SUBSYSTEM_DESTROYED_DELAY,		3,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-disabled",					OP_IS_DISABLED,							1,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-disabled-delay",				OP_IS_DISABLED_DELAY,					2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-disarmed",					OP_IS_DISARMED,							1,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-disarmed-delay",				OP_IS_DISARMED_DELAY,					2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "has-docked",						OP_HAS_DOCKED,							3,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "has-docked-delay",				OP_HAS_DOCKED_DELAY,					4,	4,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "has-undocked",					OP_HAS_UNDOCKED,						3,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "has-undocked-delay",				OP_HAS_UNDOCKED_DELAY,					4,	4,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "has-arrived",					OP_HAS_ARRIVED,							1,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "has-arrived-delay",				OP_HAS_ARRIVED_DELAY,					2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "has-departed",					OP_HAS_DEPARTED,						1,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "has-departed-delay",				OP_HAS_DEPARTED_DELAY,					2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "are-waypoints-done",				OP_WAYPOINTS_DONE,						2,	2,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "are-waypoints-done-delay",		OP_WAYPOINTS_DONE_DELAY,				3,	4,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-nav-visited",					OP_NAV_IS_VISITED,						1,	1,			SEXP_BOOLEAN_OPERATOR,	}, // Kazan
+	{ "ship-type-destroyed",			OP_SHIP_TYPE_DESTROYED,					2,	2,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "percent-ships-destroyed",		OP_PERCENT_SHIPS_DESTROYED,				2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "percent-ships-disabled",			OP_PERCENT_SHIPS_DISABLED,				2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "percent-ships-disarmed",			OP_PERCENT_SHIPS_DISARMED,				2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "percent-ships-departed",			OP_PERCENT_SHIPS_DEPARTED,				2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "percent-ships-arrived",			OP_PERCENT_SHIPS_ARRIVED,				2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "depart-node-delay",				OP_DEPART_NODE_DELAY,					3,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},	
+	{ "destroyed-or-departed-delay",	OP_DESTROYED_DEPARTED_DELAY,			2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},	
 
-	{ "is-cargo-known",						OP_IS_CARGO_KNOWN,					1, INT_MAX,	},
-	{ "is-cargo-known-delay",				OP_CARGO_KNOWN_DELAY,				2, INT_MAX,	},
-	{ "cap-subsys-cargo-known-delay",	OP_CAP_SUBSYS_CARGO_KNOWN_DELAY,	3, INT_MAX,	},
-	{ "is-cargo",						OP_IS_CARGO,						2, 3 },
-	{ "is-ship-visible",				OP_IS_SHIP_VISIBLE,			1, 1, },
-	{ "is-ship-stealthy",				OP_IS_SHIP_STEALTHY,	1, 1, },
-	{ "is-friendly-stealth-visible",		OP_IS_FRIENDLY_STEALTH_VISIBLE,	1, 1, },
-	{ "is_tagged",								OP_IS_TAGGED,							1, 1			},
-	{ "has-been-tagged-delay",				OP_HAS_BEEN_TAGGED_DELAY,			2, INT_MAX,	},
-	{ "is-iff",							OP_IS_IFF,						2, INT_MAX,	},
-	{ "is-ai-class",					OP_IS_AI_CLASS,					2, INT_MAX,	},
-	{ "is-ship-type",					OP_IS_SHIP_TYPE,					2, INT_MAX,	},
-	{ "is-ship-class",					OP_IS_SHIP_CLASS,					2, INT_MAX,	},
-	{ "is-facing",						OP_IS_FACING,						3, 4, },
-	{ "is-in-mission",					OP_IS_IN_MISSION,					1, INT_MAX, },	// Goober5000
-	{ "shield-recharge-pct",				OP_SHIELD_RECHARGE_PCT,				1, 1			},
-	{ "engine-recharge-pct",				OP_ENGINE_RECHARGE_PCT,				1, 1			},
-	{ "weapon-recharge-pct",				OP_WEAPON_RECHARGE_PCT,				1, 1			},
-	{ "shield-quad-low",					OP_SHIELD_QUAD_LOW,					2,	2			},
-	{ "primary-ammo-pct",					OP_PRIMARY_AMMO_PCT,				2,	2			},
-	{ "secondary-ammo-pct",					OP_SECONDARY_AMMO_PCT,				2,	2			},
-	{ "get-primary-ammo",					OP_GET_PRIMARY_AMMO,				2,	2			}, // Karajorma
-	{ "get-secondary-ammo",					OP_GET_SECONDARY_AMMO,				2,	2			}, // Karajorma
-	{ "get-num-countermeasures",			OP_GET_NUM_COUNTERMEASURES,			1,	1			}, // Karajorma
-	{ "is-primary-selected",				OP_IS_PRIMARY_SELECTED,				2,	2			},
-	{ "is-secondary-selected",				OP_IS_SECONDARY_SELECTED,			2,	2			},
-	{ "afterburner-energy-pct",				OP_AFTERBURNER_LEFT,		1, 1			},
-	{ "weapon-energy-pct",					OP_WEAPON_ENERGY_LEFT,			1, 1			},
-	{ "shields-left",						OP_SHIELDS_LEFT,					1, 1,			},
-	{ "hits-left",						OP_HITS_LEFT,					1, 1, },
-	{ "hits-left-subsystem",		OP_HITS_LEFT_SUBSYSTEM,		2, 3, },
-	{ "hits-left-subsystem-generic",	OP_HITS_LEFT_SUBSYSTEM_GENERIC,		2,	2,	},	// Goober5000
-	{ "hits-left-subsystem-specific",	OP_HITS_LEFT_SUBSYSTEM_SPECIFIC,	2,	2,	},	// Goober5000
-	{ "sim-hits-left",						OP_SIM_HITS_LEFT,					1, 1, }, // Turey
-	{ "distance",						OP_DISTANCE,					2, 2, },
-	{ "distance-ship-subsystem",	OP_DISTANCE_SUBSYSTEM,	3, 3 },					// Goober5000
-	{ "distance-to-nav",				OP_NAV_DISTANCE,				1, 1 }, // Kazan
-	{ "num-within-box",				OP_NUM_WITHIN_BOX,					7,	INT_MAX},	//WMC
-	{ "is-in-box",					OP_IS_IN_BOX,					7,	8},	//Sushi
-	{ "special-warp-dist",			OP_SPECIAL_WARP_DISTANCE,	1, 1,	},
-	{ "get-damage-caused",			OP_GET_DAMAGE_CAUSED,		2, INT_MAX	},
-
-	{ "get-object-x",				OP_GET_OBJECT_X,				1,	5	},	// Goober5000
-	{ "get-object-y",				OP_GET_OBJECT_Y,				1,	5	},	// Goober5000
-	{ "get-object-z",				OP_GET_OBJECT_Z,				1,	5	},	// Goober5000
-	{ "set-object-position",		OP_SET_OBJECT_POSITION,			4,	4	},	// WMC
-	{ "get-object-pitch",				OP_GET_OBJECT_PITCH,			1,	1	},	// Goober5000
-	{ "get-object-bank",				OP_GET_OBJECT_BANK,				1,	1	},	// Goober5000
-	{ "get-object-heading",				OP_GET_OBJECT_HEADING,			1,	1	},	// Goober5000
-	{ "set-object-orientation",		OP_SET_OBJECT_ORIENTATION,			4,	4	},	// Goober5000
-	{ "set-object-facing",			OP_SET_OBJECT_FACING,					4,	6	},	// Goober5000
-	{ "set-object-facing-object",	OP_SET_OBJECT_FACING_OBJECT,			2,	4	},	// Goober5000
-	{ "set-object-speed-x",				OP_SET_OBJECT_SPEED_X,			2,	3	},	// WMC
-	{ "set-object-speed-y",				OP_SET_OBJECT_SPEED_Y,			2,	3	},	// WMC
-	{ "set-object-speed-z",				OP_SET_OBJECT_SPEED_Z,			2,	3	},	// WMC
-	{ "get-object-speed-x",				OP_GET_OBJECT_SPEED_X,			1,	2	},
-	{ "get-object-speed-y",				OP_GET_OBJECT_SPEED_Y,			1,	2	},
-	{ "get-object-speed-z",				OP_GET_OBJECT_SPEED_Z,			1,	2	},
-
-	{ "time-elapsed-last-order",	OP_LAST_ORDER_TIME,			2, 2, },
-	{ "skill-level-at-least",		OP_SKILL_LEVEL_AT_LEAST,	1, 1, },
-	{ "num-ships-in-battle",		OP_NUM_SHIPS_IN_BATTLE,			0,	INT_MAX},	//phreak modified by FUBAR
-	{ "num-ships-in-wing",			OP_NUM_SHIPS_IN_WING,			1,	INT_MAX},	// Karajorma
-	{ "is-player",					OP_IS_PLAYER,				2,	INT_MAX},	// Karajorma
-	{ "num-players",				OP_NUM_PLAYERS,				0, 0, },
-	{ "num_kills",					OP_NUM_KILLS,				1, 1			},
-	{ "num_assists",				OP_NUM_ASSISTS,				1, 1			},
-	{ "ship_score",					OP_SHIP_SCORE,				1, 1			},
-	{ "ship-deaths",				OP_SHIP_DEATHS,				1, 1			},
-	{ "respawns-left",				OP_RESPAWNS_LEFT,				1, 1			},	
-	{ "num_type_kills",				OP_NUM_TYPE_KILLS,			2,	2			},
-	{ "num_class_kills",			OP_NUM_CLASS_KILLS,			2,	2			},
-	{ "team-score",					OP_TEAM_SCORE,				1,	1,	}, 
-	{ "was-promotion-granted",		OP_WAS_PROMOTION_GRANTED,	0, 1,			},
-	{ "was-medal-granted",			OP_WAS_MEDAL_GRANTED,		0, 1,			},
-	{ "current-speed",				OP_CURRENT_SPEED,				1, 1},
-	{ "primary-fired-since",		OP_PRIMARY_FIRED_SINCE,		3,	3},	// Karajorma
-	{ "secondary-fired-since",		OP_SECONDARY_FIRED_SINCE,	3,	3},	// Karajorma
-	{ "get-throttle-speed",			OP_GET_THROTTLE_SPEED,		1, 1,			}, // Karajorma
-	{ "set-player-throttle-speed",	OP_SET_PLAYER_THROTTLE_SPEED,		2, 2,	}, //CommanderDJ
-	{ "has-primary-weapon",			OP_HAS_PRIMARY_WEAPON,		3,	INT_MAX},	// Karajorma
-	{ "has-secondary-weapon",		OP_HAS_SECONDARY_WEAPON,	3,	INT_MAX},	// Karajorma
-	{ "directive-value",			OP_DIRECTIVE_VALUE,	1,	2},	// Karajorma
+	//Status Category
+	//Mission Sub-Category
+	{ "num-ships-in-battle",			OP_NUM_SHIPS_IN_BATTLE,					0,	INT_MAX,	SEXP_INTEGER_OPERATOR,	},	//phreak modified by FUBAR
+	{ "num-ships-in-wing",				OP_NUM_SHIPS_IN_WING,					1,	INT_MAX,	SEXP_INTEGER_OPERATOR,	},	// Karajorma
+	{ "directive-value",				OP_DIRECTIVE_VALUE,						1,	2,			SEXP_INTEGER_OPERATOR,	},	// Karajorma
 	
-	{ "time-ship-destroyed",	OP_TIME_SHIP_DESTROYED,		1,	1,	},
-	{ "time-ship-arrived",		OP_TIME_SHIP_ARRIVED,		1,	1,	},
-	{ "time-ship-departed",		OP_TIME_SHIP_DEPARTED,		1,	1,	},
-	{ "time-wing-destroyed",	OP_TIME_WING_DESTROYED,		1,	1,	},
-	{ "time-wing-arrived",		OP_TIME_WING_ARRIVED,		1,	1,	},
-	{ "time-wing-departed",		OP_TIME_WING_DEPARTED,		1,	1,	},
-	{ "mission-time",			OP_MISSION_TIME,			0, 0,	},
-	{ "mission-time-msecs",		OP_MISSION_TIME_MSECS,		0, 0,	},	// Goober5000
-	{ "time-docked",			OP_TIME_DOCKED,				3, 3, },
-	{ "time-undocked",			OP_TIME_UNDOCKED,			3, 3, },
+	//Player Sub-Category
+	{ "was-promotion-granted",			OP_WAS_PROMOTION_GRANTED,				0,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "was-medal-granted",				OP_WAS_MEDAL_GRANTED,					0,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "skill-level-at-least",			OP_SKILL_LEVEL_AT_LEAST,				1,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "num_kills",						OP_NUM_KILLS,							1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "num_assists",					OP_NUM_ASSISTS,							1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "num_type_kills",					OP_NUM_TYPE_KILLS,						2,	2,			SEXP_INTEGER_OPERATOR,	},
+	{ "num_class_kills",				OP_NUM_CLASS_KILLS,						2,	2,			SEXP_INTEGER_OPERATOR,	},
+	{ "ship_score",						OP_SHIP_SCORE,							1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "time-elapsed-last-order",		OP_LAST_ORDER_TIME,						2,	2,			SEXP_INTEGER_OPERATOR,	},
 
-	{ "cond",						OP_COND,					1, INT_MAX, },
-	{ "when",						OP_WHEN,					2, INT_MAX, },
-	{ "when-argument",				OP_WHEN_ARGUMENT,			3, INT_MAX, },	// Goober5000
-	{ "every-time",					OP_EVERY_TIME,				2, INT_MAX, },	// Goober5000
-	{ "every-time-argument",		OP_EVERY_TIME_ARGUMENT,		3, INT_MAX, },	// Goober5000
-	{ "if-then-else",				OP_IF_THEN_ELSE,			3, INT_MAX,	},	// Goober5000
-	{ "any-of",						OP_ANY_OF,					1, INT_MAX, },	// Goober5000
-	{ "every-of",					OP_EVERY_OF,				1, INT_MAX, },	// Goober5000
-	{ "random-of",					OP_RANDOM_OF,				1, INT_MAX, },	// Goober5000
-	{ "random-multiple-of",			OP_RANDOM_MULTIPLE_OF,		1, INT_MAX, },	// Karajorma
-	{ "number-of",					OP_NUMBER_OF,				2, INT_MAX, },	// Goober5000
-	{ "in-sequence",				OP_IN_SEQUENCE,				1, INT_MAX, },	// Karajorma
-	{ "for-counter",				OP_FOR_COUNTER,				2, 3,		},	// Goober5000
-	{ "invalidate-argument",		OP_INVALIDATE_ARGUMENT,		1, INT_MAX, },	// Goober5000
-	{ "invalidate-all-arguments",	OP_INVALIDATE_ALL_ARGUMENTS,	0, 0, },	// Karajorma
-	{ "validate-argument",			OP_VALIDATE_ARGUMENT,		1, INT_MAX, },	// Karajorma
-	{ "validate-all-arguments",		OP_VALIDATE_ALL_ARGUMENTS,		0, 0, },	// Karajorma
-	{ "do-for-valid-arguments",		OP_DO_FOR_VALID_ARGUMENTS,	1, INT_MAX, },	// Karajorma
-	{ "num-valid-arguments",		OP_NUM_VALID_ARGUMENTS,		0, 0, },		// Karajorma
+	//Multiplayer Sub-Category
+	{ "num-players",					OP_NUM_PLAYERS,							0,	0,			SEXP_INTEGER_OPERATOR,	},
+	{ "team-score",						OP_TEAM_SCORE,							1,	1,			SEXP_INTEGER_OPERATOR,	}, 
+	{ "ship-deaths",					OP_SHIP_DEATHS,							1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "respawns-left",					OP_RESPAWNS_LEFT,						1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "is-player",						OP_IS_PLAYER,							2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},	// Karajorma
 
-	{ "send-message-list",			OP_SEND_MESSAGE_LIST,		4,	INT_MAX	},
-	{ "send-message",				OP_SEND_MESSAGE,			3,	3,		},
-	{ "send-random-message",		OP_SEND_RANDOM_MESSAGE,		3,	INT_MAX,},
-	{ "invalidate-goal",			OP_INVALIDATE_GOAL,			1,	INT_MAX,},
-	{ "validate-goal",				OP_VALIDATE_GOAL,			1,	INT_MAX,},
-	{ "scramble-messages",			OP_SCRAMBLE_MESSAGES,		0,	0,},
-	{ "unscramble-messages",		OP_UNSCRAMBLE_MESSAGES,		0,	0,},
-	{ "disable-builtin-messages",	OP_DISABLE_BUILTIN_MESSAGES,	0,	INT_MAX,},	// Karajorma
-	{ "enable-builtin-messages",	OP_ENABLE_BUILTIN_MESSAGES,		0,	INT_MAX,},	// Karajorma
-	{ "set-persona",				OP_SET_PERSONA,					2,	INT_MAX,},	// Karajorma
-	{ "clear-subtitles",			OP_CLEAR_SUBTITLES,				0, 0},
+	//Ship Status Sub-Category
+	{ "is-in-mission",					OP_IS_IN_MISSION,						1,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},	// Goober5000
+	{ "is-ship-visible",				OP_IS_SHIP_VISIBLE,						1,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-ship-stealthy",				OP_IS_SHIP_STEALTHY,					1,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-friendly-stealth-visible",	OP_IS_FRIENDLY_STEALTH_VISIBLE,			1,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-iff",							OP_IS_IFF,								2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-ai-class",					OP_IS_AI_CLASS,							2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-ship-type",					OP_IS_SHIP_TYPE,						2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-ship-class",					OP_IS_SHIP_CLASS,						2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-facing",						OP_IS_FACING,							3,	4,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is_tagged",						OP_IS_TAGGED,							1,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "has-been-tagged-delay",			OP_HAS_BEEN_TAGGED_DELAY,				2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
 
-	{ "add-goal",					OP_ADD_GOAL,					2, 2, },
-	{ "remove-goal",				OP_REMOVE_GOAL,					2, 2, },			// Goober5000
-	{ "add-ship-goal",				OP_ADD_SHIP_GOAL,				2, 2,			},
-	{ "add-wing-goal",				OP_ADD_WING_GOAL,				2, 2,			},
-	{ "clear-goals",					OP_CLEAR_GOALS,				1, INT_MAX,	},
-	{ "clear-ship-goals",			OP_CLEAR_SHIP_GOALS,			1, 1,			},
-	{ "clear-wing-goals",			OP_CLEAR_WING_GOALS,			1, 1,			},
-	{ "good-rearm-time",				OP_GOOD_REARM_TIME,			2,	2,			},
-	{ "good-secondary-time",		OP_GOOD_SECONDARY_TIME,			4, 4,			},
-	{ "change-iff",					OP_CHANGE_IFF,					2,	INT_MAX,	},
-	{ "change-iff-color",			OP_CHANGE_IFF_COLOR,			6,	INT_MAX,	},
-	{ "change-ai-class",			OP_CHANGE_AI_CLASS,				2,	INT_MAX,	},
-	{ "protect-ship",				OP_PROTECT_SHIP,				1, INT_MAX,	},
-	{ "unprotect-ship",				OP_UNPROTECT_SHIP,				1, INT_MAX,	},
-	{ "beam-protect-ship",			OP_BEAM_PROTECT_SHIP,			1, INT_MAX,	},
-	{ "beam-unprotect-ship",		OP_BEAM_UNPROTECT_SHIP,			1, INT_MAX,	},
-	{ "turret-protect-ship",		OP_TURRET_PROTECT_SHIP,			2, INT_MAX,	},	// Goober5000
-	{ "turret-unprotect-ship",		OP_TURRET_UNPROTECT_SHIP,		2, INT_MAX,	},	// Goober5000
-	{ "kamikaze",					OP_KAMIKAZE,					2, INT_MAX }, //-Sesquipedalian
-	{ "player-use-ai",				OP_PLAYER_USE_AI,				0, 0 },			// Goober5000
-	{ "player-not-use-ai",			OP_PLAYER_NOT_USE_AI,			0, 0 },			// Goober5000
-	{ "allow-treason",				OP_ALLOW_TREASON,				1, 1 },			// Karajorma
-	{ "set-player-orders",			OP_SET_PLAYER_ORDERS,			3, INT_MAX },	// Karajorma
+	//Shields, Engines and Weapons Sub-Category
+	{ "has-primary-weapon",				OP_HAS_PRIMARY_WEAPON,					3,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},	// Karajorma
+	{ "has-secondary-weapon",			OP_HAS_SECONDARY_WEAPON,				3,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},	// Karajorma
+	{ "is-primary-selected",			OP_IS_PRIMARY_SELECTED,					2,	2,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-secondary-selected",			OP_IS_SECONDARY_SELECTED,				2,	2,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "primary-fired-since",			OP_PRIMARY_FIRED_SINCE,					3,	3,			SEXP_INTEGER_OPERATOR,	},	// Karajorma
+	{ "secondary-fired-since",			OP_SECONDARY_FIRED_SINCE,				3,	3,			SEXP_INTEGER_OPERATOR,	},	// Karajorma
+	{ "primary-ammo-pct",				OP_PRIMARY_AMMO_PCT,					2,	2,			SEXP_INTEGER_OPERATOR,	},
+	{ "secondary-ammo-pct",				OP_SECONDARY_AMMO_PCT,					2,	2,			SEXP_INTEGER_OPERATOR,	},
+	{ "get-primary-ammo",				OP_GET_PRIMARY_AMMO,					2,	2,			SEXP_INTEGER_OPERATOR,	}, // Karajorma
+	{ "get-secondary-ammo",				OP_GET_SECONDARY_AMMO,					2,	2,			SEXP_INTEGER_OPERATOR,	}, // Karajorma
+	{ "get-num-countermeasures",		OP_GET_NUM_COUNTERMEASURES,				1,	1,			SEXP_INTEGER_OPERATOR,	}, // Karajorma
+	{ "weapon-energy-pct",				OP_WEAPON_ENERGY_LEFT,					1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "afterburner-energy-pct",			OP_AFTERBURNER_LEFT,					1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "shield-recharge-pct",			OP_SHIELD_RECHARGE_PCT,					1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "weapon-recharge-pct",			OP_WEAPON_RECHARGE_PCT,					1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "engine-recharge-pct",			OP_ENGINE_RECHARGE_PCT,					1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "shield-quad-low",				OP_SHIELD_QUAD_LOW,						2,	2,			SEXP_INTEGER_OPERATOR,	},
+	{ "get-throttle-speed",				OP_GET_THROTTLE_SPEED,					1,	1,			SEXP_INTEGER_OPERATOR,	}, // Karajorma
+	{ "current-speed",					OP_CURRENT_SPEED,						1,	1,			SEXP_INTEGER_OPERATOR,	},
 
-	{ "sabotage-subsystem",			OP_SABOTAGE_SUBSYSTEM,			3, 3,			},
-	{ "repair-subsystem",			OP_REPAIR_SUBSYSTEM,			3, 4,			},
-	{ "set-subsystem-strength",	OP_SET_SUBSYSTEM_STRNGTH,			3, 4,			},
-	{ "subsys-set-random",			OP_SUBSYS_SET_RANDOM,			3, INT_MAX	},
-	{ "self-destruct",				OP_SELF_DESTRUCT,				1, INT_MAX,	},
-	{ "transfer-cargo",				OP_TRANSFER_CARGO,				2, 2,			},
-	{ "exchange-cargo",				OP_EXCHANGE_CARGO,				2, 2,			},
-	{ "set-cargo",					OP_SET_CARGO,					2, 3,			},
-	{ "jettison-cargo-delay",		OP_JETTISON_CARGO,				2, INT_MAX,		},
-	{ "set-docked",					OP_SET_DOCKED,					4, 4 },				// Sushi
-	{ "cargo-no-deplete",			OP_CARGO_NO_DEPLETE,			1,	2			},
-	{ "set-scanned",				OP_SET_SCANNED,					1, 2 },
-	{ "set-unscanned",				OP_SET_UNSCANNED,				1, 2 },
-	{ "lock-rotating-subsystem",	OP_LOCK_ROTATING_SUBSYSTEM,		2, INT_MAX },	// Goober5000
-	{ "free-rotating-subsystem",	OP_FREE_ROTATING_SUBSYSTEM,		2, INT_MAX },	// Goober5000
-	{ "reverse-rotating-subsystem",	OP_REVERSE_ROTATING_SUBSYSTEM,	2, INT_MAX },	// Goober5000
-	{ "rotating-subsys-set-turn-time", OP_ROTATING_SUBSYS_SET_TURN_TIME,	3, INT_MAX	},	// Goober5000
-	{ "trigger-submodel-animation",	OP_TRIGGER_SUBMODEL_ANIMATION,	4, 6 },		// Goober5000
-	{ "set-primary-ammo",			OP_SET_PRIMARY_AMMO,			3, 4 },		// Karajorma
-	{ "set-secondary-ammo",			OP_SET_SECONDARY_AMMO,			3, 4 },		// Karajorma
-	{ "set-primary-weapon",			OP_SET_PRIMARY_WEAPON,			3, 5 },		// Karajorma
-	{ "set-secondary-weapon",		OP_SET_SECONDARY_WEAPON,		3, 5 },		// Karajorma
-	{ "set-num-countermeasures",	OP_SET_NUM_COUNTERMEASURES,		2, 2 },		// Karajorma
-	{ "lock-primary-weapon",		OP_LOCK_PRIMARY_WEAPON,			1, INT_MAX },		// Karajorma
-	{ "unlock-primary-weapon",		OP_UNLOCK_PRIMARY_WEAPON,		1, INT_MAX },		// Karajorma
-	{ "lock-secondary-weapon",		OP_LOCK_SECONDARY_WEAPON,		1, INT_MAX },		// Karajorma
-	{ "unlock-secondary-weapon",	OP_UNLOCK_SECONDARY_WEAPON,		1, INT_MAX },		// Karajorma
-	{ "change-subsystem-name",		OP_CHANGE_SUBSYSTEM_NAME,		3, INT_MAX },		// Karajorma
-	{ "lock-afterburner",			OP_LOCK_AFTERBURNER,			1, INT_MAX },		// KeldorKatarn
-	{ "unlock-afterburner",			OP_UNLOCK_AFTERBURNER,			1, INT_MAX },		// KeldorKatarn
-	{ "set-afterburner-energy",		OP_SET_AFTERBURNER_ENERGY,		2, INT_MAX },		// Karajorma
-	{ "set-weapon-energy",			OP_SET_WEAPON_ENERGY,			2, INT_MAX },		// Karajorma
-	{ "set-shield-energy",			OP_SET_SHIELD_ENERGY,			2, INT_MAX },		// Karajorma
-	{ "set-ambient-light",			OP_SET_AMBIENT_LIGHT,			3, 3 },				// Karajorma
-	{ "set-post-effect",			OP_SET_POST_EFFECT,				2, 2 },				// Hery
+	//Cargo Sub-Category
+	{ "is-cargo-known",					OP_IS_CARGO_KNOWN,						1,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-cargo-known-delay",			OP_CARGO_KNOWN_DELAY,					2,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "cap-subsys-cargo-known-delay",	OP_CAP_SUBSYS_CARGO_KNOWN_DELAY,		3,	INT_MAX,	SEXP_BOOLEAN_OPERATOR,	},
+	{ "is-cargo",						OP_IS_CARGO,							2,	3,			SEXP_BOOLEAN_OPERATOR,	},
 
-	{ "ship-invulnerable",			OP_SHIP_INVULNERABLE,			1, INT_MAX	},
-	{ "ship-vulnerable",			OP_SHIP_VULNERABLE,			1, INT_MAX	},
-	{ "ship-guardian",				OP_SHIP_GUARDIAN,				1, INT_MAX	},
-	{ "ship-no-guardian",			OP_SHIP_NO_GUARDIAN,			1, INT_MAX	},
-	{ "ship-guardian-threshold",	OP_SHIP_GUARDIAN_THRESHOLD,				2, INT_MAX	},
-	{ "ship-subsys-guardian-threshold",	OP_SHIP_SUBSYS_GUARDIAN_THRESHOLD,	3, INT_MAX	},
-	{ "ship-invisible",				OP_SHIP_INVISIBLE,				1, INT_MAX	},
-	{ "ship-visible",				OP_SHIP_VISIBLE,				1, INT_MAX	},
-	{ "ship-stealthy",				OP_SHIP_STEALTHY,				1, INT_MAX },
-	{ "ship-unstealthy",			OP_SHIP_UNSTEALTHY,				1, INT_MAX },			// Goober5000
-	{ "friendly-stealth-invisible",	OP_FRIENDLY_STEALTH_INVISIBLE,	1, INT_MAX },	// Goober5000
-	{ "friendly-stealth-visible",	OP_FRIENDLY_STEALTH_VISIBLE,	1, INT_MAX },	// Goober5000
-	{ "ship-targetable-as-bomb",	OP_SHIP_BOMB_TARGETABLE,			1, INT_MAX	},
-	{ "ship-untargetable-as-bomb",	OP_SHIP_BOMB_UNTARGETABLE,			1, INT_MAX	},
-	{ "ship-subsys-targetable",		OP_SHIP_SUBSYS_TARGETABLE,		2, INT_MAX },	// Goober5000
-	{ "ship-subsys-no-replace",		OP_SHIP_SUBSYS_NO_REPLACE,		3, INT_MAX },	// FUBAR
-	{ "ship-subsys-no-live-debris",	OP_SHIP_SUBSYS_NO_LIVE_DEBRIS,	3, INT_MAX },	// FUBAR
-	{ "ship-subsys-vanish",			OP_SHIP_SUBSYS_VANISHED,		3, INT_MAX },	// FUBAR
-	{ "ship-subsys-ignore_if_dead",	OP_SHIP_SUBSYS_IGNORE_IF_DEAD,	3, INT_MAX },	// FUBAR
-	{ "ship-subsys-untargetable",	OP_SHIP_SUBSYS_UNTARGETABLE,	2, INT_MAX },	// Goober5000
-	{ "ship-vaporize",				OP_SHIP_VAPORIZE,				1, INT_MAX },	// Goober5000
-	{ "ship-no-vaporize",			OP_SHIP_NO_VAPORIZE,			1, INT_MAX },	// Goober5000
-	{ "set-explosion-option",		OP_SET_EXPLOSION_OPTION,		3, INT_MAX	},	// Goober5000
-	{ "break-warp",					OP_WARP_BROKEN,					1, INT_MAX,	},
-	{ "fix-warp",					OP_WARP_NOT_BROKEN,				1, INT_MAX,	},
-	{ "never-warp",					OP_WARP_NEVER,					1, INT_MAX, },
-	{ "allow-warp",					OP_WARP_ALLOWED,				1, INT_MAX, },
-	{ "set-subspace-drive",			OP_SET_SUBSPACE_DRIVE,			2, INT_MAX, },
-	{ "set-armor-type",				OP_SET_ARMOR_TYPE,				4, INT_MAX, },  // FUBAR
-	{ "add-to-collision-group",		OP_ADD_TO_COLGROUP,				2, INT_MAX },	// The E
-	{ "remove-from-collision-group",OP_REMOVE_FROM_COLGROUP,		2, INT_MAX },
-	{ "get-collision-group",		OP_GET_COLGROUP_ID,				1, 1 },
-	{ "ship-effect",				OP_SHIP_EFFECT,					3, INT_MAX },	// Valathil
+	//Damage Sub-Category
+	{ "shields-left",					OP_SHIELDS_LEFT,						1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "hits-left",						OP_HITS_LEFT,							1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "hits-left-subsystem",			OP_HITS_LEFT_SUBSYSTEM,					2,	3,			SEXP_INTEGER_OPERATOR,	},
+	{ "hits-left-subsystem-generic",	OP_HITS_LEFT_SUBSYSTEM_GENERIC,			2,	2,			SEXP_INTEGER_OPERATOR,	},	// Goober5000
+	{ "hits-left-subsystem-specific",	OP_HITS_LEFT_SUBSYSTEM_SPECIFIC,		2,	2,			SEXP_INTEGER_OPERATOR,	},	// Goober5000
+	{ "sim-hits-left",					OP_SIM_HITS_LEFT,						1,	1,			SEXP_INTEGER_OPERATOR,	}, // Turey
+	{ "get-damage-caused",				OP_GET_DAMAGE_CAUSED,					2,	INT_MAX,	SEXP_INTEGER_OPERATOR,	},
 
-	{ "fire-beam",						OP_BEAM_FIRE,					3, 5		},
-	{ "fire-beam-at-coordinates",		OP_BEAM_FIRE_COORDS,			5, 9		},
-	{ "beam-free",						OP_BEAM_FREE,					2, INT_MAX	},
-	{ "beam-free-all",					OP_BEAM_FREE_ALL,				1, INT_MAX	},
-	{ "beam-lock",						OP_BEAM_LOCK,					2, INT_MAX	},
-	{ "beam-lock-all",					OP_BEAM_LOCK_ALL,				1, INT_MAX	},
-	{ "turret-free",					OP_TURRET_FREE,					2, INT_MAX	},
-	{ "turret-free-all",				OP_TURRET_FREE_ALL,				1, INT_MAX	},
-	{ "turret-lock",					OP_TURRET_LOCK,					2, INT_MAX	},
-	{ "turret-lock-all",				OP_TURRET_LOCK_ALL,				1, INT_MAX	},
-	{ "turret-tagged-only",				OP_TURRET_TAGGED_ONLY_ALL,		1,	1		},
-	{ "turret-tagged-clear",			OP_TURRET_TAGGED_CLEAR_ALL,		1,	1		},
-	{ "turret-tagged-specific",			OP_TURRET_TAGGED_SPECIFIC,		2, INT_MAX }, //phreak
-	{ "turret-tagged-clear-specific",	OP_TURRET_TAGGED_CLEAR_SPECIFIC, 2, INT_MAX}, //phreak
-	{ "turret-change-weapon",			OP_TURRET_CHANGE_WEAPON,		5, 5},	//WMC
-	{ "turret-set-direction-preference",	OP_TURRET_SET_DIRECTION_PREFERENCE,		3, INT_MAX},	//FUBAR
-	{ "turret-set-rate-of-fire",			OP_TURRET_SET_RATE_OF_FIRE,			3, INT_MAX},	//FUBAR
-	{ "turret-set-optimum-range",			OP_TURRET_SET_OPTIMUM_RANGE,			3, INT_MAX},	//FUBAR
-	{ "turret-set-target-priorities",			OP_TURRET_SET_TARGET_PRIORITIES,	3, INT_MAX},	//FUBAR
-	{ "turret-set-target-order",			OP_TURRET_SET_TARGET_ORDER,			2, 2+NUM_TURRET_ORDER_TYPES},	//WMC
-	{ "ship-turret-target-order",			OP_SHIP_TURRET_TARGET_ORDER,		1, 1+NUM_TURRET_ORDER_TYPES},	//WMC
-	{ "turret-subsys-target-disable",	OP_TURRET_SUBSYS_TARGET_DISABLE, 2, INT_MAX	},
-	{ "turret-subsys-target-enable",	OP_TURRET_SUBSYS_TARGET_ENABLE,	2, INT_MAX	},
+	//Distance and Coordinates Sub-Category
+	{ "distance",						OP_DISTANCE,							2,	2,			SEXP_INTEGER_OPERATOR,	},
+	{ "distance-ship-subsystem",		OP_DISTANCE_SUBSYSTEM,					3,	3,			SEXP_INTEGER_OPERATOR,	},	// Goober5000
+	{ "distance-to-nav",				OP_NAV_DISTANCE,						1,	1,			SEXP_INTEGER_OPERATOR,	},	// Kazan
+	{ "num-within-box",					OP_NUM_WITHIN_BOX,						7,	INT_MAX,	SEXP_INTEGER_OPERATOR,	},	//WMC
+	{ "is-in-box",						OP_IS_IN_BOX,							7,	8,			SEXP_INTEGER_OPERATOR,	},	//Sushi
+	{ "special-warp-dist",				OP_SPECIAL_WARP_DISTANCE,				1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "get-object-x",					OP_GET_OBJECT_X,						1,	5,			SEXP_INTEGER_OPERATOR,	},	// Goober5000
+	{ "get-object-y",					OP_GET_OBJECT_Y,						1,	5,			SEXP_INTEGER_OPERATOR,	},	// Goober5000
+	{ "get-object-z",					OP_GET_OBJECT_Z,						1,	5,			SEXP_INTEGER_OPERATOR,	},	// Goober5000
+	{ "get-object-pitch",				OP_GET_OBJECT_PITCH,					1,	1,			SEXP_INTEGER_OPERATOR,	},	// Goober5000
+	{ "get-object-bank",				OP_GET_OBJECT_BANK,						1,	1,			SEXP_INTEGER_OPERATOR,	},	// Goober5000
+	{ "get-object-heading",				OP_GET_OBJECT_HEADING,					1,	1,			SEXP_INTEGER_OPERATOR,	},	// Goober5000
+	{ "get-object-speed-x",				OP_GET_OBJECT_SPEED_X,					1,	2,			SEXP_INTEGER_OPERATOR,	},
+	{ "get-object-speed-y",				OP_GET_OBJECT_SPEED_Y,					1,	2,			SEXP_INTEGER_OPERATOR,	},
+	{ "get-object-speed-z",				OP_GET_OBJECT_SPEED_Z,					1,	2,			SEXP_INTEGER_OPERATOR,	},
+
+	//Variables Sub-Category
+	{ "string-to-int",					OP_STRING_TO_INT,						1,	1,			SEXP_INTEGER_OPERATOR,	}, // Karajorma
+	{ "string-get-length",				OP_STRING_GET_LENGTH,					1,	1,			SEXP_INTEGER_OPERATOR,	}, // Goober5000
+
+	//Other Sub-Category
+	{ "script-eval-num",				OP_SCRIPT_EVAL_NUM,						1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "script-eval-string",				OP_SCRIPT_EVAL_STRING,					1,	1,			SEXP_INTEGER_OPERATOR,	},
+
+	//Time Category
+	{ "time-ship-destroyed",			OP_TIME_SHIP_DESTROYED,					1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "time-ship-arrived",				OP_TIME_SHIP_ARRIVED,					1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "time-ship-departed",				OP_TIME_SHIP_DEPARTED,					1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "time-wing-destroyed",			OP_TIME_WING_DESTROYED,					1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "time-wing-arrived",				OP_TIME_WING_ARRIVED,					1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "time-wing-departed",				OP_TIME_WING_DEPARTED,					1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "mission-time",					OP_MISSION_TIME,						0,	0,			SEXP_INTEGER_OPERATOR,	},
+	{ "mission-time-msecs",				OP_MISSION_TIME_MSECS,					0,	0,			SEXP_INTEGER_OPERATOR,	},	// Goober5000
+	{ "time-docked",					OP_TIME_DOCKED,							3,	3,			SEXP_INTEGER_OPERATOR,	},
+	{ "time-undocked",					OP_TIME_UNDOCKED,						3,	3,			SEXP_INTEGER_OPERATOR,	},
+
+	//Conditionals Category
+	{ "cond",							OP_COND,								1,	INT_MAX,	SEXP_CONDITIONAL_OPERATOR,},
+	{ "when",							OP_WHEN,								2,	INT_MAX,	SEXP_CONDITIONAL_OPERATOR,},
+	{ "when-argument",					OP_WHEN_ARGUMENT,						3,	INT_MAX,	SEXP_CONDITIONAL_OPERATOR,},	// Goober5000
+	{ "every-time",						OP_EVERY_TIME,							2,	INT_MAX,	SEXP_CONDITIONAL_OPERATOR,},	// Goober5000
+	{ "every-time-argument",			OP_EVERY_TIME_ARGUMENT,					3,	INT_MAX,	SEXP_CONDITIONAL_OPERATOR,},	// Goober5000
+	{ "if-then-else",					OP_IF_THEN_ELSE,						3,	INT_MAX,	SEXP_CONDITIONAL_OPERATOR,},	// Goober5000
+	{ "any-of",							OP_ANY_OF,								1,	INT_MAX,	SEXP_ARGUMENT_OPERATOR,	},	// Goober5000
+	{ "every-of",						OP_EVERY_OF,							1,	INT_MAX,	SEXP_ARGUMENT_OPERATOR,	},	// Goober5000
+	{ "random-of",						OP_RANDOM_OF,							1,	INT_MAX,	SEXP_ARGUMENT_OPERATOR,	},	// Goober5000
+	{ "random-multiple-of",				OP_RANDOM_MULTIPLE_OF,					1,	INT_MAX,	SEXP_ARGUMENT_OPERATOR,	},	// Karajorma
+	{ "number-of",						OP_NUMBER_OF,							2,	INT_MAX,	SEXP_ARGUMENT_OPERATOR,	},	// Goober5000
+	{ "in-sequence",					OP_IN_SEQUENCE,							1,	INT_MAX,	SEXP_ARGUMENT_OPERATOR,	},	// Karajorma
+	{ "for-counter",					OP_FOR_COUNTER,							2,	3,			SEXP_ARGUMENT_OPERATOR,	},	// Goober5000
+	{ "invalidate-argument",			OP_INVALIDATE_ARGUMENT,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,		},	// Goober5000
+	{ "invalidate-all-arguments",		OP_INVALIDATE_ALL_ARGUMENTS,			0,	0,			SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "validate-argument",				OP_VALIDATE_ARGUMENT,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "validate-all-arguments",			OP_VALIDATE_ALL_ARGUMENTS,				0,	0,			SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "do-for-valid-arguments",			OP_DO_FOR_VALID_ARGUMENTS,				1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "num-valid-arguments",			OP_NUM_VALID_ARGUMENTS,					0,	0,			SEXP_ACTION_OPERATOR,	},	// Karajorma
+
+	//Change Category
+	//Messaging Sub-Category
+	{ "send-message",					OP_SEND_MESSAGE,						3,	3,			SEXP_ACTION_OPERATOR,	},
+	{ "send-message-list",				OP_SEND_MESSAGE_LIST,					4,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "send-random-message",			OP_SEND_RANDOM_MESSAGE,					3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "scramble-messages",				OP_SCRAMBLE_MESSAGES,					0,	0,			SEXP_ACTION_OPERATOR,	},
+	{ "unscramble-messages",			OP_UNSCRAMBLE_MESSAGES,					0,	0,			SEXP_ACTION_OPERATOR,	},
+	{ "disable-builtin-messages",		OP_DISABLE_BUILTIN_MESSAGES,			0,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "enable-builtin-messages",		OP_ENABLE_BUILTIN_MESSAGES,				0,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "set-persona",					OP_SET_PERSONA,							2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "set-death-message",				OP_SET_DEATH_MESSAGE,					1,	1,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "set-mission-mood",				OP_SET_MISSION_MOOD,					1,	1,			SEXP_ACTION_OPERATOR,	},	// Karajorma
 
 
-	{ "red-alert",						OP_RED_ALERT,					0, 0 },
-	{ "end-mission",					OP_END_MISSION,					0, 2 }, //-Sesquipedalian
-	{ "force-jump",						OP_FORCE_JUMP,					0, 0 }, // Goober5000
-	{ "next-mission",					OP_NEXT_MISSION,				1, 1 },
-	{ "end-campaign",					OP_END_CAMPAIGN,				0, 0 },
-	{ "end-of-campaign",				OP_END_OF_CAMPAIGN,				0, 0 },
-	{ "set-debriefing-toggled",			OP_SET_DEBRIEFING_TOGGLED,		1, 1 },	// Goober5000
+	//AI Control Sub-Category
+	{ "add-goal",						OP_ADD_GOAL,							2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "remove-goal",					OP_REMOVE_GOAL,							2,	2,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "add-ship-goal",					OP_ADD_SHIP_GOAL,						2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "add-wing-goal",					OP_ADD_WING_GOAL,						2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "clear-goals",					OP_CLEAR_GOALS,							1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "clear-ship-goals",				OP_CLEAR_SHIP_GOALS,					1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "clear-wing-goals",				OP_CLEAR_WING_GOALS,					1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "good-rearm-time",				OP_GOOD_REARM_TIME,						2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "good-secondary-time",			OP_GOOD_SECONDARY_TIME,					4,	4,			SEXP_ACTION_OPERATOR,	},
+	{ "change-ai-class",				OP_CHANGE_AI_CLASS,						2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "player-use-ai",					OP_PLAYER_USE_AI,						0,	0,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "player-not-use-ai",				OP_PLAYER_NOT_USE_AI,					0,	0,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "set-player-orders",				OP_SET_PLAYER_ORDERS,					3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "cap-waypoint-speed",				OP_CAP_WAYPOINT_SPEED,					2,	2,			SEXP_ACTION_OPERATOR,	},
 
-	{ "add-nav-waypoint",				OP_NAV_ADD_WAYPOINT,			3, 4 }, //kazan
-	{ "add-nav-ship",					OP_NAV_ADD_SHIP,				2, 2 }, //kazan
-	{ "del-nav",						OP_NAV_DEL,						1, 1 }, //kazan
-	{ "hide-nav",						OP_NAV_HIDE,					1, 1 }, //kazan
-	{ "restrict-nav",					OP_NAV_RESTRICT,				1, 1 }, //kazan
-	{ "unhide-nav",						OP_NAV_UNHIDE,					1, 1 }, //kazan
-	{ "unrestrict-nav",					OP_NAV_UNRESTRICT,				1, 1 }, //kazan
-	{ "set-nav-visited",				OP_NAV_SET_VISITED,				1, 1 }, //kazan
-	{ "unset-nav-visited",				OP_NAV_UNSET_VISITED,			1, 1 }, //kazan
-	{ "set-nav-carry",					OP_NAV_SET_CARRY,				1, INT_MAX }, //kazan
-	{ "unset-nav-carry",				OP_NAV_UNSET_CARRY,				1, INT_MAX }, //kazan
-	{ "set-nav-needslink",				OP_NAV_SET_NEEDSLINK,			1, INT_MAX }, //kazan
-	{ "unset-nav-needslink",			OP_NAV_UNSET_NEEDSLINK,			1, INT_MAX }, //kazan
-	{ "is-nav-linked",					OP_NAV_ISLINKED,				1, 1 }, //kazan
-	{ "use-nav-cinematics",				OP_NAV_USECINEMATICS,			1, 1 }, //kazan
-	{ "use-autopilot",					OP_NAV_USEAP,					1, 1 }, //kazan
+	//Ship Status Sub-Category
+	{ "protect-ship",					OP_PROTECT_SHIP,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "unprotect-ship",					OP_UNPROTECT_SHIP,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "beam-protect-ship",				OP_BEAM_PROTECT_SHIP,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "beam-unprotect-ship",			OP_BEAM_UNPROTECT_SHIP,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "turret-protect-ship",			OP_TURRET_PROTECT_SHIP,					2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "turret-unprotect-ship",			OP_TURRET_UNPROTECT_SHIP,				2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "ship-invisible",					OP_SHIP_INVISIBLE,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "ship-visible",					OP_SHIP_VISIBLE,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "ship-stealthy",					OP_SHIP_STEALTHY,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "ship-unstealthy",				OP_SHIP_UNSTEALTHY,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "friendly-stealth-invisible",		OP_FRIENDLY_STEALTH_INVISIBLE,			1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "friendly-stealth-visible",		OP_FRIENDLY_STEALTH_VISIBLE,			1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "primitive-sensors-set-range",	OP_PRIMITIVE_SENSORS_SET_RANGE,			2,	2,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "ship-targetable-as-bomb",		OP_SHIP_BOMB_TARGETABLE,				1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "ship-untargetable-as-bomb",		OP_SHIP_BOMB_UNTARGETABLE,				1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "kamikaze",						OP_KAMIKAZE,							2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Sesquipedalian
+	{ "change-iff",						OP_CHANGE_IFF,							2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "change-iff-color",				OP_CHANGE_IFF_COLOR,					6,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "add-remove-escort",				OP_ADD_REMOVE_ESCORT,					2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "ship-change-alt-name",			OP_SHIP_CHANGE_ALT_NAME,				2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "ship-change-callsign",			OP_SHIP_CHANGE_CALLSIGN,				2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// FUBAR
+	{ "ship-tag",						OP_SHIP_TAG,							3,	8,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "ship-untag",						OP_SHIP_UNTAG,							1,	1,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "set-arrival-info",				OP_SET_ARRIVAL_INFO,					2,	7,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "set-departure-info",				OP_SET_DEPARTURE_INFO,					2,	6,			SEXP_ACTION_OPERATOR,	},	// Goober5000
 
-	{ "grant-promotion",				OP_GRANT_PROMOTION,				0, 0,			},
-	{ "grant-medal",					OP_GRANT_MEDAL,					1, 1,			},
-	{ "allow-ship",					OP_ALLOW_SHIP,						1, 1,			},
-	{ "allow-weapon",					OP_ALLOW_WEAPON,					1, 1,			},
-	{ "tech-add-ships",				OP_TECH_ADD_SHIP,					1, INT_MAX	},
-	{ "tech-add-weapons",			OP_TECH_ADD_WEAPON,				1, INT_MAX	},
-	{ "tech-add-intel",				OP_TECH_ADD_INTEL,				1, INT_MAX	},	// Goober5000
-	{ "tech-reset-to-default",		OP_TECH_RESET_TO_DEFAULT,		0, 0 },	// Goober5000
-	{ "change-player-score",		OP_CHANGE_PLAYER_SCORE,			2, INT_MAX },	// Karajorma
-	{ "change-team-score",			OP_CHANGE_TEAM_SCORE,			2, 2 },			// Karajorma
-	{ "set-respawns",			OP_SET_RESPAWNS,			2, INT_MAX },	// Karajorma
+	//Shields, Engines and Weapons Sub-Category
+	{ "set-weapon-energy",				OP_SET_WEAPON_ENERGY,					2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "set-shield-energy",				OP_SET_SHIELD_ENERGY,					2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "set-player-throttle-speed",		OP_SET_PLAYER_THROTTLE_SPEED,			2,	2,			SEXP_ACTION_OPERATOR,	},	// CommanderDJ
+	{ "set-afterburner-energy",			OP_SET_AFTERBURNER_ENERGY,				2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "set-subspace-drive",				OP_SET_SUBSPACE_DRIVE,					2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "set-primary-weapon",				OP_SET_PRIMARY_WEAPON,					3,	5,			SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "set-secondary-weapon",			OP_SET_SECONDARY_WEAPON,				3,	5,			SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "set-primary-ammo",				OP_SET_PRIMARY_AMMO,					3,	4,			SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "set-secondary-ammo",				OP_SET_SECONDARY_AMMO,					3,	4,			SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "set-num-countermeasures",		OP_SET_NUM_COUNTERMEASURES,				2,	2,			SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "lock-primary-weapon",			OP_LOCK_PRIMARY_WEAPON,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "unlock-primary-weapon",			OP_UNLOCK_PRIMARY_WEAPON,				1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "lock-secondary-weapon",			OP_LOCK_SECONDARY_WEAPON,				1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "unlock-secondary-weapon",		OP_UNLOCK_SECONDARY_WEAPON,				1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "lock-afterburner",				OP_LOCK_AFTERBURNER,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// KeldorKatarn
+	{ "unlock-afterburner",				OP_UNLOCK_AFTERBURNER,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// KeldorKatarn
+	{ "shields-on",						OP_SHIELDS_ON,							1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Sesquipedalian
+	{ "shields-off",					OP_SHIELDS_OFF,							1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Sesquipedalian
+	{ "force-glide",					OP_FORCE_GLIDE,							2,	2,			SEXP_ACTION_OPERATOR,	},	// The E
+	{ "disable-ets",					OP_DISABLE_ETS,							1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// The E
+	{ "enable-ets",						OP_ENABLE_ETS,							1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// The E
+	{ "break-warp",						OP_WARP_BROKEN,							1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "fix-warp",						OP_WARP_NOT_BROKEN,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "never-warp",						OP_WARP_NEVER,							1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "allow-warp",						OP_WARP_ALLOWED,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "special-warpout-name",			OP_SET_SPECIAL_WARPOUT_NAME,			2,	2,			SEXP_ACTION_OPERATOR,	},
 
-	{ "don't-collide-invisible",	OP_DONT_COLLIDE_INVISIBLE,		1, INT_MAX },	// Goober5000
-	{ "collide-invisible",			OP_COLLIDE_INVISIBLE,			1, INT_MAX },	// Goober5000
-	{ "change-ship-class",			OP_CHANGE_SHIP_CLASS,			2, INT_MAX },	// Goober5000
-	{ "deactivate-glow-points",		OP_DEACTIVATE_GLOW_POINTS,		1, INT_MAX },	//-Bobboau
-	{ "activate-glow-points",		OP_ACTIVATE_GLOW_POINTS,		1, INT_MAX },	//-Bobboau
-	{ "deactivate-glow-maps",		OP_DEACTIVATE_GLOW_MAPS,		1, INT_MAX },	//-Bobboau
-	{ "activate-glow-maps",			OP_ACTIVATE_GLOW_MAPS,			1, INT_MAX },	//-Bobboau
-	{ "deactivate-glow-point-bank",	OP_DEACTIVATE_GLOW_POINT_BANK,	2, INT_MAX },	//-Bobboau
-	{ "activate-glow-point-bank",	OP_ACTIVATE_GLOW_POINT_BANK,	2, INT_MAX },	//-Bobboau
-	{ "set-thrusters-status",		OP_SET_THRUSTERS,				2, INT_MAX },	// The E
+	//Subsystems and Health Sub-Category
+	{ "ship-invulnerable",				OP_SHIP_INVULNERABLE,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "ship-vulnerable",				OP_SHIP_VULNERABLE,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "ship-guardian",					OP_SHIP_GUARDIAN,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "ship-no-guardian",				OP_SHIP_NO_GUARDIAN,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "ship-guardian-threshold",		OP_SHIP_GUARDIAN_THRESHOLD,				2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "ship-subsys-guardian-threshold",	OP_SHIP_SUBSYS_GUARDIAN_THRESHOLD,		3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "self-destruct",					OP_SELF_DESTRUCT,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "destroy-instantly",				OP_DESTROY_INSTANTLY,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Admiral MS
+	{ "destroy-subsys-instantly",		OP_DESTROY_SUBSYS_INSTANTLY,			2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Admiral MS
+	{ "sabotage-subsystem",				OP_SABOTAGE_SUBSYSTEM,					3,	3,			SEXP_ACTION_OPERATOR,	},
+	{ "repair-subsystem",				OP_REPAIR_SUBSYSTEM,					3,	4,			SEXP_ACTION_OPERATOR,	},
+	{ "ship-copy-damage",				OP_SHIP_COPY_DAMAGE,					2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "set-subsystem-strength",			OP_SET_SUBSYSTEM_STRNGTH,				3,	4,			SEXP_ACTION_OPERATOR,	},
+	{ "subsys-set-random",				OP_SUBSYS_SET_RANDOM,					3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "lock-rotating-subsystem",		OP_LOCK_ROTATING_SUBSYSTEM,				2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "free-rotating-subsystem",		OP_FREE_ROTATING_SUBSYSTEM,				2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "reverse-rotating-subsystem",		OP_REVERSE_ROTATING_SUBSYSTEM,			2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "rotating-subsys-set-turn-time",	OP_ROTATING_SUBSYS_SET_TURN_TIME,		3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "trigger-submodel-animation",		OP_TRIGGER_SUBMODEL_ANIMATION,			4,	6,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "change-subsystem-name",			OP_CHANGE_SUBSYSTEM_NAME,				3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "ship-subsys-targetable",			OP_SHIP_SUBSYS_TARGETABLE,				2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "ship-subsys-untargetable",		OP_SHIP_SUBSYS_UNTARGETABLE,			2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "ship-subsys-no-replace",			OP_SHIP_SUBSYS_NO_REPLACE,				3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// FUBAR
+	{ "ship-subsys-no-live-debris",		OP_SHIP_SUBSYS_NO_LIVE_DEBRIS,			3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// FUBAR
+	{ "ship-subsys-vanish",				OP_SHIP_SUBSYS_VANISHED,				3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// FUBAR
+	{ "ship-subsys-ignore_if_dead",		OP_SHIP_SUBSYS_IGNORE_IF_DEAD,			3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// FUBAR
+	{ "awacs-set-radius",				OP_AWACS_SET_RADIUS,					3,	3,			SEXP_ACTION_OPERATOR,	},
+	{ "alter-ship-flag",				OP_ALTER_SHIP_FLAG,						3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma 
 
-	{ "change-soundtrack",				OP_CHANGE_SOUNDTRACK,				1, 1 },		// Goober5000	
-	{ "play-sound-from-table",		OP_PLAY_SOUND_FROM_TABLE,		4, 4 },		// Goober5000
-	{ "play-sound-from-file",		OP_PLAY_SOUND_FROM_FILE,		1, 3 },		// Goober5000
-	{ "close-sound-from-file",		OP_CLOSE_SOUND_FROM_FILE,	1, 1 },		// Goober5000
-	{ "set-sound-environment",		OP_SET_SOUND_ENVIRONMENT,		1, INT_MAX },	// Taylor
-	{ "update-sound-environment",	OP_UPDATE_SOUND_ENVIRONMENT,	2, INT_MAX },	// Taylor
-	{ "adjust-audio-volume",		OP_ADJUST_AUDIO_VOLUME,			1, 3},
-
-	{ "modify-variable",				OP_MODIFY_VARIABLE,			2,	2,			},
-	{ "variable-array-get",				OP_GET_VARIABLE_BY_INDEX,	1,	1,			},
-	{ "variable-array-set",				OP_SET_VARIABLE_BY_INDEX,	2,	2,			},
-	{ "add-remove-escort",			OP_ADD_REMOVE_ESCORT,			2, 2			},
-	{ "damaged-escort-priority",		OP_DAMAGED_ESCORT_LIST,		3, INT_MAX },					//phreak
-	{ "damaged-escort-priority-all",	OP_DAMAGED_ESCORT_LIST_ALL,	1, MAX_COMPLETE_ESCORT_LIST },					// Goober5000
-	{ "awacs-set-radius",			OP_AWACS_SET_RADIUS,				3,	3			},
-	{ "primitive-sensors-set-range",OP_PRIMITIVE_SENSORS_SET_RANGE,	2,	2 },	// Goober5000
-	{ "set-support-ship",			OP_SET_SUPPORT_SHIP,			6, 7 },	// Goober5000
-	{ "set-arrival-info",			OP_SET_ARRIVAL_INFO,			2, 6 },	// Goober5000
-	{ "set-departure-info",			OP_SET_DEPARTURE_INFO,			2, 5 },	// Goober5000
-	{ "cap-waypoint-speed",			OP_CAP_WAYPOINT_SPEED,			2, 2			},
-	{ "special-warpout-name",		OP_SET_SPECIAL_WARPOUT_NAME,	2, 2 },
-	{ "ship-create",					OP_SHIP_CREATE,					5, 8	},	//WMC
-	{ "weapon-create",					OP_WEAPON_CREATE,				5, 10	},	// Goober5000
-	{ "ship-vanish",					OP_SHIP_VANISH,					1, INT_MAX	},
-	{ "supernova-start",				OP_SUPERNOVA_START,				1,	1			},
-	{ "supernova-stop",					OP_SUPERNOVA_STOP,				0,	0			}, //CommanderDJ
-	{ "shields-on",					OP_SHIELDS_ON,					1, INT_MAX			}, //-Sesquipedalian
-	{ "shields-off",					OP_SHIELDS_OFF,					1, INT_MAX			}, //-Sesquipedalian
-	{ "ship-tag",				OP_SHIP_TAG,				3, 8			},	// Goober5000
-	{ "ship-untag",				OP_SHIP_UNTAG,				1, 1			},	// Goober5000
-	{ "explosion-effect",			OP_EXPLOSION_EFFECT,			11, 13 },			// Goober5000
-	{ "warp-effect",			OP_WARP_EFFECT,					12, 12 },		// Goober5000
-	{ "ship-change-alt-name",		OP_SHIP_CHANGE_ALT_NAME,	2, INT_MAX	},	// Goober5000
-	{ "ship-change-callsign",		OP_SHIP_CHANGE_CALLSIGN,	2, INT_MAX	},	// FUBAR
-	{ "ship-copy-damage",			OP_SHIP_COPY_DAMAGE,			2, INT_MAX },	// Goober5000
-	{ "set-death-message",		OP_SET_DEATH_MESSAGE,			1, 1 },			// Goober5000
-	{ "remove-weapons",			OP_REMOVE_WEAPONS,			0, 1 },	// Karajorma
-	{ "ship-maneuver",			OP_SHIP_MANEUVER,			10, 10 }, // Wanderer
-	{ "ship-rot-maneuver",		OP_SHIP_ROT_MANEUVER,		6, 6 }, // Wanderer
-	{ "ship-lat-maneuver",		OP_SHIP_LAT_MANEUVER,		6, 6 }, // Wanderer
-	{ "force-glide",			OP_FORCE_GLIDE,				2, 2 }, // The E
-	{ "weapon-set-damage-type",		OP_WEAPON_SET_DAMAGE_TYPE,		4, INT_MAX }, // FUBAR
-	{ "ship-set-damage-type",		OP_SHIP_SET_DAMAGE_TYPE,		4, INT_MAX }, // FUBAR
-	{ "ship-set-shockwave-damage-type",		OP_SHIP_SHOCKWAVE_SET_DAMAGE_TYPE,		3, INT_MAX }, // FUBAR
-	{ "field-set-damage-type",		OP_FIELD_SET_DAMAGE_TYPE,		2,2 }, // FUBAR
-	{ "disable-ets",				OP_DISABLE_ETS,			1, INT_MAX}, // The E
-	{ "enable-ets",					OP_ENABLE_ETS,			1, INT_MAX}, // The E
-	{ "set-immobile",		OP_SET_IMMOBILE,			1, INT_MAX	},	// Goober5000
-	{ "set-mobile",			OP_SET_MOBILE,			1, INT_MAX	},	// Goober5000
+	//Cargo Sub-Category
+	{ "transfer-cargo",					OP_TRANSFER_CARGO,						2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "exchange-cargo",					OP_EXCHANGE_CARGO,						2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "set-cargo",						OP_SET_CARGO,							2,	3,			SEXP_ACTION_OPERATOR,	},
+	{ "jettison-cargo-delay",			OP_JETTISON_CARGO,						2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "set-docked",						OP_SET_DOCKED,							4,	4,			SEXP_ACTION_OPERATOR,	},	// Sushi
+	{ "cargo-no-deplete",				OP_CARGO_NO_DEPLETE,					1,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "set-scanned",					OP_SET_SCANNED,							1,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "set-unscanned",					OP_SET_UNSCANNED,						1,	2,			SEXP_ACTION_OPERATOR,	},
 	
-	//background and nebula sexps
-	{ "mission-set-nebula",			OP_MISSION_SET_NEBULA,				1, 1 }, //-Sesquipedalian
-	{ "mission-set-subspace",		OP_MISSION_SET_SUBSPACE,			1, 1 },
-	{ "add-background-bitmap",		OP_ADD_BACKGROUND_BITMAP,			9, 9 }, // phreak
-	{ "remove-background-bitmap",	OP_REMOVE_BACKGROUND_BITMAP,		1, 1 }, // phreak
-	{ "add-sun-bitmap",				OP_ADD_SUN_BITMAP,					6, 6 }, // phreak
-	{ "remove-sun-bitmap",			OP_REMOVE_SUN_BITMAP,				1, 1 }, // phreak
-	{ "nebula-change-storm",		OP_NEBULA_CHANGE_STORM,				1, 1 }, // phreak
-	{ "nebula-toggle-poof",			OP_NEBULA_TOGGLE_POOF,				2, 2 }, // phreak
-	{ "set-skybox-model",			OP_SET_SKYBOX_MODEL,				1, 1 },	// taylor
-	{ "set-skybox-orientation",		OP_SET_SKYBOX_ORIENT,				3, 3 },	// Goober5000
+	//Armor and Damage Types Sub-Category
+	{ "set-armor-type",					OP_SET_ARMOR_TYPE,						4,	INT_MAX,	SEXP_ACTION_OPERATOR,	},  // FUBAR
+	{ "weapon-set-damage-type",			OP_WEAPON_SET_DAMAGE_TYPE,				4,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// FUBAR
+	{ "ship-set-damage-type",			OP_SHIP_SET_DAMAGE_TYPE,				4,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// FUBAR
+	{ "ship-set-shockwave-damage-type",	OP_SHIP_SHOCKWAVE_SET_DAMAGE_TYPE,		3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// FUBAR
+	{ "field-set-damage-type",			OP_FIELD_SET_DAMAGE_TYPE,				2,	2,			SEXP_ACTION_OPERATOR,	},	// FUBAR
 
-	//HUD funcs -C
-	{ "hud-disable",			OP_HUD_DISABLE,					1, 1 },	// Goober5000
-	{ "hud-disable-except-messages",	OP_HUD_DISABLE_EXCEPT_MESSAGES,	1, 1 },	// Goober5000
-	{ "hud-set-text",			OP_HUD_SET_TEXT,				2, 2 },	//WMCoolmon
-	{ "hud-set-text-num",			OP_HUD_SET_TEXT_NUM,			2, 2 },	//WMCoolmon
-	{ "hud-set-message",			OP_HUD_SET_MESSAGE,				2, 2 }, //The E
-	{ "hud-set-directive",			OP_HUD_SET_DIRECTIVE,			2, 2 }, //The E
-	{ "hud-set-coords",				OP_HUD_SET_COORDS,				3, 3 },	//WMCoolmon
-	{ "hud-set-frame",				OP_HUD_SET_FRAME,				2, 2 },	//WMCoolmon
-	{ "hud-set-color",				OP_HUD_SET_COLOR,				4, 4 }, //WMCoolmon
-	{ "hud-set-max-targeting-range",	OP_HUD_SET_MAX_TARGETING_RANGE,		1, 1 }, // Goober5000
-	{ "hud-display-gauge",			OP_HUD_DISPLAY_GAUGE,		2, 2 },
-	{ "hud-gauge-set-active",			OP_HUD_GAUGE_SET_ACTIVE,		2, 2 },
-	{ "hud-activate-gauge-type",		OP_HUD_ACTIVATE_GAUGE_TYPE,		2, 2},
-	{ "hud-clear-messages",			OP_HUD_CLEAR_MESSAGES, 0, 0},	// swifty
+	//Beams and Turrets Sub-Category
+	{ "fire-beam",						OP_BEAM_FIRE,							3,	5,			SEXP_ACTION_OPERATOR,	},
+	{ "fire-beam-at-coordinates",		OP_BEAM_FIRE_COORDS,					5,	9,			SEXP_ACTION_OPERATOR,	},
+	{ "beam-free",						OP_BEAM_FREE,							2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "beam-free-all",					OP_BEAM_FREE_ALL,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "beam-lock",						OP_BEAM_LOCK,							2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "beam-lock-all",					OP_BEAM_LOCK_ALL,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "turret-free",					OP_TURRET_FREE,							2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "turret-free-all",				OP_TURRET_FREE_ALL,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "turret-lock",					OP_TURRET_LOCK,							2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "turret-lock-all",				OP_TURRET_LOCK_ALL,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "turret-tagged-only",				OP_TURRET_TAGGED_ONLY_ALL,				1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "turret-tagged-clear",			OP_TURRET_TAGGED_CLEAR_ALL,				1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "turret-tagged-specific",			OP_TURRET_TAGGED_SPECIFIC,				2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//phreak
+	{ "turret-tagged-clear-specific",	OP_TURRET_TAGGED_CLEAR_SPECIFIC,		2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//phreak
+	{ "turret-change-weapon",			OP_TURRET_CHANGE_WEAPON,				5,	5,			SEXP_ACTION_OPERATOR,	},	//WMC
+	{ "turret-set-direction-preference",OP_TURRET_SET_DIRECTION_PREFERENCE,		3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//FUBAR
+	{ "turret-set-rate-of-fire",		OP_TURRET_SET_RATE_OF_FIRE,				3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//FUBAR
+	{ "turret-set-optimum-range",		OP_TURRET_SET_OPTIMUM_RANGE,			3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//FUBAR
+	{ "turret-set-target-priorities",	OP_TURRET_SET_TARGET_PRIORITIES,		3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//FUBAR
+	{ "turret-set-target-order",		OP_TURRET_SET_TARGET_ORDER,				2,	2+NUM_TURRET_ORDER_TYPES,	SEXP_ACTION_OPERATOR,	},	//WMC
+	{ "ship-turret-target-order",		OP_SHIP_TURRET_TARGET_ORDER,			1,	1+NUM_TURRET_ORDER_TYPES,	SEXP_ACTION_OPERATOR,	},	//WMC
+	{ "turret-subsys-target-disable",	OP_TURRET_SUBSYS_TARGET_DISABLE,		2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "turret-subsys-target-enable",	OP_TURRET_SUBSYS_TARGET_ENABLE,			2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	
+	//Models and Textures Sub-Category
+	{ "change-ship-class",				OP_CHANGE_SHIP_CLASS,					2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "deactivate-glow-maps",			OP_DEACTIVATE_GLOW_MAPS,				1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//-Bobboau
+	{ "activate-glow-maps",				OP_ACTIVATE_GLOW_MAPS,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//-Bobboau
+	{ "deactivate-glow-points",			OP_DEACTIVATE_GLOW_POINTS,				1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//-Bobboau
+	{ "activate-glow-points",			OP_ACTIVATE_GLOW_POINTS,				1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//-Bobboau
+	{ "deactivate-glow-point-bank",		OP_DEACTIVATE_GLOW_POINT_BANK,			2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//-Bobboau
+	{ "activate-glow-point-bank",		OP_ACTIVATE_GLOW_POINT_BANK,			2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//-Bobboau
+	{ "set-thrusters-status",			OP_SET_THRUSTERS,						2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// The E
+	{ "don't-collide-invisible",		OP_DONT_COLLIDE_INVISIBLE,				1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "collide-invisible",				OP_COLLIDE_INVISIBLE,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "add-to-collision-group",			OP_ADD_TO_COLGROUP,						2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// The E
+	{ "remove-from-collision-group",	OP_REMOVE_FROM_COLGROUP,				2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "get-collision-group",			OP_GET_COLGROUP_ID,						1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "change-team-color",				OP_CHANGE_TEAM_COLOR,					3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// The E
 
-	{ "ai-chase",					OP_AI_CHASE,					2, 2, },
-	{ "ai-chase-wing",			OP_AI_CHASE_WING,				2, 2, },
-	{ "ai-chase-any",				OP_AI_CHASE_ANY,				1, 1, },
-	{ "ai-guard",					OP_AI_GUARD,					2, 2, },
-	{ "ai-guard-wing",			OP_AI_GUARD_WING,				2, 2, },
-	{ "ai-destroy-subsystem",	OP_AI_DESTROY_SUBSYS,		3, 3, },
-	{ "ai-disable-ship",			OP_AI_DISABLE_SHIP,			2, 2, },
-	{ "ai-disarm-ship",			OP_AI_DISARM_SHIP,			2, 2, },
-	{ "ai-warp",					OP_AI_WARP,						2, 2, },
-	{ "ai-warp-out",				OP_AI_WARP_OUT,				1, 1, },
-	{ "ai-dock",					OP_AI_DOCK,						4, 4, },
-	{ "ai-undock",					OP_AI_UNDOCK,					1, 2, },
-	{ "ai-waypoints",				OP_AI_WAYPOINTS,				2, 2, },
-	{ "ai-waypoints-once",		OP_AI_WAYPOINTS_ONCE,		2, 2, },
-	{ "ai-ignore",					OP_AI_IGNORE,					2, 2, },
-	{ "ai-ignore-new",				OP_AI_IGNORE_NEW,				2, 2, },
-	{ "ai-stay-near-ship",		OP_AI_STAY_NEAR_SHIP,		2, 2, },
-	{ "ai-evade-ship",			OP_AI_EVADE_SHIP,				2, 2,	},
-	{ "ai-keep-safe-distance",	OP_AI_KEEP_SAFE_DISTANCE,	1, 1, },
-	{ "ai-stay-still",			OP_AI_STAY_STILL,				2, 2, },
-	{ "ai-play-dead",				OP_AI_PLAY_DEAD,				1, 1, },
-	{ "ai-form-on-wing",		OP_AI_FORM_ON_WING,			1,	1 },
+	//Coordinate Manipulation Sub-Category
+	{ "set-object-position",			OP_SET_OBJECT_POSITION,					4,	4,			SEXP_ACTION_OPERATOR,	},	// WMC
+	{ "set-object-orientation",			OP_SET_OBJECT_ORIENTATION,				4,	4,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "set-object-facing",				OP_SET_OBJECT_FACING,					4,	6,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "set-object-facing-object",		OP_SET_OBJECT_FACING_OBJECT,			2,	4,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "set-object-speed-x",				OP_SET_OBJECT_SPEED_X,					2,	3,			SEXP_ACTION_OPERATOR,	},	// WMC
+	{ "set-object-speed-y",				OP_SET_OBJECT_SPEED_Y,					2,	3,			SEXP_ACTION_OPERATOR,	},	// WMC
+	{ "set-object-speed-z",				OP_SET_OBJECT_SPEED_Z,					2,	3,			SEXP_ACTION_OPERATOR,	},	// WMC
+	{ "ship-maneuver",					OP_SHIP_MANEUVER,						10, 10,			SEXP_ACTION_OPERATOR,	},	// Wanderer
+	{ "ship-rot-maneuver",				OP_SHIP_ROT_MANEUVER,					6,	6,			SEXP_ACTION_OPERATOR,	},	// Wanderer
+	{ "ship-lat-maneuver",				OP_SHIP_LAT_MANEUVER,					6,	6,			SEXP_ACTION_OPERATOR,	},	// Wanderer
+	{ "set-immobile",					OP_SET_IMMOBILE,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "set-mobile",						OP_SET_MOBILE,							1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
 
-	{ "goals",	OP_GOALS_ID,	1, INT_MAX, },
+	//Mission and Campaign Sub-Category
+	{ "invalidate-goal",				OP_INVALIDATE_GOAL,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "validate-goal",					OP_VALIDATE_GOAL,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "red-alert",						OP_RED_ALERT,							0,	0,			SEXP_ACTION_OPERATOR,	},
+	{ "end-mission",					OP_END_MISSION,							0,	2,			SEXP_ACTION_OPERATOR,	},	//-Sesquipedalian
+	{ "force-jump",						OP_FORCE_JUMP,							0,	0,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "next-mission",					OP_NEXT_MISSION,						1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "end-campaign",					OP_END_CAMPAIGN,						0,	0,			SEXP_ACTION_OPERATOR,	},
+	{ "end-of-campaign",				OP_END_OF_CAMPAIGN,						0,	0,			SEXP_ACTION_OPERATOR,	},
+	{ "set-debriefing-toggled",			OP_SET_DEBRIEFING_TOGGLED,				1,	1,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "allow-treason",					OP_ALLOW_TREASON,						1,	1,			SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "grant-promotion",				OP_GRANT_PROMOTION,						0,	0,			SEXP_ACTION_OPERATOR,	},
+	{ "grant-medal",					OP_GRANT_MEDAL,							1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "allow-ship",						OP_ALLOW_SHIP,							1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "allow-weapon",					OP_ALLOW_WEAPON,						1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "tech-add-ships",					OP_TECH_ADD_SHIP,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "tech-add-weapons",				OP_TECH_ADD_WEAPON,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "tech-add-intel",					OP_TECH_ADD_INTEL,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "tech-reset-to-default",			OP_TECH_RESET_TO_DEFAULT,				0,	0,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "change-player-score",			OP_CHANGE_PLAYER_SCORE,					2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "change-team-score",				OP_CHANGE_TEAM_SCORE,					2,	2,			SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "set-respawns",					OP_SET_RESPAWNS,						2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
 
-	{ "key-pressed",				OP_KEY_PRESSED,				1,	2,			},
-	{ "key-reset",					OP_KEY_RESET,					1, INT_MAX,	},
-	{ "key-reset-multiple",			OP_KEY_RESET_MULTIPLE,			1, INT_MAX,	},
-	{ "ignore-key",			OP_IGNORE_KEY,			2, INT_MAX	},	// Karajorma
-	{ "targeted",					OP_TARGETED,					1, 3,			},
-	{ "node-targeted",				OP_NODE_TARGETED,					1, 2,		}, // FUBAR
-	{ "missile-locked",				OP_MISSILE_LOCKED,			1,	3	},	// Sesquipedalian
-	{ "speed",						OP_SPEED,						1, 1,			},
-	{ "facing",						OP_FACING,						2, 2,			},
-	{ "facing-waypoint",			OP_FACING2,						2, 2,			},
-	{ "order",						OP_ORDER,						2, 3,			},
-	{ "query-orders",				OP_QUERY_ORDERS,				3, 6,			}, // Karajorma
-	{ "reset-orders",				OP_RESET_ORDERS,				0, 0,			}, // Karajorma
-	{ "waypoint-missed",			OP_WAYPOINT_MISSED,			0, 0,			},
-	{ "waypoint-twice",			OP_WAYPOINT_TWICE,			0, 0,			},
-	{ "path-flown",				OP_PATH_FLOWN,					0, 0,			},
-	{ "training-msg",				OP_TRAINING_MSG,				1, 4,			},
-	{ "flash-hud-gauge",			OP_FLASH_HUD_GAUGE,			1, 1,			},
-	{ "primaries-depleted",		OP_PRIMARIES_DEPLETED,		1, 1,			},
-	{ "secondaries-depleted",	OP_SECONDARIES_DEPLETED,	1, 1,			},
-	{ "special-check",			OP_SPECIAL_CHECK,				1, 1,			},
+	//Music and Sound Sub-Category
+	{ "change-soundtrack",				OP_CHANGE_SOUNDTRACK,					1,	1,			SEXP_ACTION_OPERATOR,	},	// Goober5000	
+	{ "play-sound-from-table",			OP_PLAY_SOUND_FROM_TABLE,				4,	4,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "play-sound-from-file",			OP_PLAY_SOUND_FROM_FILE,				1,	3,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "close-sound-from-file",			OP_CLOSE_SOUND_FROM_FILE,				1,	1,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "set-sound-environment",			OP_SET_SOUND_ENVIRONMENT,				1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Taylor
+	{ "update-sound-environment",		OP_UPDATE_SOUND_ENVIRONMENT,			2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Taylor
+	{ "adjust-audio-volume",			OP_ADJUST_AUDIO_VOLUME,					1,	3,			SEXP_ACTION_OPERATOR,	},
 
-	{ "set-training-context-fly-path",	OP_SET_TRAINING_CONTEXT_FLY_PATH,	2, 2, },
-	{ "set-training-context-speed",		OP_SET_TRAINING_CONTEXT_SPEED,		2, 2, },
+	//HUD Sub-Category
+	{ "hud-disable",					OP_HUD_DISABLE,							1,	1,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "hud-disable-except-messages",	OP_HUD_DISABLE_EXCEPT_MESSAGES,			1,	1,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "hud-set-text",					OP_HUD_SET_TEXT,						2,	2,			SEXP_ACTION_OPERATOR,	},	//WMCoolmon
+	{ "hud-set-text-num",				OP_HUD_SET_TEXT_NUM,					2,	2,			SEXP_ACTION_OPERATOR,	},	//WMCoolmon
+	{ "hud-set-message",				OP_HUD_SET_MESSAGE,						2,	2,			SEXP_ACTION_OPERATOR,	},	//The E
+	{ "hud-set-directive",				OP_HUD_SET_DIRECTIVE,					2,	2,			SEXP_ACTION_OPERATOR,	},	//The E
+	{ "hud-set-frame",					OP_HUD_SET_FRAME,						2,	2,			SEXP_ACTION_OPERATOR,	},	//WMCoolmon
+	{ "hud-set-coords",					OP_HUD_SET_COORDS,						3,	3,			SEXP_ACTION_OPERATOR,	},	//WMCoolmon
+	{ "hud-set-color",					OP_HUD_SET_COLOR,						4,	4,			SEXP_ACTION_OPERATOR,	},	//WMCoolmon
+	{ "hud-display-gauge",				OP_HUD_DISPLAY_GAUGE,					2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "hud-gauge-set-active",			OP_HUD_GAUGE_SET_ACTIVE,				2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "hud-activate-gauge-type",		OP_HUD_ACTIVATE_GAUGE_TYPE,				2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "hud-clear-messages",				OP_HUD_CLEAR_MESSAGES,					0,	0,			SEXP_ACTION_OPERATOR,	},	// swifty
+	{ "hud-set-max-targeting-range",	OP_HUD_SET_MAX_TARGETING_RANGE,			1,	1,			SEXP_ACTION_OPERATOR,	},	// Goober5000
 
-	//Cutscene stuff
-	{ "set-cutscene-bars",			OP_CUTSCENES_SET_CUTSCENE_BARS,			0, 1, },
-	{ "unset-cutscene-bars",		OP_CUTSCENES_UNSET_CUTSCENE_BARS,		0, 1, },
-	{ "fade-in",					OP_CUTSCENES_FADE_IN,					0, 1, },
-	{ "fade-out",					OP_CUTSCENES_FADE_OUT,					0, 2, },
-	{ "set-camera",					OP_CUTSCENES_SET_CAMERA,				0, 1, },
-	{ "set-camera-facing",			OP_CUTSCENES_SET_CAMERA_FACING,			3, 6, },
-	{ "set-camera-facing-object",	OP_CUTSCENES_SET_CAMERA_FACING_OBJECT,	1, 4, },
-	{ "set-camera-fov",				OP_CUTSCENES_SET_CAMERA_FOV,			1, 5, },
-	{ "set-camera-host",			OP_CUTSCENES_SET_CAMERA_HOST,			1, 2, },
-	{ "set-camera-position",		OP_CUTSCENES_SET_CAMERA_POSITION,		3, 6, },
-	{ "set-camera-rotation",		OP_CUTSCENES_SET_CAMERA_ROTATION,		3, 6, },
-	{ "set-camera-target",			OP_CUTSCENES_SET_CAMERA_TARGET,			1, 2, },
-	{ "set-fov",					OP_CUTSCENES_SET_FOV,					1, 1, },
-	{ "get-fov",					OP_CUTSCENES_GET_FOV,					0, 0, },
-	{ "reset-fov",					OP_CUTSCENES_RESET_FOV,					0, 0, },
-	{ "reset-camera",				OP_CUTSCENES_RESET_CAMERA,				0, 1, },
-	{ "show-subtitle",				OP_CUTSCENES_SHOW_SUBTITLE,				4, 13, },
-	{ "show-subtitle-text",			OP_CUTSCENES_SHOW_SUBTITLE_TEXT,		6, 13, },
-	{ "show-subtitle-image",		OP_CUTSCENES_SHOW_SUBTITLE_IMAGE,		8, 10, },
-	{ "set-time-compression",		OP_CUTSCENES_SET_TIME_COMPRESSION,		1, 3, },
-	{ "reset-time-compression",		OP_CUTSCENES_RESET_TIME_COMPRESSION,	0, 0, },
-	{ "lock-perspective",			OP_CUTSCENES_FORCE_PERSPECTIVE,			1, 2, },
-	{ "set-camera-shudder",			OP_SET_CAMERA_SHUDDER,					2, 2, },
+	//Nav Sub-Category
+	{ "add-nav-waypoint",				OP_NAV_ADD_WAYPOINT,					3,	4,			SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "add-nav-ship",					OP_NAV_ADD_SHIP,						2,	2,			SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "del-nav",						OP_NAV_DEL,								1,	1,			SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "hide-nav",						OP_NAV_HIDE,							1,	1,			SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "restrict-nav",					OP_NAV_RESTRICT,						1,	1,			SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "unhide-nav",						OP_NAV_UNHIDE,							1,	1,			SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "unrestrict-nav",					OP_NAV_UNRESTRICT,						1,	1,			SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "set-nav-visited",				OP_NAV_SET_VISITED,						1,	1,			SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "unset-nav-visited",				OP_NAV_UNSET_VISITED,					1,	1,			SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "set-nav-carry",					OP_NAV_SET_CARRY,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "unset-nav-carry",				OP_NAV_UNSET_CARRY,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "set-nav-needslink",				OP_NAV_SET_NEEDSLINK,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "unset-nav-needslink",			OP_NAV_UNSET_NEEDSLINK,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "is-nav-linked",					OP_NAV_ISLINKED,						1,	1,			SEXP_BOOLEAN_OPERATOR,	},	//kazan
+	{ "use-nav-cinematics",				OP_NAV_USECINEMATICS,					1,	1,			SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "use-autopilot",					OP_NAV_USEAP,							1,	1,			SEXP_ACTION_OPERATOR,	},	//kazan
+	{ "select-nav",						OP_NAV_SELECT,							1,	1,			SEXP_ACTION_OPERATOR,	},	//Talon1024
+	{ "unselect-nav",					OP_NAV_UNSELECT,						0,	0,			SEXP_ACTION_OPERATOR,	},	//Talon1024
 
-	{ "set-jumpnode-name",			OP_JUMP_NODE_SET_JUMPNODE_NAME,			2, 2, }, //CommanderDJ
-	{ "set-jumpnode-color",			OP_JUMP_NODE_SET_JUMPNODE_COLOR,		5, 5, },
-	{ "set-jumpnode-model",			OP_JUMP_NODE_SET_JUMPNODE_MODEL,		3, 3, },
-	{ "show-jumpnode",				OP_JUMP_NODE_SHOW_JUMPNODE,				1, INT_MAX, },
-	{ "hide-jumpnode",				OP_JUMP_NODE_HIDE_JUMPNODE,				1, INT_MAX, },
+	//Cutscene Sub-Category
+	{ "set-cutscene-bars",				OP_CUTSCENES_SET_CUTSCENE_BARS,			0,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "unset-cutscene-bars",			OP_CUTSCENES_UNSET_CUTSCENE_BARS,		0,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "fade-in",						OP_CUTSCENES_FADE_IN,					0,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "fade-out",						OP_CUTSCENES_FADE_OUT,					0,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "set-camera",						OP_CUTSCENES_SET_CAMERA,				0,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "set-camera-position",			OP_CUTSCENES_SET_CAMERA_POSITION,		3,	6,			SEXP_ACTION_OPERATOR,	},
+	{ "set-camera-facing",				OP_CUTSCENES_SET_CAMERA_FACING,			3,	6,			SEXP_ACTION_OPERATOR,	},
+	{ "set-camera-facing-object",		OP_CUTSCENES_SET_CAMERA_FACING_OBJECT,	1,	4,			SEXP_ACTION_OPERATOR,	},
+	{ "set-camera-rotation",			OP_CUTSCENES_SET_CAMERA_ROTATION,		3,	6,			SEXP_ACTION_OPERATOR,	},
+	{ "set-camera-host",				OP_CUTSCENES_SET_CAMERA_HOST,			1,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "set-camera-target",				OP_CUTSCENES_SET_CAMERA_TARGET,			1,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "set-camera-fov",					OP_CUTSCENES_SET_CAMERA_FOV,			1,	5,			SEXP_ACTION_OPERATOR,	},
+	{ "set-fov",						OP_CUTSCENES_SET_FOV,					1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "get-fov",						OP_CUTSCENES_GET_FOV,					0,	0,			SEXP_INTEGER_OPERATOR,	},
+	{ "reset-fov",						OP_CUTSCENES_RESET_FOV,					0,	0,			SEXP_ACTION_OPERATOR,	},
+	{ "reset-camera",					OP_CUTSCENES_RESET_CAMERA,				0,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "show-subtitle",					OP_CUTSCENES_SHOW_SUBTITLE,				4,	13,			SEXP_ACTION_OPERATOR,	},
+	{ "show-subtitle-text",				OP_CUTSCENES_SHOW_SUBTITLE_TEXT,		6,	13,			SEXP_ACTION_OPERATOR,	},
+	{ "show-subtitle-image",			OP_CUTSCENES_SHOW_SUBTITLE_IMAGE,		8,	10,			SEXP_ACTION_OPERATOR,	},
+	{ "clear-subtitles",				OP_CLEAR_SUBTITLES,						0,	0,			SEXP_ACTION_OPERATOR,	},
+	{ "lock-perspective",				OP_CUTSCENES_FORCE_PERSPECTIVE,			1,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "set-camera-shudder",				OP_SET_CAMERA_SHUDDER,					2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "supernova-start",				OP_SUPERNOVA_START,						1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "supernova-stop",					OP_SUPERNOVA_STOP,						0,	0,			SEXP_ACTION_OPERATOR,	},	//CommanderDJ
 
-	{ "script-eval-num",			OP_SCRIPT_EVAL_NUM,						1, 1, },
-	{ "script-eval-string",			OP_SCRIPT_EVAL_STRING,					1, 1, },
-	{ "script-eval",				OP_SCRIPT_EVAL,							1, INT_MAX},
-	{ "string-to-int",				OP_STRING_TO_INT,						1, 1,			}, // Karajorma
-	{ "int-to-string",				OP_INT_TO_STRING,						2, 2,			}, // Goober5000
-	{ "string-concatenate",			OP_STRING_CONCATENATE,					3, 3,			}, // Goober5000
-	{ "string-get-substring",		OP_STRING_GET_SUBSTRING,				4, 4,	}, // Goober5000
-	{ "string-set-substring",		OP_STRING_SET_SUBSTRING,				5, 5,	}, // Goober5000
-	{ "string-get-length",			OP_STRING_GET_LENGTH,					1, 1,	}, // Goober5000
+	//Background and Nebula Sub-Category
+	{ "mission-set-nebula",				OP_MISSION_SET_NEBULA,					1,	1,			SEXP_ACTION_OPERATOR,	},	// Sesquipedalian
+	{ "mission-set-subspace",			OP_MISSION_SET_SUBSPACE,				1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "add-background-bitmap",			OP_ADD_BACKGROUND_BITMAP,				9,	9,			SEXP_ACTION_OPERATOR,	},	// phreak
+	{ "remove-background-bitmap",		OP_REMOVE_BACKGROUND_BITMAP,			1,	1,			SEXP_ACTION_OPERATOR,	},	// phreak
+	{ "add-sun-bitmap",					OP_ADD_SUN_BITMAP,						6,	6,			SEXP_ACTION_OPERATOR,	},	// phreak
+	{ "remove-sun-bitmap",				OP_REMOVE_SUN_BITMAP,					1,	1,			SEXP_ACTION_OPERATOR,	},	// phreak
+	{ "nebula-change-storm",			OP_NEBULA_CHANGE_STORM,					1,	1,			SEXP_ACTION_OPERATOR,	},	// phreak
+	{ "nebula-toggle-poof",				OP_NEBULA_TOGGLE_POOF,					2,	2,			SEXP_ACTION_OPERATOR,	},	// phreak
+	{ "set-skybox-model",				OP_SET_SKYBOX_MODEL,					1,	1,			SEXP_ACTION_OPERATOR,	},	// taylor
+	{ "set-skybox-orientation",			OP_SET_SKYBOX_ORIENT,					3,	3,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "set-ambient-light",				OP_SET_AMBIENT_LIGHT,					3,	3,			SEXP_ACTION_OPERATOR,	},	// Karajorma
 
-	{ "do-nothing",	OP_NOP,	0, 0,			},
+	//Jump Node Sub-Category
+	{ "set-jumpnode-name",				OP_JUMP_NODE_SET_JUMPNODE_NAME,			2,	2,			SEXP_ACTION_OPERATOR,	},	//CommanderDJ
+	{ "set-jumpnode-color",				OP_JUMP_NODE_SET_JUMPNODE_COLOR,		5,	5,			SEXP_ACTION_OPERATOR,	},
+	{ "set-jumpnode-model",				OP_JUMP_NODE_SET_JUMPNODE_MODEL,		3,	3,			SEXP_ACTION_OPERATOR,	},
+	{ "show-jumpnode",					OP_JUMP_NODE_SHOW_JUMPNODE,				1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "hide-jumpnode",					OP_JUMP_NODE_HIDE_JUMPNODE,				1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+
+	//Special Effects Sub-Category
+	{ "set-post-effect",				OP_SET_POST_EFFECT,						2,	2,			SEXP_ACTION_OPERATOR,	},	// Hery
+	{ "ship-effect",					OP_SHIP_EFFECT,							3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Valathil
+	{ "ship-create",					OP_SHIP_CREATE,							5,	8,			SEXP_ACTION_OPERATOR,	},	// WMC
+	{ "weapon-create",					OP_WEAPON_CREATE,						5,	10,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "ship-vanish",					OP_SHIP_VANISH,							1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "ship-vaporize",					OP_SHIP_VAPORIZE,						1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "ship-no-vaporize",				OP_SHIP_NO_VAPORIZE,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "set-explosion-option",			OP_SET_EXPLOSION_OPTION,				3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "explosion-effect",				OP_EXPLOSION_EFFECT,					11,	13,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "warp-effect",					OP_WARP_EFFECT,							12, 12,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "remove-weapons",					OP_REMOVE_WEAPONS,						0,	1,			SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "set-time-compression",			OP_CUTSCENES_SET_TIME_COMPRESSION,		1,	3,			SEXP_ACTION_OPERATOR,	},
+	{ "reset-time-compression",			OP_CUTSCENES_RESET_TIME_COMPRESSION,	0,	0,			SEXP_ACTION_OPERATOR,	},
+
+	//Variable Category
+	{ "modify-variable",				OP_MODIFY_VARIABLE,						2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "variable-array-get",				OP_GET_VARIABLE_BY_INDEX,				1,	1,			SEXP_INTEGER_OPERATOR,	},
+	{ "variable-array-set",				OP_SET_VARIABLE_BY_INDEX,				2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "int-to-string",					OP_INT_TO_STRING,						2,	2,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "string-concatenate",				OP_STRING_CONCATENATE,					3,	3,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "string-get-substring",			OP_STRING_GET_SUBSTRING,				4,	4,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "string-set-substring",			OP_STRING_SET_SUBSTRING,				5,	5,			SEXP_ACTION_OPERATOR,	},	// Goober5000  
+
+	//Other Sub-Category
+	{ "damaged-escort-priority",		OP_DAMAGED_ESCORT_LIST,					3,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	//phreak
+	{ "damaged-escort-priority-all",	OP_DAMAGED_ESCORT_LIST_ALL,				1,	MAX_COMPLETE_ESCORT_LIST,	SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "set-support-ship",				OP_SET_SUPPORT_SHIP,					6,	7,			SEXP_ACTION_OPERATOR,	},	// Goober5000
+	{ "script-eval",					OP_SCRIPT_EVAL,							1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "debug",							OP_DEBUG,								2,	2,			SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "do-nothing",						OP_NOP,									0,	0,			SEXP_ACTION_OPERATOR,	},
+	
+	//AI Goals Category
+	{ "ai-chase",						OP_AI_CHASE,							2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-chase-wing",					OP_AI_CHASE_WING,						2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-chase-any",					OP_AI_CHASE_ANY,						1,	1,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-guard",						OP_AI_GUARD,							2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-guard-wing",					OP_AI_GUARD_WING,						2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-destroy-subsystem",			OP_AI_DESTROY_SUBSYS,					3,	3,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-disable-ship",				OP_AI_DISABLE_SHIP,						2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-disarm-ship",					OP_AI_DISARM_SHIP,						2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-warp",						OP_AI_WARP,								2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-warp-out",					OP_AI_WARP_OUT,							1,	1,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-dock",						OP_AI_DOCK,								4,	4,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-undock",						OP_AI_UNDOCK,							1,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-waypoints",					OP_AI_WAYPOINTS,						2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-waypoints-once",				OP_AI_WAYPOINTS_ONCE,					2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-ignore",						OP_AI_IGNORE,							2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-ignore-new",					OP_AI_IGNORE_NEW,						2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-stay-near-ship",				OP_AI_STAY_NEAR_SHIP,					2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-evade-ship",					OP_AI_EVADE_SHIP,						2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-keep-safe-distance",			OP_AI_KEEP_SAFE_DISTANCE,				1,	1,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-stay-still",					OP_AI_STAY_STILL,						2,	2,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-play-dead",					OP_AI_PLAY_DEAD,						1,	1,			SEXP_GOAL_OPERATOR,	},
+	{ "ai-form-on-wing",				OP_AI_FORM_ON_WING,						1,	1,			SEXP_GOAL_OPERATOR,	},
+
+	{ "goals",							OP_GOALS_ID,							1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+
+	//Training Category
+	{ "key-pressed",					OP_KEY_PRESSED,							1,	2,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "key-reset",						OP_KEY_RESET,							1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "key-reset-multiple",				OP_KEY_RESET_MULTIPLE,					1,	INT_MAX,	SEXP_ACTION_OPERATOR,	},
+	{ "ignore-key",						OP_IGNORE_KEY,							2,	INT_MAX,	SEXP_ACTION_OPERATOR,	},	// Karajorma
+	{ "targeted",						OP_TARGETED,							1,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "node-targeted",					OP_NODE_TARGETED,						1,	2,			SEXP_BOOLEAN_OPERATOR,	},	// FUBAR
+	{ "missile-locked",					OP_MISSILE_LOCKED,						1,	3,			SEXP_BOOLEAN_OPERATOR,	},	// Sesquipedalian
+	{ "speed",							OP_SPEED,								1,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "facing",							OP_FACING,								2,	2,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "facing-waypoint",				OP_FACING2,								2,	2,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "order",							OP_ORDER,								2,	3,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "query-orders",					OP_QUERY_ORDERS,						3,	6,			SEXP_BOOLEAN_OPERATOR,	}, // Karajorma
+	{ "reset-orders",					OP_RESET_ORDERS,						0,	0,			SEXP_ACTION_OPERATOR,	}, // Karajorma
+	{ "waypoint-missed",				OP_WAYPOINT_MISSED,						0,	0,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "waypoint-twice",					OP_WAYPOINT_TWICE,						0,	0,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "path-flown",						OP_PATH_FLOWN,							0,	0,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "training-msg",					OP_TRAINING_MSG,						1,	4,			SEXP_ACTION_OPERATOR,	},
+	{ "flash-hud-gauge",				OP_FLASH_HUD_GAUGE,						1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "primaries-depleted",				OP_PRIMARIES_DEPLETED,					1,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "secondaries-depleted",			OP_SECONDARIES_DEPLETED,				1,	1,			SEXP_BOOLEAN_OPERATOR,	},
+	{ "special-check",					OP_SPECIAL_CHECK,						1,	1,			SEXP_ACTION_OPERATOR,	},
+	{ "set-training-context-fly-path",	OP_SET_TRAINING_CONTEXT_FLY_PATH,		2,	2,			SEXP_ACTION_OPERATOR,	},
+	{ "set-training-context-speed",		OP_SET_TRAINING_CONTEXT_SPEED,			2,	2,			SEXP_ACTION_OPERATOR,	},
 };
 
 sexp_ai_goal_link Sexp_ai_goal_links[] = {
@@ -798,7 +854,7 @@ int sexp_explosion_option_lookup(char *text);
 char *Explosion_option[] = { "damage", "blast", "inner radius", "outer radius", "shockwave speed", "death roll time" };
 int Num_explosion_options = 6;
 
-int get_sexp(char *token);
+int get_sexp();
 void build_extended_sexp_string(SCP_string &accumulator, int cur_node, int level, int mode);
 void update_sexp_references(const char *old_name, const char *new_name, int format, int node);
 int sexp_determine_team(char *subj);
@@ -839,6 +895,11 @@ ship * sexp_get_ship_from_node(int node);
 
 // hud-display-gauge magic values
 #define SEXP_HUD_GAUGE_WARPOUT "warpout"
+
+// event log stuff
+SCP_vector<SCP_string> event_log_buffer;
+SCP_vector<SCP_string> event_log_variable_buffer;
+SCP_vector<SCP_string> event_log_argument_buffer;
 
 // Goober5000 - arg_item class stuff, borrowed from sexp_list_item class stuff -------------
 void arg_item::add_data(char *str)
@@ -1702,6 +1763,15 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 			if ( (z == OP_HAS_DOCKED_DELAY) || (z == OP_HAS_UNDOCKED_DELAY) )
 				if ( (argnum == 2) && (i < 1) )
 					return SEXP_CHECK_NUM_RANGE_INVALID;
+
+			// valid color range 0 to 255 - FUBAR
+			if ((z == OP_CHANGE_IFF_COLOR)  && ((argnum >= 2) && (argnum <= 4)))
+			{
+				if ( i < 0 || i > 255) 
+				{
+					return SEXP_CHECK_NUM_RANGE_INVALID;
+				}
+			}
 
 			z = get_operator_index(CTEXT(op_node));
 			if ( (query_operator_return_type(z) == OPR_AI_GOAL) && (argnum == Operators[op].min - 1) )
@@ -2607,6 +2677,68 @@ int check_sexp_syntax(int node, int return_type, int recursive, int *bad_node, i
 				}
 				break;
 
+			case OPF_MISSION_MOOD:
+				if (type2 != SEXP_ATOM_STRING) {
+					return SEXP_CHECK_TYPE_MISMATCH;
+				}
+
+				for (i = 0; i < (int)Builtin_moods.size(); i++) {
+					if (!strcmp(Builtin_moods[i].c_str(), CTEXT(node))) {
+						break;
+					}
+				}
+
+				if (i == (int)Builtin_moods.size()) {
+					return SEXP_CHECK_INVALID_MISSION_MOOD;
+				}
+
+				break;
+
+			case OPF_SHIP_FLAG:
+				{
+				bool found = false;
+				for ( i = 0; i < MAX_OBJECT_FLAG_NAMES; i++) {
+					if (!stricmp(Object_flag_names[i].flag_name, CTEXT(node))) {
+						found = true;
+						break;
+					}
+				}
+
+				if (!found) {
+					for ( i = 0; i < MAX_SHIP_FLAG_NAMES; i++) {
+						if (!stricmp(Ship_flag_names[i].flag_name, CTEXT(node))) {
+							found = true;
+							break;
+						}
+					}
+				}
+
+				if (!found) {
+					for ( i = 0; i < MAX_AI_FLAG_NAMES; i++) {
+						if (!stricmp(Ai_flag_names[i].flag_name, CTEXT(node))) {
+							found = true;
+							break;
+						}
+					}
+				}
+
+				if (!found) {
+					return SEXP_CHECK_INVALID_SHIP_FLAG;
+				}
+
+				break;
+				}
+
+			case OPF_TEAM_COLOR:
+				if (type2 != SEXP_ATOM_STRING) {
+					return SEXP_CHECK_TYPE_MISMATCH;
+				}
+
+				if (Team_Colors.find(CTEXT(node)) == Team_Colors.end())
+					return SEXP_CHECK_INVALID_TEAM_COLOR;
+				
+				break;
+
 			case OPF_FONT:
 				if (type2 != SEXP_ATOM_STRING) {
 					return SEXP_CHECK_TYPE_MISMATCH;
@@ -3042,9 +3174,10 @@ void preload_turret_change_weapon(char *text)
 /**
  * Returns the first sexp index of data this function allocates. (start of this sexp)
  */
-int get_sexp(char *token)
+int get_sexp()
 {
 	int start, node, last, op, count;
+	char token[TOKEN_LENGTH];
 	char variable_text[TOKEN_LENGTH];
 
 	// start - the node allocated in first instance of fuction
@@ -3059,45 +3192,42 @@ int get_sexp(char *token)
 	ignore_white_space();
 	while (*Mp != ')') {
 		Assert(*Mp != EOF_CHAR);
+
+		// Sexp list
 		if (*Mp == '(') {
-			// Sexp list
 			Mp++;
-			node = alloc_sexp("", SEXP_LIST, SEXP_ATOM_LIST, get_sexp(token), -1);
+			node = alloc_sexp("", SEXP_LIST, SEXP_ATOM_LIST, get_sexp(), -1);
+		}
 
-		} else if (*Mp == '\"')	{
-			// Sexp string
+		// Sexp string
+		else if (*Mp == '\"') {
 			int len = strcspn(Mp + 1, "\"");
-			
 			Assert(Mp[len + 1] == '\"');    // hit EOF first (unterminated string)
-
-			if(len >= TOKEN_LENGTH)
-			{
-				char * errortoken = new char[len+1];
-				memset(errortoken, 0, len+1);
-				strncpy(errortoken, Mp, len);
-				char * message = new char[95 + len]; // 95 approximate fixed string length.
-				memset(message, 0, 95 + len);
-				sprintf(message, "Token '%s' is too long. Needs to be %d characters or shorter and will be truncated to fit.", errortoken, (TOKEN_LENGTH-1));
-				MessageBox(NULL,message,NULL,MB_OK); // token is too long.
-				delete errortoken;
-				delete message;
-				len = TOKEN_LENGTH;
-			}
 
 			// check if string variable
 			if ( *(Mp + 1) == SEXP_VARIABLE_CHAR ) {
+				char variable_token[2*TOKEN_LENGTH+2];	// variable_token[contents_token]
 
 				// reduce length by 1 for end \"
 				int length = len - 1;
-				Assert(length < 2*TOKEN_LENGTH+2);
+				if (length >= 2*TOKEN_LENGTH+2) {
+					Error(LOCATION, "Variable token %s is too long. Needs to be %d characters or shorter.", Mp, 2*TOKEN_LENGTH+2 - 1);
+					return -1;
+				}
 
 				// start copying after skipping 1st char
-				strncpy(token, Mp + 2, length);
-				token[length] = 0;
+				strncpy(variable_token, Mp + 2, length);
+				variable_token[length] = 0;
 
-				get_sexp_text_for_variable(variable_text, token);
+				get_sexp_text_for_variable(variable_text, variable_token);
 				node = alloc_sexp(variable_text, (SEXP_ATOM | SEXP_FLAG_VARIABLE), SEXP_ATOM_STRING, -1, -1);
 			} else {
+				// token is too long?
+				if (len >= TOKEN_LENGTH) {
+					Error(LOCATION, "Token %s is too long. Needs to be %d characters or shorter.", Mp, TOKEN_LENGTH - 1);
+					return -1;
+				}
+
 				strncpy(token, Mp + 1, len);
 				token[len] = 0;
 				node = alloc_sexp(token, SEXP_ATOM, SEXP_ATOM_STRING, -1, -1);
@@ -3106,8 +3236,10 @@ int get_sexp(char *token)
 			// bump past closing \" by 1 char
 			Mp += len + 2;
 
-		} else {
-			// Sexp operator or number
+		}
+
+		// Sexp operator or number
+		else {
 			int len = 0;
 			bool variable = false;
 			while (*Mp != ')' && !is_white_space(*Mp)) {
@@ -3211,8 +3343,16 @@ int get_sexp(char *token)
 		switch (op)
 		{
 			case OP_CHANGE_SHIP_CLASS:
-				// model is argument #1
+				// ship class is argument #1
 				n = CDR(start);
+				do_preload_for_arguments(preload_change_ship_class, n, arg_handler);
+				break;
+
+			case OP_SHIP_CREATE:
+				// ship class is argument #2
+				n = CDDR(start);
+				// page in ship classes of dynamically created ships
+				// preload_change_ship_class doesn't require a class change, so we can use that here -zookeeper
 				do_preload_for_arguments(preload_change_ship_class, n, arg_handler);
 				break;
 
@@ -4367,11 +4507,51 @@ typedef struct object_ship_wing_point_team
 	wing *wingp;
 	waypoint *waypointp;
 	int team;
+
+	void clear();
 }
 object_ship_wing_point_team;
 
+void object_ship_wing_point_team::clear()
+{
+	object_name = NULL;
+	type = OSWPT_TYPE_NONE;
+
+	p_objp = NULL;
+	objp = NULL;
+	shipp = NULL;
+	waypointp = NULL;
+	wingp = NULL;
+	team = -1;
+}
+
+void sexp_object_ship_wing_point_team_set_ship(object_ship_wing_point_team *oswpt, ship *shipp, bool set_parse_flag_too = false);
+void sexp_object_ship_wing_point_team_set_ship(object_ship_wing_point_team *oswpt, ship_obj *so, bool set_parse_flag_too = false);
+void sexp_get_object_ship_wing_point_team(object_ship_wing_point_team *oswpt, char *object_name, bool set_parse_flag_too = false); 
+
+void object_ship_wing_point_team_set_ship(object_ship_wing_point_team *oswpt, ship *shipp, bool set_parse_flag_too)
+{
+	oswpt->clear(); 
+	
+	oswpt->shipp = shipp;
+	oswpt->object_name = oswpt->shipp->ship_name; 
+	oswpt->objp = &Objects[shipp->objnum];
+	oswpt->type = OSWPT_TYPE_SHIP;
+
+	if (set_parse_flag_too) {
+		oswpt->p_objp = mission_parse_get_arrival_ship(oswpt->object_name);
+	}
+}
+
+
+void object_ship_wing_point_team_set_ship(object_ship_wing_point_team *oswpt, ship_obj *so, bool set_parse_flag_too)
+{
+	object_ship_wing_point_team_set_ship(oswpt, &Ships[Objects[so->objnum].instance], set_parse_flag_too); 
+}
+
+
 // Goober5000
-void sexp_get_object_ship_wing_point_team(object_ship_wing_point_team *oswpt, char *object_name)
+void sexp_get_object_ship_wing_point_team(object_ship_wing_point_team *oswpt, char *object_name, bool set_parse_flag_too)
 {
 	int team, ship_num, wing_num;
 	waypoint *wpt;
@@ -4380,15 +4560,8 @@ void sexp_get_object_ship_wing_point_team(object_ship_wing_point_team *oswpt, ch
 	Assert(oswpt != NULL);
 	Assert(object_name != NULL);
 
+	oswpt->clear(); 
 	oswpt->object_name = object_name;
-	oswpt->type = OSWPT_TYPE_NONE;
-
-	oswpt->p_objp = NULL;
-	oswpt->objp = NULL;
-	oswpt->shipp = NULL;
-	oswpt->waypointp = NULL;
-	oswpt->wingp = NULL;
-	oswpt->team = -1;
 
 	if(!stricmp(object_name, SEXP_NONE_STRING))
 	{
@@ -4397,7 +4570,7 @@ void sexp_get_object_ship_wing_point_team(object_ship_wing_point_team *oswpt, ch
 	}
 
 	// check to see if ship destroyed or departed.  In either case, do nothing.
-	if (mission_log_get_time(LOG_SHIP_DEPARTED, object_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, object_name, NULL, NULL))
+	if (mission_log_get_time(LOG_SHIP_DEPARTED, object_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, object_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, object_name, NULL, NULL))
 	{
 		oswpt->type = OSWPT_TYPE_EXITED;
 		return;
@@ -4413,6 +4586,10 @@ void sexp_get_object_ship_wing_point_team(object_ship_wing_point_team *oswpt, ch
 
 	// if we have a team type, pick the first ship of that team
 	team = sexp_determine_team(object_name);
+	if (team == -1) {
+		// try it another way
+		team = iff_lookup(object_name);
+	}
 	if (team >= 0)
 	{
 		for (ship_obj *so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so))
@@ -4446,7 +4623,9 @@ void sexp_get_object_ship_wing_point_team(object_ship_wing_point_team *oswpt, ch
 		oswpt->shipp = &Ships[ship_num];
 		oswpt->objp = &Objects[oswpt->shipp->objnum];
 
-		return;
+		if (!set_parse_flag_too) {
+			return;
+		}
 	}
 
 
@@ -4454,7 +4633,9 @@ void sexp_get_object_ship_wing_point_team(object_ship_wing_point_team *oswpt, ch
 	p_objp = mission_parse_get_arrival_ship(object_name);
 	if (p_objp != NULL)
 	{
-		oswpt->type = OSWPT_TYPE_PARSE_OBJECT;
+		if (oswpt->type != OSWPT_TYPE_SHIP) {
+			oswpt->type = OSWPT_TYPE_PARSE_OBJECT;
+		}
 
 		oswpt->p_objp = p_objp;
 
@@ -4539,8 +4720,7 @@ int sexp_num_ships_in_battle(int n)
 		sexp_get_object_ship_wing_point_team(&oswpt1, CTEXT(n));
 
 	    switch (oswpt1.type){
-			// Should use OSWPT_TYPE_TEAM but can't in order to keep compatibility with the existing SEXP
- 		    case OSWPT_TYPE_NONE:
+ 		    case OSWPT_TYPE_TEAM:
 			  team = iff_lookup(CTEXT(n));
 			  if (team >= 0) {
 				  for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) {
@@ -4729,10 +4909,13 @@ int sexp_has_docked(int n)
 	if (sexp_query_has_yet_to_arrive(dockee))
 		return SEXP_CANT_EVAL;
 
-	Assert ( count > 0 );
 	if ( mission_log_get_time(LOG_SHIP_DESTROYED, docker, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, dockee, NULL, NULL) )
 		return SEXP_KNOWN_FALSE;
 
+	if ( mission_log_get_time(LOG_SELF_DESTRUCTED, docker, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, dockee, NULL, NULL) )
+		return SEXP_KNOWN_FALSE;
+
+	Assert ( count > 0 );
 	if ( !mission_log_get_time_indexed(LOG_SHIP_DOCKED, docker, dockee, count, NULL) )
 		return SEXP_FALSE;
 
@@ -4759,8 +4942,10 @@ int sexp_has_undocked(int n)
 		// if either ship destroyed before they dock, then sexp is known false
 		if ( mission_log_get_time(LOG_SHIP_DESTROYED, docker, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, dockee, NULL, NULL) )
 			return SEXP_KNOWN_FALSE;
-		else
-			return SEXP_FALSE;
+		if ( mission_log_get_time(LOG_SELF_DESTRUCTED, docker, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, dockee, NULL, NULL) )
+			return SEXP_KNOWN_FALSE;
+
+		return SEXP_FALSE;
 	}
 
 	return SEXP_KNOWN_TRUE;
@@ -4815,7 +5000,7 @@ int sexp_has_departed(int n, fix *latest_time)
 
 		// if ship/wing destroyed, sexpression is known false.  Also, if there is no departure log entry, then
 		// the sexpression is not true.
-		if ( mission_log_get_time(LOG_SHIP_DESTROYED, name, NULL, NULL) || mission_log_get_time(LOG_WING_DESTROYED, name, NULL, NULL))
+		if ( mission_log_get_time(LOG_SHIP_DESTROYED, name, NULL, NULL) || mission_log_get_time(LOG_WING_DESTROYED, name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, name, NULL, NULL))
 			return SEXP_KNOWN_FALSE;
 		else if ( mission_log_get_time(LOG_SHIP_DEPARTED, name, NULL, &time) || mission_log_get_time(LOG_WING_DEPARTED, name, NULL, &time) ) {
 			num_departed++;
@@ -4851,7 +5036,7 @@ int sexp_is_disabled( int n, fix *latest_time )
 
 		// if ship/wing destroyed, sexpression is known false.  Also, if there is no disable log entry, then
 		// the sexpression is not true.
-		if ( mission_log_get_time(LOG_SHIP_DEPARTED, name, NULL, &time) || mission_log_get_time(LOG_SHIP_DESTROYED, name, NULL, &time) )
+		if ( mission_log_get_time(LOG_SHIP_DEPARTED, name, NULL, &time) || mission_log_get_time(LOG_SHIP_DESTROYED, name, NULL, &time) || mission_log_get_time(LOG_SELF_DESTRUCTED, name, NULL, &time) )
 			return SEXP_KNOWN_FALSE;
 		else if ( mission_log_get_time(LOG_SHIP_DISABLED, name, NULL, &time) ) {
 			num_disabled++;
@@ -4881,7 +5066,7 @@ int sexp_are_waypoints_done(int n)
 		return SEXP_CANT_EVAL;
 
 	// a destroyed or departed ship will never reach their goal -- return known false
-	if ( mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) )
+	if ( mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) )
 		return SEXP_KNOWN_FALSE;
 	else if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) )
 		return SEXP_KNOWN_FALSE;
@@ -4914,7 +5099,7 @@ int sexp_is_disarmed( int n, fix *latest_time )
 
 		// if ship/wing destroyed, sexpression is known false.  Also, if there is no disarm log entry, then
 		// the sexpression is not true.
-		if ( mission_log_get_time(LOG_SHIP_DEPARTED, name, NULL, &time) || mission_log_get_time(LOG_SHIP_DESTROYED, name, NULL, &time) )
+		if ( mission_log_get_time(LOG_SHIP_DEPARTED, name, NULL, &time) || mission_log_get_time(LOG_SHIP_DESTROYED, name, NULL, &time) || mission_log_get_time(LOG_SELF_DESTRUCTED, name, NULL, &time) )
 			return SEXP_KNOWN_FALSE;
 		else if ( mission_log_get_time(LOG_SHIP_DISARMED, name, NULL, &time) ) {
 			num_disarmed++;
@@ -5054,6 +5239,9 @@ int sexp_has_docked_delay(int n)
 	if ( mission_log_get_time(LOG_SHIP_DESTROYED, docker, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, dockee, NULL, NULL) )
 		return SEXP_KNOWN_FALSE;
 
+	if ( mission_log_get_time(LOG_SELF_DESTRUCTED, docker, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, dockee, NULL, NULL) )
+		return SEXP_KNOWN_FALSE;
+
 	if (sexp_query_has_yet_to_arrive(docker))
 		return SEXP_CANT_EVAL;
 
@@ -5092,8 +5280,10 @@ int sexp_has_undocked_delay(int n)
 		// if either ship destroyed before they dock, then sexp is known false
 		if ( mission_log_get_time(LOG_SHIP_DESTROYED, docker, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, dockee, NULL, NULL) )
 			return SEXP_KNOWN_FALSE;
-		else
-			return SEXP_FALSE;
+		if ( mission_log_get_time(LOG_SELF_DESTRUCTED, docker, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, dockee, NULL, NULL) )
+			return SEXP_KNOWN_FALSE;
+
+		return SEXP_FALSE;
 	}
 
 	if ( (Missiontime - time) >= delay )
@@ -5191,7 +5381,7 @@ int sexp_are_waypoints_done_delay(int node)
 		if ( (Missiontime - time) >= delay )
 			return SEXP_KNOWN_TRUE;
 	} else {
-		if ( mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) )
+		if ( mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) )
 			return SEXP_KNOWN_FALSE;
 		else if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) )
 			return SEXP_KNOWN_FALSE;
@@ -5271,9 +5461,8 @@ int sexp_special_warp_dist( int n)
 	// get shipname
 	ship_name = CTEXT(n);
 
-	// check to see if either ship was destroyed or departed.  If so, then make this node known
-	// false
-	if ( mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, ship_name, NULL, NULL) ) {
+	// check to see if either ship was destroyed or departed.  If so, then make this node known false
+	if ( mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) ) {
 		return SEXP_NAN_FOREVER;
 	}
 
@@ -5328,7 +5517,8 @@ int sexp_time_destroyed(int n)
 {
 	fix time;
 
-	if ( !mission_log_get_time( LOG_SHIP_DESTROYED, CTEXT(n), NULL, &time) ){		// returns 0 when not found
+	if ( !mission_log_get_time( LOG_SHIP_DESTROYED, CTEXT(n), NULL, &time)
+		&& !mission_log_get_time( LOG_SELF_DESTRUCTED, CTEXT(n), NULL, &time) ) {		// returns 0 when not found
 		return SEXP_NAN;
 	}
 	
@@ -5573,7 +5763,7 @@ int sexp_shields_left(int n)
 	shipname = CTEXT(n);
 	
 	// if ship is gone or departed, cannot ever evaluate properly.  Return NAN_FOREVER
-	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) ){
+	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, shipname, NULL, NULL) ) {
 		return SEXP_NAN_FOREVER;
 	}
 
@@ -5606,7 +5796,7 @@ int sexp_hits_left(int n)
 	shipname = CTEXT(n);
 	
 	// if ship is gone or departed, cannot ever evaluate properly.  Return NAN_FOREVER
-	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) ){
+	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, shipname, NULL, NULL) ) {
 		return SEXP_NAN_FOREVER;
 	}
 
@@ -5631,7 +5821,7 @@ int sexp_sim_hits_left(int n)
 	shipname = CTEXT(n);
 	
 	// if ship is gone or departed, cannot ever evaluate properly.  Return NAN_FOREVER
-	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) ){
+	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, shipname, NULL, NULL) ) {
 		return SEXP_NAN_FOREVER;
 	}
 
@@ -5669,7 +5859,7 @@ int sexp_is_ship_visible(int n)
 	shipname = CTEXT(n);
 	
 	// if ship is gone or departed, cannot ever evaluate properly.  Return NAN_FOREVER
-	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) ){
+	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, shipname, NULL, NULL) ) {
 		return SEXP_NAN_FOREVER;
 	}
 
@@ -5711,7 +5901,7 @@ int sexp_is_ship_stealthy(int n)
 	shipname = CTEXT(n);
 	
 	// if ship is gone or departed, cannot ever evaluate properly.  Return NAN_FOREVER
-	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) ){
+	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, shipname, NULL, NULL) ) {
 		return SEXP_NAN_FOREVER;
 	}
 
@@ -5737,7 +5927,7 @@ int sexp_is_friendly_stealth_visible(int n)
 	shipname = CTEXT(n);
 	
 	// if ship is gone or departed, cannot ever evaluate properly.  Return NAN_FOREVER
-	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) ){
+	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, shipname, NULL, NULL) ) {
 		return SEXP_NAN_FOREVER;
 	}
 
@@ -5793,7 +5983,7 @@ int sexp_hits_left_subsystem(int n)
 	shipname = CTEXT(n);
 	
 	// if ship is gone or departed, cannot ever evaluate properly.  Return NAN_FOREVER
-	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) ){
+	if ( mission_log_get_time(LOG_SHIP_DESTROYED, shipname, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, shipname, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, shipname, NULL, NULL) ) {
 		return SEXP_NAN_FOREVER;
 	}
 
@@ -5850,7 +6040,7 @@ int sexp_hits_left_subsystem_generic(int node)
 	subsys_type_name = CTEXT(CDR(node));
 	
 	// if ship is gone or departed, cannot ever evaluate properly.  Return NAN_FOREVER
-	if (mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL)) {
+	if (mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL)) {
 		return SEXP_NAN_FOREVER;
 	}
 
@@ -5895,7 +6085,7 @@ int sexp_hits_left_subsystem_specific(int node)
 	subsys_name = CTEXT(CDR(node));
 	
 	// if ship is gone or departed, cannot ever evaluate properly.  Return NAN_FOREVER
-	if (mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL)) {
+	if (mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL)) {
 		return SEXP_NAN_FOREVER;
 	}
 
@@ -6184,7 +6374,7 @@ int sexp_distance_subsystem(int n)
 	subsys_name = CTEXT(CDR(CDR(n)));
 
 	// for the ship with the subsystem - see if it was destroyed or departed
-	if (mission_log_get_time(LOG_SHIP_DESTROYED, ship_with_subsys_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DEPARTED, ship_with_subsys_name, NULL, NULL))
+	if (mission_log_get_time(LOG_SHIP_DESTROYED, ship_with_subsys_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DEPARTED, ship_with_subsys_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_with_subsys_name, NULL, NULL))
 		return SEXP_NAN_FOREVER;
 
 	// check the other ship too
@@ -6675,7 +6865,7 @@ void sexp_set_object_position(int n)
 			oswpt.objp->pos = target_vec;
 			oswpt.waypointp->set_pos(&target_vec);
 			multi_start_callback();
-			multi_send_int(OBJ_INDEX(oswpt.objp));
+			multi_send_ushort(oswpt.objp->net_signature);
 			multi_send_float(target_vec.xyz.x);
 			multi_send_float(target_vec.xyz.y);
 			multi_send_float(target_vec.xyz.z);
@@ -6713,12 +6903,12 @@ void multi_sexp_set_object_position()
 {
 	object *objp;
 	vec3d wp_vec;
-	int objnum;
-	multi_get_int(objnum);
+	ushort obj_sig;
+	multi_get_ushort(obj_sig);
 	multi_get_float(wp_vec.xyz.x);
 	multi_get_float(wp_vec.xyz.y);
 	multi_get_float(wp_vec.xyz.z);
-	objp = &Objects[objnum];
+	objp = multi_get_network_object(obj_sig);
 	if (objp->type == OBJ_WAYPOINT) {
 		objp->pos = wp_vec;
 		waypoint *wpt = find_waypoint_with_objnum(OBJ_INDEX(objp));
@@ -7345,7 +7535,7 @@ int sexp_percent_ships_arrive_depart_destroy_disarm_disable(int n, int what)
 				if ( mission_log_get_time(LOG_SHIP_DEPARTED, name, NULL, NULL) )
 					count++;
 			} else if ( what == OP_PERCENT_SHIPS_DESTROYED ) {
-				if ( mission_log_get_time(LOG_SHIP_DESTROYED, name, NULL, NULL) )
+				if ( mission_log_get_time(LOG_SHIP_DESTROYED, name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, name, NULL, NULL) )
 					count++;
 			} else if ( what == OP_PERCENT_SHIPS_DISABLED ) {
 				if ( mission_log_get_time(LOG_SHIP_DISABLED, name, NULL, NULL) )
@@ -7399,7 +7589,7 @@ int sexp_depart_node_delay(int n)
 
 		// if ship/wing destroyed, sexpression is known false.  Also, if there is no departure log entry, then
 		// the sexpression is not true.
-		if ( mission_log_get_time(LOG_SHIP_DESTROYED, name, NULL, NULL) )
+		if ( mission_log_get_time(LOG_SHIP_DESTROYED, name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, name, NULL, NULL) )
 			return SEXP_KNOWN_FALSE;
 		else if ( mission_log_get_time(LOG_SHIP_DEPARTED, name, jump_node_name, &this_time) ) {
 			num_departed++;
@@ -7480,10 +7670,9 @@ int sexp_special_warpout_name( int node )
 	ship_name = CTEXT(node);
 	knossos = CTEXT(CDR(node));
 
-	// check to see if either ship was destroyed or departed.  If so, then make this node known
-	// false
-	if ( mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, ship_name, NULL, NULL) ||
-		  mission_log_get_time(LOG_SHIP_DESTROYED, knossos, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, knossos, NULL, NULL) ) 
+	// check to see if either ship was destroyed or departed.  If so, then make this node known false
+	if ( mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time( LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) ||
+		  mission_log_get_time(LOG_SHIP_DESTROYED, knossos, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, knossos, NULL, NULL) || mission_log_get_time( LOG_SELF_DESTRUCTED, knossos, NULL, NULL) ) 
 		return SEXP_NAN_FOREVER;
 
 	// get ship name
@@ -7743,7 +7932,7 @@ void sexp_set_scanned_unscanned(int n, int flag)
 	ship_name = CTEXT(n);
 
 	// check to see the ship was destroyed or departed - if so, do nothing
-	if ( mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, ship_name, NULL, NULL) )
+	if ( mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time( LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) )
 	{
 		return;
 	}
@@ -8041,7 +8230,7 @@ void eval_when_do_all_exp(int all_actions, int when_op_num)
 	ptr = Sexp_applicable_argument_list.get_next();
 
 	while (ptr != NULL)
-	{
+	{	
 		// acquire argument to be used
 		Sexp_replacement_arguments.push_back(ptr->text);
 		actions = all_actions; 
@@ -8105,6 +8294,7 @@ int eval_when(int n, int when_op_num)
 {
 	int cond, val, actions;
 	Assert( n >= 0 );
+	arg_item *ptr;
 
 	// get the parts of the sexp and evaluate the conditional
 	if (is_blank_argument_op(when_op_num))
@@ -8187,6 +8377,15 @@ int eval_when(int n, int when_op_num)
 
 	if (is_blank_argument_op(when_op_num))
 	{
+		if (Log_event) {	
+			ptr = Sexp_applicable_argument_list.get_next();		
+			while(ptr != NULL) {
+				// See if we have an argument. 
+				event_log_argument_buffer.push_back(ptr->text); 
+				ptr = ptr->get_next();
+			}
+		}	
+
 		// clean up any special sexp stuff
 		Sexp_applicable_argument_list.clear_nesting_level();
 		Sexp_current_argument_nesting_level--;
@@ -9820,7 +10019,13 @@ void sexp_play_sound_from_table(int n)
 
 	// play sound effect ---------------------------
 	if (sound_index >= 0) {
-		snd_play_3d( &Snds[gamesnd_get_by_tbl_index(sound_index)], &origin, &View_position, 0.0f, NULL, 0, 1.0f, SND_PRIORITY_MUST_PLAY  );
+		game_snd *snd = &Snds[gamesnd_get_by_tbl_index(sound_index)];
+		if (snd->min == 0 && snd->max == 0) {
+			// if sound doesn't specify 3d range, don't play in 3d
+			snd_play( snd, 0.0f, 1.0f, SND_PRIORITY_MUST_PLAY );
+		} else {
+			snd_play_3d( snd, &origin, &View_position, 0.0f, NULL, 0, 1.0f, SND_PRIORITY_MUST_PLAY );
+		}
 	}
 
 	if (MULTIPLAYER_MASTER) {
@@ -9844,9 +10049,15 @@ void multi_sexp_play_sound_from_table()
 	multi_get_int(sound_index);
 
 
-	if (sound_index != -1) {
-		// play sound effect ---------------------------
-		snd_play_3d( &Snds[gamesnd_get_by_tbl_index(sound_index)], &origin, &View_position, 0.0f, NULL, 0, 1.0f, SND_PRIORITY_MUST_PLAY  );
+	// play sound effect ---------------------------
+	if (sound_index >= 0) {
+		game_snd *snd = &Snds[gamesnd_get_by_tbl_index(sound_index)];
+		if (snd->min == 0 && snd->max == 0) {
+			// if sound doesn't specify 3d range, don't play in 3d
+			snd_play( snd, 0.0f, 1.0f, SND_PRIORITY_MUST_PLAY );
+		} else {
+			snd_play_3d( snd, &origin, &View_position, 0.0f, NULL, 0, 1.0f, SND_PRIORITY_MUST_PLAY );
+		}
 	}
 }
 
@@ -10501,7 +10712,7 @@ void sexp_send_one_message( char *name, char *who_from, char *priority, int grou
 				return;
 		}
 
-	} else if ( mission_log_get_time(LOG_SHIP_DESTROYED, who_from, NULL, NULL) || mission_log_get_time(LOG_SHIP_DEPARTED, who_from, NULL, NULL) 
+	} else if ( mission_log_get_time(LOG_SHIP_DESTROYED, who_from, NULL, NULL) || mission_log_get_time(LOG_SHIP_DEPARTED, who_from, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, who_from, NULL, NULL)
 		|| mission_log_get_time(LOG_WING_DESTROYED, who_from, NULL, NULL) || mission_log_get_time(LOG_WING_DEPARTED, who_from, NULL, NULL) ) {
 		// getting into this if statement means that the ship or wing (sender) is no longer in the mission
 		// if message is high priority, make it come from Terran Command
@@ -11058,6 +11269,73 @@ void sexp_set_subsystem_strength(int n)
 	}
 }
 
+// destroys a subsystem without explosions
+void sexp_destroy_subsys_instantly (int n)
+{
+	char *subsystem;
+	int	shipnum, index, generic_type;
+	ship *shipp;
+	ship_subsys *ss = NULL;
+	
+	// if MULTIPLAYER bail
+	if (Game_mode & GM_MULTIPLAYER) {
+		return;
+	}
+
+	shipnum = ship_name_lookup(CTEXT(n));
+	// if no ship, then return immediately.
+	if ( shipnum == -1 ){
+		return;
+	}
+
+	shipp = &Ships[shipnum];
+	n = CDR(n);
+	
+	//Process subsystems
+	while(n != -1)
+	{
+		subsystem = CTEXT(n);
+		if ( !stricmp( subsystem, SEXP_HULL_STRING) || !stricmp( subsystem, SEXP_SIM_HULL_STRING)){
+			n = CDR(n);
+			continue;
+		}
+		// deal with generic subsystems
+		generic_type = get_generic_subsys(subsystem);
+		if (generic_type) {
+			for (ss = GET_FIRST(&shipp->subsys_list); ss != END_OF_LIST(&shipp->subsys_list); ss = GET_NEXT(ss)) {
+				if (generic_type == ss->system_info->type) {
+					// do destruction stuff
+					ss->current_hits = 0;
+					ship_recalc_subsys_strength(shipp);
+					do_subobj_destroyed_stuff(shipp, ss, NULL, true);
+				}
+			}
+		}
+		else
+		{
+			// normal subsystems
+			ss = ship_get_subsys(shipp, subsystem);
+			index = ship_get_subsys_index(shipp, subsystem, 1);
+			if ( index == -1 ) {
+				nprintf(("Warning", "Couldn't find subsystem %s on ship %s for destroy-subsys-instantly\n", subsystem, shipp->ship_name));
+				n = CDR(n);
+				continue;
+			}
+			if(ss == NULL) {
+				nprintf(("Warning", "Nonexistent subsystem for index %d on ship %s for destroy-subsys-instantly\n", index, shipp->ship_name));
+				n = CDR(n);
+				continue;
+			}
+			// do destruction stuff
+			ss->current_hits = 0;
+			ship_recalc_subsys_strength(shipp);
+			do_subobj_destroyed_stuff(shipp, ss, NULL, true);
+		}
+		// next
+		n = CDR(n);
+	}
+}
+
 /**
  * Changes the validity of a goal.
  * 
@@ -11167,7 +11445,7 @@ void sexp_set_cargo(int n)
 		subsystem = NULL;
 
 	// check to see if ship destroyed or departed.  In either case, do nothing.
-	if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship, NULL, NULL) )
+	if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship, NULL, NULL) )
 		return;
 
 	cargo_index = -1;
@@ -11269,7 +11547,7 @@ void sexp_transfer_cargo(int n)
 	// Don't give warning for large ships (cruiser on up) 
 	if (! (Ship_info[Ships[shipnum2].ship_info_index].flags & (SIF_BIG_SHIP | SIF_HUGE_SHIP)) ) {
 		if ( stricmp(Cargo_names[Ships[shipnum2].cargo1 & CARGO_INDEX_MASK], "nothing") ) {
-			Warning(LOCATION, "Transfering cargo to %s which already\nhas cargo %s.\nCargo will be replaced", Ships[shipnum2].ship_name, Cargo_names[Ships[shipnum2].cargo1 & CARGO_INDEX_MASK] );
+			Warning(LOCATION, "Transferring cargo to %s which already\nhas cargo %s.\nCargo will be replaced", Ships[shipnum2].ship_name, Cargo_names[Ships[shipnum2].cargo1 & CARGO_INDEX_MASK] );
 		}
 	}
 #endif
@@ -11755,7 +12033,7 @@ void sexp_end_mission(int n)
 
 	// if we go straight to the main hall we have to clean up the mission without entering the debriefing
 	if (boot_to_main_hall && !(Game_mode & GM_MULTIPLAYER)) {
-		gameseq_post_event(GS_EVENT_MAIN_MENU);
+		gameseq_post_event(GS_EVENT_END_GAME);
 	} else {
 		send_debrief_event();
 	}
@@ -12042,7 +12320,6 @@ void sexp_allow_weapon(int n)
 	}
 }
 
-// Goober5000
 // generic function for all those sexps that set flags
 void sexp_deal_with_ship_flag(int node, bool process_subsequent_nodes, int object_flag, int object_flag2, int ship_flag, int ship_flag2, int p_object_flag, int p_object_flag2, bool set_it, bool send_multiplayer = false, bool include_players_in_ship_lookup = false)
 {
@@ -12264,6 +12541,424 @@ void multi_sexp_deal_with_ship_flag()
 		}
 	}
 }
+
+void sexp_alter_ship_flag_helper(object_ship_wing_point_team &oswpt, bool future_ships, int object_flag, int object_flag2, int ship_flag, int ship_flag2, int parse_obj_flag, int parse_obj_flag2, int ai_flag, int ai_flag2, bool set_flag)
+{
+	int i;
+	ship_obj	*so;
+	object_ship_wing_point_team oswpt2;
+	p_object *p_objp;
+
+	switch (oswpt.type)
+	{			
+		case OSWPT_TYPE_NONE:
+		case OSWPT_TYPE_EXITED:
+			return;
+
+		case OSWPT_TYPE_TEAM:
+			Assert (oswpt.team >= 0); 
+			oswpt2.clear();
+			for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ){
+				if (Ships[Objects[so->objnum].instance].team == oswpt.team) {
+					object_ship_wing_point_team_set_ship(&oswpt2, so, future_ships); 
+
+					// recurse
+					sexp_alter_ship_flag_helper(oswpt2, future_ships, object_flag, object_flag2, ship_flag, ship_flag2, parse_obj_flag, parse_obj_flag2, ai_flag, ai_flag2, set_flag);
+				}
+			}
+
+			if (future_ships) {
+				for (p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp)) {
+					if (p_objp->team == oswpt.team) {
+						oswpt2.p_objp = p_objp;
+						oswpt2.type = OSWPT_TYPE_PARSE_OBJECT;
+						sexp_alter_ship_flag_helper(oswpt2, future_ships, object_flag, object_flag2, ship_flag, ship_flag2, parse_obj_flag, parse_obj_flag2, ai_flag, ai_flag2, set_flag);
+					}
+				}
+			}
+			break;
+
+		case OSWPT_TYPE_WING:
+		case OSWPT_TYPE_WING_NOT_PRESENT:
+			// if the wing isn't here, and we're only dealing with ships which are, we're done. 
+			if  (!future_ships){
+				if (oswpt.type == OSWPT_TYPE_WING_NOT_PRESENT) {
+					return; 
+				}
+			}
+			else {
+				for (p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp)) {
+					if (p_objp->wingnum == WING_INDEX(oswpt.wingp)) {
+						oswpt2.p_objp = p_objp;
+						oswpt2.type = OSWPT_TYPE_PARSE_OBJECT;
+						sexp_alter_ship_flag_helper(oswpt2, future_ships, object_flag, object_flag2, ship_flag, ship_flag2, parse_obj_flag, parse_obj_flag2, ai_flag, ai_flag2, set_flag);
+					}
+				}
+			}
+
+			for (i = 0; i < oswpt.wingp->current_count; i++) {
+				object_ship_wing_point_team_set_ship(&oswpt2, &Ships[oswpt.wingp->ship_index[i]], future_ships); 
+				sexp_alter_ship_flag_helper(oswpt2, future_ships, object_flag, object_flag2, ship_flag, ship_flag2, parse_obj_flag, parse_obj_flag2, ai_flag, ai_flag2, set_flag);
+			}
+
+			break;
+
+		// finally! If we actually have a ship, we can set its flags!
+		case OSWPT_TYPE_SHIP:
+			// see if we have an object flag to set
+			if (object_flag)
+			{
+				// set or clear?
+				if (set_flag)
+					oswpt.objp->flags |= object_flag;
+				else
+					oswpt.objp->flags &= ~object_flag;
+			}
+
+			// see if we have an object flag2 to set
+			if (object_flag2)
+			{
+				// Add code here when have flag2 settings
+			}
+
+			// see if we have a ship flag to set
+			if (ship_flag)
+			{
+				// set or clear?
+				if (set_flag)
+					oswpt.shipp->flags |= ship_flag;
+				else
+					oswpt.shipp->flags &= ~ship_flag;
+			}
+
+			// see if we have a ship flag2 to set
+			if (ship_flag2)
+			{
+				// set or clear?
+				if (set_flag)
+					oswpt.shipp->flags2 |= ship_flag2;
+				else
+					oswpt.shipp->flags2 &= ~ship_flag2;
+			}
+
+			// the lock afterburner SEXP also needs to set a physics flag
+			if (ship_flag2 == SF2_AFTERBURNER_LOCKED) {
+				if (set_flag) {
+					afterburners_stop(oswpt.objp, 1);
+				}
+			}
+
+			// see if we have an ai flag to set
+			if (ai_flag)
+			{
+				// set or clear?
+				if (set_flag)
+					Ai_info[oswpt.shipp->ai_index].ai_flags |= ai_flag;
+				else
+					Ai_info[oswpt.shipp->ai_index].ai_flags &= ~ai_flag;
+			}
+
+			// see if we have an object flag2 to set
+			if (ai_flag2)
+			{
+				// Add code here when have flag2 settings
+			}
+
+			// no break statement. We want to fall through. 
+			
+		case OSWPT_TYPE_PARSE_OBJECT:
+			if (!future_ships) {
+				return;
+			}
+
+			// see if we have a p_object flag to set
+			if (parse_obj_flag && oswpt.p_objp != NULL)
+			{
+				// set or clear?
+				if (set_flag)
+					oswpt.p_objp->flags |= parse_obj_flag;
+				else
+					oswpt.p_objp->flags &= ~parse_obj_flag;
+			}
+
+			// see if we have a p_object flag2 to set
+			if (parse_obj_flag2 && oswpt.p_objp != NULL)
+			{
+				// set or clear?
+				if (set_flag)
+					oswpt.p_objp->flags2 |= parse_obj_flag2;
+				else
+					oswpt.p_objp->flags2 &= ~parse_obj_flag2;
+			}
+			break;
+
+
+	}
+
+}
+
+void alter_flag_for_all_ships(bool future_ships, int object_flag, int object_flag2, int ship_flag, int ship_flag2, int parse_obj_flag, int parse_obj_flag2, int ai_flag, int ai_flag2, bool set_flag)
+{
+	ship_obj	*so;
+	p_object	*p_objp;
+	object_ship_wing_point_team oswpt;
+
+	// set all the ships present in the mission
+	for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) {
+		object_ship_wing_point_team_set_ship(&oswpt, so, future_ships); 
+
+		sexp_alter_ship_flag_helper(oswpt, future_ships, object_flag, object_flag2, ship_flag, ship_flag2, parse_obj_flag, parse_obj_flag2, ai_flag, ai_flag2, set_flag);
+	}
+
+	// set up all the ships which have yet to arrive
+	if (future_ships) {
+		oswpt.clear(); 
+		for (p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
+		{
+			oswpt.p_objp = p_objp; 
+			oswpt.type = OSWPT_TYPE_PARSE_OBJECT;
+			sexp_alter_ship_flag_helper(oswpt, future_ships, object_flag, object_flag2, ship_flag, ship_flag2, parse_obj_flag, parse_obj_flag2, ai_flag, ai_flag2, set_flag);
+		}
+	}
+}
+
+void sexp_alter_ship_flag(int node)
+{
+	char *flag_name;
+	int object_flag = 0;
+	int object_flag2 = 0;
+	int ship_flags = 0;
+	int ship_flags2 = 0;
+	int parse_obj_flag = 0;
+	int parse_obj_flag2 = 0;
+	int ai_flag = 0;
+	int ai_flag2 = 0;
+	bool set_flag = false; 
+	bool send_multi = false;
+	bool future_ships = false; 
+	int i;
+	object_ship_wing_point_team oswpt;
+
+	flag_name = CTEXT(node); 
+	for ( i = 0; i < MAX_OBJECT_FLAG_NAMES; i++) {
+		if (!stricmp(Object_flag_names[i].flag_name, flag_name)) {
+			// make sure the list writes to the correct list of flags!
+			if (Object_flag_names[i].flag_list == 1) {
+				object_flag = Object_flag_names[i].flag;
+			}
+			else if (Object_flag_names[i].flag_list == 2) {
+				object_flag2 = Object_flag_names[i].flag;
+			}
+			break;
+		}
+	}
+
+	for ( i = 0; i < MAX_SHIP_FLAG_NAMES; i++) {
+		if (!stricmp(Ship_flag_names[i].flag_name, flag_name)) {
+			// make sure the list writes to the correct list of flags!
+			if (Ship_flag_names[i].flag_list == 1) {
+				ship_flags = Ship_flag_names[i].flag;
+			}
+			else if (Ship_flag_names[i].flag_list == 2) {
+				ship_flags2 = Ship_flag_names[i].flag;
+				// only ship flags2 and above need to be sent the game handles the first set of flags elsewhere
+				send_multi = true;
+			}
+			break;
+		}
+	}
+
+	// parse files already have a list of names in the same order as the flags, so we can do something slightly different here. 
+	for ( i = 0; i < MAX_PARSE_OBJECT_FLAGS; i++) {
+		if (!stricmp(Parse_object_flags[i], flag_name)) {
+			parse_obj_flag = (1 << i);
+			break;
+		}
+	}
+
+	for ( i = 0; i < MAX_PARSE_OBJECT_FLAGS_2; i++) {
+		if (!stricmp(Parse_object_flags_2[i], flag_name)) {
+			parse_obj_flag2 = (1 << i);
+			break;
+		}
+	}
+
+	for ( i = 0; i < MAX_AI_FLAG_NAMES; i++) {
+		if (!stricmp(Ai_flag_names[i].flag_name, flag_name)) {
+			// make sure the list writes to the correct list of flags!
+			if (Ai_flag_names[i].flag_list == 1) {
+				ai_flag = Ai_flag_names[i].flag;
+			}
+			else if (Ai_flag_names[i].flag_list == 2) {
+				ai_flag2 = Ai_flag_names[i].flag;
+			}
+			break;
+		}
+	}
+
+	node = CDR(node); 
+	if (is_sexp_true(node)) {
+		set_flag = true;
+	}
+
+	node = CDR(node);
+	if (is_sexp_true(node)) {
+		future_ships = true;
+	}
+
+
+	// start the multiplayer packet
+	if (send_multi && MULTIPLAYER_MASTER) {
+		multi_start_callback(); 
+		multi_send_int(object_flag); 
+		/* Uncommenting this will break compatibility with earlier builds but it is pointless to send it until object_flag2
+		is actually used by the engine 
+		*/
+		// multi_send_int(object_flag2); 
+		multi_send_int(ship_flags); 
+		multi_send_int(ship_flags2); 
+		multi_send_int(parse_obj_flag); 
+		multi_send_int(parse_obj_flag2); 
+		multi_send_int(ai_flag); 
+		/* Uncommenting this will break compatibility with earlier builds but it is pointless to send it until ai_flag2
+		is actually used by the engine 
+		*/
+		// multi_send_int(ai_flag2); 
+		multi_send_bool(set_flag); 
+		multi_send_bool(future_ships); 
+	}
+
+	node = CDR(node);
+
+	// no 4th argument means do this to every ship in the mission (and if the flag is set, every ship that will be too).
+	if (node == -1) {
+		// send a message to the clients saying there were no more arguments
+		multi_send_bool(false); 
+
+		alter_flag_for_all_ships(future_ships, object_flag, object_flag2, ship_flags, ship_flags2, parse_obj_flag, parse_obj_flag2, ai_flag, ai_flag2, set_flag);
+	}
+
+
+	else {
+		// send a message to the clients saying there are more arguments
+		multi_send_bool(true); 
+
+		while (node != -1) {
+			sexp_get_object_ship_wing_point_team(&oswpt, CTEXT(node), future_ships); 
+			
+			// no point in setting these flags at all
+			if (oswpt.type == OSWPT_TYPE_NONE || oswpt.type == OSWPT_TYPE_EXITED ) {
+				node = CDR(node);
+				continue; 
+			}
+
+			sexp_alter_ship_flag_helper(oswpt, future_ships, object_flag, object_flag2, ship_flags, ship_flags2, parse_obj_flag, parse_obj_flag2, ai_flag, ai_flag2, set_flag);
+			node = CDR(node);
+
+			multi_send_int(oswpt.type);
+
+			switch (oswpt.type) {
+				case OSWPT_TYPE_SHIP:
+					multi_send_ship(oswpt.shipp);
+					break;
+
+				case OSWPT_TYPE_PARSE_OBJECT:
+					multi_send_parse_object(oswpt.p_objp);
+					break;
+
+				case OSWPT_TYPE_WING_NOT_PRESENT:
+				case OSWPT_TYPE_WING:
+					multi_send_ushort(oswpt.wingp->net_signature);
+					break;
+
+				case OSWPT_TYPE_TEAM:
+					multi_send_int(oswpt.team);
+					break;
+			}
+		}
+	}
+	multi_end_callback();
+}
+
+
+
+void multi_sexp_alter_ship_flag() 
+{
+	int i;
+	int object_flag = 0;
+	int object_flag2 = 0; 
+	int ship_flag = 0; 
+	int ship_flag2 = 0;
+	int parse_obj_flag = 0;
+	int parse_obj_flag2 = 0;
+	bool set_flag = false;
+	bool future_ships = true; 
+	bool process_data = false;
+	int ai_flag = 0;
+	int ai_flag2 = 0;
+	int type = -1;
+	object_ship_wing_point_team oswpt;
+	ushort wing_sig;
+
+	multi_get_int(object_flag); 
+	// multi_get_int(object_flag2); 
+	multi_get_int(ship_flag); 
+	multi_get_int(ship_flag2); 
+	multi_get_int(parse_obj_flag); 
+	multi_get_int(parse_obj_flag2); 
+	multi_get_int(ai_flag); 
+	multi_get_bool(set_flag);
+	multi_get_bool(future_ships);
+ 
+	// if any of the above failed so will this loop
+	if (!multi_get_bool(process_data)) 
+	{
+		return;
+	}
+
+	// no more data means do this to every ship in the mission
+	if (!process_data) {
+		alter_flag_for_all_ships(future_ships, object_flag, object_flag2, ship_flag, ship_flag2, parse_obj_flag, parse_obj_flag2, ai_flag, ai_flag2, set_flag);
+	}
+	else {
+		while (multi_get_int(type)) {
+			oswpt.clear();
+			oswpt.type = type; 
+
+			switch (oswpt.type) {
+				case OSWPT_TYPE_SHIP:
+					multi_get_ship(oswpt.shipp);
+					break;
+
+				case OSWPT_TYPE_PARSE_OBJECT:
+					multi_get_parse_object(oswpt.p_objp);
+					break;
+
+				case OSWPT_TYPE_WING_NOT_PRESENT:
+				case OSWPT_TYPE_WING:
+					multi_get_ushort(wing_sig);
+					for (i = 0; i < Num_wings; i++) {
+						if (Wings[i].net_signature == wing_sig) {
+							oswpt.wingp = &Wings[i];
+							break;
+						}
+					}
+
+					if (oswpt.wingp == NULL) {
+						Warning(LOCATION, "Unable to get wing to apply flags to in multi_sexp_alter_ship_flag()"); 
+					}
+					break;
+
+				case OSWPT_TYPE_TEAM:
+					multi_get_int(oswpt.team);
+					break;
+			}
+			sexp_alter_ship_flag_helper(oswpt, future_ships, object_flag, object_flag2, ship_flag, ship_flag2, parse_obj_flag, parse_obj_flag2, ai_flag, ai_flag2, set_flag);
+		}
+	}
+}
+
+
 // modified by Goober5000; now it should work properly
 // function to deal with breaking/fixing the warp engines on ships/wings.
 // --repairable is true when we are breaking the warp drive (can be repaired)
@@ -12318,7 +13013,7 @@ void sexp_good_secondary_time(int n)
 
 	// see if the ship has departed or has been destroyed.  If so, then we don't need to set up the
 	// AI stuff
-	if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) )
+	if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) )
 		return;
 
 	ai_good_secondary_time( team, weapon_index, num_weapons, ship_name );
@@ -12457,6 +13152,21 @@ void multi_sexp_set_persona()
 			shipp->persona_index = persona_index;
 		}
 	}
+}
+
+void sexp_set_mission_mood (int node)
+{
+	char *mood; 
+
+	mood = CTEXT(node);
+	for (SCP_vector<SCP_string>::iterator iter = Builtin_moods.begin(); iter != Builtin_moods.end(); ++iter) {
+		if (!strcmp(iter->c_str(), mood)) {
+			Current_mission_mood = iter - Builtin_moods.begin();
+			return;
+		}
+	}
+
+	Warning(LOCATION, "Sexp-mission-mood attempted to set mood %s which does not exist in messages.tbl", mood); 
 }
 
 int sexp_weapon_fired_delay(int node, int op_num)
@@ -12977,7 +13687,7 @@ void sexp_turret_protect_ships(int n, bool flag)
 		Warning(LOCATION, "Invalid turret type '%s'!", turret_type);
 }
 
-// Goober5000 - sets the "dont collide invisible" flag on a list of ships
+// Goober5000 - sets the "don't collide invisible" flag on a list of ships
 void sexp_dont_collide_invisible(int n, bool dont_collide)
 {
 	sexp_deal_with_ship_flag(n, true, 0, 0, 0, SF2_DONT_COLLIDE_INVIS, 0, P_SF2_DONT_COLLIDE_INVIS, dont_collide);
@@ -13189,7 +13899,7 @@ void sexp_ship_tag( int n, int tag )
     int ssm_team = 0;
 
 	// check to see if ship destroyed or departed.  In either case, do nothing.
-	if ( mission_log_get_time(LOG_SHIP_DEPARTED, CTEXT(n), NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, CTEXT(n), NULL, NULL) )
+	if ( mission_log_get_time(LOG_SHIP_DEPARTED, CTEXT(n), NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, CTEXT(n), NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, CTEXT(n), NULL, NULL) )
 		return;
 
 	// get the ship num
@@ -13279,7 +13989,7 @@ void sexp_ship_guardian_threshold(int node)
 		// check to see if ship destroyed or departed.  In either case, do nothing.
 		ship_name = CTEXT(n);
 
-		if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) ) {
+		if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) ) {
 			continue;
 		}
 
@@ -13307,7 +14017,7 @@ void sexp_ship_subsys_guardian_threshold(int num)
 	// check to see if ship destroyed or departed.  In either case, do nothing.
 	ship_name = CTEXT(n);
 
-	if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) ) {
+	if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) ) {
 		return;
 	}
 
@@ -13364,7 +14074,7 @@ void sexp_ships_guardian( int n, int guardian )
 		ship_name = CTEXT(n);
 
 		// check to see if ship destroyed or departed.  In either case, do nothing.
-		if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) )
+		if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) )
 			continue;
 
 		// get the ship num.  If we get a -1 for the number here, ship has yet to arrive.  Store this ship
@@ -13560,13 +14270,44 @@ void sexp_ship_vanish(int n)
 		ship_name = CTEXT(n);
 
 		// check to see if ship destroyed or departed.  In either case, do nothing.
-		if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) )
+		if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) )
 			continue;
 
 		// get the ship num.  If we get a -1 for the number here, ship has yet to arrive
 		num = ship_name_lookup(ship_name);
 		if ( num != -1 )
 			ship_actually_depart(num, SHIP_VANISHED);
+	}
+}
+
+void sexp_destroy_instantly(int n)
+{
+	char *ship_name;
+	int ship_num;
+	object *ship_obj;
+
+	// if MULTIPLAYER bail
+	if (Game_mode & GM_MULTIPLAYER) {
+		return;
+	}
+
+	for ( ; n != -1; n = CDR(n) ) {
+		ship_name = CTEXT(n);
+
+		// check to see if ship destroyed or departed.  In either case, do nothing.
+		if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) )
+			continue;
+		ship_num = ship_name_lookup(ship_name);
+
+		// if it still exists, destroy it
+		if (ship_num >= 0) {
+			ship_obj = &Objects[Ships[ship_num].objnum];
+
+			//if its the player don't destroy
+			if (ship_obj == Player_obj)
+				continue;
+			ship_destroy_instantly(ship_obj,ship_num);
+		}
 	}
 }
 
@@ -15178,6 +15919,9 @@ void sexp_change_ship_class(int n)
 			if (!(Ships[ship_num].flags & (SF_DYING | SF_ARRIVING | SF_DEPARTING)))
 			{
 				change_ship_type(ship_num, class_num, 1);
+				if (&Ships[ship_num] == Player_ship) {
+					set_current_hud();
+				}
 
 				if (MULTIPLAYER_MASTER) {
 					multi_send_bool(true); 
@@ -15200,18 +15944,21 @@ void multi_sexp_change_ship_class()
 	p_object *pobjp = NULL;
 
 	multi_get_int(class_num);
-	multi_get_bool(ship_arrived);
-
-	if (ship_arrived) {
-		multi_get_ship(ship_num);
-		if ((class_num >= 0) && (ship_num >= 0)) {
-			change_ship_type(ship_num, class_num, 1);
+	while (multi_get_bool(ship_arrived)) {
+		if (ship_arrived) {
+			multi_get_ship(ship_num);
+			if ((class_num >= 0) && (ship_num >= 0)) {
+				change_ship_type(ship_num, class_num, 1);
+				if (&Ships[ship_num] == Player_ship) {
+					set_current_hud();
+				}
+			}
 		}
-	}
-	else {
-		multi_get_parse_object(pobjp); 
-		if ((class_num >= 0) && (pobjp != NULL)) {
-			swap_parse_object(pobjp, class_num);
+		else {
+			multi_get_parse_object(pobjp); 
+			if ((class_num >= 0) && (pobjp != NULL)) {
+				swap_parse_object(pobjp, class_num);
+			}
 		}
 	}
 }
@@ -15274,11 +16021,11 @@ void parse_copy_damage(p_object *target_pobjp, ship *source_shipp)
 
 	// copy hull...
 	target_pobjp->special_hitpoints = source_shipp->special_hitpoints;
-	target_pobjp->ship_max_hull_strength_multiplier = source_shipp->ship_max_hull_strength / Ship_info[source_shipp->ship_info_index].max_hull_strength;
+	target_pobjp->ship_max_hull_strength = source_shipp->ship_max_hull_strength;
 	target_pobjp->initial_hull = fl2i(get_hull_pct(source_objp) * 100.0f);
 
 	// ...and shields
-	target_pobjp->ship_max_shield_strength_multiplier = source_shipp->ship_max_shield_strength / Ship_info[source_shipp->ship_info_index].max_shield_strength;
+	target_pobjp->ship_max_shield_strength = source_shipp->ship_max_shield_strength;
 	target_pobjp->initial_shields = fl2i(get_shield_pct(source_objp) * 100.0f);
 
 
@@ -15291,16 +16038,23 @@ void parse_copy_damage(p_object *target_pobjp, ship *source_shipp)
 		// gak... none allocated; we need to allocate one!
 		if (target_sssp == NULL)
 		{
-			// jam in the new subsystem at the end of the existing list
+			// jam in the new subsystem at the end of the existing list for this parse object
 			int new_idx = insert_subsys_status(target_pobjp);
 			target_sssp = &Subsys_status[new_idx];
-			target_pobjp->subsys_count++;
 
 			strcpy_s(target_sssp->name, source_ss->system_info->subobj_name);
 		}
 
 		// copy
-		target_sssp->percent = 100.0f - (source_ss->current_hits / source_ss->max_hits) * 100.0f;
+		if (source_ss->max_hits == 0.0f)
+		{
+			Warning(LOCATION, "Why does %s's subsystem %s have a maximum strength of 0?", source_shipp->ship_name, source_ss->system_info->subobj_name);
+			target_sssp->percent = 100.0f;
+		}
+		else
+		{
+			target_sssp->percent = 100.0f - (source_ss->current_hits / source_ss->max_hits) * 100.0f;
+		}
 	}
 }
 
@@ -16863,7 +17617,7 @@ void sexp_damage_escort_list(int node)
 	for ( ; n != -1; n = CDR(n) )
 	{
 		// check to see if ship destroyed or departed.  In either case, do nothing.
-		if ( mission_log_get_time(LOG_SHIP_DEPARTED, CTEXT(n), NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, CTEXT(n), NULL, NULL) )
+		if ( mission_log_get_time(LOG_SHIP_DEPARTED, CTEXT(n), NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, CTEXT(n), NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, CTEXT(n), NULL, NULL) )
 			continue;
 
 		shipnum=ship_name_lookup(CTEXT(n));
@@ -17016,7 +17770,7 @@ void sexp_set_support_ship(int n)
 // Goober5000 - set stuff for arriving ships or wings
 void sexp_set_arrival_info(int node)
 {
-	int i, arrival_location, arrival_anchor, arrival_mask, arrival_distance, n = node;
+	int i, arrival_location, arrival_anchor, arrival_mask, arrival_distance, arrival_delay, n = node;
 	bool show_warp;
 	object_ship_wing_point_team oswpt;
 
@@ -17075,6 +17829,12 @@ void sexp_set_arrival_info(int node)
 		arrival_distance = eval_num(n);
 	n = CDR(n);
 
+	// get arrival delay
+	arrival_delay = 0;
+	if (n >= 0)
+		arrival_delay = eval_num(n);
+	n = CDR(n);
+
 	// get warp effect
 	show_warp = true;
 	if (n >= 0)
@@ -17087,6 +17847,7 @@ void sexp_set_arrival_info(int node)
 		oswpt.shipp->arrival_anchor = arrival_anchor;
 		oswpt.shipp->arrival_path_mask = arrival_mask;
 		oswpt.shipp->arrival_distance = arrival_distance;
+		oswpt.shipp->arrival_delay = arrival_delay;
 
 		if (show_warp)
 			oswpt.shipp->flags &= ~SF_NO_ARRIVAL_WARP;
@@ -17099,6 +17860,7 @@ void sexp_set_arrival_info(int node)
 		oswpt.wingp->arrival_anchor = arrival_anchor;
 		oswpt.wingp->arrival_path_mask = arrival_mask;
 		oswpt.wingp->arrival_distance = arrival_distance;
+		oswpt.wingp->arrival_delay = arrival_delay;
 
 		if (show_warp)
 			oswpt.wingp->flags &= ~WF_NO_ARRIVAL_WARP;
@@ -17111,6 +17873,7 @@ void sexp_set_arrival_info(int node)
 		oswpt.p_objp->arrival_anchor = arrival_anchor;
 		oswpt.p_objp->arrival_path_mask = arrival_mask;
 		oswpt.p_objp->arrival_distance = arrival_distance;
+		oswpt.p_objp->arrival_delay = arrival_delay;
 
 		if (show_warp)
 			oswpt.p_objp->flags &= ~P_SF_NO_ARRIVAL_WARP;
@@ -17122,7 +17885,7 @@ void sexp_set_arrival_info(int node)
 // Goober5000 - set stuff for departing ships or wings
 void sexp_set_departure_info(int node)
 {
-	int i, departure_location, departure_anchor, departure_mask, n = node;
+	int i, departure_location, departure_anchor, departure_mask, departure_delay, n = node;
 	bool show_warp;
 	object_ship_wing_point_team oswpt;
 
@@ -17175,6 +17938,12 @@ void sexp_set_departure_info(int node)
 		departure_mask = eval_num(n);
 	n = CDR(n);
 
+	// get departure delay
+	departure_delay = 0;
+	if (n >= 0)
+		departure_delay = eval_num(n);
+	n = CDR(n);
+
 	// get warp effect
 	show_warp = true;
 	if (n >= 0)
@@ -17186,6 +17955,7 @@ void sexp_set_departure_info(int node)
 		oswpt.shipp->departure_location = departure_location;
 		oswpt.shipp->departure_anchor = departure_anchor;
 		oswpt.shipp->departure_path_mask = departure_mask;
+		oswpt.shipp->departure_delay = departure_delay;
 
 		if (show_warp)
 			oswpt.shipp->flags &= ~SF_NO_DEPARTURE_WARP;
@@ -17197,6 +17967,7 @@ void sexp_set_departure_info(int node)
 		oswpt.wingp->departure_location = departure_location;
 		oswpt.wingp->departure_anchor = departure_anchor;
 		oswpt.wingp->departure_path_mask = departure_mask;
+		oswpt.wingp->departure_delay = departure_delay;
 
 		if (show_warp)
 			oswpt.wingp->flags &= ~WF_NO_DEPARTURE_WARP;
@@ -17208,6 +17979,7 @@ void sexp_set_departure_info(int node)
 		oswpt.p_objp->departure_location = departure_location;
 		oswpt.p_objp->departure_anchor = departure_anchor;
 		oswpt.p_objp->departure_path_mask = departure_mask;
+		oswpt.p_objp->departure_delay = departure_delay;
 
 		if (show_warp)
 			oswpt.p_objp->flags &= ~P_SF_NO_DEPARTURE_WARP;
@@ -17332,7 +18104,7 @@ void sexp_primitive_sensors_set_range(int n)
 	int ship_num, range = eval_num(CDR(n));
 
 	// check to see if ship destroyed or departed.  In either case, do nothing.
-	if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) )
+	if ( mission_log_get_time(LOG_SHIP_DEPARTED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SHIP_DESTROYED, ship_name, NULL, NULL) || mission_log_get_time(LOG_SELF_DESTRUCTED, ship_name, NULL, NULL) )
 		return;
 
 	// get the ship
@@ -17504,12 +18276,13 @@ void add_nav_waypoint(char *nav, char *WP_path, int vert, char *oswpt_name)
 				if (oswpt.team == Player_ship->team) {
 					add_for_this_player = true; 
 				}
+				break;
 
 			case OSWPT_TYPE_SHIP:
 				if (oswpt.shipp == Player_ship) {
 					add_for_this_player = true; 
 				}
-
+				break;
 			case OSWPT_TYPE_WING:
 				for ( i = 0; i < oswpt.wingp->current_count; i++) {
 					if (Ships[oswpt.wingp->ship_index[i]].objnum == Player_ship->objnum) {
@@ -17517,15 +18290,14 @@ void add_nav_waypoint(char *nav, char *WP_path, int vert, char *oswpt_name)
 					}
 				}
 
-			// for all other oswpt types we simply return
+
+			// for all other oswpt types we simply ignore this
 			default:
-				return;
+				break;
 		}
 	}
-
-	if (add_for_this_player) {		
-		AddNav_Waypoint(nav, WP_path, vert, 0);
-	}
+	
+	AddNav_Waypoint(nav, WP_path, vert, add_for_this_player ? 0 : NP_HIDDEN);
 }
 
 
@@ -17756,6 +18528,17 @@ int distance_to_nav(int node)
 {
 	char *nav_name = CTEXT(node);
 	return DistanceTo(nav_name);
+}
+
+void select_nav(int node)
+{
+	char *nav_name = CTEXT(node);
+	SelectNav(nav_name);
+}
+
+void unselect_nav()
+{
+	DeselectNav();
 }
 
 
@@ -18737,6 +19520,40 @@ void sexp_string_set_substring(int node)
 	sexp_modify_variable(new_text, sexp_variable_index);
 }
 
+// breaks into the code or sends a warning
+void sexp_debug(int node)
+{
+	int no_release_message; 
+	int i;
+	char *id;
+	char temp_buf[MESSAGE_LENGTH] = {""};
+
+	no_release_message = is_sexp_true(node); 
+
+	node = CDR(node); 
+	Assertion (node >= 0, "No message defined in debug SEXP"); 
+	id = CTEXT(node);
+
+	for (i=0; i<Num_messages; i++) {
+		// find the message
+		if ( !stricmp(id, Messages[i].name) ) {
+			//replace variables if necessary
+			strcpy_s(temp_buf, Messages[i].message);
+			sexp_replace_variable_names_with_values(temp_buf, MESSAGE_LENGTH); 
+			break;
+		}
+	}
+
+	//send the message
+	#ifndef NDEBUG
+		Warning(LOCATION, temp_buf);
+    #else	
+	if (!no_release_message) {	
+		Warning(LOCATION, temp_buf);
+	}
+	#endif
+}
+
 // custom sexp operator for handling misc training stuff
 int sexp_special_training_check(int node)
 {
@@ -19660,8 +20477,11 @@ void multi_sexp_clear_subtitles()
 void sexp_show_subtitle_text(int node)
 {
 	int n = node;
+	char text[TOKEN_LENGTH];
 
-	char *text = CTEXT(n);
+	char *buffer = CTEXT(n);
+	message_translate_tokens(text, buffer);
+
 	n = CDR(n);
 
 	int x_pct = eval_num(n);
@@ -20442,6 +21262,66 @@ void sexp_ship_effect(int n)
 	}
 }
 
+void sexp_change_team_color(int n) {
+	SCP_string new_color = CTEXT(n);
+	SCP_vector<ship*> shippointers;
+	n = CDR(n);
+	int fade_time = eval_num(n);
+
+	n = CDR(n);
+
+	while (n != -1) {
+		ship* shipp = sexp_get_ship_from_node(n);
+
+		if (shipp != NULL) {
+			shippointers.push_back(shipp);
+		}
+
+		n = CDR(n);
+	}
+
+	multi_start_callback();
+	multi_send_string(new_color);
+	multi_send_int(fade_time);
+	multi_send_int(shippointers.size());
+
+	for (SCP_vector<ship*>::iterator shipp = shippointers.begin(); shipp != shippointers.end(); ++shipp) {
+		ship* shp = *shipp;
+		multi_send_ship(shp);
+		if (fade_time == 0) {
+			shp->team_name = new_color;
+		} else {
+			shp->secondary_team_name = new_color;
+			shp->team_change_time = fade_time;
+			shp->team_change_timestamp = Missiontime;
+		}
+	}
+
+	multi_end_callback();
+}
+
+void multi_sexp_change_team_color() {
+	SCP_string new_color = "<none>";
+	int fade_time = 0;
+	int n_ships = 0;
+	
+	multi_get_string(new_color);
+	multi_get_int(fade_time);
+	multi_get_int(n_ships);
+
+	for (int i = 0; i < n_ships; ++i) {
+		ship* shipp;
+		multi_get_ship(shipp);
+		if (fade_time == 0) {
+			shipp->team_name = new_color;
+		} else {
+			shipp->secondary_team_name = new_color;
+			shipp->team_change_time = fade_time;
+			shipp->team_change_timestamp = Missiontime;
+		}
+	}
+}
+
 /**
  * Returns the subsystem type if the name of a subsystem is actually a generic type (e.g <all engines> or <all turrets>
  */
@@ -20481,6 +21361,183 @@ int is_sexp_true(int cur_node, int referenced_node)
 	return ((result == SEXP_TRUE) || (result == SEXP_KNOWN_TRUE));
 }
 
+
+/**
+* 
+*/
+int generate_event_log_flags_mask(int result)
+{
+	int matches = 0; 
+	mission_event *current_event = &Mission_events[Event_index];
+
+	switch (result) {
+		case SEXP_TRUE:
+			matches |= MLF_SEXP_TRUE; 
+			break; 
+
+		case SEXP_FALSE:
+			matches |= MLF_SEXP_FALSE; 
+			break;
+
+		case SEXP_KNOWN_TRUE:
+			matches |= MLF_SEXP_KNOWN_TRUE; 
+			break; 
+
+		case SEXP_KNOWN_FALSE:
+			matches |= MLF_SEXP_KNOWN_FALSE; 
+			break; 
+
+		default:
+			Int3();	// just for now. This shouldn't hit trunk!
+	}
+
+	if (( result == SEXP_TRUE ) || (result == SEXP_KNOWN_TRUE)) {
+		// now deal with the flags depending on repeat and trigger counts
+		switch (current_event->mission_log_flags) {
+			case MLF_FIRST_REPEAT_ONLY: 
+				if (current_event->repeat_count > 1) {			
+					matches |= MLF_FIRST_REPEAT_ONLY; 
+				}
+				break;
+
+			case MLF_LAST_REPEAT_ONLY: 
+				if (current_event->repeat_count == 1) {			
+					matches |= MLF_LAST_REPEAT_ONLY; 
+				}
+				break;
+
+			case MLF_FIRST_TRIGGER_ONLY: 
+				if (current_event->trigger_count > 1) {			
+					matches |= MLF_FIRST_TRIGGER_ONLY; 
+				}
+				break;
+
+			case MLF_LAST_TRIGGER_ONLY: 
+				if ((current_event->trigger_count == 1) && (current_event->flags & MEF_USING_TRIGGER_COUNT)) {			
+					matches |= MLF_LAST_TRIGGER_ONLY; 
+				}
+				break;
+		}
+	}
+
+	return matches;
+}
+
+
+/**
+* Checks the mission logs flags for this event and writes to the log if this has been asked for
+*/
+void maybe_write_to_event_log(int result)
+{
+	char buffer [256]; 
+
+	int mask = generate_event_log_flags_mask(result); 
+	if (!(mask &=  Mission_events[Event_index].mission_log_flags)) {
+		event_log_buffer.clear();
+		return;
+	}
+
+	// remove some of the flags	
+	if (mask & (MLF_FIRST_REPEAT_ONLY | MLF_FIRST_TRIGGER_ONLY)) {
+		Mission_events[Event_index].mission_log_flags &= ~(MLF_FIRST_REPEAT_ONLY | MLF_FIRST_TRIGGER_ONLY) ; 
+	}
+
+	if (event_log_buffer.empty()) {
+		return;
+	}
+
+	sprintf(buffer, "%s at mission time %d seconds (%d milliseconds)", Mission_events[Event_index].name, f2i(Missiontime), f2i((longlong)Missiontime * 1000));
+
+	log_string(LOGFILE_EVENT_LOG, buffer);
+	while (!event_log_buffer.empty()) {
+		log_string(LOGFILE_EVENT_LOG, event_log_buffer.back().c_str());
+		event_log_buffer.pop_back();
+	}
+	log_string(LOGFILE_EVENT_LOG, "");
+}
+
+/**
+* Returns the constant used as a SEXP's result as text for printing to the event log
+*/
+char *sexp_get_result_as_text(int result)
+{
+	switch (result) {
+		case SEXP_TRUE:
+			return "TRUE";
+
+		case SEXP_FALSE:
+			return "FALSE";
+
+		case SEXP_KNOWN_FALSE:
+			return "ALWAYS FALSE";
+
+		case SEXP_KNOWN_TRUE:
+			return "ALWAYS TRUE";
+
+		case SEXP_UNKNOWN:	
+			return "UNKNOWN";
+				
+		case SEXP_NAN:	
+			return "NOT A NUMBER";
+
+		case SEXP_NAN_FOREVER:
+			return "CAN NEVER BE A NUMBER";
+
+		case SEXP_CANT_EVAL:
+			return "CAN'T EVALUATE";
+
+		default:
+			return NULL;
+	}
+}
+
+/**
+* Checks the mission logs flags for this event and writes to the log if this has been asked for
+*/
+void add_to_event_log_buffer(int op_num, int result)
+{
+	char buffer[TOKEN_LENGTH];
+	SCP_string tmp; 
+	tmp.append(Operators[op_num].text);
+	tmp.append(" returned ");
+
+	if ((Operators[op_num].type & (SEXP_INTEGER_OPERATOR|SEXP_ARITHMETIC_OPERATOR)) || (sexp_get_result_as_text(result) == NULL)) {
+		sprintf(buffer, "%d", result);
+		tmp.append(buffer);
+	}
+	else {
+		tmp.append(sexp_get_result_as_text(result));
+	}
+
+	if (True_loop_argument_sexps && !Sexp_replacement_arguments.empty()) {
+		tmp.append(" for argument ");
+		tmp.append(Sexp_replacement_arguments.back());
+	}
+	
+	if (!event_log_argument_buffer.empty()) {
+		tmp.append(" for the following arguments");
+		while (!event_log_argument_buffer.empty()) {
+			tmp.append("\n");
+			tmp.append(event_log_argument_buffer.back().c_str());
+			event_log_argument_buffer.pop_back();
+		}
+	}
+
+	if (!event_log_variable_buffer.empty()) {
+		tmp.append("\nVariables:\n");
+		while (!event_log_variable_buffer.empty()) {
+			tmp.append(event_log_variable_buffer.back().c_str()); 
+			event_log_variable_buffer.pop_back();
+			tmp.append("[");
+			tmp.append(event_log_variable_buffer.back().c_str()); 
+			event_log_variable_buffer.pop_back();
+			tmp.append("]");
+		}
+	}
+
+	event_log_buffer.push_back(tmp);
+}
+
 /**
  * High-level sexpression evaluator
  */
@@ -20498,10 +21555,18 @@ int eval_sexp(int cur_node, int referenced_node)
 	// trap known true and known false sexpressions.  We don't trap on SEXP_NAN sexpressions since
 	// they may yet evaluate to true or false.
 
-	if (Sexp_nodes[cur_node].value == SEXP_KNOWN_TRUE)
+	if (Sexp_nodes[cur_node].value == SEXP_KNOWN_TRUE) {
+		if (Log_event) {
+			add_to_event_log_buffer(get_operator_index(cur_node), SEXP_KNOWN_TRUE);
+		}
 		return SEXP_TRUE;
-	else if (Sexp_nodes[cur_node].value == SEXP_KNOWN_FALSE)
+	}
+	else if (Sexp_nodes[cur_node].value == SEXP_KNOWN_FALSE) {
+		if (Log_event) {
+			add_to_event_log_buffer(get_operator_index(cur_node), SEXP_KNOWN_FALSE);
+		}
 		return SEXP_FALSE;
+	}		
 
 	if (Sexp_nodes[cur_node].first != -1) {
 		node = CAR(cur_node);
@@ -21135,6 +22200,11 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = SEXP_TRUE;
 				break;
 
+			case OP_ALTER_SHIP_FLAG:
+				sexp_alter_ship_flag(node);
+				sexp_val = SEXP_TRUE;
+				break;
+
 			case OP_SHIP_VULNERABLE:
 			case OP_SHIP_INVULNERABLE:
 				sexp_ships_invulnerable(node, (op_num == OP_SHIP_INVULNERABLE));
@@ -21215,6 +22285,11 @@ int eval_sexp(int cur_node, int referenced_node)
 
 			case OP_SHIP_VANISH:
 				sexp_ship_vanish(node);
+				sexp_val = SEXP_TRUE;
+				break;
+
+			case OP_DESTROY_INSTANTLY:
+				sexp_destroy_instantly(node);
 				sexp_val = SEXP_TRUE;
 				break;
 
@@ -21390,6 +22465,11 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_val = SEXP_TRUE;
 				break;
 
+			case OP_SET_MISSION_MOOD:
+				sexp_set_mission_mood (node);
+				sexp_val = SEXP_TRUE;
+				break;
+
 			case OP_SEND_MESSAGE_LIST:
 				sexp_send_message_list(node);
 				sexp_val = SEXP_TRUE;
@@ -21432,6 +22512,11 @@ int eval_sexp(int cur_node, int referenced_node)
 
 			case OP_SET_SUBSYSTEM_STRNGTH:
 				sexp_set_subsystem_strength(node);
+				sexp_val = SEXP_TRUE;
+				break;
+
+			case OP_DESTROY_SUBSYS_INSTANTLY:
+				sexp_destroy_subsys_instantly(node);
 				sexp_val = SEXP_TRUE;
 				break;
 
@@ -21838,6 +22923,12 @@ int eval_sexp(int cur_node, int referenced_node)
 			// Goober5000
 			case OP_STRING_GET_LENGTH:
 				sexp_val = sexp_string_get_length(node);
+				break;
+
+			// Karajorma
+			case OP_DEBUG:
+				sexp_debug(node);
+				sexp_val = SEXP_TRUE;
 				break;
 
 			case 0: // zero represents a non-operator
@@ -22264,7 +23355,7 @@ int eval_sexp(int cur_node, int referenced_node)
 				break;
 
 			case OP_NUM_SHIPS_IN_BATTLE:	// phreak
-				sexp_val=sexp_num_ships_in_battle(node);
+				sexp_val = sexp_num_ships_in_battle(node);
 				break;
 
 			// Karajorma
@@ -22361,6 +23452,18 @@ int eval_sexp(int cur_node, int referenced_node)
 			case OP_NAV_USECINEMATICS:
 				sexp_val = SEXP_TRUE;
 				set_use_ap_cinematics(node);
+				break;
+			
+			//Talon1024
+			case OP_NAV_SELECT:
+				sexp_val = SEXP_TRUE;
+				select_nav(node);
+				break;
+				
+			//Talon1024
+			case OP_NAV_UNSELECT:
+				sexp_val = SEXP_TRUE;
+				unselect_nav();
 				break;
 
 			case OP_SCRAMBLE_MESSAGES:
@@ -22556,10 +23659,20 @@ int eval_sexp(int cur_node, int referenced_node)
 				sexp_set_thrusters(node);
 				break;
 
+			case OP_CHANGE_TEAM_COLOR:
+				sexp_val = SEXP_TRUE;
+				sexp_change_team_color(node);
+				break;
+
 			default:
 				Error(LOCATION, "Looking for SEXP operator, found '%s'.\n", CTEXT(cur_node));
 				break;
 		}
+
+		if (Log_event) {
+			add_to_event_log_buffer(get_operator_index(cur_node), sexp_val);
+		}
+
 		Assert(!Current_sexp_operator.empty()); 
 		Current_sexp_operator.pop_back();
 
@@ -22727,6 +23840,10 @@ void multi_sexp_eval()
 				multi_sexp_deal_with_ship_flag();
 				break;
 
+			case OP_ALTER_SHIP_FLAG:
+				multi_sexp_alter_ship_flag();
+				break;
+
 			case OP_SET_AFTERBURNER_ENERGY: 
 				multi_sexp_set_energy_pct();
 				break;
@@ -22870,6 +23987,10 @@ void multi_sexp_eval()
 				multi_sexp_set_object_position();
 				break;
 
+			case OP_CHANGE_TEAM_COLOR:
+				multi_sexp_change_team_color();
+				break;
+
 			// bad sexp in the packet
 			default: 
 				// probably just a version error where the host supports a SEXP but a client does not
@@ -22897,7 +24018,6 @@ void multi_sexp_eval()
 int get_sexp_main()
 {
 	int	start_node, op;
-	char	token[TOKEN_LENGTH];
 	char  *savep, ch;
 
 	ignore_white_space();
@@ -22908,7 +24028,7 @@ int get_sexp_main()
 
 	Assert(*Mp == '(');
 	Mp++;
-	start_node = get_sexp(token);
+	start_node = get_sexp();
 	// only need to check syntax if we have a operator
 	if (Fred_running || (start_node == -1))
 		return start_node;
@@ -23259,6 +24379,7 @@ int query_operator_return_type(int op)
 		case OP_SET_DEBRIEFING_TOGGLED:
 		case OP_FORCE_JUMP:
 		case OP_SET_SUBSYSTEM_STRNGTH:
+		case OP_DESTROY_SUBSYS_INSTANTLY:
 		case OP_GOOD_REARM_TIME:
 		case OP_GRANT_PROMOTION:
 		case OP_GRANT_MEDAL:
@@ -23290,6 +24411,7 @@ int query_operator_return_type(int op)
 		case OP_SHIP_GUARDIAN_THRESHOLD:
 		case OP_SHIP_SUBSYS_GUARDIAN_THRESHOLD:
 		case OP_SHIP_VANISH:
+		case OP_DESTROY_INSTANTLY:
 		case OP_SHIELDS_ON:
 		case OP_SHIELDS_OFF:
 		case OP_SHIP_STEALTHY:
@@ -23408,6 +24530,8 @@ int query_operator_return_type(int op)
 		case OP_NAV_UNSET_NEEDSLINK:
 		case OP_NAV_USECINEMATICS:
 		case OP_NAV_USEAP:
+		case OP_NAV_SELECT:
+		case OP_NAV_UNSELECT:
 		case OP_HUD_SET_TEXT:
 		case OP_HUD_SET_TEXT_NUM:
 		case OP_HUD_SET_MESSAGE:
@@ -23476,6 +24600,7 @@ int query_operator_return_type(int op)
 		case OP_UNLOCK_AFTERBURNER:
 		case OP_RESET_ORDERS:
 		case OP_SET_PERSONA:
+		case OP_SET_MISSION_MOOD:
 		case OP_CHANGE_SUBSYSTEM_NAME:
 		case OP_SET_RESPAWNS:
 		case OP_SET_AFTERBURNER_ENERGY: 
@@ -23503,6 +24628,9 @@ int query_operator_return_type(int op)
 		case OP_CLEAR_SUBTITLES:
 		case OP_SET_THRUSTERS:
 		case OP_SET_PLAYER_THROTTLE_SPEED:
+		case OP_DEBUG:
+		case OP_ALTER_SHIP_FLAG:
+		case OP_CHANGE_TEAM_COLOR:
 			return OPR_NULL;
 
 		case OP_AI_CHASE:
@@ -23591,6 +24719,7 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_VALIDATE_ALL_ARGUMENTS:
 		case OP_NUM_VALID_ARGUMENTS:
 		case OP_SUPERNOVA_STOP:
+		case OP_NAV_UNSELECT:
 			return OPF_NONE;
 
 		case OP_AND:
@@ -23669,6 +24798,15 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_VARIABLE_NAME;
 			}
 
+		case OP_DEBUG:
+			if (argnum == 0) {
+				return OPF_BOOL;
+			}else if (argnum == 1) {
+				return OPF_MESSAGE; 
+			}else  {
+				return OPF_STRING;
+			}
+
 		case OP_HAS_TIME_ELAPSED:
 		case OP_SPEED:
 		case OP_SET_TRAINING_CONTEXT_SPEED:
@@ -23734,6 +24872,7 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_SHIP_GUARDIAN:
 		case OP_SHIP_NO_GUARDIAN:
 		case OP_SHIP_VANISH:
+		case OP_DESTROY_INSTANTLY:
 		case OP_SHIELDS_ON:
 		case OP_SHIELDS_OFF:
 		case OP_SHIP_STEALTHY:
@@ -23750,6 +24889,14 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_GET_DAMAGE_CAUSED:
 		case OP_GET_THROTTLE_SPEED:
 			return OPF_SHIP;
+
+		case OP_ALTER_SHIP_FLAG:
+			if(argnum == 0)
+				return OPF_SHIP_FLAG;
+			if(argnum == 1 || argnum == 2)
+				return OPF_BOOL;
+			else
+				return OPF_SHIP_WING_TEAM;
 		
 		case OP_SET_PLAYER_THROTTLE_SPEED:
 			if(argnum == 0)
@@ -24403,6 +25550,17 @@ int query_operator_argument_type(int op, int argnum)
 			else
 				return OPF_SHIP;
 
+		case OP_SET_MISSION_MOOD:
+			return OPF_MISSION_MOOD;
+
+		case OP_CHANGE_TEAM_COLOR:
+			if (argnum == 0)
+				return OPF_TEAM_COLOR;
+			else if (argnum == 1)
+				return OPF_NUMBER;
+			else
+				return OPF_SHIP;
+
 		case OP_SELF_DESTRUCT:
 			return OPF_SHIP;
 
@@ -24453,6 +25611,12 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_POSITIVE;
 			else 
 				return OPF_BOOL;
+
+		case OP_DESTROY_SUBSYS_INSTANTLY:
+			if (argnum == 0)
+				return OPF_SHIP;
+			else
+				return OPF_SUBSYS_OR_GENERIC;
 
 		case OP_WAYPOINTS_DONE:
 			if ( argnum == 0 )
@@ -25143,9 +26307,9 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_ARRIVAL_ANCHOR_ALL;
 			else if (argnum == 3)
 				return OPF_NUMBER;
-			else if (argnum == 4)
+			else if (argnum == 4 || argnum == 5)
 				return OPF_POSITIVE;
-			else if (argnum == 5)
+			else if (argnum == 6)
 				return OPF_BOOL;
 			break;
 
@@ -25157,9 +26321,9 @@ int query_operator_argument_type(int op, int argnum)
 				return OPF_DEPARTURE_LOCATION;
 			else if (argnum == 2)
 				return OPF_SHIP_WITH_BAY;
-			else if (argnum == 3)
+			else if (argnum == 3 || argnum == 4)
 				return OPF_NUMBER;
-			else if (argnum == 4)
+			else if (argnum == 5)
 				return OPF_BOOL;
 			break;
 
@@ -25209,6 +26373,7 @@ int query_operator_argument_type(int op, int argnum)
 		case OP_NAV_UNRESTRICT:		//kazan
 		case OP_NAV_SET_VISITED:	//kazan
 		case OP_NAV_UNSET_VISITED:	//kazan
+		case OP_NAV_SELECT:			//Talon1024
 			return OPF_STRING;
 		
 		case OP_NAV_SET_CARRY:		//kazan
@@ -25232,7 +26397,7 @@ int query_operator_argument_type(int op, int argnum)
 			else if (argnum==2)
 				return OPF_POSITIVE;
 			else 
-				return OPF_SHIP_WING_POINT;
+				return OPF_SHIP_WING_TEAM;
 
 		case OP_NAV_ADD_SHIP:		//kazan
 			if (argnum==0)
@@ -25935,6 +27100,12 @@ char *sexp_error_message(int num)
 		case SEXP_CHECK_INVALID_ANIMATION_TYPE:
 			return "Invalid animation type";
 
+		case SEXP_CHECK_INVALID_MISSION_MOOD:
+			return "Invalid mission mood";
+
+		case SEXP_CHECK_INVALID_SHIP_FLAG:
+			return "Invalid ship flag";
+
 		default:
 			Warning(LOCATION, "Unhandled sexp error code %d!", num);
 			return "Unhandled sexp error code!";
@@ -26054,6 +27225,11 @@ char *CTEXT(int n)
 
 		Assert( !(Sexp_variables[sexp_variable_index].type & SEXP_VARIABLE_NOT_USED) );
 		Assert(Sexp_variables[sexp_variable_index].type & SEXP_VARIABLE_SET);
+
+		if (Log_event) {
+			event_log_variable_buffer.push_back(Sexp_variables[sexp_variable_index].text); 
+			event_log_variable_buffer.push_back(Sexp_variables[sexp_variable_index].variable_name); 
+		}
 
 		return Sexp_variables[sexp_variable_index].text;
 	}
@@ -26697,46 +27873,120 @@ int get_subcategory(int sexp_id)
 {
 	switch(sexp_id)
 	{
+
 		case OP_SEND_MESSAGE_LIST:
 		case OP_SEND_MESSAGE:
 		case OP_SEND_RANDOM_MESSAGE:
-		case OP_INVALIDATE_GOAL:
-		case OP_VALIDATE_GOAL:
 		case OP_SCRAMBLE_MESSAGES:
 		case OP_UNSCRAMBLE_MESSAGES:
 		case OP_ENABLE_BUILTIN_MESSAGES:
 		case OP_DISABLE_BUILTIN_MESSAGES:
+		case OP_SET_DEATH_MESSAGE:
 		case OP_SET_PERSONA:
-			return CHANGE_SUBCATEGORY_MESSAGING_AND_MISSION_GOALS;
-			
+		case OP_SET_MISSION_MOOD:
+			return CHANGE_SUBCATEGORY_MESSAGING;
+
+
 		case OP_ADD_GOAL:
 		case OP_REMOVE_GOAL:
 		case OP_CLEAR_GOALS:
 		case OP_GOOD_REARM_TIME:
 		case OP_GOOD_SECONDARY_TIME:
-		case OP_CHANGE_IFF:
 		case OP_CHANGE_AI_CLASS:
+		case OP_PLAYER_USE_AI:
+		case OP_PLAYER_NOT_USE_AI:
+		case OP_SET_PLAYER_ORDERS:
+		case OP_CAP_WAYPOINT_SPEED:
+			return CHANGE_SUBCATEGORY_AI_CONTROL;
+
+
+
+		case OP_ALTER_SHIP_FLAG:
 		case OP_PROTECT_SHIP:
 		case OP_UNPROTECT_SHIP:
 		case OP_BEAM_PROTECT_SHIP:
 		case OP_BEAM_UNPROTECT_SHIP:
 		case OP_TURRET_PROTECT_SHIP:
 		case OP_TURRET_UNPROTECT_SHIP:
+		case OP_SHIP_INVISIBLE:
+		case OP_SHIP_VISIBLE:
+		case OP_SHIP_STEALTHY:
+		case OP_SHIP_UNSTEALTHY:
+		case OP_FRIENDLY_STEALTH_INVISIBLE:
+		case OP_FRIENDLY_STEALTH_VISIBLE:
+		case OP_PRIMITIVE_SENSORS_SET_RANGE:
+		case OP_SHIP_BOMB_TARGETABLE:
+		case OP_SHIP_BOMB_UNTARGETABLE:
 		case OP_KAMIKAZE:
-		case OP_PLAYER_USE_AI:
-		case OP_PLAYER_NOT_USE_AI:
-		case OP_ALLOW_TREASON:
-		case OP_SET_PLAYER_ORDERS:
+		case OP_CHANGE_IFF:
 		case OP_CHANGE_IFF_COLOR:
-		case OP_FORCE_GLIDE:
+		case OP_ADD_REMOVE_ESCORT:
+		case OP_SHIP_CHANGE_ALT_NAME:
+		case OP_SHIP_CHANGE_CALLSIGN:
+		case OP_SHIP_TAG:
+		case OP_SHIP_UNTAG:
+		case OP_SET_ARRIVAL_INFO:
+		case OP_SET_DEPARTURE_INFO:
+			return CHANGE_SUBCATEGORY_SHIP_STATUS;
+
+		case OP_SET_WEAPON_ENERGY:
+		case OP_SET_SHIELD_ENERGY:
 		case OP_SET_PLAYER_THROTTLE_SPEED:
-			return CHANGE_SUBCATEGORY_AI_AND_IFF;
-			
+		case OP_SET_AFTERBURNER_ENERGY:
+		case OP_SET_SUBSPACE_DRIVE:
+		case OP_SET_SPECIAL_WARPOUT_NAME:
+		case OP_SET_PRIMARY_WEAPON:		// Karajorma
+		case OP_SET_SECONDARY_WEAPON:	// Karajorma
+		case OP_SET_PRIMARY_AMMO:		// Karajorma
+		case OP_SET_SECONDARY_AMMO:		// Karajorma
+		case OP_SET_NUM_COUNTERMEASURES: // Karajorma
+		case OP_LOCK_PRIMARY_WEAPON:
+		case OP_UNLOCK_PRIMARY_WEAPON:
+		case OP_LOCK_SECONDARY_WEAPON:
+		case OP_UNLOCK_SECONDARY_WEAPON:
+		case OP_LOCK_AFTERBURNER:	// KeldorKatarn
+		case OP_UNLOCK_AFTERBURNER:	// KeldorKatarn
+		case OP_SHIELDS_ON:
+		case OP_SHIELDS_OFF:
+		case OP_FORCE_GLIDE:
+		case OP_DISABLE_ETS:
+		case OP_ENABLE_ETS:
+		case OP_WARP_BROKEN:
+		case OP_WARP_NOT_BROKEN:
+		case OP_WARP_NEVER:
+		case OP_WARP_ALLOWED:
+
+			return CHANGE_SUBCATEGORY_SHIELDS_ENGINES_AND_WEAPONS;
+
+		case OP_SHIP_INVULNERABLE:
+		case OP_SHIP_VULNERABLE:
+		case OP_SHIP_GUARDIAN:
+		case OP_SHIP_NO_GUARDIAN:
+		case OP_SHIP_GUARDIAN_THRESHOLD:
+		case OP_SHIP_SUBSYS_GUARDIAN_THRESHOLD:
+		case OP_SELF_DESTRUCT:
+		case OP_DESTROY_INSTANTLY:
+		case OP_DESTROY_SUBSYS_INSTANTLY:
 		case OP_SABOTAGE_SUBSYSTEM:
 		case OP_REPAIR_SUBSYSTEM:
+		case OP_SHIP_COPY_DAMAGE:
 		case OP_SET_SUBSYSTEM_STRNGTH:
 		case OP_SUBSYS_SET_RANDOM:
-		case OP_SELF_DESTRUCT:
+		case OP_LOCK_ROTATING_SUBSYSTEM:
+		case OP_FREE_ROTATING_SUBSYSTEM:
+		case OP_REVERSE_ROTATING_SUBSYSTEM:
+		case OP_ROTATING_SUBSYS_SET_TURN_TIME:
+		case OP_TRIGGER_SUBMODEL_ANIMATION:
+		case OP_CHANGE_SUBSYSTEM_NAME:
+		case OP_SHIP_SUBSYS_TARGETABLE:
+		case OP_SHIP_SUBSYS_UNTARGETABLE:
+		case OP_SHIP_SUBSYS_NO_REPLACE:
+		case OP_SHIP_SUBSYS_NO_LIVE_DEBRIS:
+		case OP_SHIP_SUBSYS_VANISHED:
+		case OP_SHIP_SUBSYS_IGNORE_IF_DEAD:
+		case OP_AWACS_SET_RADIUS:
+			return CHANGE_SUBCATEGORY_SUBSYSTEMS;
+
 		case OP_TRANSFER_CARGO:
 		case OP_EXCHANGE_CARGO:
 		case OP_SET_CARGO:
@@ -26745,62 +27995,16 @@ int get_subcategory(int sexp_id)
 		case OP_CARGO_NO_DEPLETE:
 		case OP_SET_SCANNED:
 		case OP_SET_UNSCANNED:
-		case OP_LOCK_ROTATING_SUBSYSTEM:
-		case OP_FREE_ROTATING_SUBSYSTEM:
-		case OP_REVERSE_ROTATING_SUBSYSTEM:
-		case OP_ROTATING_SUBSYS_SET_TURN_TIME:
-		case OP_TRIGGER_SUBMODEL_ANIMATION:
-		case OP_SET_PRIMARY_AMMO:		// Karajorma
-		case OP_SET_SECONDARY_AMMO:		// Karajorma
-		case OP_SET_PRIMARY_WEAPON:		// Karajorma
-		case OP_SET_SECONDARY_WEAPON:	// Karajorma
-		case OP_SET_NUM_COUNTERMEASURES: // Karajorma
-		case OP_LOCK_PRIMARY_WEAPON:
-		case OP_UNLOCK_PRIMARY_WEAPON:
-		case OP_LOCK_SECONDARY_WEAPON:
-		case OP_UNLOCK_SECONDARY_WEAPON:
-		case OP_CHANGE_SUBSYSTEM_NAME:
-		case OP_LOCK_AFTERBURNER:	// KeldorKatarn
-		case OP_UNLOCK_AFTERBURNER:	// KeldorKatarn
-		case OP_SET_AFTERBURNER_ENERGY: 
-		case OP_SET_WEAPON_ENERGY:
-		case OP_SET_SHIELD_ENERGY:
-		case OP_DISABLE_ETS:
-		case OP_ENABLE_ETS:
-			return CHANGE_SUBCATEGORY_SUBSYSTEMS_AND_CARGO;
-			
-		case OP_SHIP_INVULNERABLE:
-		case OP_SHIP_VULNERABLE:
-		case OP_SHIP_BOMB_TARGETABLE:
-		case OP_SHIP_BOMB_UNTARGETABLE:
-		case OP_SHIP_GUARDIAN:
-		case OP_SHIP_NO_GUARDIAN:
-		case OP_SHIP_GUARDIAN_THRESHOLD:
-		case OP_SHIP_SUBSYS_GUARDIAN_THRESHOLD:
-		case OP_SHIP_INVISIBLE:
-		case OP_SHIP_VISIBLE:
-		case OP_SHIP_STEALTHY:
-		case OP_SHIP_UNSTEALTHY:
-		case OP_FRIENDLY_STEALTH_INVISIBLE:
-		case OP_FRIENDLY_STEALTH_VISIBLE:
-		case OP_SHIP_SUBSYS_TARGETABLE:
-		case OP_SHIP_SUBSYS_UNTARGETABLE:
-		case OP_SHIP_SUBSYS_NO_REPLACE:
-		case OP_SHIP_SUBSYS_NO_LIVE_DEBRIS:
-		case OP_SHIP_SUBSYS_VANISHED:
-		case OP_SHIP_SUBSYS_IGNORE_IF_DEAD:
-		case OP_WARP_BROKEN:
-		case OP_WARP_NOT_BROKEN:
-		case OP_WARP_NEVER:
-		case OP_WARP_ALLOWED:
-		case OP_SET_SUBSPACE_DRIVE:
+			return CHANGE_SUBCATEGORY_CARGO;
+
+
 		case OP_SET_ARMOR_TYPE:
-		case OP_ADD_TO_COLGROUP:
-		case OP_REMOVE_FROM_COLGROUP:
-		case OP_GET_COLGROUP_ID:
-		case OP_SHIP_EFFECT:
-			return CHANGE_SUBCATEGORY_SHIP_STATUS;
-			
+		case OP_WEAPON_SET_DAMAGE_TYPE:
+		case OP_SHIP_SET_DAMAGE_TYPE:
+		case OP_SHIP_SHOCKWAVE_SET_DAMAGE_TYPE:
+		case OP_FIELD_SET_DAMAGE_TYPE:
+			return CHANGE_SUBCATEGORY_ARMOR_AND_DAMAGE_TYPES;
+
 		case OP_BEAM_FIRE:
 		case OP_BEAM_FIRE_COORDS:
 		case OP_BEAM_FREE:
@@ -26826,11 +28030,47 @@ int get_subcategory(int sexp_id)
 		case OP_TURRET_SUBSYS_TARGET_ENABLE:
 			return CHANGE_SUBCATEGORY_BEAMS_AND_TURRETS;
 
+
+
+		case OP_CHANGE_SHIP_CLASS:
+		case OP_DEACTIVATE_GLOW_MAPS:
+		case OP_ACTIVATE_GLOW_MAPS:
+		case OP_DEACTIVATE_GLOW_POINTS:
+		case OP_ACTIVATE_GLOW_POINTS:
+		case OP_DEACTIVATE_GLOW_POINT_BANK:
+		case OP_ACTIVATE_GLOW_POINT_BANK:
+		case OP_SET_THRUSTERS:
+		case OP_DONT_COLLIDE_INVISIBLE:
+		case OP_COLLIDE_INVISIBLE:
+		case OP_ADD_TO_COLGROUP:
+		case OP_REMOVE_FROM_COLGROUP:
+		case OP_GET_COLGROUP_ID:
+		case OP_CHANGE_TEAM_COLOR:
+			return CHANGE_SUBCATEGORY_MODELS_AND_TEXTURES;
+
+
+		case OP_SET_OBJECT_POSITION:
+		case OP_SET_OBJECT_ORIENTATION:
+		case OP_SET_OBJECT_FACING:
+		case OP_SET_OBJECT_FACING_OBJECT:
+		case OP_SET_OBJECT_SPEED_X:
+		case OP_SET_OBJECT_SPEED_Y:
+		case OP_SET_OBJECT_SPEED_Z:
+		case OP_SHIP_MANEUVER:
+		case OP_SHIP_ROT_MANEUVER:
+		case OP_SHIP_LAT_MANEUVER:
+		case OP_SET_MOBILE:
+		case OP_SET_IMMOBILE:
+			return CHANGE_SUBCATEGORY_COORDINATE_MANIPULATION;
+
+		case OP_INVALIDATE_GOAL:
+		case OP_VALIDATE_GOAL:
 		case OP_RED_ALERT:
 		case OP_END_MISSION:
 		case OP_FORCE_JUMP:
 		case OP_END_CAMPAIGN:
 		case OP_SET_DEBRIEFING_TOGGLED:
+		case OP_ALLOW_TREASON:
 		case OP_GRANT_PROMOTION:
 		case OP_GRANT_MEDAL:
 		case OP_ALLOW_SHIP:
@@ -26844,30 +28084,6 @@ int get_subcategory(int sexp_id)
 		case OP_SET_RESPAWNS:
 			return CHANGE_SUBCATEGORY_MISSION_AND_CAMPAIGN;
 
-		case OP_DONT_COLLIDE_INVISIBLE:
-		case OP_COLLIDE_INVISIBLE:
-		case OP_CHANGE_SHIP_CLASS:
-		case OP_DEACTIVATE_GLOW_POINTS:
-		case OP_ACTIVATE_GLOW_POINTS:
-		case OP_DEACTIVATE_GLOW_MAPS:
-		case OP_ACTIVATE_GLOW_MAPS:
-		case OP_DEACTIVATE_GLOW_POINT_BANK:
-		case OP_ACTIVATE_GLOW_POINT_BANK:
-		case OP_SET_THRUSTERS:
-			return CHANGE_SUBCATEGORY_MODELS_AND_TEXTURES;
-
-		case OP_SET_OBJECT_POSITION:
-		case OP_SET_OBJECT_ORIENTATION:
-		case OP_SET_OBJECT_FACING:
-		case OP_SET_OBJECT_FACING_OBJECT:
-		case OP_SET_OBJECT_SPEED_X:
-		case OP_SET_OBJECT_SPEED_Y:
-		case OP_SET_OBJECT_SPEED_Z:
-		case OP_SHIP_MANEUVER:
-		case OP_SHIP_ROT_MANEUVER:
-		case OP_SHIP_LAT_MANEUVER:
-			return CHANGE_SUBCATEGORY_COORDINATE_MANIPULATION;
-
 		case OP_CHANGE_SOUNDTRACK:
 		case OP_PLAY_SOUND_FROM_TABLE:
 		case OP_PLAY_SOUND_FROM_FILE:
@@ -26877,105 +28093,22 @@ int get_subcategory(int sexp_id)
 		case OP_ADJUST_AUDIO_VOLUME:
 			return CHANGE_SUBCATEGORY_MUSIC_AND_SOUND;
 
-		case OP_ADD_REMOVE_ESCORT:
-		case OP_AWACS_SET_RADIUS:
-		case OP_PRIMITIVE_SENSORS_SET_RANGE:
-		case OP_CAP_WAYPOINT_SPEED:
-		case OP_SET_SPECIAL_WARPOUT_NAME:
-		case OP_SHIP_CREATE:
-		case OP_WEAPON_CREATE:
-		case OP_SHIP_VANISH:
-		case OP_SHIP_VAPORIZE:
-		case OP_SHIP_NO_VAPORIZE:
-		case OP_SET_EXPLOSION_OPTION:
-		case OP_SHIELDS_ON:
-		case OP_SHIELDS_OFF:
-		case OP_SHIP_TAG:
-		case OP_SHIP_UNTAG:
-		case OP_DAMAGED_ESCORT_LIST:
-		case OP_DAMAGED_ESCORT_LIST_ALL:
-		case OP_SET_SUPPORT_SHIP:
-		case OP_SET_ARRIVAL_INFO:
-		case OP_SET_DEPARTURE_INFO:
-		case OP_SHIP_CHANGE_ALT_NAME:
-		case OP_SHIP_CHANGE_CALLSIGN:
-		case OP_SET_DEATH_MESSAGE:
-		case OP_EXPLOSION_EFFECT:
-		case OP_WARP_EFFECT:
-		case OP_SHIP_COPY_DAMAGE:
-		case OP_REMOVE_WEAPONS:
-		case OP_WEAPON_SET_DAMAGE_TYPE:
-		case OP_SHIP_SET_DAMAGE_TYPE:
-		case OP_SHIP_SHOCKWAVE_SET_DAMAGE_TYPE:
-		case OP_FIELD_SET_DAMAGE_TYPE:
-		case OP_SET_MOBILE:
-		case OP_SET_IMMOBILE:
-			return CHANGE_SUBCATEGORY_SPECIAL;
-
-		case OP_SET_SKYBOX_MODEL:
-		case OP_SET_SKYBOX_ORIENT:
-		case OP_MISSION_SET_NEBULA:
-		case OP_ADD_BACKGROUND_BITMAP:
-		case OP_REMOVE_BACKGROUND_BITMAP:
-		case OP_ADD_SUN_BITMAP:
-		case OP_REMOVE_SUN_BITMAP:
-		case OP_NEBULA_CHANGE_STORM:
-		case OP_NEBULA_TOGGLE_POOF:
-		case OP_SET_AMBIENT_LIGHT:
-		case OP_SET_POST_EFFECT:
-		case OP_MISSION_SET_SUBSPACE:
-			return CHANGE_SUBCATEGORY_BACKGROUND_AND_NEBULA;
 
 		case OP_HUD_DISABLE:
 		case OP_HUD_DISABLE_EXCEPT_MESSAGES:
 		case OP_HUD_SET_TEXT:
 		case OP_HUD_SET_TEXT_NUM:
-		case OP_HUD_SET_COORDS:
-		case OP_HUD_SET_FRAME:
-		case OP_HUD_SET_COLOR:
-		case OP_HUD_SET_MAX_TARGETING_RANGE:
-		case OP_HUD_DISPLAY_GAUGE:
 		case OP_HUD_SET_MESSAGE:
 		case OP_HUD_SET_DIRECTIVE:
+		case OP_HUD_SET_FRAME:
+		case OP_HUD_SET_COLOR:
+		case OP_HUD_SET_COORDS:
+		case OP_HUD_DISPLAY_GAUGE:
 		case OP_HUD_GAUGE_SET_ACTIVE:
 		case OP_HUD_ACTIVATE_GAUGE_TYPE:
 		case OP_HUD_CLEAR_MESSAGES:
+		case OP_HUD_SET_MAX_TARGETING_RANGE:
 			return CHANGE_SUBCATEGORY_HUD;
-
-		case OP_CUTSCENES_SET_CUTSCENE_BARS:
-		case OP_CUTSCENES_UNSET_CUTSCENE_BARS:
-		case OP_CUTSCENES_FADE_IN:
-		case OP_CUTSCENES_FADE_OUT:
-		case OP_CUTSCENES_SET_CAMERA:
-		case OP_CUTSCENES_SET_CAMERA_FACING:
-		case OP_CUTSCENES_SET_CAMERA_FACING_OBJECT:
-		case OP_CUTSCENES_SET_CAMERA_FOV:
-		case OP_CUTSCENES_SET_CAMERA_HOST:
-		case OP_CUTSCENES_SET_CAMERA_POSITION:
-		case OP_CUTSCENES_SET_CAMERA_ROTATION:
-		case OP_CUTSCENES_SET_CAMERA_TARGET:
-		case OP_CUTSCENES_SET_FOV:
-		case OP_CUTSCENES_GET_FOV:
-		case OP_CUTSCENES_RESET_FOV:
-		case OP_CUTSCENES_FORCE_PERSPECTIVE:
-		case OP_CUTSCENES_RESET_CAMERA:
-		case OP_CUTSCENES_SHOW_SUBTITLE:
-		case OP_CUTSCENES_SHOW_SUBTITLE_TEXT:
-		case OP_CUTSCENES_SHOW_SUBTITLE_IMAGE:
-		case OP_CLEAR_SUBTITLES:
-		case OP_CUTSCENES_SET_TIME_COMPRESSION:
-		case OP_CUTSCENES_RESET_TIME_COMPRESSION:
-		case OP_SET_CAMERA_SHUDDER:
-		case OP_SUPERNOVA_START:
-		case OP_SUPERNOVA_STOP:
-			return CHANGE_SUBCATEGORY_CUTSCENES;
-
-		case OP_JUMP_NODE_SET_JUMPNODE_NAME: //CommanderDJ
-		case OP_JUMP_NODE_SET_JUMPNODE_COLOR:
-		case OP_JUMP_NODE_SET_JUMPNODE_MODEL:
-		case OP_JUMP_NODE_SHOW_JUMPNODE:
-		case OP_JUMP_NODE_HIDE_JUMPNODE:
-			return CHANGE_SUBCATEGORY_JUMP_NODES;
 
 		case OP_NAV_ADD_WAYPOINT:
 		case OP_NAV_ADD_SHIP:
@@ -26992,18 +28125,127 @@ int get_subcategory(int sexp_id)
 		case OP_NAV_UNSET_NEEDSLINK:
 		case OP_NAV_USECINEMATICS:
 		case OP_NAV_USEAP:
+		case OP_NAV_SELECT:
+		case OP_NAV_UNSELECT:
 			return CHANGE_SUBCATEGORY_NAV;
+
+
+		case OP_CUTSCENES_SET_CUTSCENE_BARS:
+		case OP_CUTSCENES_UNSET_CUTSCENE_BARS:
+		case OP_CUTSCENES_FADE_IN:
+		case OP_CUTSCENES_FADE_OUT:
+		case OP_CUTSCENES_SET_CAMERA:
+		case OP_CUTSCENES_SET_CAMERA_POSITION:
+		case OP_CUTSCENES_SET_CAMERA_FACING:
+		case OP_CUTSCENES_SET_CAMERA_FACING_OBJECT:
+		case OP_CUTSCENES_SET_CAMERA_ROTATION:
+		case OP_CUTSCENES_SET_CAMERA_HOST:
+		case OP_CUTSCENES_SET_CAMERA_TARGET:
+		case OP_CUTSCENES_SET_CAMERA_FOV:
+		case OP_CUTSCENES_SET_FOV:
+		case OP_CUTSCENES_GET_FOV:
+		case OP_CUTSCENES_RESET_FOV:
+		case OP_CUTSCENES_RESET_CAMERA:
+		case OP_CUTSCENES_SHOW_SUBTITLE:
+		case OP_CUTSCENES_SHOW_SUBTITLE_TEXT:
+		case OP_CUTSCENES_SHOW_SUBTITLE_IMAGE:
+		case OP_CLEAR_SUBTITLES:
+		case OP_CUTSCENES_FORCE_PERSPECTIVE:
+		case OP_SET_CAMERA_SHUDDER:
+		case OP_SUPERNOVA_START:
+		case OP_SUPERNOVA_STOP:
+			return CHANGE_SUBCATEGORY_CUTSCENES;
+
+
+		case OP_SET_SKYBOX_MODEL:
+		case OP_SET_SKYBOX_ORIENT:
+		case OP_MISSION_SET_NEBULA:
+		case OP_MISSION_SET_SUBSPACE:
+		case OP_ADD_BACKGROUND_BITMAP:
+		case OP_REMOVE_BACKGROUND_BITMAP:
+		case OP_ADD_SUN_BITMAP:
+		case OP_REMOVE_SUN_BITMAP:
+		case OP_NEBULA_CHANGE_STORM:
+		case OP_NEBULA_TOGGLE_POOF:
+		case OP_SET_AMBIENT_LIGHT:
+			return CHANGE_SUBCATEGORY_BACKGROUND_AND_NEBULA;
+
+		case OP_JUMP_NODE_SET_JUMPNODE_NAME: //CommanderDJ
+		case OP_JUMP_NODE_SET_JUMPNODE_COLOR:
+		case OP_JUMP_NODE_SET_JUMPNODE_MODEL:
+		case OP_JUMP_NODE_SHOW_JUMPNODE:
+		case OP_JUMP_NODE_HIDE_JUMPNODE:
+			return CHANGE_SUBCATEGORY_JUMP_NODES;
+
+		case OP_SET_POST_EFFECT:
+		case OP_SHIP_EFFECT:
+		case OP_SHIP_CREATE:
+		case OP_WEAPON_CREATE:
+		case OP_SHIP_VANISH:
+		case OP_SHIP_VAPORIZE:
+		case OP_SHIP_NO_VAPORIZE:
+		case OP_SET_EXPLOSION_OPTION:
+		case OP_EXPLOSION_EFFECT:
+		case OP_WARP_EFFECT:
+		case OP_REMOVE_WEAPONS:
+		case OP_CUTSCENES_SET_TIME_COMPRESSION:
+		case OP_CUTSCENES_RESET_TIME_COMPRESSION:
+			return CHANGE_SUBCATEGORY_SPECIAL_EFFECTS;
+
+		case OP_MODIFY_VARIABLE:
+		case OP_GET_VARIABLE_BY_INDEX:
+		case OP_SET_VARIABLE_BY_INDEX:
+		case OP_INT_TO_STRING:
+		case OP_STRING_CONCATENATE:
+		case OP_STRING_GET_SUBSTRING:
+		case OP_STRING_SET_SUBSTRING:
+			return CHANGE_SUBCATEGORY_VARIABLES;
+
+		case OP_DAMAGED_ESCORT_LIST:
+		case OP_DAMAGED_ESCORT_LIST_ALL:
+		case OP_SET_SUPPORT_SHIP:
+		case OP_SCRIPT_EVAL:
+			return CHANGE_SUBCATEGORY_OTHER;
+
+
+		case OP_NUM_SHIPS_IN_BATTLE:
+		case OP_NUM_SHIPS_IN_WING:
+		case OP_DIRECTIVE_VALUE:
+			return STATUS_SUBCATEGORY_MISSION;
+
+		case OP_WAS_PROMOTION_GRANTED:
+		case OP_WAS_MEDAL_GRANTED:
+		case OP_SKILL_LEVEL_AT_LEAST:
+		case OP_NUM_KILLS:
+		case OP_NUM_ASSISTS:
+		case OP_NUM_TYPE_KILLS:
+		case OP_NUM_CLASS_KILLS:
+		case OP_SHIP_SCORE:
+		case OP_LAST_ORDER_TIME:
+			return STATUS_SUBCATEGORY_PLAYER;
 
 		case OP_NUM_PLAYERS:
 		case OP_TEAM_SCORE:
 		case OP_SHIP_DEATHS:
 		case OP_RESPAWNS_LEFT:
 		case OP_IS_PLAYER:
-		case OP_NUM_SHIPS_IN_BATTLE:
-		case OP_NUM_SHIPS_IN_WING:
-		case OP_LAST_ORDER_TIME:
-		case OP_DIRECTIVE_VALUE:
-			return STATUS_SUBCATEGORY_MULTIPLAYER_AND_MISSION_CONFIG;
+			return STATUS_SUBCATEGORY_MULTIPLAYER;
+
+		case OP_HAS_BEEN_TAGGED_DELAY:
+		case OP_IS_TAGGED:
+		case OP_IS_SHIP_VISIBLE:
+		case OP_IS_SHIP_STEALTHY:
+		case OP_IS_FRIENDLY_STEALTH_VISIBLE:
+		case OP_IS_IFF:
+		case OP_IS_AI_CLASS:
+		case OP_IS_SHIP_CLASS:
+		case OP_IS_SHIP_TYPE:
+		case OP_CURRENT_SPEED:
+		case OP_GET_THROTTLE_SPEED:
+		case OP_IS_FACING:
+		case OP_IS_IN_MISSION:
+		case OP_NAV_ISLINKED:
+			return STATUS_SUBCATEGORY_SHIP_STATUS;
 
 		case OP_SHIELD_RECHARGE_PCT:
 		case OP_ENGINE_RECHARGE_PCT:
@@ -27028,22 +28270,6 @@ int get_subcategory(int sexp_id)
 		case OP_CAP_SUBSYS_CARGO_KNOWN_DELAY:
 		case OP_IS_CARGO:
 			return STATUS_SUBCATEGORY_CARGO;
-			
-		case OP_HAS_BEEN_TAGGED_DELAY:
-		case OP_IS_TAGGED:
-		case OP_IS_SHIP_VISIBLE:
-		case OP_IS_SHIP_STEALTHY:
-		case OP_IS_FRIENDLY_STEALTH_VISIBLE:
-		case OP_IS_IFF:
-		case OP_IS_AI_CLASS:
-		case OP_IS_SHIP_CLASS:
-		case OP_IS_SHIP_TYPE:
-		case OP_CURRENT_SPEED:
-		case OP_GET_THROTTLE_SPEED:
-		case OP_IS_FACING:
-		case OP_IS_IN_MISSION:
-		case OP_NAV_ISLINKED:
-			return STATUS_SUBCATEGORY_SHIP_STATUS;
 			
 		case OP_SHIELDS_LEFT:
 		case OP_HITS_LEFT:
@@ -27070,16 +28296,15 @@ int get_subcategory(int sexp_id)
 		case OP_SPECIAL_WARP_DISTANCE:
 		case OP_IS_IN_BOX:
 			return STATUS_SUBCATEGORY_DISTANCE_AND_COORDINATES;
+
+		case OP_STRING_TO_INT:
+		case OP_STRING_GET_LENGTH:
+			return STATUS_SUBCATEGORY_VARIABLES;
+
+		case OP_SCRIPT_EVAL_STRING:
+		case OP_SCRIPT_EVAL_NUM:
+			return STATUS_SUBCATEGORY_OTHER;
 			
-		case OP_WAS_PROMOTION_GRANTED:
-		case OP_WAS_MEDAL_GRANTED:
-		case OP_NUM_KILLS:
-		case OP_NUM_ASSISTS:
-		case OP_NUM_TYPE_KILLS:
-		case OP_NUM_CLASS_KILLS:
-		case OP_SHIP_SCORE:
-		case OP_SKILL_LEVEL_AT_LEAST:
-			return STATUS_SUBCATEGORY_KILLS_AND_SCORING;
 
 		default:
 			return -1;		// sexp doesn't have a subcategory
@@ -27123,59 +28348,95 @@ sexp_help_struct Sexp_help[] = {
 		"\t3:\t(optional) A seed to use when generating numbers. (Setting this to 0 is the same as having no seed at all)" },
 
 	// -------------------------- Nav Points --- Kazan -------------------------- 
-	{ OP_NAV_IS_VISITED, "Takes 1 argument: The Nav Point Name\r\n"
-		"Returns whether that nav point has been visited (player within 1000 meters)" },
+	{ OP_NAV_IS_VISITED, "is-nav-visited\r\n"
+		"Returns true when the player has visited the given navpoint (Has closed to within 1000m of it). Takes 1 argument...\r\n"
+		"\t1:\tThe name of the navpoint" },
 
-	{ OP_NAV_DISTANCE, "Takes 1 argument: The Nav point Name\r\n"
-		"Returns the distance from the player ship to that nav point" },
+	{ OP_NAV_DISTANCE, "distance-to-nav\r\n"
+		"Returns the distance from the player ship to that nav point. Takes 1 argument..."
+		"\t1:\tThe name of the navpoint" },
 
-	{ OP_NAV_ADD_WAYPOINT, "Takes 3 Arguments: NavPoint Name, Waypoint Path Name, Waypoint Path Point #\r\n"
-		"IE Setting up 'Nav 1' to be on the first Waypoint on Wapoint Path 'Intercept' the arguments would be:\r\n"
-		"'Nav 1', 'Intercept', '1'" },
+	{ OP_NAV_ADD_WAYPOINT, "add-nav-waypoint\r\n"
+		"Adds a Navpoint to a navpoint path. Takes 3 or 4 Arguments...\r\n"
+		"\t1:\tName of the new navpoint.\r\n"
+		"\t2:\tName of the navpoint path the new navpoint should be added to.\r\n"
+		"\t3:\tPosition where the new navpoint will be inserted. Note: This is 1-indexed, so the first waypoint in a path has position 1.\r\n"
+		"\t4:\t(Optional Argument) Controls the visibility of the new navpoint. Only entities belonging to the chosen category will be able to see it.\r\n" },
 
-	{ OP_NAV_ADD_SHIP, "Takes 2 Arguments: NavPoint Name, Ship Name\r\n"
-		"Binds the named navpoint to the named ship - when the ship moves, the waypoint moves with it\r\n" },
+	{ OP_NAV_ADD_SHIP, "add-nav-ship\r\n"
+		"Binds the named navpoint to the named ship - when the ship moves, the waypoint moves with it. Takes 2 Arguments...\r\n"
+		"\t1:\tThe NavPoint's Name\r\n"
+		"\t2:\tThe Ship's Name\r\n" },
 
-	{ OP_NAV_DEL, "Takes 1 Argument: NavPoint Name, and deletes that NavPoint" },
+	{ OP_NAV_DEL, "del-nav\r\n"
+		"Deletes a nav point. Takes 1 Argument...\r\n"
+		"\t1:\tNavPoint Name" },
 
-	{ OP_NAV_HIDE, "Takes 1 Argument: NavPoint Name, it then 'hides' that Nav Point\n\r"
-		"This causes the nav point to be unselectable, if in the future the Nav Map screen is implemented\r\n" 
-		"then a hidden nav point will not be displayed on it\r\n" },
+	{ OP_NAV_HIDE, "hide-nav\r\n"
+		"Hides a nav point. Takes 1 Argument...\r\n"
+		"\t1:\tNavPoint Name, it then 'hides' that Nav Point\r\n" },
 
-	{ OP_NAV_RESTRICT, "Takes 1 Argument: NavPoint Name, it then 'restricts' that Nav Point\n\r"
-		"This causes the nav point to be unselectable, if in the future the Nav Map screen is implemented\r\n" 
-		"then a restrict nav point will be displayed on it, but unselectable\r\n"  },
+	{ OP_NAV_RESTRICT, "restrict-nav\r\n"
+		"This causes the nav point to be unselectable. Takes 1 Argument...\r\n"
+		"\t1:\tThe Navpoint name\r\n" },
 
-	{ OP_NAV_UNHIDE, "Takes 1 Argument: NavPoint Name, it then unhides it\r\n" },
+	{ OP_NAV_UNHIDE, "unhide-nav\r\n"
+		"Restores a hidden navpoint. Takes 1 Argument...\r\n"
+		"\t1:\tThe Navpoint Name\r\n" },
 
-	{ OP_NAV_UNRESTRICT, "Takes 1 Argument: NavPoint Name, it then unrestricts it\r\n" },
+	{ OP_NAV_UNRESTRICT, "unrestrict-nav\r\n"
+		"Removes restrictions from a Navpoint. Takes 1 Argument...\r\n"	
+		"\t1:\tThe Navpoint Name\r\n" },
 
-	{ OP_NAV_SET_VISITED, "Takes 1 Argument: NavPoint Name, it then sets its visited flag\r\n" },
+	{ OP_NAV_SET_VISITED, "set-nav-visited\r\n"
+		"Sets the status of the given Navpoint to \"visited\". Takes 1 Argument...\r\n"
+		"\t1:\tThe Navpoint Name\r\n" },
 
-	{ OP_NAV_UNSET_VISITED, "Takes 1 Argument: NavPoint Name, it then unsets its visited flag\r\n" },
+	{ OP_NAV_UNSET_VISITED, "unset-nav-visited\r\n"
+		"Removes the \"visited\" status from a Navpoint. Takes 1 Argument...\r\n"	
+		"\t1:\tThe Navpoint Name\r\n" },
 
-	{ OP_NAV_SET_CARRY, "Takes at least 1 argument, but can take as many as you give it.\r\n"
-		"It takes ship and/or wing names as sets their Nav Carry flag -- a ship with the nav carry flag\r\n" 
-		"will autopilot with the player\r\n" },
+	{ OP_NAV_SET_CARRY, "nav-set-carry\r\n"
+		"Sets the Nav Carry flag for all listed ships. Vessels with this flag will follow the player into and out of autopilot.\r\n"
+		"Takes 1 or more arguments...\r\n"
+		"\t1:\tShips and Wings that should receive the Nav Carry flag.\r\n" },
 
-	{ OP_NAV_UNSET_CARRY, "Takes atleast 1 argument, but can take as many as you give it.\r\n"
-		"It takes ship and/or wing names and unsets their Nav Carry flag\r\n" },
+	{ OP_NAV_UNSET_CARRY, "unset-nav-carry\r\n"
+		"Removes the Nav Carry flag from all listed ships and wings. Takes 1 or more arguments...\r\n"
+		"\t1:\tShips and Wings to remove the Nav Carry flag from\r\n" },
 
-	{ OP_NAV_SET_NEEDSLINK, "Takes atleast 1 argument, but can take as many as you give it.\r\n" 
-		"It takes ships and marks them as needing AutoNav linkup (approach within link distance)"},
+	{ OP_NAV_SET_NEEDSLINK, "set-nav-needslink\r\n"
+		"Marks all listed ships as needing to link up before entering autopilot.\r\n"
+		"Takes 1 or more arguments...\r\n"
+		"\t1:\tShips to mark\r\n" },
 
-	{ OP_NAV_UNSET_NEEDSLINK, "Takes atleast 1 argument, but can take as many as you give it.\r\n" 
-	    "It takes ships and unmarks them as needing AutoNav linkup"},
+	{ OP_NAV_UNSET_NEEDSLINK, "unset-nav-needslink\r\n"
+		"Removes the requirement for the listed ships to link up before entering autopilot.\r\n"
+		"Takes 1 or more arguments...\r\n"
+		"\t1:\tShips to mark\r\n" },
 
-	{ OP_NAV_ISLINKED, "Takes 1 argument.\r\n"
-		"Determines if a ship is linked for autopilot (\"set-nav-carry\" or \"set-nav-needslink\" + linked)"},
+	{ OP_NAV_ISLINKED, "is-nav-linked\r\n"
+		"Determines if a ship is linked for autopilot (\"set-nav-carry\" or \"set-nav-needslink\" + linked)"
+		"Takes 1 argument...\r\n"
+		"\t1:\tShip to check\r\n"},
 
-	{ OP_NAV_USECINEMATICS, "Takes 1 boolean argument.\r\n"
-		"Set to true to enable automatic cinematics, set to false to disable automatic cinematics." },
+	{ OP_NAV_USECINEMATICS, "use-nav-cinematics\r\n"
+		"Controls the use of the cinematic autopilot camera. Takes 1 Argument..."
+		"\t1:\tSet to true to enable automatic cinematics, set to false to disable automatic cinematics." },
 
-	{ OP_NAV_USEAP, "Takes 1 boolean argument.\r\n"
-		"Set to true to enable autopilot, set to false to disable autopilot." },
+	{ OP_NAV_USEAP, "use-autopilot\r\n"
+		"Takes 1 boolean argument.\r\n"
+		"\t1:\tSet to true to enable autopilot, set to false to disable autopilot." },
 
+	{ OP_NAV_SELECT, "nav-select (Action operator)\r\n"
+		"\tSelects a nav point.\r\n\r\n"
+		"Takes 1 argument...\r\n"
+		"\t1:\tName of the nav point." },
+
+	{ OP_NAV_UNSELECT, "nav-deselect (Action operator)\r\n"
+		"\tDeselects any navpoint selected.\r\n\r\n"
+		"Takes no arguments..." },
+	
 	// -------------------------- -------------------------- -------------------------- 
 
 	// Goober5000
@@ -28076,6 +29337,12 @@ sexp_help_struct Sexp_help[] = {
 		"\tAll:\tName of ship to be silenced." },
 
 	// Karajorma	
+	{ OP_SET_MISSION_MOOD, "set Mission Mood (Action operator)\r\n"
+		"\tSets the mood of the mission, this affects the choice of builtin messages sent by wingmen\r\n"
+		"Takes 1 argument...\r\n"
+		"\t1:\tMission mood (from messages.tbl) to use." },
+
+	// Karajorma	
 	{ OP_SET_PERSONA, "Set Persona (Action operator)\r\n"
 		"\tSets the persona of the supplied ship to the persona supplied\r\n"
 		"Takes 2 or more arguments...\r\n"
@@ -28140,6 +29407,13 @@ sexp_help_struct Sexp_help[] = {
 		"\t2:\tName of subsystem to set strength.\r\n"
 		"\t3:\tPercentage to set subsystem integrity to.\r\n" 
 		"\t4:\tRepair turret submodel.  Optional argument that defaults to true."},
+
+	{ OP_DESTROY_SUBSYS_INSTANTLY, "destroy-subsys-instantly\r\n"
+		"\tDetroys the specified subsystems without effects."
+		"\tSingle player only!"
+		"Takes 2 or more arguments...\r\n"
+		"\t1:\tName of ship subsystem is on.\r\n"
+		"\tRest:\tName of subsystem to destroy.\r\n"},
 
 	{ OP_INVALIDATE_GOAL, "Invalidate goal (Action operator)\r\n"
 		"\tMakes a mission goal invalid, which causes it to not show up on mission goals "
@@ -28365,7 +29639,7 @@ sexp_help_struct Sexp_help[] = {
 		"\tCauses the specified ship to chase and attack the specified target.\r\n\r\n"
 		"Takes 2 arguments...\r\n"
 		"\t1:\tName of ship to chase.\r\n"
-		"\t2:\tGoal priority (number between 0 and 89)." },
+		"\t2:\tGoal priority (number between 0 and 200. Player orders have a priority of 90-100)." },
 
 	{ OP_AI_DOCK, "Ai-dock (Ship goal)\r\n"
 		"\tCauses one ship to dock with another ship.\r\n\r\n"
@@ -28373,7 +29647,7 @@ sexp_help_struct Sexp_help[] = {
 		"\t1:\tName of dockee ship (The ship that \"docker\" will dock with).\r\n"
 		"\t2:\tDocker's docking point - Which dock point docker uses to dock.\r\n"
 		"\t3:\tDockee's docking point - Which dock point on dockee docker will move to.\r\n"
-		"\t4:\tGoal priority (number between 0 and 89)." },
+		"\t4:\tGoal priority (number between 0 and 200. Player orders have a priority of 90-100)." },
 
 	{ OP_AI_UNDOCK, "Ai-undock (Ship goal)\r\n"
 		"\tCauses the specified ship to undock from who it is currently docked with.\r\n\r\n"
@@ -28382,24 +29656,23 @@ sexp_help_struct Sexp_help[] = {
 		"\t2 (optional):\tShip to undock from.  If none is specified, the code will pick the first docked ship." },
 
 	{ OP_AI_WARP_OUT, "Ai-warp-out (Ship/Wing Goal)\r\n"
-		"\tCauses the specified ship/wing to warp out of the mission.  Currently, the ship will "
-		"warp out at its current location.  This behavior will change.  Currently, the first "
-		"argument means nothing.\r\n\r\n"
+		"\tCauses the specified ship/wing to immediately warp out of the mission, from its current location.  "
+		"It will warp even if its departure cue is specified as a hangar bay.\r\n\r\n"
 		"Takes 2 arguments...\r\n"
 		"\t1:\tName of waypoint path to follow to warp out (not used).\r\n"
-		"\t2:\tGoal priority (number between 0 and 89)." },
+		"\t2:\tGoal priority (number between 0 and 200. Player orders have a priority of 90-100)." },
 
 	{ OP_AI_WAYPOINTS, "Ai-waypoints (Ship goal)\r\n"
 		"\tCauses the specified ship to fly a waypoint path continuously.\r\n\r\n"
 		"Takes 2 arguments...\r\n"
 		"\t1:\tName of waypoint path to fly.\r\n"
-		"\t2:\tGoal priority (number between 0 and 89)." },
+		"\t2:\tGoal priority (number between 0 and 200. Player orders have a priority of 90-100)." },
 
 	{ OP_AI_WAYPOINTS_ONCE, "Ai-waypoints once (Ship goal)\r\n"
 		"\tCauses the specified ship to fly a waypoint path.\r\n\r\n"
 		"Takes 2 arguments...\r\n"
 		"\t1:\tName of waypoint path to fly.\r\n"
-		"\t2:\tGoal priority (number between 0 and 89)." },
+		"\t2:\tGoal priority (number between 0 and 200. Player orders have a priority of 90-100)." },
 
 	{ OP_AI_DESTROY_SUBSYS, "Ai-destroy subsys (Ship goal)\r\n"
 		"\tCauses the specified ship to attack and try and destroy the specified subsystem "
@@ -28407,55 +29680,55 @@ sexp_help_struct Sexp_help[] = {
 		"Takes 3 arguments...\r\n"
 		"\t1:\tName of ship subsystem is on.\r\n"
 		"\t2:\tName of subsystem on the ship to attack and destroy.\r\n"
-		"\t3:\tGoal priority (number between 0 and 89)." },
+		"\t3:\tGoal priority (number between 0 and 200. Player orders have a priority of 90-100)." },
 
 	{ OP_AI_CHASE_WING, "Ai-chase wing (Ship goal)\r\n"
 		"\tCauses the specified ship to chase and attack the specified target.\r\n\r\n"
 		"Takes 2 arguments...\r\n"
 		"\t1:\tName of wing to chase.\r\n"
-		"\t2:\tGoal priority (number between 0 and 89)." },
+		"\t2:\tGoal priority (number between 0 and 200. Player orders have a priority of 90-100)." },
 
 	{ OP_AI_DISABLE_SHIP, "Ai-disable-ship (Ship/wing goal)\r\n"
 		"\tThis AI goal causes a ship/wing to destroy all of the engine subsystems on "
 		"the specified ship.  This goal is different than ai-destroy-subsystem since a ship "
 		"may have multiple engine subsystems requiring the use of > 1 ai-destroy-subsystem "
 		"goals.\r\n"
-		"Please note that this goal will implicitly call \"protect-ship\" on the target "
+		"Please note that this goal may call \"protect-ship\" on the target "
 		"to prevent overzealous AI ships from destroying it in the process of disabling it.  "
 		"If the ship must be destroyed later on, be sure to call an \"unprotect-ship\" sexp.\r\n\r\n"
 		"Takes 2 arguments...\r\n"
 		"\t1:\tName of ship whose engine subsystems should be destroyed\r\n"
-		"\t2:\tGoal priority (number between 0 and 89)." },
+		"\t2:\tGoal priority (number between 0 and 200. Player orders have a priority of 90-100)." },
 
 	{ OP_AI_DISARM_SHIP, "Ai-disarm-ship (Ship/wing goal)\r\n"
 		"\tThis AI goal causes a ship/wing to destroy all of the turret subsystems on "
 		"the specified ship.  This goal is different than ai-destroy-subsystem since a ship "
 		"may have multiple turret subsystems requiring the use of > 1 ai-destroy-subsystem "
 		"goals.\r\n"
-		"Please note that this goal will implicitly call \"protect-ship\" on the target "
+		"Please note that this goal may call \"protect-ship\" on the target "
 		"to prevent overzealous AI ships from destroying it in the process of disarming it.  "
 		"If the ship must be destroyed later on, be sure to call an \"unprotect-ship\" sexp.\r\n\r\n"
 		"Takes 2 arguments...\r\n"
 		"\t1:\tName of ship whose turret subsystems should be destroyed\r\n"
-		"\t2:\tGoal priority (number between 0 and 89)." },
+		"\t2:\tGoal priority (number between 0 and 200. Player orders have a priority of 90-100)." },
 
 	{ OP_AI_GUARD, "Ai-guard (Ship goal)\r\n"
 		"\tCauses the specified ship to guard a ship from other ships not on the same team.\r\n\r\n"
 		"Takes 2 arguments...\r\n"
 		"\t1:\tName of ship to guard.\r\n"
-		"\t2:\tGoal priority (number between 0 and 89)." },
+		"\t2:\tGoal priority (number between 0 and 200. Player orders have a priority of 90-100)." },
 
 	{ OP_AI_CHASE_ANY, "Ai-chase-any (Ship goal)\r\n"
 		"\tCauses the specified ship to chase and attack any ship on the opposite team.\r\n\r\n"
 		"Takes 1 argument...\r\n"
-		"\t1:\tGoal priority (number between 0 and 89)." },
+		"\t1:\tGoal priority (number between 0 and 200. Player orders have a priority of 90-100)." },
 
 	{ OP_AI_GUARD_WING, "Ai-guard wing (Ship goal)\r\n"
 		"\tCauses the specified ship to guard a wing of ships from other ships not on the "
 		"same team.\r\n\r\n"
 		"Takes 2 arguments...\r\n"
 		"\t1:\tName of wing to guard.\r\n"
-		"\t2:\tGoal priority (number between 0 and 89)." },
+		"\t2:\tGoal priority (number between 0 and 200. Player orders have a priority of 90-100)." },
 
 	{ OP_NOP, "Do-nothing (Action operator)\r\n"
 		"\tDoes nothing.  This is used as the default for any required action arguments "
@@ -28620,8 +29893,7 @@ sexp_help_struct Sexp_help[] = {
 
 	// Karajorma
 	{ OP_STRING_TO_INT, "string-to-int\r\n"
-		"\tConverts a string into an integer. The string must only contain numeric characters "
-		"or zero is returned \r\n"
+		"\tConverts a string into an integer.  All non-numeric characters (except for the negative sign) will be ignored, as will any fractional part of a decimal number.  This behavior is somewhat different than the atoi() function in C or C++, which will abort if it encounters any non-numeric character.  For a string like \"turret31\", this sexp will return 31, but atoi() will return 0.\r\n\r\n"
 		"Takes 1 argument...\r\n"
 		"\t1:\tString to convert" },
 
@@ -28666,6 +29938,13 @@ sexp_help_struct Sexp_help[] = {
 		"\t4: New substring (which can be a different length than the old substring)\r\n"
 		"\t5: String variable to hold the result\r\n" },
 
+	// Karajorma
+	{ OP_DEBUG, "debug\r\n"
+		"\tPops up a warning on debug builds (and optionally on release builds)\r\n"
+		"Takes 1 or more arguments...\r\n"
+		"\t1:\t If false, popup messages in release builds too. Defaults to true.\r\n"
+		"\t2:\tName of a message which will appear in the warning (optional)\r\n"},
+
 	{ OP_GRANT_PROMOTION, "Grant promotion (Action operator)\r\n"
 		"\tIn a single player game, this function grants a player an automatic promotion to the "
 		"next rank which the player can obtain.  If he is already at the highest rank, this "
@@ -28677,10 +29956,10 @@ sexp_help_struct Sexp_help[] = {
 		"Takes 1 argument...\r\n"
 		"\t1:\tName of medal to grant to player." },
 
-	{ OP_GOOD_SECONDARY_TIME, "Set prefered secondary weapons\r\n"
-		"\tThis sexpression is used to inform the AI about prefered secondary weapons to "
+	{ OP_GOOD_SECONDARY_TIME, "Set preferred secondary weapons\r\n"
+		"\tThis sexpression is used to inform the AI about preferred secondary weapons to "
 		"fire during combat.  When this expression is evaulated, any AI ships of the given "
-		"team prefer to fire the given weapon at the given ship. (Prefered over other "
+		"team prefer to fire the given weapon at the given ship. (Preferred over other "
 		"secondary weapons)\r\n\r\n"
 		"Takes 4 argument...\r\n"
 		"\t1:\tTeam name which will prefer firing given weapon\r\n"
@@ -28856,6 +30135,14 @@ sexp_help_struct Sexp_help[] = {
 		"\tCauses the specified hud gauge to flash to draw the player's attention to it.\r\n\r\n"
 		"Takes 1 argument...\r\n"
 		"\t1:\tName of hud gauge to flash." },
+		
+	{ OP_ALTER_SHIP_FLAG, "alter-ship-flag\r\n"
+		"\tSets a ships flag and/or parse flag.\r\n\r\n"
+		"Takes 4 or more arguments...\r\n"
+		"\t1:\tShip flag name\r\n"
+		"\t2:\tTrue if turning on, false if turning off\r\n"
+		"\t3:\tTrue\\False - Apply this flag to future waves of this wing. Apply to ship if not present\r\n"
+		"\tRest:\t (optional)Name of ships. If not supplied, will work on all ships in the mission" },
 
 	{ OP_SHIP_VISIBLE, "ship-visible\r\n"
 		"\tCauses the ships listed in this sexpression to be visible with player sensors.\r\n\r\n"
@@ -28878,12 +30165,12 @@ sexp_help_struct Sexp_help[] = {
 		"\t1+:\tName of ships to make invulnerable to weapons." },
 
 	{ OP_SHIP_BOMB_TARGETABLE, "ship-targetable-as-bomb\r\n"
-		"\tCauses the ships listed in this sexpression to be targetable with bomb targetting key.\r\n\r\n"
+		"\tCauses the ships listed in this sexpression to be targetable with bomb targeting key.\r\n\r\n"
 		"Takes 1 or more arguments...\r\n"
 		"\t1+:\tName of ships to make targetable with bomb targeting key." },
 
 	{ OP_SHIP_BOMB_UNTARGETABLE, "ship-untargetable-as-bomb\r\n"
-		"\tCauses the ships listed in this sexpression to not be targetable with bomb targetting key.\r\n\r\n"
+		"\tCauses the ships listed in this sexpression to not be targetable with bomb targeting key.\r\n\r\n"
 		"Takes 1 or more arguments...\r\n"
 		"\t1+:\tName of ships to make nontargetable with bomb targeting key." },
 
@@ -29154,14 +30441,14 @@ sexp_help_struct Sexp_help[] = {
 		"\tAll:\tList of ships on which to unset the vaporize flag" },
 
 	{ OP_DONT_COLLIDE_INVISIBLE, "don't-collide-invisible\r\n"
-		"\tSets the \"dont collide invisible\" flag on a list of ships.\r\n"
+		"\tSets the \"don't collide invisible\" flag on a list of ships.\r\n"
 		"Takes 1 or more arguments...\r\n"
-		"\tAll:\tList of ships on which to set the \"dont collide invisible\" flag" },
+		"\tAll:\tList of ships on which to set the \"don't collide invisible\" flag" },
 
 	{ OP_COLLIDE_INVISIBLE, "collide-invisible\r\n"
-		"\tUnsets the \"dont collide invisible\" flag on a list of ships.\r\n"
+		"\tUnsets the \"don't collide invisible\" flag on a list of ships.\r\n"
 		"Takes 1 or more arguments...\r\n"
-		"\tAll:\tList of ships on which to unset the \"dont collide invisible\" flag" },
+		"\tAll:\tList of ships on which to unset the \"don't collide invisible\" flag" },
 
 	{ OP_SET_MOBILE, "set-mobile\r\n"
 		"\tAllows the specified ship(s) to move.  Opposite of set-immobile.\r\n"
@@ -29209,14 +30496,14 @@ sexp_help_struct Sexp_help[] = {
 		"\tRest:\tList of ships" },
 
 	{ OP_JETTISON_CARGO, "jettison-cargo-delay\r\n"
-		"\tCauses a cargo carrying ship to jettison its cargo without the undocking procedure. Takes 2 or more arguments...\r\n"
+		"\tCauses a cargo carrying ship to jettison its cargo without the undocking procedure.  Takes 2 or more arguments...\r\n"
 		"\t1: Ship to jettison cargo\r\n"
 		"\t2: Delay after which to jettison cargo (note that this isn't actually used)\r\n"
 		"\tRest (optional): Cargo to jettison.  If no optional arguments are specified, the ship jettisons all cargo.\r\n"
 	},
 
 	{ OP_SET_DOCKED, "set-docked\r\n"
-		"\tCauses one ship to become instantly docked to another at the specified docking ports.Takes 4 arguments...\r\n"
+		"\tCauses one ship to become instantly docked to another at the specified docking ports.  Takes 4 arguments...\r\n"
 		"\t1: Docker ship\r\n"
 		"\t1: Docker point\r\n"
 		"\t1: Dockee ship\r\n"
@@ -29564,6 +30851,11 @@ sexp_help_struct Sexp_help[] = {
 		"\tSingle Player Only!  Warning: This will cause ship exit not to be logged, so 'has-departed', etc. will not work\r\n"
 		"\t1: List of ship names to vanish\r\n"},
 
+	{ OP_DESTROY_INSTANTLY, "destroy-instantly\r\n"
+		"\tSelf-destructs the named ship without explosion, death roll, or debris.  That is, the ship is instantly gone from the mission and the only indication of what happened is a mission log entry.\r\n"
+		"\tSingle Player Only! Non-player ship only!\r\n"
+		"\tAll: List of ship names to destroy.\r\n"},
+
 	{ OP_SHIP_CREATE, "ship-create\r\n"
 		"\tCreates a new ship\r\n"
 		"\tTakes 5 to 8 arguments...\r\n"
@@ -29662,23 +30954,25 @@ sexp_help_struct Sexp_help[] = {
 
 	// Goober5000
 	{ OP_SET_ARRIVAL_INFO, "set-arrival-info\r\n"
-		"\tSets arrival information for a ship or wing.  Takes 2 to 6 arguments...\r\n"
+		"\tSets arrival information for a ship or wing.  Takes 2 to 7 arguments...\r\n"
 		"\t1: Ship or wing name\r\n"
 		"\t2: Arrival location\r\n"
 		"\t3: Arrival anchor (optional; only required for certain locations)\r\n"
 		"\t4: Arrival path mask (optional; defaults to 0; note that this is a bitfield)\r\n"
 		"\t5: Arrival distance (optional; defaults to 0)\r\n"
-		"\t6: Whether to show a jump effect if arriving from subspace (optional; defaults to true)\r\n"
+		"\t6: Arrival delay (optional; defaults to 0)\r\n"
+		"\t7: Whether to show a jump effect if arriving from subspace (optional; defaults to true)\r\n"
 	},
 
 	// Goober5000
 	{ OP_SET_DEPARTURE_INFO, "set-departure-info\r\n"
-		"\tSets departure information for a ship or wing.  Takes 2 to 5 arguments...\r\n"
+		"\tSets departure information for a ship or wing.  Takes 2 to 6 arguments...\r\n"
 		"\t1: Ship or wing name\r\n"
 		"\t2: Departure location\r\n"
 		"\t3: Departure anchor (optional; only required for certain locations)\r\n"
 		"\t4: Departure path mask (optional; defaults to 0; note that this is a bitfield)\r\n"
-		"\t5: Whether to show a jump effect if departing to subspace (optional; defaults to true)\r\n"
+		"\t5: Departure delay (optional; defaults to 0)\r\n"
+		"\t6: Whether to show a jump effect if departing to subspace (optional; defaults to true)\r\n"
 	},
 
 	// Bobboau
@@ -30156,7 +31450,9 @@ sexp_help_struct Sexp_help[] = {
 	
 	{ OP_CUTSCENES_SET_CAMERA_HOST, "set-camera-host\r\n"
 		"\tSets the object and subystem camera should view from. Camera position is offset from the host. "
-		"Camera orientation is also offset from host, unless a valid camera target is set."
+		"If the selected subsystem or one of its children has an eyepoint bound to it it will be used for the camera position and orientation."
+		"If the selected subsystem is a turret and has no eyepoint the camera will be at the first firing point and look along the firing direction."
+		"If a valid camera target is set the direction to the target will override any other orientation."
 		"Takes 1 to 2 arguments...\r\n"
 		"\t1:\tShip to mount camera on\r\n"
 		"\t(optional)\r\n"
@@ -30510,6 +31806,15 @@ sexp_help_struct Sexp_help[] = {
 		"\t1:\tThe player ship to set the throttle of.\r\n"
 		"\t2:\tThe percentage of the player's maximum speed to set their throttle to.\r\n"
 		"\t\tThis is capped to either 0 or 100 if outside the valid range."
+	},
+
+	{OP_CHANGE_TEAM_COLOR, "change-team-color\r\n"
+		"\tChanges the team color setting for one or several ships.\r\n"
+		"\tThis sexp has no effect on ships that don't have team colors enabled for them.\r\n"
+		"\tTakes 3 or more arguments...\r\n"
+		"\t1:\tThe new team color name. Name must be defined in colors.tbl.\r\n"
+		"\t2:\tCrossfade time in milliseconds. During this time, colors will be mixed.\r\n"
+		"\t3:\tRest: List of ships this sexp will operate on."
 	}
 };
 
@@ -30533,28 +31838,38 @@ op_menu_struct op_menu[] =
 // if people so choose - see sexp.h)
 op_menu_struct op_submenu[] =
 {
-	{	"Messaging and Mission Goals",	CHANGE_SUBCATEGORY_MESSAGING_AND_MISSION_GOALS		},
-	{	"AI and IFF",					CHANGE_SUBCATEGORY_AI_AND_IFF						},
-	{	"Subsystems and Cargo",			CHANGE_SUBCATEGORY_SUBSYSTEMS_AND_CARGO				},
+	{	"Messages and Personas",		CHANGE_SUBCATEGORY_MESSAGING						},
+	{	"AI Control",					CHANGE_SUBCATEGORY_AI_CONTROL						},
 	{	"Ship Status",					CHANGE_SUBCATEGORY_SHIP_STATUS						},
+	{	"Weapons, Shields, and Engines",	CHANGE_SUBCATEGORY_SHIELDS_ENGINES_AND_WEAPONS		},
+	{	"Subsystems and Health",		CHANGE_SUBCATEGORY_SUBSYSTEMS						},
+	{	"Cargo",						CHANGE_SUBCATEGORY_CARGO							},
+	{	"Armor and Damage Types",		CHANGE_SUBCATEGORY_ARMOR_AND_DAMAGE_TYPES			},
 	{	"Beams and Turrets",			CHANGE_SUBCATEGORY_BEAMS_AND_TURRETS				},
-	{	"Mission and Campaign",			CHANGE_SUBCATEGORY_MISSION_AND_CAMPAIGN				},
 	{	"Models and Textures",			CHANGE_SUBCATEGORY_MODELS_AND_TEXTURES				},
 	{	"Coordinate Manipulation",		CHANGE_SUBCATEGORY_COORDINATE_MANIPULATION			},
+	{	"Mission and Campaign",			CHANGE_SUBCATEGORY_MISSION_AND_CAMPAIGN				},
 	{	"Music and Sound",				CHANGE_SUBCATEGORY_MUSIC_AND_SOUND					},
-	{	"Hud",							CHANGE_SUBCATEGORY_HUD								},
-	{	"Nav",							CHANGE_SUBCATEGORY_NAV								},
+	{	"HUD",							CHANGE_SUBCATEGORY_HUD								},
+	{	"Nav Points",					CHANGE_SUBCATEGORY_NAV								},
 	{	"Cutscenes",					CHANGE_SUBCATEGORY_CUTSCENES						},
+	{	"Backgrounds and Nebulae",		CHANGE_SUBCATEGORY_BACKGROUND_AND_NEBULA			},
 	{	"Jump Nodes",					CHANGE_SUBCATEGORY_JUMP_NODES						},
-	{	"Backgrounds and Nebula",		CHANGE_SUBCATEGORY_BACKGROUND_AND_NEBULA			},
-	{	"Special",						CHANGE_SUBCATEGORY_SPECIAL							},
-	{	"Multiplayer and Mission Config",	STATUS_SUBCATEGORY_MULTIPLAYER_AND_MISSION_CONFIG	},
+	{	"Special Effects",				CHANGE_SUBCATEGORY_SPECIAL_EFFECTS					},
+	{	"Variables",					CHANGE_SUBCATEGORY_VARIABLES						},
+	{	"Other",						CHANGE_SUBCATEGORY_OTHER							},
+	{	"Mission",						STATUS_SUBCATEGORY_MISSION							},
+	{	"Player",						STATUS_SUBCATEGORY_PLAYER							},
+	{	"Multiplayer",						STATUS_SUBCATEGORY_MULTIPLAYER					},
+	{	"Ship Status",					STATUS_SUBCATEGORY_SHIP_STATUS						},
 	{	"Weapons, Shields, and Engines",	STATUS_SUBCATEGORY_SHIELDS_ENGINES_AND_WEAPONS	},
 	{	"Cargo",						STATUS_SUBCATEGORY_CARGO							},
-	{	"Ship Status",					STATUS_SUBCATEGORY_SHIP_STATUS						},
 	{	"Damage",						STATUS_SUBCATEGORY_DAMAGE							},
 	{	"Distance and Coordinates",		STATUS_SUBCATEGORY_DISTANCE_AND_COORDINATES			},
-	{	"Kills and Scoring",			STATUS_SUBCATEGORY_KILLS_AND_SCORING				},
+	{	"Variables",					STATUS_SUBCATEGORY_VARIABLES						},
+	{	"Other",						STATUS_SUBCATEGORY_OTHER							},
+
+
 };
 int Num_sexp_help = sizeof(Sexp_help) / sizeof(sexp_help_struct);
 int Num_op_menus = sizeof(op_menu) / sizeof(op_menu_struct);

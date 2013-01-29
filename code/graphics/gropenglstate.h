@@ -106,7 +106,10 @@ inline void opengl_texture_state::SetAlphaScale(GLfloat scale)
 
 inline void opengl_texture_state::SetEnvMode(GLenum mode)
 {
-	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode);
+	if (mode != units[active_texture_unit].env_mode) {
+		glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode);
+		units[active_texture_unit].env_mode = mode;
+	}
 }
 
 inline void opengl_texture_state::SetEnvCombineMode(GLenum cmode, GLenum cfunc)
@@ -272,6 +275,7 @@ class opengl_state
 		GLboolean alphatest_Status;
 		GLboolean depthtest_Status;
 		GLboolean scissortest_Status;
+        GLboolean stenciltest_Status;
 		GLboolean cullface_Status;
 		GLboolean polygonoffsetfill_Status;
 		GLboolean normalize_Status;
@@ -279,6 +283,12 @@ class opengl_state
 		GLboolean *light_Status;
 		GLboolean depthmask_Status;
 		GLboolean lighting_Status;
+        GLboolean colormask_Status;
+		GLubyte red_Status;
+		GLubyte blue_Status;
+		GLubyte green_Status;
+		GLubyte alpha_Status;
+		bool color_invalid;
 
 		GLenum frontface_Value;
 		GLenum cullface_Value;
@@ -287,6 +297,7 @@ class opengl_state
 
 		gr_alpha_blend Current_alpha_blend_mode;
 		gr_zbuffer_type Current_zbuffer_type;
+        gr_stencil_type Current_stencil_type;
 
 
 	public:
@@ -301,6 +312,7 @@ class opengl_state
 		void SetTextureSource(gr_texture_source ts);
 		void SetAlphaBlendMode(gr_alpha_blend ab);
 		void SetZbufferType(gr_zbuffer_type zt);
+        void SetStencilType(gr_stencil_type st);
 
 		// the GLboolean functions will return the current state if no argument
 		// and the previous state if an argument is passed
@@ -310,12 +322,14 @@ class opengl_state
 		GLboolean AlphaTest(GLint state = -1);
 		GLboolean DepthTest(GLint state = -1);
 		GLboolean ScissorTest(GLint state = -1);
+        GLboolean StencilTest(GLint state = -1);
 		GLboolean CullFace(GLint state = -1);
 		GLboolean PolygonOffsetFill(GLint state = -1);
 		GLboolean Normalize(GLint state = -1);
 		GLboolean Light(GLint num, GLint state = -1);
 		GLboolean ClipPlane(GLint num, GLint state = -1);
 		GLboolean DepthMask(GLint state = -1);
+        GLboolean ColorMask(GLint state = -1);
 
 		inline GLenum FrontFaceValue(GLenum new_val = GL_INVALID_ENUM);
 		inline GLenum CullFaceValue(GLenum new_val = GL_INVALID_ENUM);
@@ -323,6 +337,9 @@ class opengl_state
 		inline GLenum BlendFuncSource();
 		inline GLenum BlendFuncDest();
 		inline GLenum DepthFunc(GLenum new_val = GL_INVALID_ENUM);
+		inline void AlphaFunc(GLenum f_val, GLclampf r_val);
+		inline void Color(GLubyte red, GLubyte green, GLubyte blue, GLubyte alpha = 255);
+		inline void InvalidateColor();
 };
 
 inline GLenum opengl_state::FrontFaceValue(GLenum new_val)
@@ -384,6 +401,27 @@ inline GLenum opengl_state::DepthFunc(GLenum new_val)
 	return depthfunc_Value;
 }
 
+inline void opengl_state::AlphaFunc(GLenum f_val, GLclampf r_val)
+{
+	glAlphaFunc(f_val, r_val);
+}
+
+inline void opengl_state::Color(GLubyte red, GLubyte green, GLubyte blue, GLubyte alpha)
+{
+	if ( color_invalid || (red != red_Status) || (green != green_Status) || (blue != blue_Status) || (alpha != alpha_Status) ) {
+		glColor4ub(red, green, blue, alpha);
+		red_Status = red;
+		green_Status = green;
+		blue_Status = blue;
+		alpha_Status = alpha;
+		color_invalid = false;
+	}
+}
+
+inline void opengl_state::InvalidateColor()
+{
+	color_invalid = true;
+}
 
 extern opengl_state GL_state;
 

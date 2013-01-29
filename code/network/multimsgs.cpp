@@ -2811,7 +2811,7 @@ void process_ship_depart_packet( ubyte *data, header *hinfo )
 				ship_actually_depart(objp->instance, s_method); 
 			}
 			else {
-				nprintf(("network", "Can not proces ship depart packed. Object with net signature %d is not a ship!\n", signature ));	
+				nprintf(("network", "Can not process ship depart packed. Object with net signature %d is not a ship!\n", signature ));	
 				return;
 			}
 			break;
@@ -3327,7 +3327,9 @@ void process_turret_fired_packet( ubyte *data, header *hinfo )
 		multi_set_network_signature( wnet_signature, MULTI_SIG_NON_PERMANENT );
 	}
 
-	weapon_objnum = weapon_create( &pos, &orient, wid, OBJ_INDEX(objp), -1, 1);
+	weapon_objnum = weapon_create( &pos, &orient, wid, OBJ_INDEX(objp), -1, 1, 0, 0.0f, ssp);
+	wid = Weapons[Objects[weapon_objnum].instance].weapon_info_index;
+
 	if (weapon_objnum != -1) {
 		if ( Weapon_info[wid].launch_snd != -1 ) {
 			snd_play_3d( &Snds[Weapon_info[wid].launch_snd], &pos, &View_position );
@@ -4347,7 +4349,7 @@ void process_player_order_packet(ubyte *data, header *hinfo)
 
 	// if this player is not allowed to do messaging, quit here
 	if( !multi_can_message(&Net_players[player_num]) ){
-		nprintf(("Network","Recieved player order packet from player not allowed to give orders!!\n"));
+		nprintf(("Network","Received player order packet from player not allowed to give orders!!\n"));
 		return;
 	}
 
@@ -8383,7 +8385,8 @@ void process_flak_fired_packet(ubyte *data, header *hinfo)
 	ship_get_global_turret_info(objp, ssp->system_info, &pos, &dir);
 
 	// create the weapon object	
-	weapon_objnum = weapon_create( &pos, &orient, wid, OBJ_INDEX(objp), -1, 1);
+	weapon_objnum = weapon_create( &pos, &orient, wid, OBJ_INDEX(objp), -1, 1, 0, 0.0f, ssp);
+	wid = Weapons[Objects[weapon_objnum].instance].weapon_info_index;
 	if (weapon_objnum != -1) {
 		if ( Weapon_info[wid].launch_snd != -1 ) {
 			snd_play_3d( &Snds[Weapon_info[wid].launch_snd], &pos, &View_position );

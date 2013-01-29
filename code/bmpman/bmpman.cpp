@@ -36,6 +36,7 @@
 #include "pngutils/pngutils.h"
 #include "jpgutils/jpgutils.h"
 #include "parse/parselo.h"
+#include "network/multiutil.h"
 
 #define BMPMAN_INTERNAL
 #include "bmpman/bm_internal.h"
@@ -1919,6 +1920,7 @@ int bm_release(int handle, int clear_render_targets)
  *
  * @param handle				index into ::bm_bitmaps ( index returned from bm_load() or bm_create() )
  * @param clear_render_targets	Whether to release a render target
+ * @param nodebug               Exclude certain debug messages
  *
  * @return	1 on successful release, 0 otherwise
  */
@@ -2251,7 +2253,6 @@ void bm_page_in_start()
 	gr_bm_page_in_start();
 }
 
-extern int Multi_ping_timestamp;
 extern void multi_ping_send_all();
 
 void bm_page_in_stop()
@@ -2284,15 +2285,7 @@ void bm_page_in_stop()
 
 				n++;
 
-				// send out a ping if we are multi so that psnet2 doesn't kill us off for a long load
-				// NOTE that we can't use the timestamp*() functions here since they won't increment
-				//      during this loading process
-				if (Game_mode & GM_MULTIPLAYER) {
-					if ( (Multi_ping_timestamp == -1) || (Multi_ping_timestamp <= timer_get_milliseconds()) ) {
-						multi_ping_send_all();
-						Multi_ping_timestamp = timer_get_milliseconds() + 10000; // timeout is 10 seconds between pings
-					}
-				}
+				multi_send_anti_timeout_ping();
 
 				if ( (bm_bitmaps[i].info.ani.first_frame == 0) || (bm_bitmaps[i].info.ani.first_frame == i) ) {
 #ifndef NDEBUG
@@ -2845,14 +2838,23 @@ int bm_set_render_target(int handle, int face)
 			//if we are moving from the back buffer to a texture save whatever the current settings are
 			gr_screen.save_max_w = gr_screen.max_w;
 			gr_screen.save_max_h = gr_screen.max_h;
+
+			gr_screen.save_max_w_unscaled = gr_screen.max_w_unscaled;
+			gr_screen.save_max_h_unscaled = gr_screen.max_h_unscaled;
 		}
 
 		if (n < 0) {
 			gr_screen.max_w = gr_screen.save_max_w;
 			gr_screen.max_h = gr_screen.save_max_h;
+
+			gr_screen.max_w_unscaled = gr_screen.save_max_w_unscaled;
+			gr_screen.max_h_unscaled = gr_screen.save_max_h_unscaled;
 		} else {
 			gr_screen.max_w = bm_bitmaps[n].bm.w;
 			gr_screen.max_h = bm_bitmaps[n].bm.h;
+
+			gr_screen.max_w_unscaled = bm_bitmaps[n].bm.w;
+			gr_screen.max_h_unscaled = bm_bitmaps[n].bm.h;
 		}
 
 		gr_screen.rendering_to_face = face;

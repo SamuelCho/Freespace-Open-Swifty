@@ -30,7 +30,7 @@
 #include "globalincs/alphacolors.h"
 #include "io/timer.h"
 #include "nebula/neb.h"
-#include "weapon/beam.h"
+#include "weapon/weapon.h"
 #include "network/multi.h"
 #include "menuui/optionsmenumulti.h"
 
@@ -887,7 +887,12 @@ void options_accept()
 {
 	// apply the selected multiplayer options
 	if ( Options_multi_inited ) {
-		options_multi_accept();
+		// if we've failed to provide a PXO password or username but have turned on PXO, we don't want to quit
+		if (!options_multi_accept()) {
+			gamesnd_play_iface(SND_COMMIT_PRESSED);
+			popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, "PXO is selected but password or username is missing");
+			return;
+		}
 	}
 
 	// If music is zero volume, disable
@@ -921,7 +926,7 @@ void options_menu_init()
 	Assert(!Options_menu_inited);
 
 	// pause all sounds, since we could get here through the game
-	beam_pause_sounds();
+	weapon_pause_sounds();
 	//audiostream_pause_all();
 
 	Tab = 0;
@@ -1052,7 +1057,7 @@ void options_menu_close()
 	game_flush();
 	
 	// unpause all sounds, since we could be headed back to the game
-	beam_unpause_sounds();
+	weapon_unpause_sounds();
 	//audiostream_unpause_all();
 	
 	Options_menu_inited = 0;

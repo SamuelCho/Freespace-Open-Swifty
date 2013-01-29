@@ -102,7 +102,7 @@ void generic_anim_init(generic_anim *ga, const char *filename)
 	ga->height = 0;
 	ga->width = 0;
 	ga->bitmap_id = -1;
-	ga->colored = false;
+	ga->use_hud_color = false;
 }
 
 // CommanderDJ - same as generic_anim_init, just with an SCP_string 
@@ -185,7 +185,7 @@ int generic_anim_stream(generic_anim *ga)
 	//TODO: add streaming EFF
 	if(ga->type == BM_TYPE_ANI) {
 		bpp = ANI_BPP_CHECK;
-		if(ga->colored)
+		if(ga->use_hud_color)
 			bpp = 8;
 		ga->ani.animation = anim_load(ga->filename, CF_TYPE_ANY, 0);
 		ga->ani.instance = init_anim_instance(ga->ani.animation, bpp);
@@ -210,7 +210,7 @@ int generic_anim_stream(generic_anim *ga)
 	}
 	else {
 		bpp = 32;
-		if(ga->colored)
+		if(ga->use_hud_color)
 			bpp = 8;
 		bm_load_and_parse_eff(ga->filename, CF_TYPE_ANY, &ga->num_frames, &anim_fps, &ga->keyframe, 0);
 		char *p = strrchr( ga->filename, '.' );
@@ -308,9 +308,8 @@ void generic_render_eff_stream(generic_anim *ga)
 {
 	if(ga->current_frame == ga->previous_frame)
 		return;
-	int i;
-	int bpp = 32;
-	if(ga->colored)
+	ubyte bpp = 32;
+	if(ga->use_hud_color)
 		bpp = 8;
 	#ifdef TIMER
 		int start_time = timer_get_fixed_seconds();
@@ -326,7 +325,7 @@ void generic_render_eff_stream(generic_anim *ga)
 		{
 			bitmap* next_frame_bmp = bm_lock(ga->eff.next_frame, bpp, (bpp==8)?BMP_AABITMAP:BMP_TEX_NONCOMP, true);
 			if(next_frame_bmp->data)
-				gr_update_texture(ga->bitmap_id, bpp, (ubyte*)next_frame_bmp->data);
+				gr_update_texture(ga->bitmap_id, bpp, (ubyte*)next_frame_bmp->data, ga->width, ga->height);
 			bm_unlock(ga->eff.next_frame);
 			bm_unload(ga->eff.next_frame, 0, true);
 		}
@@ -340,7 +339,7 @@ void generic_render_ani_stream(generic_anim *ga)
 {
 	int i;
 	int bpp = ANI_BPP_CHECK;
-	if(ga->colored)
+	if(ga->use_hud_color)
 		bpp = 8;
 	#ifdef TIMER
 		int start_time = timer_get_fixed_seconds();
@@ -407,7 +406,7 @@ void generic_render_ani_stream(generic_anim *ga)
 	BM_SELECT_SCREEN_FORMAT();
 	//we need to use this because performance is worse if we flush the gfx card buffer
 	
-	gr_update_texture(ga->bitmap_id, bpp, ga->buffer);
+	gr_update_texture(ga->bitmap_id, bpp, ga->buffer, ga->width, ga->height);
 
 	//in case we want to check that the frame is actually changing
 	//mprintf(("frame crc = %08X\n", cf_add_chksum_long(0, ga->buffer, ga->width * ga->height * (bpp >> 3))));
@@ -487,7 +486,7 @@ void generic_anim_render(generic_anim *ga, float frametime, int x, int y)
 			gr_set_bitmap(ga->first_frame + ga->current_frame);
 		}
 		ga->previous_frame = ga->current_frame;
-		if(ga->colored)
+		if(ga->use_hud_color)
 			gr_aabitmap(x,y);
 		else
 			gr_bitmap(x,y);

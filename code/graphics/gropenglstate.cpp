@@ -32,12 +32,55 @@ void opengl_texture_state::init(GLuint n_units)
 	units = (opengl_texture_unit*) vm_malloc(n_units * sizeof(opengl_texture_unit));
 	num_texture_units = n_units;
 
-	for (unsigned int i = 0; i < num_texture_units; i++) {
-		units[i].active = GL_FALSE;
-		units[i].enabled = GL_FALSE;
-		units[i].used = GL_FALSE;
+	for (unsigned int unit = 0; unit < num_texture_units; unit++) {
+		units[unit].active = GL_FALSE;
+		units[unit].enabled = GL_FALSE;
+		units[unit].used = GL_FALSE;
 
-		default_values(i);
+		default_values(unit);
+
+		vglActiveTextureARB(GL_TEXTURE0 + unit);
+		if (unit < (GLuint)GL_supported_texture_units) {
+			glDisable(GL_TEXTURE_GEN_S);
+			glDisable(GL_TEXTURE_GEN_T);
+			glDisable(GL_TEXTURE_GEN_R);
+			glDisable(GL_TEXTURE_GEN_Q);
+		}
+
+		units[unit].texgen_S = GL_FALSE;
+		units[unit].texgen_T = GL_FALSE;
+		units[unit].texgen_R = GL_FALSE;
+		units[unit].texgen_Q = GL_FALSE;
+
+		if (unit < (GLuint)GL_supported_texture_units) {
+			glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
+			glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
+			glTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
+			glTexGeni(GL_Q, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
+		}
+
+		units[unit].texgen_mode_S = GL_EYE_LINEAR;
+		units[unit].texgen_mode_T = GL_EYE_LINEAR;
+		units[unit].texgen_mode_R = GL_EYE_LINEAR;
+		units[unit].texgen_mode_Q = GL_EYE_LINEAR;
+
+		if (unit < (GLuint)GL_supported_texture_units) {
+			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB, GL_MODULATE);
+			glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA, GL_MODULATE);
+		}
+
+		units[unit].env_mode = GL_MODULATE;
+		units[unit].env_combine_rgb = GL_MODULATE;
+		units[unit].env_combine_alpha = GL_MODULATE;
+
+		if (unit < (GLuint)GL_supported_texture_units) {
+			glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE, 1.0f);
+			glTexEnvf(GL_TEXTURE_ENV, GL_ALPHA_SCALE, 1.0f);
+		}
+
+		units[unit].rgb_scale = 1.0f;
+		units[unit].alpha_scale = 1.0f;
 	}
 
 	DisableAll();
@@ -59,48 +102,6 @@ void opengl_texture_state::default_values(GLint unit, GLenum target)
 		units[unit].texture_target = GL_TEXTURE_2D;
 		units[unit].texture_id = 0;
 	}
-
-	if (unit < GL_supported_texture_units) {
-		glDisable(GL_TEXTURE_GEN_S);
-		glDisable(GL_TEXTURE_GEN_T);
-		glDisable(GL_TEXTURE_GEN_R);
-		glDisable(GL_TEXTURE_GEN_Q);
-	}
-
-	units[unit].texgen_S = GL_FALSE;
-	units[unit].texgen_T = GL_FALSE;
-	units[unit].texgen_R = GL_FALSE;
-	units[unit].texgen_Q = GL_FALSE;
-
-	if (unit < GL_supported_texture_units) {
-		glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-		glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-		glTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-		glTexGeni(GL_Q, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-	}
-
-	units[unit].texgen_mode_S = GL_EYE_LINEAR;
-	units[unit].texgen_mode_T = GL_EYE_LINEAR;
-	units[unit].texgen_mode_R = GL_EYE_LINEAR;
-	units[unit].texgen_mode_Q = GL_EYE_LINEAR;
-
-	if (unit < GL_supported_texture_units) {
-		glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-		glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB, GL_MODULATE);
-		glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA, GL_MODULATE);
-	}
-
-	units[unit].env_mode = GL_MODULATE;
-	units[unit].env_combine_rgb = GL_MODULATE;
-	units[unit].env_combine_alpha = GL_MODULATE;
-
-	if (unit < GL_supported_texture_units) {
-		glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE, 1.0f);
-		glTexEnvf(GL_TEXTURE_ENV, GL_ALPHA_SCALE, 1.0f);
-	}
-
-	units[unit].rgb_scale = 1.0f;
-	units[unit].alpha_scale = 1.0f;
 }
 
 GLboolean opengl_texture_state::TexgenS(GLint state)
@@ -395,6 +396,12 @@ void opengl_state::init()
 
 	Current_alpha_blend_mode = ALPHA_BLEND_NONE;
 	Current_zbuffer_type = ZBUFFER_TYPE_READ;
+
+	red_Status = 255;
+	blue_Status = 255;
+	green_Status = 255;
+	alpha_Status = 255;
+	color_invalid = true;
 }
 
 GLboolean opengl_state::Lighting(GLint state)
@@ -505,6 +512,24 @@ GLboolean opengl_state::ScissorTest(GLint state)
 	}
 
 	return save_state;
+}
+
+GLboolean opengl_state::StencilTest(GLint state)
+{
+    GLboolean save_state = stenciltest_Status;
+
+    if ( !((state == -1) || (state == stenciltest_Status)) ) {
+        if (state) {
+            Assert( state == GL_TRUE );
+            glEnable(GL_STENCIL_TEST);
+            stenciltest_Status = GL_TRUE;
+        } else {
+            glDisable(GL_STENCIL_TEST);
+            stenciltest_Status = GL_FALSE;
+        }
+    }
+
+    return save_state;
 }
 
 GLboolean opengl_state::CullFace(GLint state)
@@ -621,6 +646,24 @@ GLboolean opengl_state::DepthMask(GLint state)
 	return save_state;
 }
 
+GLboolean opengl_state::ColorMask(GLint state)
+{
+    GLboolean save_state = colormask_Status;
+
+    if ( !((state == -1) || (state == colormask_Status)) ) {
+        if (state) {
+            Assert( state == GL_TRUE );
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            colormask_Status = GL_TRUE;
+        } else {
+            glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+            colormask_Status = GL_FALSE;
+        }
+    }
+
+    return save_state;
+}
+
 void opengl_state::SetTextureSource(gr_texture_source ts)
 {
 	if (ts == Texture.Current_texture_source) {
@@ -720,6 +763,37 @@ void opengl_state::SetZbufferType(gr_zbuffer_type zt)
 	GL_state.DepthTest( (zt == ZBUFFER_TYPE_NONE) ? GL_FALSE : GL_TRUE );
 
 	Current_zbuffer_type = zt;
+}
+
+void opengl_state::SetStencilType(gr_stencil_type st)
+{
+    if (st == Current_stencil_type) {
+        return;
+    }
+    
+    switch (st) {
+        case STENCIL_TYPE_NONE:
+            glStencilFunc( GL_NEVER, 1, 0xFFFF );
+            glStencilOp( GL_KEEP, GL_KEEP, GL_KEEP );
+            break;
+            
+        case STENCIL_TYPE_READ:
+            glStencilFunc( GL_NOTEQUAL, 1, 0XFFFF );
+            glStencilOp( GL_KEEP, GL_KEEP, GL_KEEP );
+            break;
+            
+        case STENCIL_TYPE_WRITE:
+            glStencilFunc( GL_ALWAYS, 1, 0xFFFF );
+            glStencilOp( GL_KEEP, GL_KEEP, GL_REPLACE );
+            break;
+                     
+        default:
+            break;
+    }
+           
+    GL_state.StencilTest( (st == STENCIL_TYPE_NONE) ? GL_FALSE : GL_TRUE );
+         
+    Current_stencil_type = st;
 }
 
 opengl_array_state::~opengl_array_state()
@@ -1039,7 +1113,7 @@ void opengl_array_state::ResetVertexAttribUsed()
 {
 	SCP_map<GLuint,opengl_vertex_attrib_unit>::iterator it;
 
-	for ( it = vertex_attrib_units.begin(); it != vertex_attrib_units.end(); it++ ) {
+	for ( it = vertex_attrib_units.begin(); it != vertex_attrib_units.end(); ++it ) {
 		it->second.used = false;
 	}
 }
@@ -1048,7 +1122,7 @@ void opengl_array_state::DisabledVertexAttribUnused()
 {
 	SCP_map<GLuint,opengl_vertex_attrib_unit>::iterator it;
 
-	for ( it = vertex_attrib_units.begin(); it != vertex_attrib_units.end(); it++ ) {
+	for ( it = vertex_attrib_units.begin(); it != vertex_attrib_units.end(); ++it ) {
 		if ( !it->second.used ) {
 			DisableVertexAttrib(it->first);
 		}
@@ -1075,7 +1149,7 @@ void opengl_array_state::BindArrayBuffer(GLuint id)
 
 	SCP_map<GLuint,opengl_vertex_attrib_unit>::iterator it;
 
-	for ( it = vertex_attrib_units.begin(); it != vertex_attrib_units.end(); it++ ) {
+	for ( it = vertex_attrib_units.begin(); it != vertex_attrib_units.end(); ++it ) {
 		it->second.reset = true;
 	}
 }
@@ -1093,8 +1167,6 @@ void opengl_array_state::BindElementBuffer(GLuint id)
 
 void gr_opengl_flush_data_states()
 {
-	GL_state.Texture.DisableAll();
-
 	GL_state.Array.SetActiveClientUnit(1);
 	GL_state.Array.DisableClientTexture();
 

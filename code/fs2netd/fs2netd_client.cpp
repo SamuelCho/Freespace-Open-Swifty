@@ -433,8 +433,19 @@ bool fs2netd_login()
 			}
 
 			ml_printf("FS2NetD ERROR: Login %s/%s is invalid!", user, passwd);
-			strcpy_s(error_str, "Login failed!");
-			strcpy_s(std_error_str, "Login failed!");
+
+			if (strlen(user) == 0) {
+				strcpy_s(error_str, "Login failed! No username supplied. Go to options -> multi options and add one");
+				strcpy_s(std_error_str, "Login failed! No username!");
+			}
+			else if (strlen(passwd) == 0) {
+				strcpy_s(error_str, "Login failed! No password supplied. Go to options -> multi options and add one");
+				strcpy_s(std_error_str, "Login failed! No password!");
+			}
+			else {
+				strcpy_s(error_str, "Login failed!");
+				strcpy_s(std_error_str, "Login failed!");
+			}
 			retval = false;
 			break;
 		}
@@ -479,7 +490,7 @@ bool fs2netd_login()
 
 		default:
 			ml_string("FS2NetD ERROR: Unknown return case for GetPlayerData()");
-			strcpy_s(error_str, "Unkown return case from GetPlayerData(). Contact the FS2NetD Administrator!");
+			strcpy_s(error_str, "Unknown return case from GetPlayerData(). Contact the FS2NetD Administrator!");
 			retval = false;
 			break;
 	}

@@ -15,6 +15,7 @@
 #include "globalincs/pstypes.h"
 #include "globalincs/def_files.h"
 #include "globalincs/alphacolors.h"
+#include "globalincs/systemvars.h"
 
 #include "graphics/2d.h"
 #include "lighting/lighting.h"
@@ -67,9 +68,8 @@ int GL_vertex_data_in = 0;
 GLint GL_max_elements_vertices = 4096;
 GLint GL_max_elements_indices = 4096;
 
-int Buffer_sdr = -1;
-
 team_color* Current_team_color;
+team_color Current_temp_color;
 bool Using_Team_Color = false;
 
 struct opengl_vertex_buffer {
@@ -378,9 +378,10 @@ bool gr_opengl_pack_buffer(const int buffer_id, vertex_buffer *vb)
 
 	// generate the index array
 	for (j = 0; j < vb->tex_buf.size(); j++) {
-		n_verts = vb->tex_buf[j].n_verts;
-		uint offset = vb->tex_buf[j].index_offset;
-		const uint *index = vb->tex_buf[j].get_index();
+		buffer_data* tex_buf = &vb->tex_buf[j];
+		n_verts = tex_buf->n_verts;
+		uint offset = tex_buf->index_offset;
+		const uint *index = tex_buf->get_index();
 
 		// bump to our spot in the buffer
 		GLubyte *ibuf = m_vbp->index_list + offset;
@@ -415,7 +416,6 @@ void gr_opengl_set_buffer(int idx)
 
 		if ( (Use_GLSL > 1) && !GLSL_override ) {
 			opengl_shader_set_current();
-			Buffer_sdr = -1;
 		}
 
 		return;
@@ -473,15 +473,49 @@ void opengl_tnl_shutdown()
 	opengl_destroy_all_buffers();
 }
 
-void gr_opengl_set_team_color(SCP_string team) {
-	if (Team_Colors.find(team) != Team_Colors.end())
-		Current_team_color = &Team_Colors[team];
-	else
-		Using_Team_Color = false;
+void mix_two_team_colors(team_color* dest, team_color* a, team_color* b, float mix_factor) {
+	dest->base.r = a->base.r * (1.0f - mix_factor) + b->base.r * mix_factor;
+	dest->base.g = a->base.g * (1.0f - mix_factor) + b->base.g * mix_factor;
+	dest->base.b = a->base.b * (1.0f - mix_factor) + b->base.b * mix_factor;
+
+	dest->stripe.r = a->stripe.r * (1.0f - mix_factor) + b->stripe.r * mix_factor;
+	dest->stripe.g = a->stripe.g * (1.0f - mix_factor) + b->stripe.g * mix_factor;
+	dest->stripe.b = a->stripe.b * (1.0f - mix_factor) + b->stripe.b * mix_factor;
 }
 
-void gr_opengl_enable_team_color() {
-	Using_Team_Color = true;
+void gr_opengl_set_team_color(const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime) {
+	if (secondaryteam == "<none>") {
+		if (Team_Colors.find(team) != Team_Colors.end()) {
+			Current_team_color = &Team_Colors[team];
+			Using_Team_Color = true;
+		} else
+			Using_Team_Color = false;
+	} else {
+		if ( Team_Colors.find(secondaryteam) != Team_Colors.end()) {
+			team_color temp_color;
+			team_color start;
+			if (Team_Colors.find(team) != Team_Colors.end()) {
+				start = Team_Colors[team];
+			} else {
+				start.base.r = 0.0f;
+				start.base.g = 0.0f;
+				start.base.b = 0.0f;
+
+				start.stripe.r = 0.0f;
+				start.stripe.g = 0.0f;
+				start.stripe.b = 0.0f;
+			}
+			team_color end = Team_Colors[secondaryteam];
+			float time_remaining = (f2fl(Missiontime - timestamp) * 1000)/fadetime;
+			CLAMP(time_remaining, 0.0f, 1.0f);
+			mix_two_team_colors(&temp_color, &start, &end, time_remaining);
+
+			Current_temp_color = temp_color;
+			Current_team_color = &Current_temp_color;
+			Using_Team_Color = true;
+		} else
+			Using_Team_Color = false;
+	}
 }
 
 void gr_opengl_disable_team_color() {
@@ -493,7 +527,7 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 	GLint offset = (GLint)bufferp->vertex_offset;
 	GLubyte *ptr = NULL;
 
-	if ( Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) && Use_GLSL > 1 ) {
+	if ( Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
 		offset = 0;
 	}
 
@@ -546,6 +580,8 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 
 extern bool Scene_framebuffer_in_frame;
 extern GLuint Framebuffer_fallback_texture_id;
+extern int Interp_thrust_scale_subobj;
+extern float Interp_thrust_scale;
 static void opengl_render_pipeline_program(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags)
 {
 	float u_scale, v_scale;
@@ -613,6 +649,10 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		}
 	}
 
+	if ( Interp_thrust_scale_subobj ) {
+		shader_flags |= SDR_FLAG_THRUSTER;
+	}
+
 	// find proper shader
 	if (shader_flags == GL_last_shader_flags) {
 		sdr_index = GL_last_shader_index;
@@ -630,16 +670,13 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 
 	Assert( sdr_index >= 0 );
 
-	if ( sdr_index != Buffer_sdr ) {
-		Buffer_sdr = sdr_index;
-		opengl_shader_set_current( &GL_shader[sdr_index] );
-	}
+	opengl_shader_set_current( &GL_shader[sdr_index] );
 
 	opengl_default_light_settings( !GL_center_alpha, (Interp_light > 0.25f) );
 	gr_opengl_set_center_alpha(GL_center_alpha);
 
 	opengl_setup_render_states(r, g, b, a, tmap_type, flags);
-	glColor4ub( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)a );
+	GL_state.Color( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)a );
 
 
 	render_pass = 0;
@@ -671,6 +708,16 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	// base texture
 	if (shader_flags & SDR_FLAG_DIFFUSE_MAP) {
 		vglUniform1iARB( opengl_shader_get_uniform("sBasemap"), render_pass );
+
+		int desaturate = 0;
+		if ( flags & TMAP_FLAG_DESATURATE ) {
+			desaturate = 1;
+		}
+
+		vglUniform1iARB( opengl_shader_get_uniform("desaturate"), desaturate);
+		vglUniform1fARB( opengl_shader_get_uniform("desaturate_r"), gr_screen.current_color.red/255.0f);
+		vglUniform1fARB( opengl_shader_get_uniform("desaturate_g"), gr_screen.current_color.green/255.0f);
+		vglUniform1fARB( opengl_shader_get_uniform("desaturate_b"), gr_screen.current_color.blue/255.0f);
 
 		gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale, render_pass);
 	
@@ -745,14 +792,16 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		render_pass++;
 	}
 
-	GL_state.Texture.DisableUnused();
-
 	// Team colors are passed to the shader here, but the shader needs to handle their application.
 	// By default, this is handled through the r and g channels of the misc map, but this can be changed
 	// in the shader; test versions of this used the normal map r and b channels
 	if (shader_flags & SDR_FLAG_TEAMCOLOR) {
 		vglUniform3fARB( opengl_shader_get_uniform("stripe_color"), Current_team_color->stripe.r,  Current_team_color->stripe.g,  Current_team_color->stripe.b);
 		vglUniform3fARB( opengl_shader_get_uniform("base_color"), Current_team_color->base.r, Current_team_color->base.g, Current_team_color->base.b);
+	}
+
+	if (shader_flags & SDR_FLAG_THRUSTER) {
+		vglUniform1fARB( opengl_shader_get_uniform("thruster_scale"), Interp_thrust_scale);
 	}
 
 	// DRAW IT!!
@@ -835,7 +884,6 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		DO_RENDER();
 	}
 */
-
 	GL_state.Texture.SetShaderMode(GL_FALSE);
 }
 
@@ -886,7 +934,7 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 	gr_opengl_set_center_alpha(GL_center_alpha);
 
 	opengl_setup_render_states(r, g, b, a, tmap_type, flags);
-	glColor4ub( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)a );
+	GL_state.Color( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)a );
 
 	// basic setup of all data
 	opengl_init_arrays(vbp, bufferp);
@@ -909,9 +957,11 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 
 		// base texture
 		if ( !Basemap_override ) {
-			GL_state.Array.SetActiveClientUnit(render_pass);
-			GL_state.Array.EnableClientTexture();
-			GL_state.Array.TexPointer( 2, GL_FLOAT, bufferp->stride, BUFFER_OFFSET(0) );
+			if ( !Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
+				GL_state.Array.SetActiveClientUnit(render_pass);
+				GL_state.Array.EnableClientTexture();
+				GL_state.Array.TexPointer( 2, GL_FLOAT, bufferp->stride, BUFFER_OFFSET(0) );
+			}
 
 			gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale, render_pass);
 
@@ -923,7 +973,11 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 		if (using_glow) {
 			GL_state.Array.SetActiveClientUnit(render_pass);
 			GL_state.Array.EnableClientTexture();
-			GL_state.Array.TexPointer( 2, GL_FLOAT, bufferp->stride, BUFFER_OFFSET(0) );
+			if ( Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
+				GL_state.Array.TexPointer( 2, GL_FLOAT, bufferp->stride, 0 );
+			} else {
+				GL_state.Array.TexPointer( 2, GL_FLOAT, bufferp->stride, BUFFER_OFFSET(0) );
+			}
 
 			// set glowmap on relevant ARB
 			gr_opengl_tcache_set(GLOWMAP, tmap_type, &u_scale, &v_scale, render_pass);
@@ -935,7 +989,20 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 	}
 
 	// DRAW IT!!
-	DO_RENDER();
+	if ( Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
+		if (Cmdline_drawelements) {
+			vglDrawElementsBaseVertex(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
+		} else {
+			vglDrawRangeElementsBaseVertex(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
+		}
+	} else {
+		if (Cmdline_drawelements) {
+			glDrawElements(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start)); 
+		} else {
+			vglDrawRangeElements(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start));
+		}
+	}
+
 // -------- End 2nd PASS --------------------------------------------------------- //
 
 
@@ -988,9 +1055,11 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 		render_pass = 0;
 
 		// set specmap, for us to modulate against
-		GL_state.Array.SetActiveClientUnit(render_pass);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(2, GL_FLOAT, bufferp->stride, BUFFER_OFFSET(0) );
+		if ( !Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
+			GL_state.Array.SetActiveClientUnit(render_pass);
+			GL_state.Array.EnableClientTexture();
+			GL_state.Array.TexPointer(2, GL_FLOAT, bufferp->stride, BUFFER_OFFSET(0) );
+		}
 
 		// set specmap on relevant ARB
 		gr_opengl_tcache_set(SPECMAP, tmap_type, &u_scale, &v_scale, render_pass);
@@ -1019,9 +1088,11 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 		render_pass++; // bump!
 
 		// now move the to the envmap
-		GL_state.Array.SetActiveClientUnit(render_pass);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(2, GL_FLOAT, bufferp->stride, BUFFER_OFFSET(0) );
+		if ( !Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
+			GL_state.Array.SetActiveClientUnit(render_pass);
+			GL_state.Array.EnableClientTexture();
+			GL_state.Array.TexPointer(2, GL_FLOAT, bufferp->stride, BUFFER_OFFSET(0) );
+		}
 
 		gr_opengl_tcache_set(ENVMAP, TCACHE_TYPE_CUBEMAP, &u_scale, &v_scale, render_pass);
 
@@ -1065,7 +1136,19 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 		glMaterialfv( GL_FRONT, GL_AMBIENT, ambient );
 
 		// DRAW IT!!
-		DO_RENDER();
+		if ( Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
+			if (Cmdline_drawelements) {
+				vglDrawElementsBaseVertex(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
+			} else {
+				vglDrawRangeElementsBaseVertex(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
+			}
+		} else {
+			if (Cmdline_drawelements) {
+				glDrawElements(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start)); 
+			} else {
+				vglDrawRangeElements(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start));
+			}
+		}
 
 		// disable and reset everything we changed
 		GL_state.Texture.SetRGBScale(1.0f);
@@ -1104,9 +1187,11 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 
 		render_pass = 0;
 
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer( 2, GL_FLOAT, bufferp->stride, BUFFER_OFFSET(0) );
+		if ( !Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
+			GL_state.Array.SetActiveClientUnit(0);
+			GL_state.Array.EnableClientTexture();
+			GL_state.Array.TexPointer( 2, GL_FLOAT, bufferp->stride, BUFFER_OFFSET(0) );
+		}
 
 		gr_opengl_tcache_set(SPECMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
@@ -1127,7 +1212,19 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 		GL_state.DepthFunc(GL_LEQUAL);
 
 		// DRAW IT!!
-		DO_RENDER();
+		if ( Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
+			if (Cmdline_drawelements) {
+				vglDrawElementsBaseVertex(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
+			} else {
+				vglDrawRangeElementsBaseVertex(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
+			}
+		} else {
+			if (Cmdline_drawelements) {
+				glDrawElements(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start)); 
+			} else {
+				vglDrawRangeElements(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start));
+			}
+		}
 
 		opengl_default_light_settings();
 
@@ -1282,8 +1379,10 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 					GL_state.Texture.SetActiveUnit(3);
 					GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 					GL_state.Texture.Enable(Distortion_texture[!Distortion_switch]);
+					vglUniform1fARB(opengl_shader_get_uniform("use_offset"), 1.0f);
 				} else {
 					vglUniform1iARB(opengl_shader_get_uniform("distMap"), 0);
+					vglUniform1fARB(opengl_shader_get_uniform("use_offset"), 0.0f);
 				}
 
 				zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
@@ -1352,10 +1451,11 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) ) {
 		GL_state.Array.EnableClientColor();
 		GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, sizeof(effect_vertex), ptr + color_offset);
+		GL_state.InvalidateColor();
 	} else {
 		// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
 		GL_state.Array.DisableClientColor();
-		glColor4ub( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
+		GL_state.Color( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
 	}
 
 	GL_state.Array.EnableClientVertex();
@@ -1390,7 +1490,6 @@ void gr_opengl_start_instance_matrix(vec3d *offset, matrix *rotation)
 
 	GL_CHECK_FOR_ERRORS("start of start_instance_matrix()");
 
-	glMatrixMode(GL_MODELVIEW);
 	glPushMatrix();
 
 	vec3d axis;
@@ -1398,7 +1497,9 @@ void gr_opengl_start_instance_matrix(vec3d *offset, matrix *rotation)
 	vm_matrix_to_rot_axis_and_angle(rotation, &ang, &axis);
 
 	glTranslatef( offset->xyz.x, offset->xyz.y, offset->xyz.z );
-	glRotatef( fl_degrees(ang), axis.xyz.x, axis.xyz.y, axis.xyz.z );
+	if (fl_abs(ang) > 0.0f) {
+		glRotatef( fl_degrees(ang), axis.xyz.x, axis.xyz.y, axis.xyz.z );
+	}
 
 	GL_CHECK_FOR_ERRORS("end of start_instance_matrix()");
 
@@ -1427,7 +1528,6 @@ void gr_opengl_end_instance_matrix()
 	Assert(GL_htl_projection_matrix_set);
 	Assert(GL_htl_view_matrix_set);
 
-	glMatrixMode(GL_MODELVIEW);
 	glPopMatrix();
 
 	GL_modelview_matrix_depth--;
@@ -1516,7 +1616,6 @@ void gr_opengl_set_view_matrix(vec3d *pos, matrix *orient)
 
 	GL_CHECK_FOR_ERRORS("start of set_view_matrix()");
 
-	glMatrixMode(GL_MODELVIEW);
 	glPushMatrix();
 
 	// right now it depends on your settings as to whether this has any effect in-mission
@@ -1627,7 +1726,6 @@ void gr_opengl_end_view_matrix()
 
 	Assert(GL_modelview_matrix_depth == 2);
 
-	glMatrixMode(GL_MODELVIEW);
 	glPopMatrix();
 	glLoadIdentity();
 
@@ -1712,13 +1810,10 @@ static bool GL_scale_matrix_set = false;
 
 void gr_opengl_push_scale_matrix(vec3d *scale_factor)
 {
-	if (GL_scale_matrix_set) 
-	{
-		Int3();
+	if ( (scale_factor->xyz.x == 1) && (scale_factor->xyz.y == 1) && (scale_factor->xyz.z == 1) )
 		return;
-	}
 
-	glMatrixMode(GL_MODELVIEW);
+	GL_scale_matrix_set = true;
 	glPushMatrix();
 
 	GL_modelview_matrix_depth++;
@@ -1728,16 +1823,13 @@ void gr_opengl_push_scale_matrix(vec3d *scale_factor)
 
 void gr_opengl_pop_scale_matrix()
 {
-	if (GL_scale_matrix_set) 
-	{
-		Int3();
+	if (!GL_scale_matrix_set) 
 		return;
-	}
 
-	glMatrixMode(GL_MODELVIEW);
 	glPopMatrix();
 
 	GL_modelview_matrix_depth--;
+	GL_scale_matrix_set = false;
 }
 
 void gr_opengl_end_clip_plane()

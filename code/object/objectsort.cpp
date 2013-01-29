@@ -40,7 +40,6 @@ inline bool sorted_obj::operator < (const sorted_obj &other)
 	int model_num_b = -1;
 
 	if ( obj->type == OBJ_SHIP ) {
-		ship *shipp = &Ships[obj->instance];
 		ship_info *sip = &Ship_info[Ships[obj->instance].ship_info_index];
 
 		model_num_a = sip->model_num;
@@ -67,7 +66,6 @@ inline bool sorted_obj::operator < (const sorted_obj &other)
 	}
 
 	if ( other.obj->type == OBJ_SHIP ) {
-		ship *shipp = &Ships[other.obj->instance];
 		ship_info *sip = &Ship_info[Ships[other.obj->instance].ship_info_index];
 
 		model_num_b = sip->model_num;
@@ -158,7 +156,8 @@ inline bool obj_render_is_model(object *obj)
 		|| (obj->type == OBJ_WEAPON 
 			&& Weapon_info[Weapons[obj->instance].weapon_info_index].render_type == WRT_POF) 
 		|| obj->type == OBJ_ASTEROID 
-		|| obj->type == OBJ_DEBRIS;
+		|| obj->type == OBJ_DEBRIS
+		|| obj->type == OBJ_JUMP_NODE;
 }
 
 // Sorts all the objects by Z and renders them

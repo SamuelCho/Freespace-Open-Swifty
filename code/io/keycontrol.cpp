@@ -828,9 +828,10 @@ void process_debug_keys(int k)
 					object	*objp;
 
 					for ( objp = GET_FIRST(&obj_used_list); objp !=END_OF_LIST(&obj_used_list); objp = GET_NEXT(objp) )
-						if (objp->type == OBJ_SHIP)
+						if (objp->type == OBJ_SHIP) {
 							debug_max_secondary_weapons(objp);
 							debug_max_primary_weapons(objp);
+						}
 				}
 
 			} else
@@ -883,11 +884,15 @@ void process_debug_keys(int k)
 			// launch asteroid
 			object *asteroid_create(asteroid_field *asfieldp, int asteroid_type, int subtype);
 			object *objp = asteroid_create(&Asteroid_field, 0, 0);
+			if(objp == NULL) {
+				break;
+			}			
 			vec3d vel;
 			vm_vec_copy_scale(&vel, &Player_obj->orient.vec.fvec, 50.0f);
 			objp->phys_info.vel = vel;
 			objp->phys_info.desired_vel = vel;
 			objp->pos = Player_obj->pos;
+			HUD_sourced_printf(HUD_SOURCE_HIDDEN, XSTR( "Asteroid launched", -1));
 			break;
 		}
 
@@ -2039,6 +2044,9 @@ int button_function_demo_valid(int n)
 int button_function(int n)
 {
 	Assert(n >= 0);
+
+	if (Control_config[n].disabled)
+		return 0;
 
 	// check if the button has been set to be ignored by a SEXP
 	if (Ignored_keys[n]) {

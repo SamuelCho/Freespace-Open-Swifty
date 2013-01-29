@@ -29,6 +29,8 @@ struct p_dock_instance;
 #define NUM_NEBULAS			3				// how many background nebulas we have altogether
 #define NUM_NEBULA_COLORS	9
 
+#define DEFAULT_AMBIENT_LIGHT_LEVEL			0x00787878
+
 // arrival anchor types
 // mask should be high enough to avoid conflicting with ship anchors
 #define SPECIAL_ARRIVAL_ANCHOR_FLAG				0x1000
@@ -196,7 +198,7 @@ typedef struct mission {
 		skybox_flags = 0;
 		envmap_name[ 0 ] = '\0';
 		contrail_threshold = 0;
-		ambient_light_level = 0;
+		ambient_light_level = DEFAULT_AMBIENT_LIGHT_LEVEL;
 		sound_environment.id = -1;
 		command_persona = 0;
 		command_sender[ 0 ] = '\0';
@@ -281,6 +283,7 @@ extern char *Object_flags[];
 extern char *Parse_object_flags[];
 extern char *Parse_object_flags_2[];
 extern char *Icon_names[];
+extern char *Mission_event_log_flags[];
 
 extern char *Cargo_names[MAX_CARGO];
 extern char Cargo_names_buf[MAX_CARGO][NAME_LENGTH];
@@ -434,8 +437,8 @@ typedef struct p_object {
 	int		alt_type_index;					// optional alt type index
 	int		callsign_index;					// optional callsign index
 
-	float ship_max_hull_strength_multiplier;			// Needed to deal with special hitpoints
-	float ship_max_shield_strength_multiplier;			//
+	float ship_max_hull_strength;			// Needed to deal with special hitpoints
+	float ship_max_shield_strength;
 
 	// Goober5000
 	int num_texture_replacements;
@@ -529,8 +532,8 @@ typedef struct p_object {
 		alt_type_index = 0;
 		callsign_index = 0;
 
-		ship_max_hull_strength_multiplier = 1.0f;
-		ship_max_shield_strength_multiplier = 1.0f;
+		ship_max_hull_strength = 0.0f;
+		ship_max_shield_strength = 0.0f;
 
 		num_texture_replacements = 0;
 		
@@ -648,8 +651,6 @@ typedef struct {
 #define MAX_P_WINGS		16
 #define MAX_SHIP_LIST	16
 
-#define TOKEN_LENGTH	32
-
 extern team_data Team_data[MAX_TVT_TEAMS];
 extern subsys_status *Subsys_status;
 extern int Subsys_index;
@@ -696,7 +697,7 @@ int mission_parse_is_multi(char *filename, char *mission_name );
 int mission_parse_get_multi_mission_info(char *filename);
 
 // called externally from multiplayer code
-int mission_do_departure(object *objp);
+int mission_do_departure(object *objp, bool goal_is_to_warp = false);
 
 // called externally from freespace.cpp
 void mission_parse_fixup_players(void);
@@ -719,15 +720,17 @@ int mission_remove_scheduled_repair( object *objp );
 void mission_parse_support_arrived( int objnum );
 
 // alternate name stuff
-int mission_parse_lookup_alt(char *name);
+int mission_parse_lookup_alt(const char *name);
 void mission_parse_lookup_alt_index(int index, char *out);
-int mission_parse_add_alt(char *name);
+int mission_parse_add_alt(const char *name);
+void mission_parse_remove_alt(const char *name);
 void mission_parse_reset_alt();
 
 // callsign stuff
-int mission_parse_lookup_callsign(char *name);
+int mission_parse_lookup_callsign(const char *name);
 void mission_parse_lookup_callsign_index(int index, char *out);
-int mission_parse_add_callsign(char *name);
+int mission_parse_add_callsign(const char *name);
+void mission_parse_remove_callsign(const char *name);
 void mission_parse_reset_callsign();
 
 // is training mission
