@@ -1630,12 +1630,12 @@ int parse_weapon(int subtype, bool replace)
 				}
 			}
 
-			if ( optional_string("+Lock Restriction:") ) {
+			if ( optional_string("+Target Lock Restriction:") ) {
 				if ( optional_string("current target, any subsystem") ) {
 					wip->target_restrict = LR_CURRENT_TARGET_SUBSYS;
 				} else if ( optional_string("any target") ) {
 					wip->target_restrict = LR_ANY_TARGETS;
-				} else if ( optional_string("current target") ) {
+				} else if ( optional_string("current target only") ) {
 					wip->target_restrict = LR_CURRENT_TARGET;
 				} else {
 					wip->target_restrict = LR_CURRENT_TARGET;
