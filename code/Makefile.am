@@ -189,7 +189,7 @@ AM_CXXFLAGS = @D_CFLAGS@ @FS2_CXXFLAGS@
 AM_LDFLAGS = @D_LDFLAGS@ @FS2_LDFLAGS@
 
 noinst_LIBRARIES = libcode.a
-noinst_PROGRAMS = @FS2_BINARY@
+bin_PROGRAMS = @FS2_BINARY@
 
 EXTRA_PROGRAMS = fs2_open_@PACKAGE_VERSION@ fs2_open_@PACKAGE_VERSION@_NOINF \
 	fs2_open_@PACKAGE_VERSION@_DEBUG fs2_open_@PACKAGE_VERSION@_NOINF_DEBUG \
@@ -586,6 +586,8 @@ FS2_SOURCES =	\
 	palman/palman.h	\
 	parse/encrypt.cpp	\
 	parse/encrypt.h	\
+	parse/generic_log.cpp	\
+	parse/generic_log.h	\
 	parse/lua.cpp	\
 	parse/lua.h	\
 	parse/parselo.cpp	\
