@@ -627,6 +627,8 @@
 		F007DE3112F4F44600D2F6C1 /* jutils.c in Sources */ = {isa = PBXBuildFile; fileRef = F007DDF012F4F44600D2F6C1 /* jutils.c */; };
 		F027EAD114FE67CD009645F3 /* mod_table.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F027EACF14FE67CD009645F3 /* mod_table.cpp */; };
 		F027EAD214FE67CD009645F3 /* mod_table.h in Headers */ = {isa = PBXBuildFile; fileRef = F027EAD014FE67CD009645F3 /* mod_table.h */; };
+		F084784D1623205D0008264B /* generic_log.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F084784B1623205D0008264B /* generic_log.cpp */; };
+		F084784E1623205D0008264B /* generic_log.h in Headers */ = {isa = PBXBuildFile; fileRef = F084784C1623205D0008264B /* generic_log.h */; };
 		F093F84F10FDC09B0042E30F /* gropengldraw.h in Headers */ = {isa = PBXBuildFile; fileRef = 25FB46210E2E55500089DF93 /* gropengldraw.h */; };
 		F093F85010FDC09B0042E30F /* gropenglpostprocessing.h in Headers */ = {isa = PBXBuildFile; fileRef = 25FB461B0E2E55370089DF94 /* gropenglpostprocessing.h */; };
 		F093F85110FDC09B0042E30F /* gropenglshader.h in Headers */ = {isa = PBXBuildFile; fileRef = 25FB46180E2E537F0089DF93 /* gropenglshader.h */; };
@@ -1549,6 +1551,8 @@
 		F007DDF012F4F44600D2F6C1 /* jutils.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = jutils.c; sourceTree = "<group>"; };
 		F027EACF14FE67CD009645F3 /* mod_table.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = mod_table.cpp; sourceTree = "<group>"; };
 		F027EAD014FE67CD009645F3 /* mod_table.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mod_table.h; sourceTree = "<group>"; };
+		F084784B1623205D0008264B /* generic_log.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = generic_log.cpp; sourceTree = "<group>"; };
+		F084784C1623205D0008264B /* generic_log.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = generic_log.h; sourceTree = "<group>"; };
 		F0A86D641000AD6B006CB60B /* vmallocator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = vmallocator.h; sourceTree = "<group>"; };
 		F0AAA8A310FA0A7C0086B1B4 /* libpng.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libpng.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		F0AAA8B010FA0ACE0086B1B4 /* png.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = png.c; sourceTree = "<group>"; };
@@ -2625,6 +2629,8 @@
 		345954B108C3D6A0003B1351 /* parse */ = {
 			isa = PBXGroup;
 			children = (
+				F084784B1623205D0008264B /* generic_log.cpp */,
+				F084784C1623205D0008264B /* generic_log.h */,
 				3468A8DA0991BDE200123C87 /* lua.cpp */,
 				3468A8DB0991BDE200123C87 /* lua.h */,
 				3468A8DC0991BDE200123C87 /* scripting.cpp */,
@@ -3416,6 +3422,7 @@
 				60FAF4E9113432B800CE910F /* voicerec.h in Headers */,
 				F0E986A311C66F5700CF5169 /* bitarray.h in Headers */,
 				F027EAD214FE67CD009645F3 /* mod_table.h in Headers */,
+				F084784E1623205D0008264B /* generic_log.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3626,7 +3633,7 @@
 		29B97313FDCFA39411CA2CEA /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0430;
+				LastUpgradeCheck = 0450;
 			};
 			buildConfigurationList = 34BE723808C940D200673B45 /* Build configuration list for PBXProject "FS2_Open" */;
 			compatibilityVersion = "Xcode 3.2";
@@ -3986,6 +3993,7 @@
 				60584F4C11347FE10080E50C /* audiostr.cpp in Sources */,
 				606034471134822A0032BB9A /* dscap.cpp in Sources */,
 				F027EAD114FE67CD009645F3 /* mod_table.cpp in Sources */,
+				F084784D1623205D0008264B /* generic_log.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -4128,6 +4136,7 @@
 		344BA94E095A5A2000B9D97D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				LIBRARY_SEARCH_PATHS = (
 					"$(LIBRARY_SEARCH_PATHS)",
 					"$(SRCROOT)/../../lua",
@@ -4141,6 +4150,7 @@
 		344BA94F095A5A2000B9D97D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = NO;
 				LIBRARY_SEARCH_PATHS = (
 					"$(LIBRARY_SEARCH_PATHS)",
@@ -4156,6 +4166,7 @@
 		34BE722D08C940D200673B45 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					_DEBUG,
 					SCP_UNIX,
@@ -4177,6 +4188,7 @@
 		34BE722E08C940D200673B45 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = NO;
 				HEADER_SEARCH_PATHS = ../../libjpeg;
 				LIBRARY_STYLE = STATIC;
@@ -4190,6 +4202,7 @@
 		34BE723108C940D200673B45 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = NO;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -4233,6 +4246,7 @@
 		34BE723208C940D200673B45 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -4263,6 +4277,7 @@
 		34BE723508C940D200673B45 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				FRAMEWORK_SEARCH_PATHS = ./Frameworks;
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				HEADER_SEARCH_PATHS = (
@@ -4280,6 +4295,7 @@
 		34BE723608C940D200673B45 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				FRAMEWORK_SEARCH_PATHS = ./Frameworks;
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				HEADER_SEARCH_PATHS = (
@@ -4300,9 +4316,9 @@
 		34BE723908C940D200673B45 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = "3.6.13-trunk";
+				CURRENT_PROJECT_VERSION = "3.6.15-trunk";
 				DEAD_CODE_STRIPPING = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
@@ -4332,9 +4348,9 @@
 		34BE723A08C940D200673B45 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = "3.6.13-trunk";
+				CURRENT_PROJECT_VERSION = "3.6.15-trunk";
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
@@ -4506,9 +4522,9 @@
 		915F25D00F8AA7CE00521775 /* Debug_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = "3.6.13-trunk";
+				CURRENT_PROJECT_VERSION = "3.6.15-trunk";
 				DEAD_CODE_STRIPPING = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
@@ -4539,6 +4555,7 @@
 		915F25D10F8AA7CE00521775 /* Debug_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				FRAMEWORK_SEARCH_PATHS = ./Frameworks;
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				HEADER_SEARCH_PATHS = (
@@ -4556,6 +4573,7 @@
 		915F25D20F8AA7CE00521775 /* Debug_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = NO;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -4600,6 +4618,7 @@
 		915F25D30F8AA7CE00521775 /* Debug_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					_DEBUG,
 					SCP_UNIX,
@@ -4621,6 +4640,7 @@
 		915F25D40F8AA7CE00521775 /* Debug_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				LIBRARY_SEARCH_PATHS = (
 					"$(LIBRARY_SEARCH_PATHS)",
 					"$(SRCROOT)/../../lua",
@@ -4704,9 +4724,9 @@
 		915F25D90F8AA7D700521775 /* Release_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = "3.6.13-trunk";
+				CURRENT_PROJECT_VERSION = "3.6.15-trunk";
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
@@ -4739,6 +4759,7 @@
 		915F25DA0F8AA7D700521775 /* Release_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				FRAMEWORK_SEARCH_PATHS = ./Frameworks;
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				HEADER_SEARCH_PATHS = (
@@ -4759,6 +4780,7 @@
 		915F25DB0F8AA7D700521775 /* Release_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -4796,6 +4818,7 @@
 		915F25DC0F8AA7D700521775 /* Release_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = NO;
 				HEADER_SEARCH_PATHS = ../../libjpeg;
 				LIBRARY_STYLE = STATIC;
@@ -4809,6 +4832,7 @@
 		915F25DD0F8AA7D700521775 /* Release_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = NO;
 				LIBRARY_SEARCH_PATHS = (
 					"$(LIBRARY_SEARCH_PATHS)",
@@ -4894,6 +4918,7 @@
 		F0AAA89F10FA0A7C0086B1B4 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					_DEBUG,
 					SCP_UNIX,
@@ -4913,6 +4938,7 @@
 		F0AAA8A010FA0A7C0086B1B4 /* Debug_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					_DEBUG,
 					SCP_UNIX,
@@ -4932,6 +4958,7 @@
 		F0AAA8A110FA0A7C0086B1B4 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = NO;
 				HEADER_SEARCH_PATHS = ../../libpng;
 				LIBRARY_STYLE = STATIC;
@@ -4945,6 +4972,7 @@
 		F0AAA8A210FA0A7C0086B1B4 /* Release_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = NO;
 				HEADER_SEARCH_PATHS = ../../libpng;
 				LIBRARY_STYLE = STATIC;
@@ -4958,6 +4986,7 @@
 		F0AAA90B10FA0CAA0086B1B4 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					_DEBUG,
 					SCP_UNIX,
@@ -4977,6 +5006,7 @@
 		F0AAA90C10FA0CAA0086B1B4 /* Debug_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					_DEBUG,
 					SCP_UNIX,
@@ -4996,6 +5026,7 @@
 		F0AAA90D10FA0CAA0086B1B4 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = NO;
 				HEADER_SEARCH_PATHS = ../../libzlib;
 				LIBRARY_STYLE = STATIC;
@@ -5009,6 +5040,7 @@
 		F0AAA90E10FA0CAA0086B1B4 /* Release_Inferno */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = NO;
 				HEADER_SEARCH_PATHS = ../../libzlib;
 				LIBRARY_STYLE = STATIC;
