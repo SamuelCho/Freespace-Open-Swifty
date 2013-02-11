@@ -1411,6 +1411,8 @@ typedef struct ship_info {
 	SCP_vector<cockpit_display_info> displays;
 
 	SCP_map<SCP_string, path_metadata> pathMetadata;
+
+	SCP_unordered_map<int, void*> glowpoint_bank_override_map;
 } ship_info;
 
 extern int Num_wings;

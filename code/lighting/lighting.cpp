@@ -177,6 +177,9 @@ void light_rotate(light * l)
 		}
 		break;
 
+	case LT_CONE:
+			break;
+
 	default:
 		Int3();	// Invalid light type
 	}
@@ -477,6 +480,9 @@ int light_filter_push( int objnum, vec3d *pos, float rad )
 			}
 			break;
 
+		case LT_CONE:
+			break;
+
 		default:
 			Int3();	// Invalid light type
 		}
@@ -538,6 +544,9 @@ int light_filter_push_box( vec3d *min, vec3d *max )
 			if ( is_inside(min, max, &l->local_vec, l->radb) || is_inside(min, max, &l->local_vec2, l->radb) )	{
 				Relevent_lights[Num_relevent_lights[n2]++][n2] = l;
 			}
+			break;
+
+		case LT_CONE:
 			break;
 
 		default:
@@ -626,6 +635,10 @@ void light_set_all_relevent()
 
 	for (idx = 0; idx < (int)Static_light.size(); idx++)
 		gr_set_light( Static_light[idx] );
+
+	extern bool Deferred_lighting;
+	if(Deferred_lighting)
+		return;
 
 	// for simplicity sake were going to forget about dynamic lights for the moment
 
@@ -820,6 +833,9 @@ void light_apply_specular(ubyte *param_r, ubyte *param_g, ubyte *param_b, vec3d 
 			dist *= dist;	// since we use radius squared
 			break;
 
+		case LT_CONE:
+			continue;
+
 		// others. BAD
 		default:
 			Int3();
@@ -958,6 +974,12 @@ void light_apply_rgb( ubyte *param_r, ubyte *param_g, ubyte *param_b, vec3d *pos
 			dist *= dist;	// since we use radius squared
 			break;
 
+		case LT_DIRECTIONAL:
+			continue;
+
+		case LT_CONE:
+			continue;
+
 		// others. BAD
 		default:
 			Int3();
@@ -1010,4 +1032,55 @@ void light_apply_rgb( ubyte *param_r, ubyte *param_g, ubyte *param_b, vec3d *pos
 	*param_r = ubyte(fl2i(rval*255.0f));
 	*param_g = ubyte(fl2i(gval*255.0f));
 	*param_b = ubyte(fl2i(bval*255.0f));
+}
+
+void light_add_cone( vec3d * pos, vec3d * dir, float angle, float inner_angle, bool dual_cone, float r1, float r2, float intensity, float r, float g, float b, int light_ignore_objnum, float spec_r, float spec_g, float spec_b, bool specular )
+{
+	Assertion( r1 > 0.0f, "Invalid radius r1 specified for light: %d. Radius must be > 0.0f. Examine stack trace to determine culprit.\n", r1 );
+	Assertion( r2 > 0.0f, "Invalid radius r2 specified for light: %d. Radius must be > 0.0f. Examine stack trace to determine culprit.\n", r2 );
+
+	if (r1 < 0.0001f || r2 < 0.0001f)
+		return;
+
+	if(!specular){
+		spec_r = r;
+		spec_g = g;
+		spec_b = b;
+	}
+
+	light * l;
+
+	if ( Lighting_off ) return;
+
+	if (!Lighting_flag) return;
+
+	if ( Num_lights >= MAX_LIGHTS ) {
+		mprintf(( "Out of lights!\n" ));
+		return;
+	}
+
+	l = &Lights[Num_lights++];
+
+	l->type = LT_CONE;
+	l->vec = *pos;
+	l->vec2= *dir;
+	l->cone_angle = angle;
+	l->cone_inner_angle = inner_angle;
+	l->dual_cone = dual_cone;
+	l->r = r;
+	l->g = g;
+	l->b = b;
+	l->spec_r = spec_r;
+	l->spec_g = spec_g;
+	l->spec_b = spec_b;
+	l->intensity = intensity;
+	l->rada = r1;
+	l->radb = r2;
+	l->rada_squared = l->rada*l->rada;
+	l->radb_squared = l->radb*l->radb;
+	l->light_ignore_objnum = light_ignore_objnum;
+	l->affected_objnum = -1;
+	l->instance = Num_lights-1;
+
+	Assert( Num_light_levels <= 1 );
 }

@@ -432,6 +432,22 @@ void gr_stub_scene_texture_end()
 {
 }
 
+void gr_stub_copy_effect_texture()
+{
+}
+
+void gr_stub_deferred_lighting_begin()
+{
+}
+
+void gr_stub_deferred_lighting_end()
+{
+}
+
+void gr_stub_deferred_lighting_finish()
+{
+}
+
 void gr_stub_set_ambient_light(int red, int green, int blue)
 {
 }
@@ -693,8 +709,11 @@ void gr_stub_bm_page_in_start()
 {
 }
 
-int gr_stub_maybe_create_shader(int flags) {
+int gr_stub_maybe_create_shader(unsigned int flags) {
 	return -1;
+}
+void gr_stub_start_shadow_map(float neardist, float middist, float fardist)
+{
 }
 
 void gr_stub_set_team_color(const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime) {
@@ -704,6 +723,14 @@ void gr_stub_enable_team_color() {
 }
 
 void gr_stub_disable_team_color() {
+}
+
+void gr_stub_end_shadow_map()
+{
+}
+
+void gr_stub_clear_shadow_map()
+{
 }
 
 bool gr_stub_init() 
@@ -854,6 +881,11 @@ bool gr_stub_init()
 
 	gr_screen.gf_scene_texture_begin = gr_stub_scene_texture_begin;
 	gr_screen.gf_scene_texture_end = gr_stub_scene_texture_end;
+	gr_screen.gf_copy_effect_texture = gr_stub_copy_effect_texture;
+
+	gr_screen.gf_deferred_lighting_begin = gr_stub_deferred_lighting_begin;
+	gr_screen.gf_deferred_lighting_end = gr_stub_deferred_lighting_end;
+	gr_screen.gf_deferred_lighting_finish = gr_stub_deferred_lighting_finish;
 
 	gr_screen.gf_start_clip_plane	= gr_stub_start_clip_plane;
 	gr_screen.gf_end_clip_plane		= gr_stub_end_clip_plane;
@@ -882,6 +914,10 @@ bool gr_stub_init()
 
 	gr_screen.gf_line_htl			= gr_stub_draw_htl_line;
 	gr_screen.gf_sphere_htl			= gr_stub_draw_htl_sphere;
+
+	gr_screen.gf_start_shadow_map	= gr_stub_start_shadow_map;
+	gr_screen.gf_end_shadow_map		= gr_stub_end_shadow_map;
+	gr_screen.gf_clear_shadow_map	= gr_stub_clear_shadow_map;
 
 	gr_screen.gf_maybe_create_shader = gr_stub_maybe_create_shader;
 

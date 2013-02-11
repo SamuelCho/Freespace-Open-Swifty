@@ -213,7 +213,8 @@ void opengl_texture_state::Enable(GLuint tex_id)
 	}
 
 	if ( !shader_mode && (active_texture_unit < (uint)GL_supported_texture_units) ) {
-		glEnable( units[active_texture_unit].texture_target );
+		if( units[active_texture_unit].texture_target != GL_TEXTURE_2D_ARRAY_EXT)
+			glEnable( units[active_texture_unit].texture_target );
 		units[active_texture_unit].enabled = GL_TRUE;
 	}
 
@@ -232,7 +233,8 @@ void opengl_texture_state::Disable(bool force)
 	}
 
 	if (force || units[active_texture_unit].enabled) {
-		glDisable( units[active_texture_unit].texture_target );
+		if( units[active_texture_unit].texture_target != GL_TEXTURE_2D_ARRAY_EXT)
+			glDisable( units[active_texture_unit].texture_target );
 		units[active_texture_unit].enabled = GL_FALSE;
 	}
 

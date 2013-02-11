@@ -121,6 +121,8 @@ flag_def_list Dock_type_names[] =
 
 int Num_dock_type_names = sizeof(Dock_type_names) / sizeof(flag_def_list);
 
+SCP_vector<glow_point_bank_override> glowpoint_bank_overrides;
+
 // Free up a model, getting rid of all its memory
 // With the basic page in system this can be called from outside of modelread.cpp
 void model_unload(int modelnum, int force)
@@ -1801,8 +1803,8 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 					if (bank->num_points > 0)
 						bank->points = (glow_point *) vm_malloc(sizeof(glow_point) * bank->num_points);
 
-					if((bank->off_time > 0) && (bank->disp_time > 0))
-						bank->is_on = 0;
+					//if((bank->off_time > 0) && (bank->disp_time > 0))
+						//bank->is_on = 0;
 	
 					cfread_string_len(props, MAX_PROP_LEN, fp);
 					// look for $glow_texture=xxx
@@ -2425,11 +2427,18 @@ void model_load_texture(polymodel *pm, int i, char *file)
 		shader_flags |= SDR_FLAG_ENV_MAP;
 	if (tmisc->GetTexture() > 0)
 		shader_flags |= SDR_FLAG_MISC_MAP;
-
-	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT);
-	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_FOG);
+	
 	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED);
 	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED | SDR_FLAG_FOG);
+	gr_maybe_create_shader(SDR_FLAG_GEOMETRY | SDR_FLAG_SHADOW_MAP);
+	
+	extern int Use_GLSL;
+	if(Use_GLSL > 1)
+		shader_flags |= SDR_FLAG_DEFERRED;
+	
+	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT);
+	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_FOG);
+	
 }
 
 //returns the number of this model
@@ -5121,4 +5130,266 @@ void swap_sldc_data(ubyte *buffer)
 		}			
 	}
 #endif
+}
+
+void glowpoint_override_defaults(glow_point_bank_override *gpo)
+{
+	gpo->name[0] = 0;
+	gpo->type = 0;
+	gpo->on_time = 0;
+	gpo->off_time = 0;
+	gpo->disp_time = 0;
+	gpo->glow_bitmap = -1;
+	gpo->glow_neb_bitmap = -1;
+	gpo->is_on = true;
+	gpo->type_override = false;
+	gpo->on_time_override = false;
+	gpo->off_time_override = false;
+	gpo->disp_time_override = false;
+	gpo->glow_bitmap_override = false;
+	gpo->pulse_period_override = false;
+	gpo->pulse_type = 0;
+	gpo->pulse_period = 0;
+	gpo->pulse_amplitude = 1.0f;
+	gpo->pulse_bias = 0.0f;
+	gpo->pulse_exponent = 1.0f;
+	gpo->is_lightsource = false;
+	gpo->radius_multi = 15.0f;
+	gpo->light_color = vmd_zero_vector;
+	gpo->light_mix_color = vmd_zero_vector;
+	gpo->lightcone = false;
+	gpo->cone_angle = 90.0f;
+	gpo->cone_direction = vmd_zero_vector;
+	gpo->dualcone = false;
+	gpo->rotating = false;
+	gpo->rotation_axis = vmd_zero_vector;
+	gpo->rotation_speed = 0.0f;
+}
+
+SCP_vector<glow_point_bank_override>::iterator get_glowpoint_bank_override_by_name(const char* name)
+{
+	SCP_vector<glow_point_bank_override>::iterator gpo = glowpoint_bank_overrides.begin();
+	for(;gpo != glowpoint_bank_overrides.end(); ++gpo)	{
+		if(!strcmp(gpo->name, name))	{
+			return gpo;
+		}
+	}
+	return glowpoint_bank_overrides.end();
+}
+
+void parse_glowpoint_table(char *filename)
+{
+	int rval;
+	
+
+	if ( (rval = setjmp(parse_abort)) != 0 ) {
+		mprintf(("Unable to parse '%s'!  Error code = %d.\n", filename, rval));
+		return;
+	}
+
+	if (cf_exists_full(filename, CF_TYPE_TABLES))
+		read_file_text(filename, CF_TYPE_TABLES);
+	else
+		return;
+
+	reset_parse();
+
+	if (optional_string("#Glowpoint overrides")) {
+		while ( !required_string_either("$Name:", "#End") ) {
+			glow_point_bank_override gpo;
+			glowpoint_override_defaults(&gpo);
+
+			bool replace = false;
+			bool skip = false;
+
+			required_string("$Name:");
+			stuff_string(gpo.name, F_NAME, NAME_LENGTH);
+
+			if(optional_string("+nocreate")) {
+				if(Parsing_modular_table) {
+					replace = true;
+				} else {
+					mprintf(("+nocreate specified in non-modular glowpoint table.\n"));
+				}
+			}
+
+			if(optional_string("$On:")) {
+				stuff_boolean(&gpo.is_on);
+			}
+
+			if(optional_string("$Displacement time:")) {
+				stuff_int(&gpo.disp_time);
+				gpo.disp_time_override = true;
+			}
+
+			if(optional_string("$On time:")) {
+				stuff_int(&gpo.on_time);
+				gpo.on_time_override = true;
+			}
+
+			if(optional_string("$Off time:")) {
+				stuff_int(&gpo.off_time);
+				gpo.off_time_override = true;
+			}
+
+			if(optional_string("$Texture:")) {
+				char glow_texture_name[32];
+				stuff_string(glow_texture_name, F_NAME, NAME_LENGTH);
+				
+				gpo.glow_bitmap_override = true;
+
+				if(stricmp(glow_texture_name, "none")) {
+					gpo.glow_bitmap = bm_load(glow_texture_name);
+
+					if (gpo.glow_bitmap < 0)
+					{
+						Warning( LOCATION, "Couldn't open texture '%s'\nreferenced by glowpoint present '%s'\n", glow_texture_name, gpo.name);
+					}
+					else
+					{
+						nprintf(( "Model", "Glowpoint preset %s texture num is %d\n", gpo.name, gpo.glow_bitmap));
+					}
+
+					char glow_texture_neb_name[256];
+					strncpy(glow_texture_neb_name, glow_texture_name, 256);
+					strcat(glow_texture_neb_name, "-neb");
+					gpo.glow_neb_bitmap = bm_load(glow_texture_neb_name);
+
+					if (gpo.glow_neb_bitmap < 0)
+					{
+						gpo.glow_neb_bitmap = gpo.glow_bitmap;
+						nprintf(( "Model", "Glowpoint preset nebula texture not found for '%s', using normal glowpoint texture instead\n", gpo.name));
+					}
+					else
+					{
+						nprintf(( "Model", "Glowpoint preset %s nebula texture num is %d\n", gpo, gpo.glow_neb_bitmap));
+					}
+				} else {
+					gpo.glow_bitmap_override = true;
+				}
+			}
+
+			if(optional_string("$Type:")) {
+				stuff_int(&gpo.type);
+				gpo.type_override = true;
+			}
+
+			if(optional_string("$Pulse type:")) {
+				char pulsetype[33];
+				stuff_string(pulsetype, F_NAME, NAME_LENGTH);
+				if(!stricmp(pulsetype, "sine")) {
+					gpo.pulse_type = PULSE_SIN;
+				} else if(!stricmp(pulsetype, "cosine")) {
+					gpo.pulse_type = PULSE_COS;
+				} else if(!stricmp(pulsetype, "triangle")) {
+					gpo.pulse_type = PULSE_TRI;
+				} else if(!stricmp(pulsetype, "shiftedtriangle")) {
+					gpo.pulse_type = PULSE_SHIFTTRI;
+				}
+			}
+
+			if(optional_string("$Pulse period:")) {
+				stuff_int(&gpo.pulse_period);
+				gpo.pulse_period_override = true;
+			}
+
+			if(optional_string("$Pulse amplitude:")) {
+				stuff_float(&gpo.pulse_amplitude);
+			}
+
+			if(optional_string("$Pulse bias:")) {
+				stuff_float(&gpo.pulse_bias);
+			}
+
+			if(optional_string("$Pulse exponent:")) {
+				stuff_float(&gpo.pulse_exponent);
+			}
+
+			if(optional_string("+light")) {
+				gpo.is_lightsource = true;
+				
+				if(optional_string("$Light radius multiplier:")) {
+					stuff_float(&gpo.radius_multi);
+				}
+
+				required_string("$Light color:");
+				int temp;
+				stuff_int(&temp);
+				gpo.light_color.xyz.x = temp / 255.0f;
+				stuff_int(&temp);
+				gpo.light_color.xyz.y = temp / 255.0f;
+				stuff_int(&temp);
+				gpo.light_color.xyz.z = temp / 255.0f;
+
+				if(optional_string("$Light mix color:")) {
+					stuff_int(&temp);
+					gpo.light_mix_color.xyz.x = temp / 255.0f;
+					stuff_int(&temp);
+					gpo.light_mix_color.xyz.y = temp / 255.0f;
+					stuff_int(&temp);
+					gpo.light_mix_color.xyz.z = temp / 255.0f;
+				}
+
+				if(optional_string("+lightcone")) {
+					gpo.lightcone = true;
+
+					if(optional_string("$Cone angle:")) {
+						stuff_float(&gpo.cone_angle);
+						gpo.cone_inner_angle = cos((gpo.cone_angle - (gpo.cone_angle<20.0f)?gpo.cone_angle*0.5f:20.0f) / 180.0f * PI);
+						gpo.cone_angle = cos(gpo.cone_angle / 180.0f * PI);
+					}
+
+					required_string("$Cone direction:");
+					stuff_float_list(gpo.cone_direction.a1d, 3);
+					if(vm_vec_mag_quick(&gpo.cone_direction) != 0.0f) {
+						vm_vec_normalize(&gpo.cone_direction);
+					} else {
+						Warning(LOCATION, "Null vector specified in cone direction for glowpoint override %s. Discarding preset.", gpo.name);
+						skip = true;
+					}
+					if(optional_string("+dualcone")) {
+						gpo.dualcone = true;
+					}
+
+					if(optional_string("+rotating")) {
+						gpo.rotating = true;
+						required_string("$Rotation axis:");
+						stuff_float_list(gpo.rotation_axis.a1d, 3);
+						if(vm_vec_mag_quick(&gpo.rotation_axis) != 0.0f) {
+							vm_vec_normalize(&gpo.rotation_axis);
+						} else {
+							Warning(LOCATION, "Null vector specified in rotation axis for glowpoint override %s. Discarding preset.", gpo.name);
+							skip = true;
+						}
+						required_string("$Rotation speed:");
+						stuff_float(&gpo.rotation_speed);
+					}
+				}
+			}
+			if(!skip) {
+				SCP_vector<glow_point_bank_override>::iterator gpoi = get_glowpoint_bank_override_by_name(gpo.name);
+				if(gpoi == glowpoint_bank_overrides.end()) {
+					if(!replace) {
+						glowpoint_bank_overrides.push_back(gpo);
+					}
+				} else {
+					if(!replace) {
+						Warning(LOCATION, "+nocreate not specified for glowpoint override that already exists. Discarding duplicate entry: %s", gpo.name);
+					} else {
+						glowpoint_bank_overrides.erase(gpoi);
+						glowpoint_bank_overrides.push_back(gpo);
+					}
+				}
+			}
+
+		}
+		required_string("#End");
+	}	
+}
+
+void glowpoint_init()
+{
+	glowpoint_bank_overrides.clear();
+	parse_glowpoint_table("glowpoints.tbl");
+	parse_modular_table(NOX("*-gpo.tbm"), parse_glowpoint_table);
 }

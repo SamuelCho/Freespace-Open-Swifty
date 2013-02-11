@@ -53,6 +53,7 @@ extern bool Specmap_override;
 extern bool Normalmap_override;
 extern bool Heightmap_override;
 extern bool GLSL_override;
+extern bool Shadow_override;
 
 static int GL_modelview_matrix_depth = 1;
 static int GL_htl_projection_matrix_set = 0;
@@ -63,6 +64,19 @@ static int GL_htl_2d_matrix_set = 0;
 static GLfloat GL_env_texture_matrix[16] = { 0.0f };
 static bool GL_env_texture_matrix_set = false;
 
+static GLdouble eyex, eyey, eyez;
+static GLdouble vmatrix[16];
+
+static vec3d last_view_pos;
+static matrix last_view_orient;
+
+vec3d shadow_ref_point;
+
+static bool use_last_view = false;
+static GLfloat lmatrix[16];
+static GLfloat lprojmatrix[3][16];
+static GLfloat modelmatrix[16];
+
 int GL_vertex_data_in = 0;
 
 GLint GL_max_elements_vertices = 4096;
@@ -71,6 +85,15 @@ GLint GL_max_elements_indices = 4096;
 team_color* Current_team_color;
 team_color Current_temp_color;
 bool Using_Team_Color = false;
+
+GLuint Shadow_map_texture = 0;
+static GLuint shadow_fbo;
+vec3d saved_Eye;
+float shadow_neardist = 0.0f, shadow_middist = 0.0f, shadow_fardist = 0.0f;
+bool shadowers = false;
+GLint saved_fb = 0;
+bool in_shadow_map = false;
+int parabolic = 0;
 
 struct opengl_vertex_buffer {
 	GLfloat *array_list;	// interleaved array
@@ -466,10 +489,43 @@ void opengl_destroy_all_buffers()
 void opengl_tnl_init()
 {
 	GL_vertex_buffers.reserve(MAX_POLYGON_MODELS);
+	gr_opengl_deferred_light_sphere_init(16, 16);
+	gr_opengl_deferred_light_cylinder_init(16);
+	if(Cmdline_shadow_quality)
+	{
+		//Setup shadow map framebuffer
+		vglGenFramebuffersEXT(1, &shadow_fbo);
+		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo);
+
+		glGenTextures(1, &Shadow_map_texture);
+
+		GL_state.Texture.SetActiveUnit(0);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY_EXT);
+		GL_state.Texture.Enable(Shadow_map_texture);
+
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_REF_DEPTH_TO_TEXTURE_EXT);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_DEPTH_TEXTURE_MODE_ARB, GL_INTENSITY);
+		int size = (Cmdline_shadow_quality == 2 ? 4096 : 2048);
+		vglTexImage3D(GL_TEXTURE_2D_ARRAY_EXT, 0, GL_DEPTH_COMPONENT32, size, size, 3, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+		vglFramebufferTextureEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, Shadow_map_texture, 0);	
+
+		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	}
 }
 
 void opengl_tnl_shutdown()
 {
+	if ( Shadow_map_texture ) {
+		glDeleteTextures(1, &Shadow_map_texture);
+		Scene_color_texture = 0;
+	}
 	opengl_destroy_all_buffers();
 }
 
@@ -573,20 +629,22 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 	else \
 		vglDrawRangeElements(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start));
 
-int GL_last_shader_flags = -1;
+unsigned int GL_last_shader_flags = 0;
 int GL_last_shader_index = -1;
 
 static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags);
 
 extern bool Scene_framebuffer_in_frame;
 extern GLuint Framebuffer_fallback_texture_id;
+extern matrix Object_matrix;
+extern vec3d Object_position;
 extern int Interp_thrust_scale_subobj;
 extern float Interp_thrust_scale;
 static void opengl_render_pipeline_program(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags)
 {
 	float u_scale, v_scale;
 	int render_pass = 0;
-	int shader_flags = 0;
+	unsigned int shader_flags = 0;
 	int sdr_index = -1;
 	int r, g, b, a, tmap_type;
 	GLubyte *ibuffer = NULL;
@@ -638,6 +696,10 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 			if ( (HEIGHTMAP > 0) && !Heightmap_override ) {
 				shader_flags |= SDR_FLAG_HEIGHT_MAP;
 			}
+
+			if ( Cmdline_shadow_quality && !in_shadow_map && !Shadow_override) {
+				shader_flags |= SDR_FLAG_SHADOWS;
+			}
 		}
 
 		if (MISCMAP > 0) {
@@ -647,6 +709,14 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		if (Using_Team_Color) {
 			shader_flags |= SDR_FLAG_TEAMCOLOR;
 		}
+	}
+
+	if (Deferred_lighting) {
+		shader_flags |= SDR_FLAG_DEFERRED;
+	}
+
+	if ( in_shadow_map ) {
+		shader_flags = SDR_FLAG_GEOMETRY | SDR_FLAG_SHADOW_MAP;
 	}
 
 	if ( Interp_thrust_scale_subobj ) {
@@ -777,6 +847,34 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		render_pass++; // bump!
 	}
 
+	if(shader_flags & SDR_FLAG_SHADOWS)
+	{
+		memset( modelmatrix, 0, sizeof(modelmatrix) );
+		modelmatrix[0]  = Object_matrix.vec.rvec.xyz.x;   modelmatrix[4]  = Object_matrix.vec.uvec.xyz.x;   modelmatrix[8]  = Object_matrix.vec.fvec.xyz.x;
+		modelmatrix[1]  = Object_matrix.vec.rvec.xyz.y;   modelmatrix[5]  = Object_matrix.vec.uvec.xyz.y;   modelmatrix[9]  = Object_matrix.vec.fvec.xyz.y;
+		modelmatrix[2]  = Object_matrix.vec.rvec.xyz.z;   modelmatrix[6]  = Object_matrix.vec.uvec.xyz.z;   modelmatrix[10] = Object_matrix.vec.fvec.xyz.z;
+		modelmatrix[12] = Object_position.xyz.x;
+		modelmatrix[13] = Object_position.xyz.y;
+		modelmatrix[14] = Object_position.xyz.z;
+		modelmatrix[15] = 1.0f;
+		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_mv_matrix"), 1, GL_FALSE, lmatrix);
+		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_proj_matrix"), 3, GL_FALSE, &lprojmatrix[0][0]);
+		vglUniformMatrix4fvARB( opengl_shader_get_uniform("model_matrix"), 1, GL_FALSE, modelmatrix );
+		vglUniform1fARB( opengl_shader_get_uniform("neardist"), shadow_neardist );
+		vglUniform1fARB( opengl_shader_get_uniform("middist"), shadow_middist );
+		vglUniform1fARB( opengl_shader_get_uniform("fardist"), shadow_fardist );
+		vglUniform1iARB( opengl_shader_get_uniform("shadow_map"), render_pass );
+		GL_state.Texture.SetActiveUnit(render_pass);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY_EXT);
+		GL_state.Texture.Enable(Shadow_map_texture);
+		render_pass++; // bump!
+	}
+
+	if(shader_flags & SDR_FLAG_GEOMETRY)
+	{
+		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_proj_matrix"), 3, GL_FALSE, &lprojmatrix[0][0]);
+	}
+
 	if ((shader_flags & SDR_FLAG_ANIMATED))
 	{
 		GL_state.Texture.SetActiveUnit(render_pass);
@@ -804,20 +902,21 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		vglUniform1fARB( opengl_shader_get_uniform("thruster_scale"), Interp_thrust_scale);
 	}
 
-	// DRAW IT!!
-	//DO_RENDER();
-
-	if ( Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
-		if (Cmdline_drawelements) {
-			vglDrawElementsBaseVertex(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
-		} else {
-			vglDrawRangeElementsBaseVertex(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
-		}
+	if(in_shadow_map) {
+		vglDrawElementsInstancedBaseVertex(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start), 3, (GLint)bufferp->vertex_offset/bufferp->stride);
 	} else {
-		if (Cmdline_drawelements) {
-			glDrawElements(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start)); 
+		if ( Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
+			if (Cmdline_drawelements) {
+				vglDrawElementsBaseVertex(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
+			} else {
+				vglDrawRangeElementsBaseVertex(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
+			}
 		} else {
-			vglDrawRangeElements(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start));
+			if (Cmdline_drawelements) {
+				glDrawElements(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start)); 
+			} else {
+				vglDrawRangeElements(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start));
+			}
 		}
 	}
 /*
@@ -1597,15 +1696,6 @@ void gr_opengl_end_projection_matrix()
 	GL_htl_projection_matrix_set = 0;
 }
 
-
-static GLdouble eyex, eyey, eyez;
-static GLdouble vmatrix[16];
-
-static vec3d last_view_pos;
-static matrix last_view_orient;
-
-static bool use_last_view = false;
-
 void gr_opengl_set_view_matrix(vec3d *pos, matrix *orient)
 {
 	if (Cmdline_nohtl)
@@ -1925,4 +2015,205 @@ void gr_opengl_set_state_block(int handle)
 {
 /*	if(handle < 0) return;
 	glCallList(handle);*/
+}
+
+extern SCP_vector<light*> Static_light;
+extern int opengl_check_framebuffer();
+extern bool Glowpoint_override;
+bool Glowpoint_override_save;
+void gr_opengl_start_shadow_map(float neardist, float middist, float fardist)
+{
+	if(!Cmdline_shadow_quality)
+		return;
+	float minx = 0.0f, miny = 0.0f, minz = 0.0f, maxx = 0.0f, maxy = 0.0f, maxz = 0.0f;
+	light *lp = *Static_light.begin(); 
+
+	shadow_neardist = neardist;
+	shadow_middist = middist;
+	shadow_fardist = fardist;
+
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &saved_fb);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	gr_opengl_set_lighting(false,false);
+	if(lp)
+	{
+		in_shadow_map = true;
+		Glowpoint_override_save = Glowpoint_override;
+		Glowpoint_override = true;
+		matrix orient;
+		vec3d light_dir;
+		vec3d frustum[8];
+		vec3d bb_r; 
+		vm_vec_copy_normalize(&light_dir, &lp->vec);
+		vm_vector_2_matrix(&orient, &light_dir, &Eye_matrix.vec.uvec, NULL);
+		
+		GLdouble clip_width, clip_height;
+		clip_height = tan( (double)Proj_fov * 0.5 );
+		clip_width = clip_height * (GLdouble)gr_screen.clip_aspect;
+
+		vm_vec_scale_add(&frustum[0], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, (float)clip_width);
+		vm_vec_scale_add2(&frustum[0], &Eye_matrix.vec.uvec, (float)clip_height);
+
+		vm_vec_scale_add(&frustum[1], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, (float)clip_width);
+		vm_vec_scale_add2(&frustum[1], &Eye_matrix.vec.uvec, -(float)clip_height);
+
+		vm_vec_scale_add(&frustum[2], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, -(float)clip_width);
+		vm_vec_scale_add2(&frustum[2], &Eye_matrix.vec.uvec, (float)clip_height);
+
+		vm_vec_scale_add(&frustum[3], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, -(float)clip_width);
+		vm_vec_scale_add2(&frustum[3], &Eye_matrix.vec.uvec, -(float)clip_height);
+
+		vm_vec_copy_scale(&frustum[4], &frustum[0], neardist);
+		vm_vec_copy_scale(&frustum[5], &frustum[1], neardist);
+		vm_vec_copy_scale(&frustum[6], &frustum[2], neardist);
+		vm_vec_copy_scale(&frustum[7], &frustum[3], neardist);
+
+		for(int i = 0; i < 8; i++)
+		{
+			
+			vm_vec_rotate(&bb_r, &frustum[i], &orient);
+			
+			if(!i)
+			{
+				minx = bb_r.xyz.x;
+				maxx = bb_r.xyz.x;
+				miny = bb_r.xyz.y;
+				maxy = bb_r.xyz.y;
+				minz = bb_r.xyz.z;
+				maxz = bb_r.xyz.z;
+			}
+			else
+			{
+				minx = MIN(bb_r.xyz.x, minx);
+				maxx = MAX(bb_r.xyz.x, maxx);
+				miny = MIN(bb_r.xyz.y, miny);
+				maxy = MAX(bb_r.xyz.y, maxy);
+				minz = MIN(bb_r.xyz.z, minz);
+				maxz = MAX(bb_r.xyz.z, maxz);
+			}
+		}
+
+		memset(lprojmatrix, 0, sizeof(GLfloat) * 3 * 16);
+
+		lprojmatrix[0][0] = 2.0f / ( maxx - minx );
+		lprojmatrix[0][5] = 2.0f / ( maxy - miny );
+		lprojmatrix[0][10] = -2.0f / ( maxz - minz );
+		lprojmatrix[0][12] = -(maxx + minx) / ( maxx - minx );
+		lprojmatrix[0][13] = -(maxy + miny) / ( maxy - miny );
+		lprojmatrix[0][14] = -(maxz + minz) / ( maxz - minz );
+		lprojmatrix[0][15] = 1.0f;
+
+		vm_vec_copy_scale(&frustum[0], &frustum[4], middist/neardist);
+		vm_vec_copy_scale(&frustum[1], &frustum[5], middist/neardist);
+		vm_vec_copy_scale(&frustum[2], &frustum[6], middist/neardist);
+		vm_vec_copy_scale(&frustum[3], &frustum[7], middist/neardist);
+
+		for(int i = 0; i < 8; i++)
+		{
+			
+			vm_vec_rotate(&bb_r, &frustum[i], &orient);
+			
+			if(!i)
+			{
+				minx = bb_r.xyz.x;
+				maxx = bb_r.xyz.x;
+				miny = bb_r.xyz.y;
+				maxy = bb_r.xyz.y;
+				minz = bb_r.xyz.z;
+				maxz = bb_r.xyz.z;
+			}
+			else
+			{
+				minx = MIN(bb_r.xyz.x, minx);
+				maxx = MAX(bb_r.xyz.x, maxx);
+				miny = MIN(bb_r.xyz.y, miny);
+				maxy = MAX(bb_r.xyz.y, maxy);
+				minz = MIN(bb_r.xyz.z, minz);
+				maxz = MAX(bb_r.xyz.z, maxz);
+			}
+		}
+
+		lprojmatrix[1][0] = 2.0f / ( maxx - minx );
+		lprojmatrix[1][5] = 2.0f / ( maxy - miny );
+		lprojmatrix[1][10] = -2.0f / ( maxz - minz );
+		lprojmatrix[1][12] = -(maxx + minx) / ( maxx - minx );
+		lprojmatrix[1][13] = -(maxy + miny) / ( maxy - miny );
+		lprojmatrix[1][14] = -(maxz + minz) / ( maxz - minz );
+		lprojmatrix[1][15] = 1.0f;
+
+		vm_vec_copy_scale(&frustum[4], &frustum[0], fardist/middist);
+		vm_vec_copy_scale(&frustum[5], &frustum[1], fardist/middist);
+		vm_vec_copy_scale(&frustum[6], &frustum[2], fardist/middist);
+		vm_vec_copy_scale(&frustum[7], &frustum[3], fardist/middist);
+
+		for(int i = 0; i < 8; i++)
+		{
+			
+			vm_vec_rotate(&bb_r, &frustum[i], &orient);
+			
+			if(!i)
+			{
+				minx = bb_r.xyz.x;
+				maxx = bb_r.xyz.x;
+				miny = bb_r.xyz.y;
+				maxy = bb_r.xyz.y;
+				minz = bb_r.xyz.z;
+				maxz = bb_r.xyz.z;
+			}
+			else
+			{
+				minx = MIN(bb_r.xyz.x, minx);
+				maxx = MAX(bb_r.xyz.x, maxx);
+				miny = MIN(bb_r.xyz.y, miny);
+				maxy = MAX(bb_r.xyz.y, maxy);
+				minz = MIN(bb_r.xyz.z, minz);
+				maxz = MAX(bb_r.xyz.z, maxz);
+			}
+		}
+
+		lprojmatrix[2][0] = 2.0f / ( maxx - minx );
+		lprojmatrix[2][5] = 2.0f / ( maxy - miny );
+		lprojmatrix[2][10] = -2.0f / ( maxz - minz );
+		lprojmatrix[2][12] = -(maxx + minx) / ( maxx - minx );
+		lprojmatrix[2][13] = -(maxy + miny) / ( maxy - miny );
+		lprojmatrix[2][14] = -(maxz + minz) / ( maxz - minz );
+		lprojmatrix[2][15] = 1.0f;
+
+		GL_htl_projection_matrix_set = 1;
+		gr_set_view_matrix(&Eye_position, &orient);
+		glGetFloatv(GL_MODELVIEW_MATRIX, lmatrix);
+		int size = (Cmdline_shadow_quality == 2 ? 4096 : 2048);
+		glViewport(0, 0, size, size);
+		glDrawBuffer(GL_NONE);
+		glReadBuffer(GL_NONE);
+	}
+}
+
+
+void gr_opengl_end_shadow_map()
+{
+		if(!in_shadow_map)
+			return;
+		gr_zbuffer_set(ZBUFFER_TYPE_FULL);
+		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, saved_fb);
+		if(saved_fb)
+		{
+			GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
+			vglDrawBuffers(2, buffers);
+		}
+		in_shadow_map = false;
+		Glowpoint_override = Glowpoint_override_save;
+		GL_htl_projection_matrix_set = 0;
+		gr_end_view_matrix();
+
+		glViewport(gr_screen.offset_x, (gr_screen.max_h - gr_screen.offset_y - gr_screen.clip_height), gr_screen.clip_width, gr_screen.clip_height);
+}
+
+void gr_opengl_clear_shadow_map()
+{
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &saved_fb);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, saved_fb);
 }

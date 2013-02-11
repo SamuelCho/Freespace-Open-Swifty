@@ -1261,7 +1261,12 @@ void gr_opengl_zbias(int bias)
 {
 	if (bias) {
 		GL_state.PolygonOffsetFill(GL_TRUE);
-		glPolygonOffset(0.0, -i2fl(bias));
+		if(bias < 0) {
+			glPolygonOffset(1.0, -i2fl(bias));
+		}
+		else {
+			glPolygonOffset(0.0, -i2fl(bias));
+		}
 	} else {
 		GL_state.PolygonOffsetFill(GL_FALSE);
 	}
@@ -1880,6 +1885,11 @@ void opengl_setup_function_pointers()
 
 	gr_screen.gf_scene_texture_begin = gr_opengl_scene_texture_begin;
 	gr_screen.gf_scene_texture_end = gr_opengl_scene_texture_end;
+	gr_screen.gf_copy_effect_texture = gr_opengl_copy_effect_texture;
+
+	gr_screen.gf_deferred_lighting_begin = gr_opengl_deferred_lighting_begin;
+	gr_screen.gf_deferred_lighting_end = gr_opengl_deferred_lighting_end;
+	gr_screen.gf_deferred_lighting_finish = gr_opengl_deferred_lighting_finish;
 
 	gr_screen.gf_start_clip_plane	= gr_opengl_start_clip_plane;
 	gr_screen.gf_end_clip_plane		= gr_opengl_end_clip_plane;
@@ -1910,6 +1920,9 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_sphere_htl			= gr_opengl_sphere_htl;
 
 	gr_screen.gf_maybe_create_shader = gr_opengl_maybe_create_shader;
+	gr_screen.gf_start_shadow_map	= gr_opengl_start_shadow_map;
+	gr_screen.gf_end_shadow_map		= gr_opengl_end_shadow_map;
+	gr_screen.gf_clear_shadow_map	= gr_opengl_clear_shadow_map;
 
 	gr_screen.gf_flush_data_states	= gr_opengl_flush_data_states;
 

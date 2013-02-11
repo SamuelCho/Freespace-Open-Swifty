@@ -30,6 +30,7 @@
 #include "parse/parselo.h"
 #include "ship/ship.h"
 #include "weapon/weapon.h"
+#include "cmdline/cmdline.h"
 
 
 
@@ -451,6 +452,8 @@ void tech_common_render()
 	}
 }
 
+void light_set_all_relevent();
+
 void techroom_ships_render(float frametime)
 {
 	// render all the common stuff
@@ -517,15 +520,13 @@ void techroom_ships_render(float frametime)
 	g3_start_frame(1);
 	g3_set_view_matrix(&sip->closeup_pos, &vmd_identity_matrix, sip->closeup_zoom * 1.3f);
 
-	if (!Cmdline_nohtl) {
-		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
-		gr_set_view_matrix(&Eye_position, &Eye_matrix);
-	}
+	
 
 	// lighting for techroom
 	light_reset();
 	vec3d light_dir = vmd_zero_vector;
 	light_dir.xyz.y = 1.0f;	
+	light_dir.xyz.x = 0.0000001f;	
 	light_add_directional(&light_dir, 0.85f, 1.0f, 1.0f, 1.0f);
 	light_rotate_all();
 	// lighting for techroom
@@ -534,6 +535,22 @@ void techroom_ships_render(float frametime)
 
 	model_clear_instance(Techroom_ship_modelnum);
 	model_set_detail_level(0);
+	polymodel *pm = model_get(Techroom_ship_modelnum);
+	
+    if(Cmdline_shadow_quality)
+    {
+        gr_reset_clip();
+        gr_start_shadow_map(-sip->closeup_pos.xyz.z + pm->rad, 1000.0f, 5000.0f);
+        model_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
+        gr_set_clip(Tech_ship_display_coords[gr_screen.res][SHIP_X_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_Y_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_W_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_H_COORD]);
+        gr_end_shadow_map();
+    }
+	
+	if (!Cmdline_nohtl) {
+		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+		gr_set_view_matrix(&Eye_position, &Eye_matrix);
+	}
+
 	model_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER);
 
 	Glowpoint_use_depth_buffer = true;

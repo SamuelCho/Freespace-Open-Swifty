@@ -84,7 +84,10 @@ static opengl_shader_file_t GL_post_shader_files[] = {
 		1, { "tex"}, 0, { NULL } },
 
 	{ "post-v.sdr", "ls-f.sdr", SDR_POST_FLAG_LIGHTSHAFT,
-		8, { "scene", "cockpit", "sun_pos", "weight", "intensity", "falloff", "density", "cp_intensity" }, 0, { NULL } }
+		8, { "scene", "cockpit", "sun_pos", "weight", "intensity", "falloff", "density", "cp_intensity" }, 0, { NULL } },
+
+	{ "shadowdebug-v.sdr", "shadowdebug-f.sdr", 0,
+	2, { "shadow_map", "index" }, 0, { NULL } }
 };
 
 static const unsigned int Num_post_shader_files = sizeof(GL_post_shader_files) / sizeof(opengl_shader_file_t);
@@ -227,8 +230,7 @@ void gr_opengl_post_process_begin()
 
 //	Assert( !opengl_check_framebuffer() );
 
-	GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
-	vglDrawBuffers(2, buffers);
+	glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -257,7 +259,7 @@ void recompile_fxaa_shader() {
 	Verify( vert != NULL );
 	Verify( frag != NULL );
 
-	new_shader->program_id = opengl_shader_create(vert, frag);
+	new_shader->program_id = opengl_shader_create(vert, frag, NULL);
 
 	if ( !new_shader->program_id ) {
 	}
@@ -325,9 +327,12 @@ void opengl_post_pass_fxaa() {
 	opengl_shader_set_current();
 }
 
-extern GLuint shadow_map[2];
+extern GLuint Shadow_map_texture;
 extern GLuint Scene_depth_texture;
 extern GLuint Cockpit_depth_texture;
+extern GLuint Scene_position_texture;
+extern GLuint Scene_normal_texture;
+extern GLuint Scene_specular_texture;
 extern bool stars_sun_has_glare(int index);
 extern float Sun_spot;
 void gr_opengl_post_process_end()
@@ -447,17 +452,64 @@ void gr_opengl_post_process_end()
 		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 		GL_state.Texture.Enable(Post_bloom_texture_id[2]);
 	}
+	else
+		vglUniform1fARB( opengl_shader_get_uniform("bloom_intensity"), 0.0f );
 
 	// now render it to the screen ...
-
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT,0);
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Scene_color_texture);
 
 	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, Scene_texture_u_scale, Scene_texture_u_scale);
-	// Done!
+	GL_state.Texture.SetActiveUnit(1);
+	GL_state.Texture.Enable(0);
 
-	GL_state.Texture.SetActiveUnit(1);	GL_state.Texture.Disable();
+	
+	//Shadow Map debug window
+//#define SHADOW_DEBUG
+#ifdef SHADOW_DEBUG
+	opengl_shader_set_current( &GL_post_shader[7] );	
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY);
+	GL_state.Texture.Enable(Shadow_map_texture);
+	vglUniform1iARB( opengl_shader_get_uniform("shadow_map"), 0);
+	vglUniform1iARB( opengl_shader_get_uniform("index"), 0);
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, -0.5f, -0.5f, Scene_texture_u_scale, Scene_texture_u_scale);
+	vglUniform1iARB( opengl_shader_get_uniform("index"), 1);
+	opengl_draw_textured_quad(-1.0f, -0.5f, 0.0f, 0.0f, -0.5f, 0.0f, Scene_texture_u_scale, Scene_texture_u_scale);
+	vglUniform1iARB( opengl_shader_get_uniform("index"), 2);
+	opengl_draw_textured_quad(-0.5f, -1.0f, 0.0f, 0.0f, 0.0f, -0.5f, Scene_texture_u_scale, Scene_texture_u_scale);
+	opengl_shader_set_current();
+#endif
+
+	/*GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_depth_texture);
+
+	
+	*/
+	// Done!
+	/*GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_effect_texture);
+
+	opengl_draw_textured_quad(0.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f, Scene_texture_u_scale, Scene_texture_u_scale);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_normal_texture);
+
+	opengl_draw_textured_quad(-1.0f, -0.0f, 0.0f, 0.0f, 0.0f, 1.0f, Scene_texture_u_scale, Scene_texture_u_scale);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_specular_texture);
+
+	opengl_draw_textured_quad(0.0f, -0.0f, 0.0f, 0.0f, 1.0f, 1.0f, Scene_texture_u_scale, Scene_texture_u_scale);
+	*/
+	GL_state.Texture.SetActiveUnit(1);
+	GL_state.Texture.Disable();
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.Disable();
 
@@ -520,7 +572,7 @@ static bool opengl_post_compile_shader(int flags)
 	Verify( vert != NULL );
 	Verify( frag != NULL );
 
-	new_shader.program_id = opengl_shader_create(vert, frag);
+	new_shader.program_id = opengl_shader_create(vert, frag, NULL);
 
 	if ( !new_shader.program_id ) {
 		in_error = true;
@@ -959,7 +1011,7 @@ static bool opengl_post_init_shader()
 		Verify( vert != NULL );
 		Verify( frag != NULL );
 
-		new_shader.program_id = opengl_shader_create(vert, frag);
+		new_shader.program_id = opengl_shader_create(vert, frag, NULL);
 
 		if ( !new_shader.program_id ) {
 			in_error = true;

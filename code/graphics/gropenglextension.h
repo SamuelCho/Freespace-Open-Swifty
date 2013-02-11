@@ -75,8 +75,11 @@ extern ogl_function GL_EXT_Special[];
 #define OGL_SM30							24
 #define OGL_ARB_FLOATING_POINT_TEXTURES		25
 #define OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX	26
+#define OGL_EXT_FRAMEBUFFER_BLIT			27
+#define OGL_EXT_GEOMETRY_SHADER4			28
+#define OGL_EXT_TEXTURE_ARRAY				29
 
-#define NUM_OGL_EXTENSIONS					27
+#define NUM_OGL_EXTENSIONS					30
 
 
 // Functions
@@ -147,9 +150,12 @@ extern ogl_function GL_EXT_Special[];
 #define OGL_DRAW_RANGE_ELEMENTS_BASE_VERTEX			60
 #define OGL_DRAW_ELEMENTS_INSTANCED_BASE_VERTEX		61
 #define OGL_MULTI_DRAW_ELEMENTS_BASE_VERTEX			62
+#define OGL_BLITFRAMEBUFFER							63
+#define OGL_PROGRAM_PARAMETERI				64
+#define OGL_TEXIMAGE3D						65
+#define OGL_FRAMEBUFFER_TEXTURE				66
 
-#define NUM_OGL_FUNCTIONS					63
-
+#define NUM_OGL_FUNCTIONS					67
 
 // special extensions/functions (OS specific, non-GL stuff)
 #define OGL_SPC_WGL_SWAP_INTERVAL		0
@@ -238,7 +244,7 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define PFNGLUNIFORM3FARBPROC					glUniform3fARBProcPtr
 #define PFNGLUNIFORM4FARBPROC					glUnifrom4fARBProcPtr
 #define PFNGLUNIFORM3FVARBPROC					glUniform3fvARBProcPtr
-#define PFNGLUNIFORM4FVARBPROC					glUnifrom4fvARBProcPtr
+#define PFNGLUNIFORM4FVARBPROC					glUniform4fvARBProcPtr
 #define PFNGLUNIFORM1IARBPROC					glUniform1iARBProcPtr
 #define PFNGLUNIFORMMATRIX4FVARBPROC			glUniformMatrix4fvARBProcPtr
 #define PFNGLDRAWBUFFERSPROC					glDrawBuffersARBProcPtr
@@ -246,6 +252,9 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define PFNGLDRAWRANGEELEMENTSBASEVERTEXPROC    glDrawRangeElementsBaseVertexProcPtr
 #define PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXPROC glDrawElementsInstancedBaseVertexProcPtr
 #define PFNGLMULTIDRAWELEMENTSBASEVERTEXPROC    glMultiDrawElementsBaseVertexProcPtr
+#define PFNGLBLITFRAMEBUFFER					glBlitFramebufferEXTProcPtr
+#define PFNGLPROGRAMPARAMETERIEXTPROC			glProgramParameteriEXTProcPtr
+#define PFNGLFRAMEBUFFERTEXTUREEXTPROC			glFramebufferTextureEXTProcPtr
 #endif	// __APPLE__
 
 #define vglFogCoordfEXT					GLEXT_CALL( OGL_FOG_COORDF, PFNGLFOGCOORDFEXTPROC )
@@ -315,6 +324,14 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define vglDrawRangeElementsBaseVertex	GLEXT_CALL( OGL_DRAW_RANGE_ELEMENTS_BASE_VERTEX, PFNGLDRAWRANGEELEMENTSBASEVERTEXPROC )
 #define vglDrawElementsInstancedBaseVertex		GLEXT_CALL( OGL_DRAW_ELEMENTS_INSTANCED_BASE_VERTEX, PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXPROC )
 #define vglMultiDrawElementsBaseVertex	GLEXT_CALL( OGL_MULTI_DRAW_ELEMENTS_BASE_VERTEX, PFNGLMULTIDRAWELEMENTSBASEVERTEXPROC )
+#define vglBlitFramebufferEXT			GLEXT_CALL( OGL_BLITFRAMEBUFFER, PFNGLBLITFRAMEBUFFEREXTPROC )
+#define vglProgramParameteriEXT			GLEXT_CALL( OGL_PROGRAM_PARAMETERI, PFNGLPROGRAMPARAMETERIEXTPROC )
+#ifndef __APPLE__
+#define vglTexImage3D					GLEXT_CALL( OGL_TEXIMAGE3D, PFNGLTEXIMAGE3DPROC )
+#else
+#define vglTexImage3D                   glTexImage3D
+#endif
+#define vglFramebufferTextureEXT		GLEXT_CALL( OGL_FRAMEBUFFER_TEXTURE, PFNGLFRAMEBUFFERTEXTUREEXTPROC )
 
 // special extensions
 #define vwglSwapIntervalEXT			GLEXT_SPC_CALL( OGL_SPC_WGL_SWAP_INTERVAL, PFNWGLSWAPINTERVALEXTPROC )

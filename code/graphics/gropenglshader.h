@@ -31,7 +31,7 @@ struct opengl_shader_flag_t {
 };
 
 struct opengl_shader_uniform_reference_t {
-	int flag;
+	unsigned int flag;
 
 	int num_uniforms;
 	char* uniforms[MAX_SHADER_UNIFORMS];
@@ -51,7 +51,7 @@ typedef struct opengl_shader_uniform_t {
 
 typedef struct opengl_shader_t {
 	GLhandleARB program_id;
-	int flags;
+	unsigned int flags;
 	int flags2;
 
 	SCP_vector<opengl_shader_uniform_t> uniforms;
@@ -66,15 +66,16 @@ typedef struct opengl_shader_t {
 extern SCP_vector<opengl_shader_t> GL_shader;
 
 extern opengl_shader_t *Current_shader;
+extern opengl_shader_t Deferred_light_shader;
 
-int gr_opengl_maybe_create_shader(int flags);
+int gr_opengl_maybe_create_shader(unsigned int flags);
 void opengl_shader_set_current(opengl_shader_t *shader_obj = NULL);
 
 void opengl_shader_init();
 void opengl_shader_shutdown();
 
-void opengl_compile_main_shader(int flags);
-GLhandleARB opengl_shader_create(const char *vs, const char *fs);
+void opengl_compile_main_shader(unsigned int flags);
+GLhandleARB opengl_shader_create(const char *vs, const char *fs, const char *gs);
 
 void opengl_shader_init_attribute(const char *attribute_text);
 GLint opengl_shader_get_attribute(const char *attribute_text);
@@ -86,6 +87,8 @@ void opengl_shader_set_animated_effect(int effect);
 int opengl_shader_get_animated_effect();
 void opengl_shader_set_animated_timer(float timer);
 float opengl_shader_get_animated_timer();
+
+void opengl_shader_compile_deferred_light_shader();
 
 #define ANIMATED_SHADER_LOADOUTSELECT_FS1	0
 #define ANIMATED_SHADER_LOADOUTSELECT_FS2	1

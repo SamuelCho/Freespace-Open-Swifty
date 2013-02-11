@@ -101,7 +101,8 @@ inline bool sorted_obj::operator < (const sorted_obj &other)
 
 SCP_list<sorted_obj> Sorted_objects;
 SCP_vector<object*> effect_ships; 
-
+SCP_vector<object*> transparent_objects;
+bool object_had_transparency = false;
 // Used to (fairly) quicky find the 8 extreme
 // points around an object.
 vec3d check_offsets[8] = { 
@@ -275,13 +276,18 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 		}
 
 		if ( obj_render_is_model(obj) ) {
-			if( (obj->type == OBJ_SHIP) && Ships[obj->instance].shader_effect_active )
+			if( (obj->type == OBJ_SHIP) && Ships[obj->instance].shader_effect_active || obj->type == OBJ_FIREBALL )
 				effect_ships.push_back(obj);
 			else 
 				(*render_function)(obj);
 		}
+		if(object_had_transparency)
+		{
+			object_had_transparency = false;
+			transparent_objects.push_back(obj);
+		}
 	}
-
+	gr_deferred_lighting_end();
 	Interp_no_flush = 0;
 
 	// we're done rendering models so flush render states

@@ -92,6 +92,8 @@ char *Object_type_names[MAX_OBJECT_TYPES] = {
 //XSTR:ON
 };
 
+extern int Use_GLSL;
+
 obj_flag_name Object_flag_names[] = {
 	{OF_INVULNERABLE,			"invulnerable",				1,	},
 	{OF_PROTECTED,				"protect-ship",				1,	},
@@ -1209,7 +1211,7 @@ void obj_move_all_post(object *objp, float frametime)
 						g = i2fl(c.green)/255.0f;
 						b = i2fl(c.blue)/255.0f;
 
-						light_add_point( &objp->pos, 10.0f, 20.0f, 1.0f, r, g, b, objp->parent );
+						light_add_point( &objp->pos, 10.0f, Use_GLSL>1?200.0f:20.0f, 1.0f, r, g, b, objp->parent );
 						//light_add_point( &objp->pos, 10.0f, 20.0f, 1.0f, 0.0f, 0.0f, 1.0f, objp->parent );
 					} else {
 						light_add_point( &objp->pos, 10.0f, 20.0f, 1.0f, 1.0f, 1.0f, 1.0f, objp->parent );
@@ -1292,7 +1294,10 @@ void obj_move_all_post(object *objp, float frametime)
 					if(fireball_is_warp(objp))
 					{
 						intensity = fireball_wormhole_intensity(objp); // Valathil: Get wormhole radius for lighting
-						rad = objp->radius;
+						if(Use_GLSL>1)
+							rad = objp->radius * 10.0f;
+						else
+							rad = objp->radius * 10.0f;
 					}
 					// P goes from 0 to 1 to 0 over the life of the explosion
 					// Only do this if rad is > 0.0000001f

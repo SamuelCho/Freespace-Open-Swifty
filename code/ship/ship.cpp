@@ -395,6 +395,7 @@ int ship_get_subobj_model_num(ship_info* sip, char* subobj_name);
 
 SCP_vector<ship_effect> Ship_effects;
 
+int ship_render_mode = MODEL_RENDER_ALL;
 /**
  * Set the ship_obj struct fields to default values
  */
@@ -3088,6 +3089,57 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		parse_sound("+StopSnd:", &mtp->stop_snd, sip->name);
 	}
 
+	if (optional_string("$Glowpoint overrides:")) {
+		SCP_vector<SCP_string> tokens;
+		tokens.clear();
+		stuff_string_list(tokens);
+		for(SCP_vector<SCP_string>::iterator token = tokens.begin(); token != tokens.end(); ++token) {
+			SCP_string name, banks;
+			size_t seppos;
+			seppos = token->find_first_of(':');
+			if(seppos == -1) {
+				Warning(LOCATION, "Couldn't find ':' seperator in Glowpoint override for ship %s ignoring token", sip->name);
+				continue;
+			}
+			name = token->substr(0, seppos);
+			banks = token->substr(seppos+1);
+			SCP_vector<glow_point_bank_override>::iterator gpo = get_glowpoint_bank_override_by_name(name.data());
+			if(gpo == glowpoint_bank_overrides.end()){
+				Warning(LOCATION, "Couldn't find preset %s in glowpoints.tbl when parsing ship: %s", name.data(), sip->name);
+				continue;
+			}
+			if(banks == "*") {
+				sip->glowpoint_bank_override_map[-1] = (void*)(&(*gpo));
+				continue;
+			}
+			SCP_string banktoken;
+			int start = -1;
+			int end = -1;
+			do {
+				end = banks.find_first_of(',', ++start);
+				banktoken = banks.substr(start, end);
+				start = end;
+				
+				size_t fromtopos;
+				fromtopos = banktoken.find_first_of('-');
+				if(fromtopos != -1) {
+					SCP_string from, to;
+					int ifrom, ito;
+					from = banktoken.substr(0, fromtopos);
+					to = banktoken.substr(fromtopos+1);
+					ifrom = atoi(from.data()) - 1;
+					ito = atoi(to.data()) - 1;
+					for(int i = ifrom; i <= ito; ++i) {
+						sip->glowpoint_bank_override_map[i] = (void*)(&(*gpo));
+					}
+				} else {
+					int bank = atoi(banktoken.data()) - 1;
+					sip->glowpoint_bank_override_map[bank] = (void*)(&(*gpo));
+				}
+			} while(start!=-1);
+		}
+	}
+
 	if (optional_string("$Radar Image 2D:"))
 	{
 		stuff_string(name_tmp, F_NAME, NAME_LENGTH);
@@ -5734,6 +5786,7 @@ man_thruster_renderer *man_thruster_get_slot(int bmap_frame)
 
 //WMC - used for FTL and maneuvering thrusters
 geometry_batcher fx_batcher;
+extern bool in_shadow_map;
 void ship_render(object * obj)
 {
 	int num = obj->instance;
@@ -5742,7 +5795,7 @@ void ship_render(object * obj)
 	ship *warp_shipp = NULL;
 	ship_info *sip = &Ship_info[Ships[num].ship_info_index];
 	bool is_first_stage_arrival = false;
-	bool show_thrusters = (shipp->flags2 & SF2_NO_THRUSTERS) == 0;
+	bool show_thrusters = ((shipp->flags2 & SF2_NO_THRUSTERS) == 0) && !in_shadow_map;
 	dock_function_info dfi;
 
 
@@ -5766,7 +5819,7 @@ void ship_render(object * obj)
 #endif
 
 
-	if ( obj == Viewer_obj)
+	if ( obj == Viewer_obj && !in_shadow_map)
 	{
 		if (ship_show_velocity_dot && (obj==Player_obj) )
 		{
@@ -5844,7 +5897,7 @@ void ship_render(object * obj)
 	#endif
 
 		// Only render electrical arcs if within 500m of the eye (for a 10m piece)
-		if ( vm_vec_dist_quick( &obj->pos, &Eye_position ) < obj->radius*50.0f )	{
+		if ( vm_vec_dist_quick( &obj->pos, &Eye_position ) < obj->radius*50.0f && !in_shadow_map)	{
 			int i;
 			for (i=0; i<MAX_SHIP_ARCS; i++ )	{
 				if ( timestamp_valid( shipp->arc_timestamp[i] ) )	{
@@ -5857,129 +5910,132 @@ void ship_render(object * obj)
 			shipfx_large_blowup_render(shipp);
 		} else {
 			//WMC - I suppose this is a bit hackish.
-			physics_info *pi = &Objects[shipp->objnum].phys_info;
-			float render_amount;
-			fx_batcher.allocate(sip->num_maneuvering);	//Act as if all thrusters are going.
-
-			for(int i = 0; i < sip->num_maneuvering; i++)
+			if(!in_shadow_map)
 			{
-				man_thruster *mtp = &sip->maneuvering[i];
+				physics_info *pi = &Objects[shipp->objnum].phys_info;
+				float render_amount;
+				fx_batcher.allocate(sip->num_maneuvering);	//Act as if all thrusters are going.
 
-				render_amount = 0.0f;
+				for(int i = 0; i < sip->num_maneuvering; i++)
+				{
+					man_thruster *mtp = &sip->maneuvering[i];
 
-				//WMC - get us a steady value
-				vec3d des_vel;
-				vm_vec_rotate(&des_vel, &pi->desired_vel, &obj->orient);
-
-				if(pi->desired_rotvel.xyz.x < 0 && (mtp->use_flags & MT_PITCH_UP)) {
-					render_amount = fl_abs(pi->desired_rotvel.xyz.x) / pi->max_rotvel.xyz.x;
-				} else if(pi->desired_rotvel.xyz.x > 0 && (mtp->use_flags & MT_PITCH_DOWN)) {
-					render_amount = fl_abs(pi->desired_rotvel.xyz.x) / pi->max_rotvel.xyz.x;
-				} else if(pi->desired_rotvel.xyz.y < 0 && (mtp->use_flags & MT_ROLL_RIGHT)) {
-					render_amount = fl_abs(pi->desired_rotvel.xyz.y) / pi->max_rotvel.xyz.y;
-				} else if(pi->desired_rotvel.xyz.y > 0 && (mtp->use_flags & MT_ROLL_LEFT)) {
-					render_amount = fl_abs(pi->desired_rotvel.xyz.y) / pi->max_rotvel.xyz.y;
-				} else if(pi->desired_rotvel.xyz.z < 0 && (mtp->use_flags & MT_BANK_RIGHT)) {
-					render_amount = fl_abs(pi->desired_rotvel.xyz.z) / pi->max_rotvel.xyz.z;
-				} else if(pi->desired_rotvel.xyz.z > 0 && (mtp->use_flags & MT_BANK_LEFT)) {
-					render_amount = fl_abs(pi->desired_rotvel.xyz.z) / pi->max_rotvel.xyz.z;
-				}
-				
-				//Backslash - show thrusters according to thrust amount, not speed
-				if(pi->side_thrust > 0 && (mtp->use_flags & MT_SLIDE_RIGHT)) {
-					render_amount = pi->side_thrust;
-				} else if(pi->side_thrust < 0 && (mtp->use_flags & MT_SLIDE_LEFT)) {
-					render_amount = -pi->side_thrust;
-				} else if(pi->vert_thrust > 0 && (mtp->use_flags & MT_SLIDE_UP)) {
-					render_amount = pi->vert_thrust;
-				} else if(pi->vert_thrust < 0 && (mtp->use_flags & MT_SLIDE_DOWN)) {
-					render_amount = -pi->vert_thrust;
-				} else if(pi->forward_thrust > 0 && (mtp->use_flags & MT_FORWARD)) {
-					render_amount = pi->forward_thrust;
-				} else if(pi->forward_thrust < 0 && (mtp->use_flags & MT_REVERSE)) {
-					render_amount = -pi->forward_thrust;
-				}
-
-				//Don't render small faraway thrusters (more than 10k * radius away)
-				if (vm_vec_dist(&Eye_position, &obj->pos) > (10000.0f * mtp->radius))
 					render_amount = 0.0f;
 
-				if(render_amount > 0.0f)
-				{
-					//Handle sounds and stuff
-					if(shipp->thrusters_start[i] <= 0)
-					{
-						shipp->thrusters_start[i] = timestamp();
-						if(mtp->start_snd >= 0)
-							snd_play_3d( &Snds[mtp->start_snd], &mtp->pos, &Eye_position, 0.0f, &obj->phys_info.vel );
+					//WMC - get us a steady value
+					vec3d des_vel;
+					vm_vec_rotate(&des_vel, &pi->desired_vel, &obj->orient);
+
+					if(pi->desired_rotvel.xyz.x < 0 && (mtp->use_flags & MT_PITCH_UP)) {
+						render_amount = fl_abs(pi->desired_rotvel.xyz.x) / pi->max_rotvel.xyz.x;
+					} else if(pi->desired_rotvel.xyz.x > 0 && (mtp->use_flags & MT_PITCH_DOWN)) {
+						render_amount = fl_abs(pi->desired_rotvel.xyz.x) / pi->max_rotvel.xyz.x;
+					} else if(pi->desired_rotvel.xyz.y < 0 && (mtp->use_flags & MT_ROLL_RIGHT)) {
+						render_amount = fl_abs(pi->desired_rotvel.xyz.y) / pi->max_rotvel.xyz.y;
+					} else if(pi->desired_rotvel.xyz.y > 0 && (mtp->use_flags & MT_ROLL_LEFT)) {
+						render_amount = fl_abs(pi->desired_rotvel.xyz.y) / pi->max_rotvel.xyz.y;
+					} else if(pi->desired_rotvel.xyz.z < 0 && (mtp->use_flags & MT_BANK_RIGHT)) {
+						render_amount = fl_abs(pi->desired_rotvel.xyz.z) / pi->max_rotvel.xyz.z;
+					} else if(pi->desired_rotvel.xyz.z > 0 && (mtp->use_flags & MT_BANK_LEFT)) {
+						render_amount = fl_abs(pi->desired_rotvel.xyz.z) / pi->max_rotvel.xyz.z;
+					}
+				
+					//Backslash - show thrusters according to thrust amount, not speed
+					if(pi->side_thrust > 0 && (mtp->use_flags & MT_SLIDE_RIGHT)) {
+						render_amount = pi->side_thrust;
+					} else if(pi->side_thrust < 0 && (mtp->use_flags & MT_SLIDE_LEFT)) {
+						render_amount = -pi->side_thrust;
+					} else if(pi->vert_thrust > 0 && (mtp->use_flags & MT_SLIDE_UP)) {
+						render_amount = pi->vert_thrust;
+					} else if(pi->vert_thrust < 0 && (mtp->use_flags & MT_SLIDE_DOWN)) {
+						render_amount = -pi->vert_thrust;
+					} else if(pi->forward_thrust > 0 && (mtp->use_flags & MT_FORWARD)) {
+						render_amount = pi->forward_thrust;
+					} else if(pi->forward_thrust < 0 && (mtp->use_flags & MT_REVERSE)) {
+						render_amount = -pi->forward_thrust;
 					}
 
-					//Only assign looping sound if
-					//it is specified
-					//it isn't assigned already
-					//start sound doesn't exist or has finished
-					if (!Cmdline_freespace_no_sound)
-						if(mtp->loop_snd >= 0
-							&& shipp->thrusters_sounds[i] < 0
-							&& (mtp->start_snd < 0 || (snd_get_duration(mtp->start_snd) < timestamp() - shipp->thrusters_start[i])) 
-							)
+					//Don't render small faraway thrusters (more than 10k * radius away)
+					if (vm_vec_dist(&Eye_position, &obj->pos) > (10000.0f * mtp->radius))
+						render_amount = 0.0f;
+
+					if(render_amount > 0.0f)
+					{
+						//Handle sounds and stuff
+						if(shipp->thrusters_start[i] <= 0)
 						{
-							shipp->thrusters_sounds[i] = obj_snd_assign(OBJ_INDEX(obj), mtp->loop_snd, &mtp->pos, 1);
+							shipp->thrusters_start[i] = timestamp();
+							if(mtp->start_snd >= 0)
+								snd_play_3d( &Snds[mtp->start_snd], &mtp->pos, &Eye_position, 0.0f, &obj->phys_info.vel );
 						}
 
-					//Draw graphics
-					//Skip invalid ones
-					if(mtp->tex_id >= 0)
-					{
-						float rad = mtp->radius;
-						if(rad <= 0.0f)
-							rad = 1.0f;
+						//Only assign looping sound if
+						//it is specified
+						//it isn't assigned already
+						//start sound doesn't exist or has finished
+						if (!Cmdline_freespace_no_sound)
+							if(mtp->loop_snd >= 0
+								&& shipp->thrusters_sounds[i] < 0
+								&& (mtp->start_snd < 0 || (snd_get_duration(mtp->start_snd) < timestamp() - shipp->thrusters_start[i])) 
+								)
+							{
+								shipp->thrusters_sounds[i] = obj_snd_assign(OBJ_INDEX(obj), mtp->loop_snd, &mtp->pos, 1);
+							}
 
-						float len = mtp->length;
-						if(len == 0.0f)
-							len = rad;
+						//Draw graphics
+						//Skip invalid ones
+						if(mtp->tex_id >= 0)
+						{
+							float rad = mtp->radius;
+							if(rad <= 0.0f)
+								rad = 1.0f;
 
-						vec3d start, tmpend, end;
-						//Start
-						vm_vec_unrotate(&start, &mtp->pos, &obj->orient);
-						vm_vec_add2(&start, &obj->pos);
+							float len = mtp->length;
+							if(len == 0.0f)
+								len = rad;
 
-						//End
-						vm_vec_scale_add(&tmpend, &mtp->pos, &mtp->norm, len * render_amount);
-						vm_vec_unrotate(&end, &tmpend, &obj->orient);
-						vm_vec_add2(&end, &obj->pos);
+							vec3d start, tmpend, end;
+							//Start
+							vm_vec_unrotate(&start, &mtp->pos, &obj->orient);
+							vm_vec_add2(&start, &obj->pos);
 
-						//Draw
-						fx_batcher.draw_beam(&start, &end, rad, 1.0f);
+							//End
+							vm_vec_scale_add(&tmpend, &mtp->pos, &mtp->norm, len * render_amount);
+							vm_vec_unrotate(&end, &tmpend, &obj->orient);
+							vm_vec_add2(&end, &obj->pos);
 
-						int bmap_frame = mtp->tex_id;
-						if(mtp->tex_nframes > 0)
-							bmap_frame += (int)(((float)(timestamp() - shipp->thrusters_start[i]) / 1000.0f) * (float)mtp->tex_fps) % mtp->tex_nframes;
+							//Draw
+							fx_batcher.draw_beam(&start, &end, rad, 1.0f);
 
-						man_thruster_renderer *mtr = man_thruster_get_slot(bmap_frame);
-						mtr->man_batcher.add_allocate(1);
-						mtr->man_batcher.draw_beam(&start, &end, rad, 1.0f);
+							int bmap_frame = mtp->tex_id;
+							if(mtp->tex_nframes > 0)
+								bmap_frame += (int)(((float)(timestamp() - shipp->thrusters_start[i]) / 1000.0f) * (float)mtp->tex_fps) % mtp->tex_nframes;
+
+							man_thruster_renderer *mtr = man_thruster_get_slot(bmap_frame);
+							mtr->man_batcher.add_allocate(1);
+							mtr->man_batcher.draw_beam(&start, &end, rad, 1.0f);
+						}
+
 					}
-
-				}
-				//We've stopped firing a thruster
-				else if(shipp->thrusters_start[i] > 0)
-				{
-					shipp->thrusters_start[i] = 0;
-					if(shipp->thrusters_sounds[i] >= 0)
+					//We've stopped firing a thruster
+					else if(shipp->thrusters_start[i] > 0)
 					{
-						obj_snd_delete(OBJ_INDEX(obj), shipp->thrusters_sounds[i]);
-						shipp->thrusters_sounds[i] = -1;
-					}
+						shipp->thrusters_start[i] = 0;
+						if(shipp->thrusters_sounds[i] >= 0)
+						{
+							obj_snd_delete(OBJ_INDEX(obj), shipp->thrusters_sounds[i]);
+							shipp->thrusters_sounds[i] = -1;
+						}
 
-					if(mtp->stop_snd >= 0)
-					{
-						//Get world pos
-						vec3d start;
-						vm_vec_unrotate(&start, &mtp->pos, &obj->orient);
-						vm_vec_add2(&start, &obj->pos);
+						if(mtp->stop_snd >= 0)
+						{
+							//Get world pos
+							vec3d start;
+							vm_vec_unrotate(&start, &mtp->pos, &obj->orient);
+							vm_vec_add2(&start, &obj->pos);
 
-						snd_play_3d( &Snds[mtp->stop_snd], &mtp->pos, &Eye_position, 0.0f, &obj->phys_info.vel );
+							snd_play_3d( &Snds[mtp->stop_snd], &mtp->pos, &Eye_position, 0.0f, &obj->phys_info.vel );
+						}
 					}
 				}
 			}
@@ -6047,76 +6103,81 @@ void ship_render(object * obj)
 
 			// maybe set squad logo bitmap
 			model_set_insignia_bitmap(-1);
-
-			if(Game_mode & GM_MULTIPLAYER){
-				// if its any player's object
-				int np_index = multi_find_player_by_object( obj );
-				if((np_index >= 0) && (np_index < MAX_PLAYERS) && MULTI_CONNECTED(Net_players[np_index]) && (Net_players[np_index].m_player != NULL)){
-					model_set_insignia_bitmap(Net_players[np_index].m_player->insignia_texture);
+			if(!in_shadow_map)
+			{
+				if(Game_mode & GM_MULTIPLAYER){
+					// if its any player's object
+					int np_index = multi_find_player_by_object( obj );
+					if((np_index >= 0) && (np_index < MAX_PLAYERS) && MULTI_CONNECTED(Net_players[np_index]) && (Net_players[np_index].m_player != NULL)){
+						model_set_insignia_bitmap(Net_players[np_index].m_player->insignia_texture);
+					}
 				}
-			}
-			// in single player, we want to render model insignias on all ships in alpha beta and gamma
-			// Goober5000 - and also on wings that have their logos set
-			else {
-				// if its an object in my squadron
-				if(ship_in_my_squadron(shipp)) {
-					model_set_insignia_bitmap(Player->insignia_texture);
-				}
+				// in single player, we want to render model insignias on all ships in alpha beta and gamma
+				// Goober5000 - and also on wings that have their logos set
+				else {
+					// if its an object in my squadron
+					if(ship_in_my_squadron(shipp)) {
+						model_set_insignia_bitmap(Player->insignia_texture);
+					}
 
-				// maybe it has a wing squad logo - Goober5000
-				if (shipp->wingnum >= 0)
-				{
-					// don't override the player's wing
-					if (shipp->wingnum != Player_ship->wingnum)
+					// maybe it has a wing squad logo - Goober5000
+					if (shipp->wingnum >= 0)
 					{
-						// if we have a logo texture
-						if (Wings[shipp->wingnum].wing_insignia_texture >= 0)
+						// don't override the player's wing
+						if (shipp->wingnum != Player_ship->wingnum)
 						{
-							model_set_insignia_bitmap(Wings[shipp->wingnum].wing_insignia_texture);
+							// if we have a logo texture
+							if (Wings[shipp->wingnum].wing_insignia_texture >= 0)
+							{
+								model_set_insignia_bitmap(Wings[shipp->wingnum].wing_insignia_texture);
+							}
 						}
 					}
 				}
-			}
+			
 
-			// nebula		
-			if(The_mission.flags & MISSION_FLAG_FULLNEB){		
-				extern void model_set_fog_level(float l);
-				model_set_fog_level(neb2_get_fog_intensity(obj));
-			}
-
-			// Valathil - maybe do a scripting hook here to do some scriptable effects?
-			if(shipp->shader_effect_active && Use_GLSL > 1)
-			{
-				float timer;
-				render_flags |= (MR_ANIMATED_SHADER);
-
-				ship_effect* sep = &Ship_effects[shipp->shader_effect_num];
-				opengl_shader_set_animated_effect(sep->shader_effect);
-				if (sep->invert_timer) {
-					timer = 1.0f - ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
-					timer = MAX(timer,0.0f);
-				} else {
-					timer = ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
+				// nebula		
+				if(The_mission.flags & MISSION_FLAG_FULLNEB){		
+					extern void model_set_fog_level(float l);
+					model_set_fog_level(neb2_get_fog_intensity(obj));
 				}
 
-				opengl_shader_set_animated_timer(timer);
+				// Valathil - maybe do a scripting hook here to do some scriptable effects?
+				if(shipp->shader_effect_active && Use_GLSL > 1)
+				{
+					float timer;
+					render_flags |= (MR_ANIMATED_SHADER);
 
-				if (sep->disables_rendering && (timer_get_milliseconds() > shipp->shader_effect_start_time + shipp->shader_effect_duration) ) {
-					shipp->flags2 |= SF2_CLOAKED;
-					shipp->shader_effect_active = false;
-				} else {
-					shipp->flags2 &= ~SF2_CLOAKED;
-					if (timer_get_milliseconds() > shipp->shader_effect_start_time + shipp->shader_effect_duration)
+					ship_effect* sep = &Ship_effects[shipp->shader_effect_num];
+					opengl_shader_set_animated_effect(sep->shader_effect);
+					if (sep->invert_timer) {
+						timer = 1.0f - ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
+						timer = MAX(timer,0.0f);
+					} else {
+						timer = ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
+					}
+
+					opengl_shader_set_animated_timer(timer);
+
+					if (sep->disables_rendering && (timer_get_milliseconds() > shipp->shader_effect_start_time + shipp->shader_effect_duration) ) {
+						shipp->flags2 |= SF2_CLOAKED;
 						shipp->shader_effect_active = false;
+					} else {
+						shipp->flags2 &= ~SF2_CLOAKED;
+						if (timer_get_milliseconds() > shipp->shader_effect_start_time + shipp->shader_effect_duration)
+							shipp->shader_effect_active = false;
+					}
 				}
-			}
 
-			if (sip->uses_team_colors) {
-				gr_set_team_color(shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
-			}
+				if (sip->uses_team_colors) {
+					gr_set_team_color(shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
+				}
 
-			if(sip->flags2 & SIF2_NO_LIGHTING)
-				render_flags |= MR_NO_LIGHTING;
+				if(sip->flags2 & SIF2_NO_LIGHTING)
+					render_flags |= MR_NO_LIGHTING;
+			}
+			if(in_shadow_map)
+				render_flags = MR_NO_TEXTURING | MR_NO_LIGHTING;
 
 			//draw weapon models
 			if (sip->draw_models && !(shipp->flags2 & SF2_CLOAKED)) {
@@ -6189,12 +6250,12 @@ void ship_render(object * obj)
  					float fog_val = neb2_get_fog_intensity(obj);
 					if(fog_val >= 0.6f){
 						model_set_detail_level(2);
-						model_render( sip->model_num, &obj->orient, &obj->pos, render_flags | MR_LOCK_DETAIL, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures );
+						model_render( sip->model_num, &obj->orient, &obj->pos, render_flags | MR_LOCK_DETAIL, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
 					} else {
-						model_render( sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures );
+						model_render( sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
 					}
 				} else {
-					model_render( sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures );
+					model_render( sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
 				}
 			}
 
@@ -6214,7 +6275,7 @@ void ship_render(object * obj)
 		
 		ship_model_stop(obj);
 
-		if (shipp->shield_hits) {
+		if (shipp->shield_hits && !in_shadow_map) {
 			create_shield_explosion_all(obj);
 			shipp->shield_hits = 0;
 		}

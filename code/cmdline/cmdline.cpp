@@ -274,6 +274,7 @@ cmdline_parm fxaa_arg("-fxaa", NULL);
 cmdline_parm fxaa_preset_arg("-fxaa_preset", NULL);
 cmdline_parm fb_explosions_arg("-fb_explosions", NULL);
 cmdline_parm flightshaftsoff_arg("-nolightshafts", NULL);
+cmdline_parm shadow_quality_arg("-shadow_quality", NULL);
 
 float Cmdline_clip_dist = Default_min_draw_distance;
 float Cmdline_fov = 0.75f;
@@ -298,6 +299,7 @@ int Cmdline_fxaa_preset = 6;
 extern int Fxaa_preset_last_frame;
 bool Cmdline_fb_explosions = 0;
 extern bool ls_force_off;
+int Cmdline_shadow_quality = 2;
 
 // Game Speed related
 cmdline_parm cache_bitmaps_arg("-cache_bitmaps", NULL);	// Cmdline_cache_bitmaps
@@ -1519,6 +1521,11 @@ bool SetCmdlineParams()
 	if( reparse_mainhall_arg.found() )
 	{
 		Cmdline_reparse_mainhall = 1;
+	}
+
+	if( shadow_quality_arg.found() )
+	{
+		Cmdline_shadow_quality = shadow_quality_arg.get_int();
 	}
 
 	//Deprecated flags - CommanderDJ

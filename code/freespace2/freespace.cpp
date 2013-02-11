@@ -1973,7 +1973,8 @@ void game_init()
 	armor_init();
 	ai_init();
 	ai_profiles_init();		// Goober5000
-	weapon_init();	
+	weapon_init();
+	glowpoint_init();
 	ship_init();						// read in ships.tbl	
 
 	player_init();	
@@ -3551,6 +3552,109 @@ camid game_render_frame_setup()
 	return Main_camera;
 }
 
+void render_shadow_maps()
+{
+	extern SCP_vector<light*> Static_light;
+	if(Static_light.empty())
+		return;
+	light *lp = *(Static_light.begin());
+
+	if(!Cmdline_nohtl && Cmdline_shadow_quality && lp)
+	{
+		gr_end_proj_matrix();
+		gr_end_view_matrix();
+	
+		gr_start_shadow_map(400.0f, 3000.0f, 20000.0f);
+		object *objp = Objects;
+
+		double clip_width, clip_height;
+		float minx = 0.0f, miny = 0.0f, minz = 0.0f, maxx = 0.0f, maxy = 0.0f, maxz = 0.0f;
+		vec3d frustum[8];
+		matrix orient;
+		vec3d bb_r;
+		vm_vector_2_matrix(&orient, &lp->vec, &Eye_matrix.vec.uvec, NULL);
+		clip_height = tan( (double)Proj_fov * 0.5 );
+		clip_width = clip_height * (double)gr_screen.clip_aspect;
+
+		vm_vec_scale_add(&frustum[0], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, (float)clip_width);
+		vm_vec_scale_add2(&frustum[0], &Eye_matrix.vec.uvec, (float)clip_height);
+
+		vm_vec_scale_add(&frustum[1], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, (float)clip_width);
+		vm_vec_scale_add2(&frustum[1], &Eye_matrix.vec.uvec, -(float)clip_height);
+
+		vm_vec_scale_add(&frustum[2], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, -(float)clip_width);
+		vm_vec_scale_add2(&frustum[2], &Eye_matrix.vec.uvec, (float)clip_height);
+
+		vm_vec_scale_add(&frustum[3], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, -(float)clip_width);
+		vm_vec_scale_add2(&frustum[3], &Eye_matrix.vec.uvec, -(float)clip_height);
+
+		vm_vec_copy_scale(&frustum[4], &frustum[0], 20000.0);
+		vm_vec_copy_scale(&frustum[5], &frustum[1], 20000.0);
+		vm_vec_copy_scale(&frustum[6], &frustum[2], 20000.0);
+		vm_vec_copy_scale(&frustum[7], &frustum[3], 20000.0);
+
+		for(int i = 0; i < 8; i++)
+		{
+			
+			vm_vec_rotate(&bb_r, &frustum[i], &orient);
+			
+			if(!i)
+			{
+				minx = bb_r.xyz.x;
+				maxx = bb_r.xyz.x;
+				miny = bb_r.xyz.y;
+				maxy = bb_r.xyz.y;
+				minz = bb_r.xyz.z;
+				maxz = bb_r.xyz.z;
+			}
+			else
+			{
+				minx = MIN(bb_r.xyz.x, minx);
+				maxx = MAX(bb_r.xyz.x, maxx);
+				miny = MIN(bb_r.xyz.y, miny);
+				maxy = MAX(bb_r.xyz.y, maxy);
+				minz = MIN(bb_r.xyz.z, minz);
+				maxz = MAX(bb_r.xyz.z, maxz);
+			}
+		}
+
+		for (int i=0;i<=Highest_object_index;i++,objp++) {
+			vec3d pos, pos_rot;
+			vm_vec_sub(&pos, &objp->pos, &Eye_position);
+			vm_vec_rotate(&pos_rot, &pos, &orient);
+			if((pos_rot.xyz.x - objp->radius) > maxx || (pos_rot.xyz.x + objp->radius) < minx || (pos_rot.xyz.y - objp->radius) > maxy || (pos_rot.xyz.y + objp->radius) < miny || (pos_rot.xyz.z - objp->radius) > maxz)
+				continue;
+			switch(objp->type)
+			{
+				case OBJ_SHIP:
+					//ship_model_start(objp);
+					//model_render( Ship_info[Ships[objp->instance].ship_info_index].model_num, &objp->orient, &objp->pos,MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp));
+					//ship_model_stop(objp);
+					obj_render(objp);
+				break;
+
+				case OBJ_ASTEROID:
+					model_clear_instance( Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype]);
+					model_render(Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype], &objp->orient, &objp->pos, MR_NORMAL | MR_IS_ASTEROID | MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp) );
+				break;
+				case OBJ_DEBRIS:
+					debris *db;
+					db = &Debris[objp->instance];
+					if ( !(db->flags & DEBRIS_USED)){
+						continue;
+					}
+					objp = &Objects[db->objnum];
+					submodel_render( db->model_num, db->submodel_num, &objp->orient, &objp->pos, MR_NO_TEXTURING | MR_NO_LIGHTING );
+				break; 
+			}
+		}
+		gr_end_shadow_map();
+	
+		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+		gr_set_view_matrix(&Eye_position, &Eye_matrix);
+	}
+}
+
 #ifndef NDEBUG
 extern void ai_debug_render_stuff();
 #endif
@@ -3561,7 +3665,8 @@ DCF_BOOL( subspace, Game_subspace_effect )
 void clip_frame_view();
 
 // Does everything needed to render a frame
-extern SCP_vector<object*> effect_ships; 
+extern SCP_vector<object*> effect_ships;
+extern SCP_vector<object*> transparent_objects;
 void game_render_frame( camid cid )
 {
 
@@ -3615,7 +3720,7 @@ void game_render_frame( camid cid )
 		}
 	}
 	gr_zbuffer_clear(TRUE);
-
+	
 	gr_scene_texture_begin();
 
 	neb2_render_setup(cid);
@@ -3632,10 +3737,15 @@ void game_render_frame( camid cid )
 	} else {
 		stars_draw(1,1,1,0,0);
 	}
-
+	render_shadow_maps();
+	gr_deferred_lighting_begin();
 	bool draw_viewer_last = false;
+	extern int ship_render_mode;
+	ship_render_mode = MODEL_RENDER_OPAQUE;
 	obj_render_all(obj_render, &draw_viewer_last);
-	
+	ship_render_mode = MODEL_RENDER_ALL;
+	gr_deferred_lighting_end();
+	gr_deferred_lighting_finish();
 	//	Why do we not show the shield effect in these modes?  Seems ok.
 	//if (!(Viewer_mode & (VM_EXTERNAL | VM_SLEWED | VM_CHASE | VM_DEAD_VIEW))) {
 	render_shields();
@@ -3659,12 +3769,27 @@ void game_render_frame( camid cid )
 
 	// render local player nebula
 	neb2_render_player();
+	
+	gr_copy_effect_texture();
 
 	// render all ships with shader effects on them
 	SCP_vector<object*>::iterator obji = effect_ships.begin();
 	for(;obji != effect_ships.end();++obji)
-		ship_render(*obji);
+	{
+		obj_render(*obji);
+	}
 	effect_ships.clear();
+
+	ship_render_mode = MODEL_RENDER_TRANS;
+	obji = transparent_objects.begin();
+	for(;obji != transparent_objects.end();++obji)
+	{
+		obj_render(*obji);
+	}
+	transparent_objects.clear();
+	batch_render_distortion_map_bitmaps();
+	ship_render_mode = MODEL_RENDER_ALL;
+	Shadow_override = true;
 	//Draw the viewer 'cause we didn't before.
 	//This is so we can change the minimum clipping distance without messing everything up.
 	if(draw_viewer_last && Viewer_obj)
@@ -3686,6 +3811,7 @@ void game_render_frame( camid cid )
 		gr_end_view_matrix();
 	}
 
+	
 	//Draw viewer cockpit
 	if(Viewer_obj != NULL && Viewer_mode != VM_TOPDOWN && Ship_info[Ships[Viewer_obj->instance].ship_info_index].cockpit_model_num > 0)
 	{
@@ -3703,7 +3829,7 @@ void game_render_frame( camid cid )
 		gr_end_proj_matrix();
 		gr_end_view_matrix();
 	}
-
+	Shadow_override = false;
 	//================ END OF 3D RENDERING STUFF ====================
 
 	gr_scene_texture_end();

@@ -823,12 +823,12 @@ void batch_render_all(int stream_buffer)
 
 		batch_render_lasers(true);
 		batch_render_geometry_map_bitmaps(true);
-		batch_render_distortion_map_bitmaps(true);
+		//batch_render_distortion_map_bitmaps(true);
 		gr_render_stream_buffer_end();
 	} else {
 		batch_render_lasers();
 		batch_render_geometry_map_bitmaps();
-		batch_render_distortion_map_bitmaps();
+		//batch_render_distortion_map_bitmaps();
 	}
 }
 

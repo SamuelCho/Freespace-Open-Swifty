@@ -144,6 +144,9 @@ void FSLight2GLLight(light *FSLight, opengl_light *GLLight)
 
 			break;
 		}
+		
+		case LT_CONE:
+			break;
 
 		default:
 			Int3();
@@ -311,7 +314,9 @@ void opengl_change_active_lights(int pos, int d_offset)
 	glScalef(1.0f, 1.0f, -1.0f);
 	
 	//Valathil: Sort lights by priority
-	opengl_pre_render_init_lights();
+	extern bool Deferred_lighting;
+	if(!Deferred_lighting)
+		opengl_pre_render_init_lights();
 
 	for (i = 0; i < GL_max_lights; i++) {
 		if ( (offset + i) >= Num_active_gl_lights ) {
@@ -453,6 +458,7 @@ void gr_opengl_reset_lighting()
 
 	for (i = 0; i < GL_max_lights; i++) {
 		GL_state.Light(i, GL_FALSE);
+		opengl_lights[i].occupied = false;
 	}
 
 	Num_active_gl_lights = 0;

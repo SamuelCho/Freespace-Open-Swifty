@@ -175,17 +175,14 @@ int Interp_no_flush = 0;
 
 // forward references
 int model_interp_sub(void *model_ptr, polymodel * pm, bsp_info *sm, int do_box_check);
-void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1);
+void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags, int render, int objnum = -1);
 void model_interp_sortnorm_b2f(ubyte * p,polymodel * pm, bsp_info *sm, int do_box_check);
 void model_interp_sortnorm_f2b(ubyte * p,polymodel * pm, bsp_info *sm, int do_box_check);
 void (*model_interp_sortnorm)(ubyte * p,polymodel * pm, bsp_info *sm, int do_box_check) = model_interp_sortnorm_b2f;
 int model_should_render_engine_glow(int objnum, int bank_obj);
-void model_render_buffers(polymodel *pm, int mn, bool is_child = false);
-void model_render_children_buffers(polymodel * pm, int mn, int detail_level);
+void model_render_buffers(polymodel *pm, int mn,int render, bool is_child = false);
+void model_render_children_buffers(polymodel * pm, int mn, int detail_level, int render);
 int model_interp_get_texture(texture_info *tinfo, fix base_frametime);
-
-//Valathil - Transparent object buffer
-SCP_vector<transparent_submodel> transparent_submodels;
 
 void model_deallocate_interp_data()
 {
@@ -1954,7 +1951,7 @@ DCF(model_darkening,"Makes models darker with distance")
 	}
 }
 
-void model_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures)
+void model_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures, int render)
 {
 	int cull = 0;
 	// replacement textures - Goober5000
@@ -1969,20 +1966,50 @@ void model_render(int model_num, matrix *orient, vec3d * pos, uint flags, int ob
 		gr_set_texture_addressing(TMAP_ADDRESS_CLAMP);
 
 	int time = timestamp();
-	for (int i = 0; i < pm->n_glow_point_banks; i++ ) { //glow point blink code -Bobboau
-		glow_point_bank *bank = &pm->glow_point_banks[i];
-		if (bank->glow_timestamp == 0)
-			bank->glow_timestamp=time;
-		if(bank->off_time){
-			if(bank->is_on){
-				if( (bank->on_time) > ((time - bank->disp_time) % (bank->on_time + bank->off_time)) ){
-					bank->glow_timestamp=time;
-					bank->is_on=0;
+	glow_point_bank_override *gpo = NULL;
+	bool override_all = false;
+	SCP_unordered_map<int, void*>::iterator gpoi;
+	ship_info *sip = NULL;
+	ship *shipp = NULL;
+	
+	if(!Glowpoint_override) {
+		if(objnum>-1)
+		{
+			shipp = &Ships[Objects[objnum].instance];
+			sip = &Ship_info[shipp->ship_info_index];
+			SCP_unordered_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
+		
+			if(gpoi != sip->glowpoint_bank_override_map.end()) {
+				override_all = true;
+				gpo = (glow_point_bank_override*) sip->glowpoint_bank_override_map[-1];
+			}
+		}
+	
+		for (int i = 0; i < pm->n_glow_point_banks; i++ ) { //glow point blink code -Bobboau
+			glow_point_bank *bank = &pm->glow_point_banks[i];
+		
+			if(!override_all && sip) {
+				gpoi = sip->glowpoint_bank_override_map.find(i);
+				if(gpoi != sip->glowpoint_bank_override_map.end()) {
+					gpo = (glow_point_bank_override*) sip->glowpoint_bank_override_map[i];
+				} else {
+					gpo = NULL;
 				}
-			}else{
-				if( (bank->off_time) < ((time - bank->disp_time) % (bank->on_time + bank->off_time)) ){
-					bank->glow_timestamp=time;
-					bank->is_on=1;
+			}
+
+			if (bank->glow_timestamp == 0)
+				bank->glow_timestamp=time;
+			if(((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time)){
+				if(bank->is_on){
+					if( ((gpo && gpo->on_time_override)?gpo->on_time:bank->on_time) > ((time - ((gpo && gpo->disp_time_override)?gpo->disp_time:bank->disp_time)) % (((gpo && gpo->on_time_override)?gpo->on_time:bank->on_time) + ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time))) ){
+						bank->glow_timestamp=time;
+						bank->is_on=0;
+					}
+				}else{
+					if( ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time) < ((time - ((gpo && gpo->disp_time_override)?gpo->disp_time:bank->disp_time)) % (((gpo && gpo->on_time_override)?gpo->on_time:bank->on_time) + ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time))) ){
+						bank->glow_timestamp=time;
+						bank->is_on=1;
+					}
 				}
 			}
 		}
@@ -2017,13 +2044,13 @@ void model_render(int model_num, matrix *orient, vec3d * pos, uint flags, int ob
 	}
 
 	if ( !(flags & MR_NO_LIGHTING ) )	{
-		light_filter_push( objnum, pos, pm->rad );
+		//light_filter_push( objnum, pos, pm->rad );
 	}
 
-	model_really_render(model_num, orient, pos, flags, objnum);
+	model_really_render(model_num, orient, pos, flags, render, objnum);
 
 	if ( !(flags & MR_NO_LIGHTING ) )	{
-		light_filter_pop();
+		//light_filter_pop();
 	}
 
 	// maybe turn culling back on
@@ -2482,14 +2509,39 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 	int i, j;
 
 	int cull = gr_set_cull(0);
+	
+	glow_point_bank_override *gpo = NULL;
+	bool override_all = false;
+	SCP_unordered_map<int, void*>::iterator gpoi;
+	ship_info *sip = NULL;
 
+	if(shipp)
+	{
+		sip = &Ship_info[shipp->ship_info_index];
+		SCP_unordered_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
+		
+		if(gpoi != sip->glowpoint_bank_override_map.end()) {
+			override_all = true;
+			gpo = (glow_point_bank_override*) sip->glowpoint_bank_override_map[-1];
+		}
+	}
+	
 	for (i = 0; i < pm->n_glow_point_banks; i++ ) {
 		glow_point_bank *bank = &pm->glow_point_banks[i];
-
+		
+		if(!override_all && sip) {
+			gpoi = sip->glowpoint_bank_override_map.find(i);
+			if(gpoi != sip->glowpoint_bank_override_map.end()) {
+				gpo = (glow_point_bank_override*) sip->glowpoint_bank_override_map[i];
+			} else {
+				gpo = NULL;
+			}
+		}
+		
 		if (pm->submodel[bank->submodel_parent].blown_off)
 			continue;
 
-		if (bank->is_on) {
+		if ((gpo && gpo->off_time_override && !gpo->off_time)?gpo->is_on:bank->is_on) {
 			if ( (shipp != NULL) && !(shipp->glow_point_bank_active[i]) )
 				continue;
 
@@ -2536,11 +2588,11 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 							continue;
 					}
 
-					switch (bank->type)
+					switch ((gpo && gpo->type_override)?gpo->type:bank->type)
 					{
 						case 0:
 						{
-							float d;
+							float d,pulse = 1.0f;
 
 							if ( IS_VEC_NULL(&world_norm) ) {
 								d = 1.0f;	//if given a nul vector then always show it
@@ -2551,7 +2603,8 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 								d = vm_vec_dot(&tempv,&world_norm);
 								d -= 0.25;	
 							}
-					
+							
+							float w = gpt->radius;
 							if (d > 0.0f) {
 								vertex p;
 
@@ -2560,7 +2613,6 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 								if (d > 1.0f)
 									d = 1.0f;
 
-								float w = gpt->radius;
 
 								// fade them in the nebula as well
 								if (The_mission.flags & MISSION_FLAG_FULLNEB) {
@@ -2580,22 +2632,93 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 								} else {
 									g3_rotate_vertex(&p, &world_pnt);
 								}
- 
-								p.r = p.g = p.b = p.a = (ubyte)(255.0f * d);
-								int gpflags = TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT;
-								if (use_depth_buffer)
-									gpflags |= TMAP_FLAG_SOFT_QUAD;
 
-								batch_add_bitmap(
-									bank->glow_bitmap,
-									gpflags,  
-									&p,
-									0,
-									(w * 0.5f),
-									d
-								);
+								p.r = p.g = p.b = p.a = (ubyte)(255.0f * MAX(d,0.0f));
+								
+								if((gpo && gpo->glow_bitmap_override)?(gpo->glow_bitmap > -1):(bank->glow_bitmap > -1)) {
+									int gpflags = TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT;
+									if (use_depth_buffer)
+										gpflags |= TMAP_FLAG_SOFT_QUAD;
+								
+									batch_add_bitmap(
+										(gpo && gpo->glow_bitmap_override)?gpo->glow_bitmap:bank->glow_bitmap,
+										gpflags,  
+										&p,
+										0,
+										(w * 0.5f),
+										d * pulse,
+										w
+									);
+								}
 							} //d>0.0f
-
+							if(gpo && gpo->pulse_type) {
+								int period;
+								if(gpo->pulse_period_override) {
+									period = gpo->pulse_period;
+								} else {
+									if(gpo->on_time_override) {
+										period = 2 * gpo->on_time;
+									} else {
+										period = 2 * bank->on_time;
+									}
+								}
+								int x = 0;
+								if((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time) {
+									x = (timestamp() - ((gpo && gpo->disp_time_override)?gpo->disp_time:bank->disp_time)) % ( ((gpo && gpo->on_time_override)?gpo->on_time:bank->on_time) + ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time) ) - ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time);
+								} else {
+									x = (timestamp() - ((gpo && gpo->disp_time_override)?gpo->disp_time:bank->disp_time)) % gpo->pulse_period;
+								}
+								switch(gpo->pulse_type) {
+									case PULSE_SIN:
+										pulse = gpo->pulse_bias + gpo->pulse_amplitude * pow(sin( PI2 / period * x),gpo->pulse_exponent);
+										break;
+									case PULSE_COS:
+										pulse = gpo->pulse_bias + gpo->pulse_amplitude * pow(cos( PI2 / period * x),gpo->pulse_exponent);
+										break;
+									case PULSE_SHIFTTRI:
+										x += period / 4;
+										if((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time) {
+											x %= ( ((gpo && gpo->on_time_override)?gpo->on_time:bank->on_time) + ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time) );
+										} else {
+											x %= gpo->pulse_period;
+										}
+									case PULSE_TRI:
+										float inv;
+										if( x > period / 2) {
+											inv = -1;
+										} else {
+											inv = 1;
+										}
+										if( x > period / 4) {
+											pulse = gpo->pulse_bias + gpo->pulse_amplitude * inv * pow( 1.0f - ((x - period / 4.0f) * 4 / period) ,gpo->pulse_exponent);
+										} else {
+											pulse = gpo->pulse_bias + gpo->pulse_amplitude * inv * pow( (x * 4.0f / period) ,gpo->pulse_exponent);
+										}
+										break;
+								}
+							}
+							extern bool Deferred_lighting;
+							if(Deferred_lighting && gpo && gpo->is_lightsource)	{
+								if(gpo->lightcone) {
+									vec3d cone_dir_rot;
+									vec3d cone_dir_model;
+									vec3d cone_dir_world;
+									vec3d cone_dir_screen;
+									vec3d unused;
+									if(gpo->rotating) {
+										vm_rot_point_around_line(&cone_dir_rot, &gpo->cone_direction, PI * timestamp() * 0.000033333f * gpo->rotation_speed, &vmd_zero_vector, &gpo->rotation_axis);
+									} else {
+										cone_dir_rot = gpo->cone_direction; 
+									}
+									find_submodel_instance_point_normal(&unused, &cone_dir_model, &Objects[shipp->objnum], bank->submodel_parent, &unused, &cone_dir_rot);
+									vm_vec_unrotate(&cone_dir_world, &cone_dir_model, orient);
+									vm_vec_rotate(&cone_dir_screen, &cone_dir_world, &Eye_matrix);
+									cone_dir_screen.xyz.z = -cone_dir_screen.xyz.z;
+									light_add_cone(&world_pnt, &cone_dir_screen, gpo->cone_angle, gpo->cone_inner_angle, gpo->dualcone, 1.0f, w * gpo->radius_multi, 1, pulse * gpo->light_color.xyz.x + (1.0f-pulse) * gpo->light_mix_color.xyz.x, pulse * gpo->light_color.xyz.y + (1.0f-pulse) * gpo->light_mix_color.xyz.y, pulse * gpo->light_color.xyz.z + (1.0f-pulse) * gpo->light_mix_color.xyz.z, -1);
+								} else {
+									light_add_point(&world_pnt, 1.0f, w * gpo->radius_multi, 1, pulse * gpo->light_color.xyz.x + (1.0f-pulse) * gpo->light_mix_color.xyz.x, pulse * gpo->light_color.xyz.y + (1.0f-pulse) * gpo->light_mix_color.xyz.y, pulse * gpo->light_color.xyz.z + (1.0f-pulse) * gpo->light_mix_color.xyz.z, -1);
+								}
+							}
 							break;
 						}
 
@@ -2653,9 +2776,9 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 							} else {
 								gr_set_bitmap(bank->glow_bitmap, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 1.0f);		
 							}
-
+							gr_deferred_lighting_end();
 							gr_render(4, verts, TMAP_FLAG_TILED | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT);
-
+							gr_deferred_lighting_begin();
 							break;
 						}
 					} // switch(bank->type)
@@ -2669,8 +2792,9 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 
 void light_set_all_relevent();
 extern int Warp_model;
+extern bool in_shadow_map;
 
-void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum )
+void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags, int render, int objnum )
 {
 	int i;
 	int cull = 1;
@@ -2969,12 +3093,15 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 	// Draw the subobjects	
 	i = pm->submodel[pm->detail[Interp_detail_level]].first_child;
-
+	if(in_shadow_map)
+		gr_zbias(-1024);
+	else
+		gr_zbias(0);
 	while( i >= 0 )	{
 		if ( !pm->submodel[i].is_thruster ) {
 			// When in htl mode render with htl method unless its a jump node
 			if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-				model_render_children_buffers( pm, i, Interp_detail_level );
+				model_render_children_buffers( pm, i, Interp_detail_level, render );
 			} else {
 				model_interp_subcall( pm, i, Interp_detail_level );
 			}
@@ -2985,7 +3112,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		i = pm->submodel[i].next_sibling;
 	}	
 
-	gr_zbias(0);	
+		
 
 	model_radius = pm->submodel[pm->detail[Interp_detail_level]].rad;
 
@@ -2993,11 +3120,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 	// When in htl mode render with htl method unless its a jump node
 	if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-		transparent_submodel ts;
-		ts.is_submodel = false;
-		ts.pop_matrix = false;
-		transparent_submodels.push_back(ts);
-		model_render_buffers(pm, pm->detail[Interp_detail_level]);
+		model_render_buffers(pm, pm->detail[Interp_detail_level], render);
 	} else {
 		model_interp_subcall(pm, pm->detail[Interp_detail_level], Interp_detail_level);
 	}
@@ -3010,11 +3133,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 			if (pm->submodel[i].is_thruster) {
 				// When in htl mode render with htl method unless its a jump node
 				if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-					transparent_submodel ts;
-					ts.is_submodel = false;
-					ts.pop_matrix = false;
-					transparent_submodels.push_back(ts);
-					model_render_children_buffers( pm, i, Interp_detail_level );
+					model_render_children_buffers( pm, i, Interp_detail_level, render );
 				} else {
 					model_interp_subcall( pm, i, Interp_detail_level );
 				}
@@ -3022,46 +3141,6 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 			i = pm->submodel[i].next_sibling;
 		}
 	}
-
-	// Valathil - now draw the saved transparent objects
-	SCP_vector<transparent_submodel>::iterator ts;
-	SCP_vector<transparent_object>::iterator obj;
-
-	for(ts = transparent_submodels.begin(); ts != transparent_submodels.end(); ++ts)
-	{
-		if(ts->is_submodel)
-			g3_start_instance_matrix(&ts->model->offset, &ts->orient, true);
-
-		for(obj = ts->transparent_objects.begin(); obj != ts->transparent_objects.end(); ++obj)
-		{
-			GLOWMAP = obj->glow_map;
-			SPECMAP = obj->spec_map;
-			NORMMAP = obj->norm_map;
-			HEIGHTMAP = obj->height_map;
-			MISCMAP = obj->misc_map;
-
-			gr_push_scale_matrix(&obj->scale);
-			gr_set_bitmap(obj->texture, obj->blend_filter, GR_BITBLT_MODE_NORMAL, obj->alpha);
-
-			int zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
-		
-			gr_render_buffer(0, obj->buffer, obj->i, obj->tmap_flags);
-		
-			gr_zbuffer_set(zbuff);
-			gr_pop_scale_matrix();
-
-			GLOWMAP = -1;
-			SPECMAP = -1;
-			NORMMAP = -1;
-			HEIGHTMAP = -1;
-			MISCMAP = -1;
-		}
-		ts->transparent_objects.clear();
-		
-		if(ts->pop_matrix)
-			g3_done_instance(true);
-	}
-	transparent_submodels.clear();
 
 	if ( !Interp_no_flush ) {
 		gr_flush_data_states();
@@ -3098,7 +3177,8 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	if (!Cmdline_nohtl)	gr_set_texture_panning(0.0, 0.0, false);
 
 	gr_zbuffer_set(GR_ZBUFF_READ);
-	model_render_insignias(pm, Interp_detail_level);	
+	if(!(Interp_flags & MR_NO_TEXTURING))
+		model_render_insignias(pm, Interp_detail_level);	
 
 	gr_zbias(0);  
 
@@ -3153,7 +3233,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 }
 
 
-void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures)
+void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures, int render)
 {
 	// replacement textures - Goober5000
 	model_set_replacement_textures(replacement_textures);
@@ -3278,45 +3358,13 @@ void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * po
 			neb2_get_fog_color(&r, &g, &b);
 			gr_fog_set(GR_FOGMODE_FOG, r, g, b, fog_near, fog_far);
 		}
-
+		if(in_shadow_map)
+			gr_zbias(-1024);
+		else
+			gr_zbias(0);
 		gr_set_buffer(pm->vertex_buffer_id);
 
-		transparent_submodel ts;
-		ts.is_submodel = false;
-		ts.pop_matrix = false;
-		transparent_submodels.push_back(ts);
-
-		model_render_buffers(pm, submodel_num);
-
-		SCP_vector<transparent_submodel>::iterator ts_i = transparent_submodels.begin();
-		SCP_vector<transparent_object>::iterator obj;
-			
-		for(obj = ts_i->transparent_objects.begin(); obj != ts_i->transparent_objects.end(); ++obj)
-		{
-			GLOWMAP = obj->glow_map;
-			SPECMAP = obj->spec_map;
-			NORMMAP = obj->norm_map;
-			HEIGHTMAP = obj->height_map;
-			MISCMAP = obj->misc_map;
-
-			gr_push_scale_matrix(&obj->scale);
-			gr_set_bitmap(obj->texture, obj->blend_filter, GR_BITBLT_MODE_NORMAL, obj->alpha);
-
-			int zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
-		
-			gr_render_buffer(0, obj->buffer, obj->i, obj->tmap_flags);
-		
-			gr_zbuffer_set(zbuff);
-			gr_pop_scale_matrix();
-
-			GLOWMAP = -1;
-			SPECMAP = -1;
-			NORMMAP = -1;
-			HEIGHTMAP = -1;
-			MISCMAP = -1;
-		}
-		ts_i->transparent_objects.clear();
-		transparent_submodels.clear();
+		model_render_buffers(pm, submodel_num, render);
 
 		gr_set_buffer(-1);
 	} else {
@@ -3342,6 +3390,7 @@ void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * po
 	if ( !(Interp_flags & MR_NO_LIGHTING ) )	{
 		light_filter_pop();	
 	}
+	gr_zbias(0);
 	if (set_autocen)
 		g3_done_instance(true);
 	g3_done_instance(true);
@@ -4392,7 +4441,7 @@ inline int in_sphere(vec3d *pos, float radius)
 }
 
 
-void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
+void model_render_children_buffers(polymodel *pm, int mn, int detail_level, int render)
 {
 	int i;
 
@@ -4471,26 +4520,7 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
 
 	g3_start_instance_matrix(&model->offset, &submodel_matrix, true);
 	
-	transparent_submodel ts;
-	ts.is_submodel = true;
-	ts.pop_matrix = true;
-
-	bool childs = false;
-	i = model->first_child;
-	while (i >= 0) {
-		if ( !pm->submodel[i].is_thruster ) {
-			childs = true;
-			ts.pop_matrix = false;
-			break;
-		}
-
-		i = pm->submodel[i].next_sibling;
-	}
-	ts.model = model;
-	
-	memcpy(&ts.orient,&submodel_matrix,sizeof(matrix));
-	transparent_submodels.push_back(ts);
-	model_render_buffers(pm, mn, true);
+	model_render_buffers(pm, mn, render, true);
 
 	if (Interp_flags & MR_SHOW_PIVOTS)
 		model_draw_debug_points( pm, &pm->submodel[mn] );
@@ -4502,19 +4532,10 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
 
 	while (i >= 0) {
 		if ( !pm->submodel[i].is_thruster ) {
-			model_render_children_buffers( pm, i, detail_level );
+			model_render_children_buffers( pm, i, detail_level, render );
 		}
 
 		i = pm->submodel[i].next_sibling;
-	}
-
-	if(childs)
-	{
-		ts.is_submodel = false;
-		ts.pop_matrix = true;
-		ts.model = 0;
-		ts.transparent_objects.clear();
-		transparent_submodels.push_back(ts);
 	}
 
 	Interp_flags = fl;
@@ -4530,7 +4551,7 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level)
 	g3_done_instance(true);
 }
 
-void model_render_buffers(polymodel *pm, int mn, bool is_child)
+void model_render_buffers(polymodel *pm, int mn, int render, bool is_child)
 {
 	if (pm->vertex_buffer_id < 0)
 		return;
@@ -4691,6 +4712,21 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 			}
 		} else {
 			alpha = forced_alpha;
+		
+			//Check for invisible or transparent textures so they dont show up in the shadow maps - Valathil
+			if ( (Interp_new_replacement_textures != NULL) && (Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
+				tex_replace[TM_BASE_TYPE] = texture_info(Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE]);
+				texture = model_interp_get_texture(&tex_replace[TM_BASE_TYPE], Interp_base_frametime);
+			} else {
+				texture = model_interp_get_texture(&tmap->textures[TM_BASE_TYPE], Interp_base_frametime);
+			}
+
+			if (texture <= 0) {
+				continue;
+			}
+
+			//if(bm_has_alpha_channel(texture))
+				//continue;
 		}
 
 		if ( (texture == -1) && !no_texturing ) {
@@ -4702,32 +4738,34 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 			// for special shockwave/warpmap usage
 			alpha = (Interp_warp_alpha != -1.0f) ? Interp_warp_alpha : 0.8f;
 			blend_filter = GR_ALPHABLEND_FILTER;
+			
+		}
+		
+		if (forced_blend_filter != GR_ALPHABLEND_NONE) {
+			blend_filter = forced_blend_filter;
+		}
 
-			//Valathil - Save the object for later rendering
-			transparent_object tobj;
-			tobj.alpha=alpha;
-			tobj.blend_filter = blend_filter;
-			tobj.buffer = &model->buffer;
-			tobj.glow_map = GLOWMAP;
-			tobj.height_map = HEIGHTMAP;
-			tobj.misc_map = MISCMAP;
-			tobj.i = i;
-			tobj.norm_map = NORMMAP;
-			tobj.spec_map = SPECMAP;
-			tobj.texture = texture;
-			tobj.tmap_flags = Interp_tmap_flags;
-			memcpy(&tobj.scale,&scale,sizeof(vec3d));
-			transparent_submodels.back().transparent_objects.push_back(tobj);
+		extern bool object_had_transparency;
+		if (blend_filter != GR_ALPHABLEND_NONE) {
+			if(render & MODEL_RENDER_TRANS)
+			{
+				gr_zbuffer_set(GR_ZBUFF_READ);
+				gr_set_bitmap(texture, blend_filter, GR_BITBLT_MODE_NORMAL, alpha);
+				gr_render_buffer(0, &model->buffer, i, Interp_tmap_flags);
+				gr_zbuffer_set(GR_ZBUFF_FULL);
+			}
+			else
+			{
+				object_had_transparency = true;
+			}
 		}
 		else
 		{
-			if (forced_blend_filter != GR_ALPHABLEND_NONE) {
-				blend_filter = forced_blend_filter;
+			if(render & MODEL_RENDER_OPAQUE)
+			{
+				gr_set_bitmap(texture, blend_filter, GR_BITBLT_MODE_NORMAL, alpha);
+				gr_render_buffer(0, &model->buffer, i, Interp_tmap_flags);
 			}
-
-			gr_set_bitmap(texture, blend_filter, GR_BITBLT_MODE_NORMAL, alpha);
-
-			gr_render_buffer(0, &model->buffer, i, Interp_tmap_flags);
 		}
 
 		GLOWMAP = -1;
