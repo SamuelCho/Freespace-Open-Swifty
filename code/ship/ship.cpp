@@ -300,6 +300,7 @@ flag_def_list Ship_flags[] = {
 	{ "gun convergence",			SIF2_GUN_CONVERGENCE,		1 },
 	{ "no thruster geometry noise", SIF2_NO_THRUSTER_GEO_NOISE,	1 },
 	{ "intrinsic no shields",		SIF2_INTRINSIC_NO_SHIELDS,	1 },
+	{ "dynamic primary linking",    SIF2_DYN_PRIMARY_LINKING,	1 },
 	{ "no primary linking",			SIF2_NO_PRIMARY_LINKING,	1 },
 	{ "no pain flash",				SIF2_NO_PAIN_FLASH,			1 },
 	{ "no ets",						SIF2_NO_ETS,				1 },
@@ -8108,7 +8109,7 @@ void ship_subsys_set_disrupted(ship_subsys *ss, int time)
 }
 
 /**
- * Determine if a given subsystem is disrupted (ie inoperable)
+ * Determine if a given type of subsystem is disrupted (i.e. inoperable)
  * 
  * @param sp	pointer to ship containing subsystem
  * @param type	type of subsystem (SUBSYSTEM_*)
@@ -8116,6 +8117,13 @@ void ship_subsys_set_disrupted(ship_subsys *ss, int time)
  */
 int ship_subsys_disrupted(ship *sp, int type)
 {
+	Assert ( sp != NULL );
+	Assert ( type >= 0 && type < SUBSYSTEM_MAX );
+    
+	// Bogus pointer to ship to check for disrupted subsystem
+	if (sp == NULL)
+		return 0;
+    
 	if ( sp->subsys_disrupted_flags & (1<<type) ) {
 		return 1;
 	} else {
@@ -8429,6 +8437,7 @@ void ship_set_default_weapons(ship *shipp, ship_info *sip)
 	//	Later, this will happen in the weapon loadout screen.
 	for (i=0; i < MAX_SHIP_PRIMARY_BANKS; i++){
 		swp->primary_bank_weapons[i] = sip->primary_bank_weapons[i];
+		swp->primary_bank_slot_count[i] = 1; // RSAXVC DYN LINK CODE
 	}
 
 	for (i=0; i < MAX_SHIP_SECONDARY_BANKS; i++){
@@ -9484,10 +9493,10 @@ int ship_launch_countermeasure(object *objp, int rand_val)
 		if ( objp == Player_obj ) {
 			if(sip->cmeasure_max < 1 || sip->cmeasure_type < 0) {
 				//TODO: multi-lingual support
-				HUD_sourced_printf(HUD_SOURCE_HIDDEN, XSTR( "Not equipped with countermeasures", -1));
+				HUD_sourced_printf(HUD_SOURCE_HIDDEN, XSTR( "Not equipped with countermeasures", 1633));
 			} else if(shipp->current_cmeasure < 0) {
 				//TODO: multi-lingual support
-				HUD_sourced_printf(HUD_SOURCE_HIDDEN, XSTR( "No countermeasures selected", -1));
+				HUD_sourced_printf(HUD_SOURCE_HIDDEN, XSTR( "No countermeasures selected", 1634));
 			} else if(shipp->cmeasure_count <= 0) {
 				HUD_sourced_printf(HUD_SOURCE_HIDDEN, XSTR( "No more countermeasure charges.", 485));
 			}
@@ -10003,7 +10012,11 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 			swp->last_primary_fire_stamp[bank_to_fire] = timestamp();
 		}
 
-		if (winfo_p->wi_flags2 & WIF2_CYCLE){
+		if (sip->flags2 & SIF2_DYN_PRIMARY_LINKING ) {
+			Assert(pm->gun_banks[bank_to_fire].num_slots != 0);
+			swp->next_primary_fire_stamp[bank_to_fire] = timestamp((int)(next_fire_delay * ( swp->primary_bank_slot_count[ bank_to_fire ] ) / pm->gun_banks[bank_to_fire].num_slots ) );
+			swp->last_primary_fire_stamp[bank_to_fire] = timestamp();
+		} else if (winfo_p->wi_flags2 & WIF2_CYCLE) {
 			Assert(pm->gun_banks[bank_to_fire].num_slots != 0);
 			swp->next_primary_fire_stamp[bank_to_fire] = timestamp((int)(next_fire_delay / pm->gun_banks[bank_to_fire].num_slots));
 			swp->last_primary_fire_stamp[bank_to_fire] = timestamp();
@@ -10156,7 +10169,10 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 
 				// ok if this is a cycling weapon use shots as the number of points to fire from at a time
 				// otherwise shots is the number of times all points will be fired (used mostly for the 'shotgun' effect)
-				if (winfo_p->wi_flags2 & WIF2_CYCLE) {
+				if ( sip->flags2 & SIF2_DYN_PRIMARY_LINKING ) {
+					numtimes = 1;
+					points = MIN( num_slots, swp->primary_bank_slot_count[ bank_to_fire ] );
+				} else if ( winfo_p->wi_flags2 & WIF2_CYCLE ) {
 					numtimes = 1;
 					points = MIN(num_slots, winfo_p->shots);
 				} else {
@@ -10262,7 +10278,7 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 
 					for ( j = 0; j < points; j++ ) {
 						int pt; //point
-						if (winfo_p->wi_flags2 & WIF2_CYCLE){
+						if ( (winfo_p->wi_flags2 & WIF2_CYCLE) || (sip->flags2 & SIF2_DYN_PRIMARY_LINKING) ){
 							pt = (shipp->last_fired_point[bank_to_fire]+1)%num_slots;
 						}else{
 							pt = j;
@@ -11035,7 +11051,7 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 
 		int start_slot, end_slot;
 
-		if ( shipp->flags & SF_SECONDARY_DUAL_FIRE ) {
+		if ( shipp->flags & SF_SECONDARY_DUAL_FIRE && num_slots > 1) {
 			start_slot = swp->secondary_next_slot[bank];
 			// AL 11-19-97: Ensure enough ammo remains when firing linked secondary weapons
 			if ( check_ammo && (swp->secondary_bank_ammo[bank] < 2) ) {
@@ -11044,6 +11060,9 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 				end_slot = start_slot+1;
 			}
 		} else {
+			// de-set the flag just in case dual-fire was set but couldn't be used
+			// because there's less than two firepoints
+			shipp->flags &= ~SF_SECONDARY_DUAL_FIRE;
 			start_slot = swp->secondary_next_slot[bank];
 			end_slot = start_slot;
 		}
@@ -11326,6 +11345,11 @@ int ship_select_next_primary(object *objp, int direction)
 		Assert((swp->current_primary_bank >= 0) && (swp->current_primary_bank < swp->num_primary_banks));
 
 		// first check if linked
+		if ( shipp->flags2 & SF2_SHIP_SELECTIVE_LINKING )
+		{
+			printf("npb:%i\n", swp->num_primary_banks );
+		}
+
 		if ( shipp->flags & SF_PRIMARY_LINKED )
 		{
 			shipp->flags &= ~SF_PRIMARY_LINKED;
@@ -12604,7 +12628,7 @@ int ship_do_rearm_frame( object *objp, float frametime )
 	if ( shipp->flags & SF_WARP_BROKEN ) {
 		// TODO: maybe do something here like informing player warp is fixed?
 		// like this? -- Goober5000
-		HUD_sourced_printf(HUD_SOURCE_HIDDEN, XSTR( "Subspace drive repaired.", -1));
+		HUD_sourced_printf(HUD_SOURCE_HIDDEN, XSTR( "Subspace drive repaired.", 1635));
 		shipp->flags &= ~SF_WARP_BROKEN;
 	}
 
@@ -16707,7 +16731,7 @@ void ArmorDamageType::clear()
 
 	Calculations.clear();
 	Arguments.clear();
-	altArguments.clear();  // Nuke: dont forget to delete it
+	altArguments.clear();  // Nuke: don't forget to delete it
 }
 
 //************
@@ -17235,7 +17259,7 @@ void ArmorType::ParseData()
 			no_content = false;
 		}
 
-		// Nuke: dont forget to init things
+		// Nuke: don't forget to init things
 		adt.difficulty_scale_type = ADT_DIFF_SCALE_FIRST;
 
 		if (optional_string("+Difficulty Scale Type:")) {
