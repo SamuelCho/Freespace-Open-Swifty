@@ -7204,17 +7204,17 @@ ADE_VIRTVAR(Radius, l_Subsystem, "number", "The radius of this subsystem", "numb
 {
 	ship_subsys_h *sso;
 	if (!ade_get_args(L, "o", l_Subsystem.GetPtr(&sso)))
-		return ade_set_error(L, "i", 0);
+		return ade_set_error(L, "f", 0.0f);
 	
 	if (!sso->IsValid())
-		return ade_set_error(L, "i", 0);
+		return ade_set_error(L, "f", 0.0f);
 
 	if(ADE_SETTING_VAR)
 	{
 		LuaError(L, "Setting radius for subsystems is not allowed!");
 	}
 
-	return ade_set_args(L, "i", sso->ss->system_info->radius);
+	return ade_set_args(L, "f", sso->ss->system_info->radius);
 }
 
 ADE_VIRTVAR(TurretLocked, l_Subsystem, "boolean", "Whether the turret is locked. Setting to true locks the turret, setting to false frees it.", "boolean", "True if turret is locked, false otherwise")
@@ -9677,18 +9677,29 @@ ADE_FUNC(getImageFilename, l_Player, NULL, "Gets current player image filename",
 	return ade_set_args(L, "s", Players[idx].image_filename);
 }
 
-
-ADE_FUNC(getMainHall, l_Player, NULL, "Gets player's main hall number", "number", "Main hall index, or 1 if handle is invalid")
+ADE_FUNC(getMainHallName, l_Player, NULL, "Gets player's current main hall name", "string", "Main hall name, or name of first mainhall in campaign if something goes wrong")
 {
-	int idx;
-	if(!ade_get_args(L, "o", l_Player.Get(&idx)))
-		return ade_set_error(L, "i", 1);
+	SCP_string hallname;
+	// FS2-->Lua
+	if (Campaign.next_mission == -1) {
+		hallname = Campaign.missions[0].main_hall;
+	} else {
+		hallname = Campaign.missions[Campaign.next_mission].main_hall;
+	}
 
-	if(idx < 0 || idx >= Player_num)
-		return ade_set_error(L, "i", 1);
+	return ade_set_args(L, "i", hallname.c_str());
+}
 
+// use getMainHallName if at all possible.
+ADE_FUNC(getMainHallIndex, l_Player, NULL, "Gets player's current main hall number", "number", "Main hall index, or index of first mainhall in campaign if something goes wrong")
+{
+	int hallnum = 0;
 	//FS2-->Lua
-	int hallnum = (int)Players[idx].main_hall + 1;
+	if (Campaign.next_mission == -1) {
+		hallnum = main_hall_get_index(Campaign.missions[0].main_hall);
+	} else {
+		hallnum = main_hall_get_index(Campaign.missions[Campaign.next_mission].main_hall);
+	}
 
 	return ade_set_args(L, "i", hallnum);
 }
@@ -11939,9 +11950,18 @@ ADE_FUNC(getScreenHeight, l_Graphics, NULL, "Gets screen height", "number", "Hei
 	return ade_set_args(L, "i", gr_screen.max_h);
 }
 
-ADE_FUNC(getCurrentCamera, l_Graphics, NULL, "Gets the current camera handle", "camera", "camera handle or invalid handle on error")
+ADE_FUNC(getCurrentCamera, l_Graphics, "[boolean]", "Gets the current camera handle, if argument is <i>true</i> then it will also return the main camera when no custom camera is in use", "camera", "camera handle or invalid handle on error")
 {
-	camid current = cam_get_current();
+	camid current;
+
+	bool rtnMain = false;
+
+	ade_get_args(L, "|b", &rtnMain);
+
+	if (!rtnMain || Viewer_mode & VM_FREECAMERA)
+		current = cam_get_current();
+	else
+		current = Main_camera;
 
 	return ade_set_args(L, "o", l_Camera.Set(current));
 }
@@ -11969,7 +11989,12 @@ ADE_FUNC(getVectorFromCoords, l_Graphics,
 		vec3d cam_pos;
 		matrix cam_orient;
 
-		camid cid = cam_get_current();
+		camid cid;
+		if (Viewer_mode & VM_FREECAMERA)
+			cid = cam_get_current();
+		else
+			cid = Main_camera;
+
 		camera *cam = cid.getCamera();
 
 		if (cam != NULL) {
@@ -12220,7 +12245,13 @@ ADE_FUNC(drawSphere, l_Graphics, "[number Radius = 1.0, vector Position]", "Draw
 		vec3d cam_pos;
 		matrix cam_orient;
 
-		camid cid = cam_get_current();
+		camid cid;
+		
+		if (Viewer_mode & VM_FREECAMERA)
+			cid = cam_get_current();
+		else
+			cid = Main_camera;
+
 		camera *cam = cid.getCamera();
 
 		if (cam != NULL) {
@@ -12275,7 +12306,12 @@ ADE_FUNC(drawModel, l_Graphics, "model, position, orientation", "Draws the given
 	vec3d cam_pos;
 	matrix cam_orient;
 
-	camid cid = cam_get_current();
+	camid cid;
+	if (Viewer_mode & VM_FREECAMERA)
+		cid = cam_get_current();
+	else
+		cid = Main_camera;
+
 	camera *cam = cid.getCamera();
 
 	if (cam != NULL) {

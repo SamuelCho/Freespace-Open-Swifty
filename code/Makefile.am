@@ -191,10 +191,10 @@ AM_LDFLAGS = @D_LDFLAGS@ @FS2_LDFLAGS@
 noinst_LIBRARIES = libcode.a
 bin_PROGRAMS = @FS2_BINARY@
 
-EXTRA_PROGRAMS = fs2_open_@PACKAGE_VERSION@ fs2_open_@PACKAGE_VERSION@_NOINF \
-	fs2_open_@PACKAGE_VERSION@_DEBUG fs2_open_@PACKAGE_VERSION@_NOINF_DEBUG \
-	wxFRED2_@PACKAGE_VERSION@ wxFRED2_@PACKAGE_VERSION@_NOINF \
-	wxFRED2_@PACKAGE_VERSION@_DEBUG wxFRED2_@PACKAGE_VERSION@_NOINF_DEBUG 
+EXTRA_PROGRAMS = fs2_open_@PACKAGE_VERSION@ \
+	fs2_open_@PACKAGE_VERSION@_DEBUG \
+	wxFRED2_@PACKAGE_VERSION@ \
+	wxFRED2_@PACKAGE_VERSION@_DEBUG 
 
 ###############################################################################
 ##
@@ -600,6 +600,14 @@ FS2_SOURCES =	\
 	particle/particle.h	\
 	pcxutils/pcxutils.cpp	\
 	pcxutils/pcxutils.h	\
+	pilotfile/pilotfile.cpp	\
+	pilotfile/pilotfile.h	\
+	pilotfile/pilotfile_convert.cpp	\
+	pilotfile/pilotfile_convert.h	\
+	pilotfile/plr.cpp	\
+	pilotfile/csg.cpp	\
+	pilotfile/plr_convert.cpp	\
+	pilotfile/csg_convert.cpp	\
 	pngutils/pngutils.cpp	\
 	pngutils/pngutils.h	\
 	physics/physics.cpp	\
@@ -804,16 +812,8 @@ fs2_open_@PACKAGE_VERSION@_DEBUG_SOURCES =	\
 fs2_open_@PACKAGE_VERSION@_SOURCES =	\
 	${FS2OPEN_SOURCES}
 
-fs2_open_@PACKAGE_VERSION@_NOINF_DEBUG_SOURCES =	\
-	${FS2OPEN_SOURCES}
-
-fs2_open_@PACKAGE_VERSION@_NOINF_SOURCES =	\
-	${FS2OPEN_SOURCES}
-
 fs2_open_@PACKAGE_VERSION@_DEBUG_LDADD = libcode.a
 fs2_open_@PACKAGE_VERSION@_LDADD = libcode.a
-fs2_open_@PACKAGE_VERSION@_NOINF_DEBUG_LDADD = libcode.a
-fs2_open_@PACKAGE_VERSION@_NOINF_LDADD = libcode.a
 
 ##
 ## End MAIN binary
@@ -839,16 +839,8 @@ wxFRED2_@PACKAGE_VERSION@_DEBUG_SOURCES = \
 wxFRED2_@PACKAGE_VERSION@_SOURCES =	\
 	${wxFRED_SOURCES}
 
-wxFRED2_@PACKAGE_VERSION@_NOINF_DEBUG_SOURCES = \
-	${wxFRED_SOURCES}
-
-wxFRED2_@PACKAGE_VERSION@_NOINF_SOURCES =	\
-	${wxFRED_SOURCES}
-
 wxFRED2_@PACKAGE_VERSION@_DEBUG_LDADD = libcode.a
 wxFRED2_@PACKAGE_VERSION@_LDADD = libcode.a
-wxFRED2_@PACKAGE_VERSION@_NOINF_DEBUG_LDADD = libcode.a
-wxFRED2_@PACKAGE_VERSION@_NOINF_LDADD = libcode.a
 
 ##
 ## End wxFRED2 binary
