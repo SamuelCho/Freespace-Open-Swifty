@@ -1048,3 +1048,8 @@ float fireball_wormhole_intensity( object *obj )
 	}
 	return rad;
 } 
+
+void fireball_queue_render(object* obj)
+{
+
+}

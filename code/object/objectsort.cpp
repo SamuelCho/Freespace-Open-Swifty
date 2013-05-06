@@ -20,7 +20,7 @@
 #include "weapon/weapon.h"
 #include "debris/debris.h"
 #include "asteroid/asteroid.h"
-
+#include "model/modelrender.h"
 
 typedef struct sorted_obj {
 	object			*obj;					// a pointer to the original object
@@ -335,5 +335,88 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 	}
 
 	batch_render_all();
+}
+
+void obj_queue_render(object* obj, DrawList* scene)
+{
+	if ( obj->flags & OF_SHOULD_BE_DEAD ) return;
+
+	// need to figure out what to do with this hook. 
+	// maybe save an array of these and run the script conditions after we finish drawing
+	Script_system.SetHookObject("Self", obj);
+
+	if ( Script_system.IsConditionOverride(CHA_OBJECTRENDER, obj) ) {
+		Script_system.RunCondition(CHA_OBJECTRENDER, '\0', NULL, obj);
+		Script_system.RemHookVar("Self");
+		return;
+	}
+
+	switch ( obj->type ) {
+	case OBJ_NONE:
+#ifndef NDEBUG
+		mprintf(( "ERROR!!!! Bogus obj %d is rendering!\n", obj-Objects ));
+		Int3();
+#endif
+		break;
+	case OBJ_WEAPON:
+		if ( Cmdline_dis_weapons ) return;
+		weapon_queue_render(obj);
+		break;
+	case OBJ_SHIP:
+		ship_queue_render(obj, scene);
+		break;
+	case OBJ_FIREBALL:
+		fireball_queue_render(obj);
+		break;
+	case OBJ_SHOCKWAVE:
+		shockwave_queue_render(obj);
+		break;
+	case OBJ_DEBRIS:
+		debris_queue_render(obj);
+		break;
+	case OBJ_ASTEROID:
+		asteroid_queue_render(obj);
+		break;
+	case OBJ_JUMP_NODE:
+		jumpnode_queue_render(obj);
+		for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
+			if(jnp->GetSCPObject() != obj)
+				continue;
+			jnp->Render(&obj->pos, &Eye_position);
+		}
+		break;
+	case OBJ_WAYPOINT:
+		if (Show_waypoints)	{
+			gr_set_color( 128, 128, 128 );
+			g3_draw_sphere_ez( &obj->pos, 5.0f );
+		}
+		waypoint_queue_render(obj);
+		break;
+	case OBJ_GHOST:
+		break;
+	case OBJ_BEAM:
+		break;
+	default:
+		Error( LOCATION, "Unhandled obj type %d in obj_render", obj->type );
+	}
+}
+
+void obj_render_queue_all()
+{
+	object *objp;
+	int i;
+	DrawList scene_queue;
+
+	objp = Objects;
+
+	for ( i = 0; i <= Highest_object_index; i++,objp++ ) {
+		if ( (objp->type != OBJ_NONE) && ( objp->flags & OF_RENDERS ) )	{
+			objp->flags &= ~OF_WAS_RENDERED;
+
+			if ( obj_in_view_cone(objp) ) {
+				obj_queue_render(objp);
+			}
+		}
+	}
 }
 

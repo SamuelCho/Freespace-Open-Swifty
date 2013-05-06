@@ -5016,3 +5016,4 @@ void texture_map::Reset()
 	for(int i = 0; i < TM_NUM_TYPES; i++)
 		this->textures[i].ResetTexture();
 }
+

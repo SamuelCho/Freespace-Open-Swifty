@@ -6758,3 +6758,8 @@ void weapon_unpause_sounds()
 	// Pause all beam sounds
 	beam_unpause_sounds();
 }
+
+void weapon_queue_render(object* obj)
+{
+
+}

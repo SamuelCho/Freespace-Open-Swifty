@@ -77,6 +77,7 @@ typedef struct fireball {
 
 void fireball_init();
 void fireball_render(object * obj);
+void fireball_queue_render(object* obj);
 void fireball_delete( object * obj );
 void fireball_process_post(object * obj, float frame_time);
 

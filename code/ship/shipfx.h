@@ -14,6 +14,7 @@
 
 #include "globalincs/pstypes.h"
 #include "graphics/grbatch.h"
+#include "model/modelrender.h"
 
 struct object;
 struct ship;
@@ -178,6 +179,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
+	virtual int warpQueueShipClip(DrawList *scene);
 	virtual int warpShipRender();
 	virtual int warpEnd();
 
@@ -216,6 +218,7 @@ public:
 	int warpStart();
 	int warpFrame(float frametime);
 	int warpShipClip();
+	int warpQueueShipClip(DrawList *scene);
 	int warpShipRender();
 
 	int getWarpPosition(vec3d *output);
@@ -273,6 +276,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
+	virtual int warpQueueShipClip(DrawList *scene);
 	virtual int warpShipRender();
 	virtual int warpEnd();
 
@@ -322,6 +326,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
+	virtual int warpQueueShipClip(DrawList *scene);
 	virtual int warpShipRender();
 	virtual int warpEnd();
 
