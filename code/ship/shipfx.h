@@ -112,6 +112,8 @@ int shipfx_large_blowup_do_frame(ship *shipp, float frametime);
 
 void shipfx_large_blowup_render(ship *shipp);
 
+void shipfx_large_blowup_queue_render(interp_data *interp, DrawList *scene, ship* shipp);
+
 void shipfx_debris_limit_speed(struct debris *db, ship *shipp);
 
 // sound manager fore big ship sub explosions sounds

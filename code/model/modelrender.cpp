@@ -609,8 +609,10 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 
 	//set to true since D3d and OGL need the api matrices set
 	g3_start_instance_matrix(pos, orient, false);
+
 	bool set_autocen = false;
 	vec3d auto_back = ZERO_VECTOR;
+
 	if ( interp->flags & MR_AUTOCENTER ) {
 		// standard autocenter using data in model
 		if ( pm->flags & PM_FLAG_AUTOCEN ) {
@@ -625,8 +627,9 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 			set_autocen = true;
 		}
 
-		if (set_autocen)
+		if ( set_autocen ) {
 			g3_start_instance_matrix(&auto_back, NULL, false);
+		}
 	}
 
 	if (is_outlines_only_htl) {
@@ -645,7 +648,7 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 	if ( !( interp->flags & MR_NO_LIGHTING ) ) {
 		interp->light = 1.0f;
 
-		light_filter_push( -1, pos, pm->submodel[submodel_num].rad );
+		scene->pushLightFilter(-1, pos, pm->submodel[submodel_num].rad);
 
 		light_rotate_all();
 
@@ -691,11 +694,9 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 			scene->setZBias(0);
 		}
 
-		gr_set_buffer(pm->vertex_buffer_id);
+		scene->setBuffer(pm->vertex_buffer_id);
 
-		model_render_buffers(pm, submodel_num, render);
-
-		gr_set_buffer(-1);
+		model_queue_render_buffers(scene, interp, pm, submodel_num);
 	} else {
 		model_interp_sub( pm->submodel[submodel_num].bsp_data, pm, &pm->submodel[submodel_num], 0 );
 	}
@@ -708,7 +709,7 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 	scene->setFillMode(GR_FILL_MODE_SOLID);
 
 	if ( pm->submodel[submodel_num].num_arcs )	{
-		interp_render_lightning( pm, &pm->submodel[submodel_num]);
+		model_queue_render_lightning( scene, interp, pm, &pm->submodel[submodel_num] );
 	}
 
 	if ( interp->flags & MR_SHOW_PIVOTS ) {
@@ -716,7 +717,7 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 	}
 
 	if ( !( interp->flags & MR_NO_LIGHTING ) )	{
-		light_filter_pop();	
+		scene->popLightFilter();
 	}
 
 	scene->setZBias(0);
@@ -731,8 +732,6 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 	if(The_mission.flags & MISSION_FLAG_FULLNEB){
 		gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
 	}
-
-	gr_flush_data_states();
 }
 
 void model_queue_render(interp_data *interp, DrawList *scene, int model_num, matrix *orient, vec3d *pos, uint flags, int objnum, int lighting_skip, int *replacement_textures)

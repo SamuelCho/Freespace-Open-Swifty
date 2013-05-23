@@ -17901,6 +17901,8 @@ void ship_queue_render(object* obj, DrawList* scene)
 	uint render_flags = MR_NORMAL;
 
 	if ( shipp->large_ship_blowup_index >= 0 )	{
+		shipfx_large_blowup_queue_render(&interp, scene, shipp);
+
 		//WMC - Draw animated warp effect (ie BSG thingy)
 		//WMC - based on Bobb's secondary thruster stuff
 		//which was in turn based on the beam code.

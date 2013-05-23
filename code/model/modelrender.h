@@ -9,6 +9,7 @@
 
 #include "model/model.h"
 #include "Math/vecmat.h"
+#include "lighting/lighting.h"
 
 extern bool in_shadow_map;
 
@@ -74,6 +75,9 @@ class DrawList
 	SCP_vector<clip_plane_state> clip_planes;
 	SCP_vector<render_state> render_states;
 
+	SCP_vector<light> lights;
+	SCP_vector<int> filtered_lights[MAX_LIGHT_LEVELS];
+
 	SCP_vector<queued_buffer_draw> render_elements;
 
 	SCP_vector<int> render_keys;
@@ -102,6 +106,11 @@ public:
 	void setAnimatedEffect(int effect);
 	void addBufferDraw(matrix* orient, vec3d* pos, vertex_buffer *buffer, int texi, uint tmap_flags);
 	void addArc(matrix *orient, vec3d *pos, vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width);
+
+	void addLight(light* light_info);
+	void pushLightFilter(int objnum, vec3d *pos, float rad);
+	void popLightFilter();
+
 };
 
 struct interp_data
@@ -216,4 +225,6 @@ struct interp_data
 };
 
 void model_queue_render(interp_data *interp, DrawList* scene, int model_num, matrix *orient, vec3d *pos, uint flags, int objnum, int lighting_skip, int *replacement_textures);
+void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures);
+void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel *pm, int mn, bool is_child = false)
 void model_queue_render_set_thrust(interp_data *interp, int model_num, mst_info *mst);

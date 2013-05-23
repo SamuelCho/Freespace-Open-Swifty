@@ -27,6 +27,7 @@
 #define LT_TUBE			2		// A tube light, like a fluorescent light
 #define LT_CONE			3		// A cone light, like a flood light
 
+#define MAX_LIGHT_LEVELS 16
 
 typedef struct light {
 	int		type;							// What type of light this is
@@ -46,6 +47,19 @@ typedef struct light {
 	bool	dual_cone;						// should the cone be shining in both directions?
 	int instance;
 } light;
+
+class SceneLights
+{
+	SCP_vector<light> StaticLights;
+	SCP_vector<light> Lights;
+
+	int CurrentLightLevel;
+	SCP_vector<int> FilteredLights[MAX_LIGHT_LEVELS];
+public:
+	void addLight(light *light_ptr);
+	void pushLightFilter();
+	void popLightFilter();
+};
 
 void light_reset();
 void light_set_ambient(float ambient_light);

@@ -1867,7 +1867,7 @@ static void half_ship_render_ship_and_debris(clip_ship* half_ship,ship *shipp)
 	model_render(pm->id, &half_ship->orient, &orig_ship_world_center, render_flags, -1, -1, shipp->ship_replacement_textures);
 }
 
-void shipfx_half_ship_render_ship_and_debris(DrawList *scene, interp_data *interp, clip_ship* half_ship, ship *shipp)
+void shipfx_queue_render_ship_halves_and_debris(DrawList *scene, interp_data *interp, clip_ship* half_ship, ship *shipp)
 {
 	polymodel *pm = model_get(Ship_info[shipp->ship_info_index].model_num);
 
@@ -1911,7 +1911,7 @@ void shipfx_half_ship_render_ship_and_debris(DrawList *scene, interp_data *inter
 			// Draw debris, but not live debris
 			if ( !is_live_debris ) {
 				model_find_world_point(&tmp, &tmp1, pm->id, -1, &half_ship->orient, &temp_pos);
-				submodel_render(pm->id, pm->debris_objects[i], &half_ship->orient, &tmp, render_flags, -1, shipp->ship_replacement_textures);
+				submodel_queue_render(interp, scene, pm->id, pm->debris_objects[i], &half_ship->orient, &tmp, render_flags, -1, shipp->ship_replacement_textures);
 			}
 
 			// make free piece of debris
@@ -2342,6 +2342,22 @@ void shipfx_large_blowup_render(ship* shipp)
 	g3_stop_user_clip_plane();			
 }
 
+void shipfx_large_blowup_queue_render(interp_data *interp, DrawList *scene, ship* shipp)
+{
+	Assert( shipp->large_ship_blowup_index > -1 );
+	Assert( shipp->large_ship_blowup_index < (int)Split_ships.size() );
+
+	split_ship *the_split_ship = &Split_ships[shipp->large_ship_blowup_index];
+	Assert( the_split_ship->used );		// Get John
+
+	if (the_split_ship->front_ship.length_left > 0) {
+		shipfx_queue_render_ship_halves_and_debris(scene, interp, &the_split_ship->front_ship,shipp);
+	}
+
+	if (the_split_ship->back_ship.length_left > 0) {
+		shipfx_queue_render_ship_halves_and_debris(scene, interp, &the_split_ship->back_ship,shipp);
+	}
+}
 
 // ================== DO THE ELECTRIC ARCING STUFF =====================
 // Creates any new ones, moves old ones.
