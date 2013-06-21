@@ -17639,6 +17639,43 @@ int get_nearest_bbox_point(object *ship_obj, vec3d *start, vec3d *box_pt)
 	return inside;
 }
 
+void ship_set_thruster_info(mst_info *mst, object *obj, ship *shipp, ship_info *sip)
+{
+	mst->length.xyz.z = obj->phys_info.forward_thrust;
+	mst->length.xyz.x = obj->phys_info.side_thrust;
+	mst->length.xyz.y = obj->phys_info.vert_thrust;
+
+	//	Maybe add noise to thruster geometry.
+	if (!(sip->flags2 & SIF2_NO_THRUSTER_GEO_NOISE)) {
+		mst->length.xyz.z *= (1.0f + frand()/5.0f - 0.1f);
+		mst->length.xyz.y *= (1.0f + frand()/5.0f - 0.1f);
+		mst->length.xyz.x *= (1.0f + frand()/5.0f - 0.1f);
+	}
+
+	CLAMP(mst->length.xyz.z, -1.0f, 1.0f);
+	CLAMP(mst->length.xyz.y, -1.0f, 1.0f);
+	CLAMP(mst->length.xyz.x, -1.0f, 1.0f);
+
+	mst->primary_bitmap = shipp->thruster_bitmap;
+	mst->primary_glow_bitmap = shipp->thruster_glow_bitmap;
+	mst->secondary_glow_bitmap = shipp->thruster_secondary_glow_bitmap;
+	mst->tertiary_glow_bitmap = shipp->thruster_tertiary_glow_bitmap;
+	mst->distortion_bitmap = shipp->thruster_distortion_bitmap;
+
+	mst->use_ab = (obj->phys_info.flags & PF_AFTERBURNER_ON) || (obj->phys_info.flags & PF_BOOSTER_ON);
+	mst->glow_noise = shipp->thruster_glow_noise;
+	mst->rotvel = &Objects[shipp->objnum].phys_info.rotvel;
+
+	mst->glow_rad_factor = sip->thruster01_glow_rad_factor;
+	mst->secondary_glow_rad_factor = sip->thruster02_glow_rad_factor;
+	mst->tertiary_glow_rad_factor = sip->thruster03_glow_rad_factor;
+	mst->glow_length_factor = sip->thruster02_glow_len_factor;
+	mst->distortion_length_factor = sip->thruster_dist_len_factor;
+	mst->distortion_rad_factor = sip->thruster_dist_rad_factor;
+
+	mst->draw_distortion = sip->draw_distortion;
+}
+
 void ship_queue_thrusters(object *obj)
 {
 	int num = obj->instance;
@@ -17923,39 +17960,7 @@ void ship_queue_render(object* obj, DrawList* scene)
 	if ( !(shipp->flags & SF_DISABLED) && !ship_subsys_disrupted(shipp, SUBSYSTEM_ENGINE) && show_thrusters) {
 		mst_info mst;
 
-		mst.length.xyz.z = obj->phys_info.forward_thrust;
-		mst.length.xyz.x = obj->phys_info.side_thrust;
-		mst.length.xyz.y = obj->phys_info.vert_thrust;
-
-		//	Maybe add noise to thruster geometry.
-		if (!(sip->flags2 & SIF2_NO_THRUSTER_GEO_NOISE)) {
-			mst.length.xyz.z *= (1.0f + frand()/5.0f - 0.1f);
-			mst.length.xyz.y *= (1.0f + frand()/5.0f - 0.1f);
-			mst.length.xyz.x *= (1.0f + frand()/5.0f - 0.1f);
-		}
-
-		CLAMP(mst.length.xyz.z, -1.0f, 1.0f);
-		CLAMP(mst.length.xyz.y, -1.0f, 1.0f);
-		CLAMP(mst.length.xyz.x, -1.0f, 1.0f);
-
-		mst.primary_bitmap = shipp->thruster_bitmap;
-		mst.primary_glow_bitmap = shipp->thruster_glow_bitmap;
-		mst.secondary_glow_bitmap = shipp->thruster_secondary_glow_bitmap;
-		mst.tertiary_glow_bitmap = shipp->thruster_tertiary_glow_bitmap;
-		mst.distortion_bitmap = shipp->thruster_distortion_bitmap;
-
-		mst.use_ab = (obj->phys_info.flags & PF_AFTERBURNER_ON) || (obj->phys_info.flags & PF_BOOSTER_ON);
-		mst.glow_noise = shipp->thruster_glow_noise;
-		mst.rotvel = &Objects[shipp->objnum].phys_info.rotvel;
-
-		mst.glow_rad_factor = sip->thruster01_glow_rad_factor;
-		mst.secondary_glow_rad_factor = sip->thruster02_glow_rad_factor;
-		mst.tertiary_glow_rad_factor = sip->thruster03_glow_rad_factor;
-		mst.glow_length_factor = sip->thruster02_glow_len_factor;
-		mst.distortion_length_factor = sip->thruster_dist_len_factor;
-		mst.distortion_rad_factor = sip->thruster_dist_rad_factor;
-
-		mst.draw_distortion = sip->draw_distortion;
+		ship_set_thruster_info(&mst, obj, shipp, sip);
 
 		model_queue_render_set_thrust(&interp, sip->model_num, &mst);
 
@@ -18055,12 +18060,12 @@ void ship_queue_render(object* obj, DrawList* scene)
 			float fog_val = neb2_get_fog_intensity(obj);
 			if ( fog_val >= 0.6f ) {
 				interp.detail_level_locked = 2;
-				model_queue_render(&interp, scene, sip->model_num, &obj->orient, &obj->pos, render_flags | MR_LOCK_DETAIL, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode);
+				model_queue_render(&interp, scene, sip->model_num, &obj->orient, &obj->pos, render_flags | MR_LOCK_DETAIL, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures);
 			} else {
-				model_queue_render(&interp, scene, sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
+				model_queue_render(&interp, scene, sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures);
 			}
 		} else {
-			model_queue_render(&interp, scene, sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
+			model_queue_render(&interp, scene, sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures);
 		}
 	}
 

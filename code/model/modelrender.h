@@ -24,7 +24,8 @@ extern int model_interp_get_texture(texture_info *tinfo, fix base_frametime);
 
 struct clip_plane_state
 {
-	double clip_equation[4];
+	vec3d normal;
+	vec3d point;
 };
 
 struct render_state
@@ -46,8 +47,12 @@ struct render_state
 
 	bool lighting;
 
+	float light;
+	
 	bool using_team_color;
 	team_color tm_color;
+
+	bool thruster;
 
 	// fog state maybe shouldn't belong here. if we have fog, then it's probably occurring for all objects in scene.
 	int fog_mode;
@@ -58,9 +63,33 @@ struct render_state
 	float fog_far;
 };
 
+struct uniform_data
+{
+	float anim_timer;
+	int effect_num;
+	float vp_width;
+	float vp_height;
+
+	int desaturate;
+	float red;
+	float green;
+	float blue;
+
+	float lmatrix[16];
+	float lprojmatrix[3][16];
+	float modelmatrix[16];
+
+	float shadow_neardist;
+	float shadow_middist;
+	float shadow_fardist;
+
+	float thrust_scale;
+};
+
 struct queued_buffer_draw
 {
 	int render_state_handle;
+	int uniform_data_handle;
 
 	matrix orient;
 	vec3d pos;
@@ -68,15 +97,21 @@ struct queued_buffer_draw
 
 	vertex_buffer *buffer;
 	int texi;
+	int flags;
+	int sdr_flags;
 };
 
 class DrawList
 {
-	SCP_vector<clip_plane_state> clip_planes;
-	SCP_vector<render_state> render_states;
+	bool in_shadow_map;
 
-	SCP_vector<light> lights;
-	SCP_vector<int> filtered_lights[MAX_LIGHT_LEVELS];
+	SCP_vector<clip_plane_state> clip_planes;
+	int set_clip_plane;
+
+	SCP_vector<render_state> render_states;
+	SCP_vector<uniform_data> uniforms;
+
+	SceneLights Lights;
 
 	SCP_vector<queued_buffer_draw> render_elements;
 
@@ -86,7 +121,16 @@ class DrawList
 	bool clip_plane_set;
 
 	render_state current_render_state;
+
+	void drawRenderElement(queued_buffer_draw *render_elements);
+
+	uint determineShaderFlags(render_state *state, vertex_buffer *buffer, int flags);
+	void determineUniforms(uniform_data *uniform_data_instance, render_state *render_state_instance, uint sdr_flags);
 public:
+	DrawList();
+	void addStaticLight(light *light_ptr);
+	void addLight(light *light_ptr);
+
 	void resetState();
 	void setClipPlane(vec3d *position, vec3d *normal);
 	void setShader(int shader_handle);
@@ -94,7 +138,7 @@ public:
 	void setDepthMode(int depth_set);
 	void setBlendFilter(int filter, float alpha);
 	void setTextureAddressing(int addressing);
-	void setFog(int fog_mode, int r, int g, int b, float fog_near, float fog_far);
+	void setFog(int fog_mode, int r, int g, int b, float fog_near = -1.0f, float fog_far = -1.0f);
 	void setFillMode(int mode);
 	void setCullMode(int mode);
 	void setZBias(int bias);
@@ -104,10 +148,9 @@ public:
 	void setTeamColor(team_color *color);
 	void setAnimatedTimer(float time);
 	void setAnimatedEffect(int effect);
-	void addBufferDraw(matrix* orient, vec3d* pos, vertex_buffer *buffer, int texi, uint tmap_flags);
+	void addBufferDraw(matrix* orient, vec3d* pos, vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp);
 	void addArc(matrix *orient, vec3d *pos, vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width);
 
-	void addLight(light* light_info);
 	void pushLightFilter(int objnum, vec3d *pos, float rad);
 	void popLightFilter();
 
@@ -224,7 +267,7 @@ struct interp_data
 	}
 };
 
-void model_queue_render(interp_data *interp, DrawList* scene, int model_num, matrix *orient, vec3d *pos, uint flags, int objnum, int lighting_skip, int *replacement_textures);
+void model_queue_render(interp_data *interp, DrawList* scene, int model_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures);
 void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures);
-void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel *pm, int mn, bool is_child = false)
+void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel *pm, int mn, bool is_child = false);
 void model_queue_render_set_thrust(interp_data *interp, int model_num, mst_info *mst);

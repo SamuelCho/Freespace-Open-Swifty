@@ -12,8 +12,14 @@
 #include "ship/ship.h"
 #include "cmdline/cmdline.h"
 #include "nebula/neb.h"
+#include "graphics/tmapper.h"
 
-void DrawList::setClipPlane(vec3d normal)
+DrawList::DrawList()
+{
+	set_clip_plane = -1;
+}
+
+void DrawList::setClipPlane(vec3d *position, vec3d normal)
 {
 	clip_plane_state clip_normal;
 
@@ -22,8 +28,12 @@ void DrawList::setClipPlane(vec3d normal)
 	current_render_state.clip_plane_handle = clip_planes.size() - 1;
 }
 
-void DrawList::addBufferDraw(matrix* orient, vec3d* pos, vertex_buffer *buffer, int texi, uint tmap_flags)
+void DrawList::addBufferDraw(matrix* orient, vec3d* pos, vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp)
 {
+	uint sdr_flags = determineShaderFlags(&current_render_state, buffer, tmap_flags);
+
+	current_render_state.light = interp->light;
+
 	// need to do a check to see if the top render state matches the current.
 	render_states.push_back(current_render_state);
 
@@ -34,10 +44,92 @@ void DrawList::addBufferDraw(matrix* orient, vec3d* pos, vertex_buffer *buffer, 
 	draw_data.pos = *pos;
 	draw_data.buffer = buffer;
 	draw_data.texi = texi;
+	draw_data.flags = tmap_flags;
+	draw_data.uniform_data_handle = uniforms.size() - 1;
+	draw_data.sdr_flags = sdr_flags;
 
+	uniform_data new_uniforms;
+
+	// create uniform data here
+	determineUniforms(&new_uniforms, &current_render_state, tmap_flags, sdr_flags);
+	
+	uniforms.push_back(new_uniforms);
 	render_elements.push_back(draw_data);
 
 	render_keys.push_back(render_elements.size() - 1);
+}
+
+void DrawList::determineUniforms(uniform_data *uniform_data_instance, render_state *render_state_instance, uint tmap_flags, uint sdr_flags)
+{
+
+	uniform_data_instance->anim_timer = opengl_shader_get_animated_timer();
+	uniform_data_instance->effect_num = opengl_shader_get_animated_effect();
+	uniform_data_instance->vp_width = 1.0f/gr_screen.max_w;
+	uniform_data_instance->vp_width = 1.0f/gr_screen.max_h;
+
+	uniform_data_instance->red = gr_screen.current_color.red/255.0f;
+	uniform_data_instance->green = gr_screen.current_color.green/255.0f;
+	uniform_data_instance->blue = gr_screen.current_color.blue/255.0f;
+}
+
+uint DrawList::determineShaderFlags(render_state *state, vertex_buffer *buffer, int flags)
+{
+	bool enable_lighting = state->lighting > 0;
+	bool texture = (flags & TMAP_FLAG_TEXTURED) && (buffer->flags & VB_FLAG_UV1);
+	
+	bool fog = false;
+
+	if ( state->fog_mode == GR_FOGMODE_FOG ) {
+		fog = true;
+	}
+
+	gr_determine_shader_flags(enable_lighting, fog, texture, in_shadow_map, );
+}
+
+void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
+{
+	// get the render state for this draw call
+	int render_state_num = render_elements->render_state_handle;
+
+	render_state *draw_state = &render_states[render_state_num];
+
+	// set clip plane if necessary
+	if ( draw_state->clip_plane_handle >= 0 && draw_state->clip_plane_handle != set_clip_plane ) {
+		set_clip_plane = draw_state->clip_plane_handle;
+
+		clip_plane_state *clip_plane = &clip_planes[set_clip_plane];
+
+		G3_user_clip_normal = clip_plane->normal;
+		G3_user_clip_point = clip_plane->point;
+
+		gr_start_clip();
+	} else ( draw_state->clip_plane_handle < 0 && set_clip_plane >= 0 ) {
+		// draw call doesn't have a clip plane so check if the clip plane is currently set.
+		gr_end_clip();
+	}
+
+	opengl_shader_set_animated_effect(draw_state->animated_effect);
+	opengl_shader_set_animated_timer(draw_state->animated_timer);
+
+	gr_set_texture_addressing(draw_state->texture_addressing);
+
+	gr_zbuffer_set(draw_state->depth_mode);
+
+	gr_set_cull(draw_state->cull_mode);
+
+	gr_center_alpha(draw_state->center_alpha);
+
+	gr_set_fill_mode(draw_state->fill_mode);
+
+	gr_zbias(draw_state->zbias);
+
+	gr_set_bitmap(draw_state->texture_maps[TM_BASE_TYPE], draw_state->blend_filter, GR_BITBLT_MODE_NORMAL, draw_state->alpha);
+
+	GLOWMAP = draw_state->texture_maps[TM_GLOW_TYPE];
+	SPECMAP = draw_state->texture_maps[TM_SPECULAR_TYPE];
+	NORMMAP = draw_state->texture_maps[TM_NORMAL_TYPE];
+	HEIGHTMAP = draw_state->texture_maps[TM_HEIGHT_TYPE];
+	MISCMAP = draw_state->texture_maps[TM_MISC_TYPE];
 }
 
 void model_queue_render_lightning( DrawList *scene, interp_data* interp, polymodel *pm, bsp_info * sm )
@@ -650,12 +742,6 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 
 		scene->pushLightFilter(-1, pos, pm->submodel[submodel_num].rad);
 
-		light_rotate_all();
-
-		if (!Cmdline_nohtl) {
-			light_set_all_relevent();
-		}
-
 		scene->setLighting(true);
 	}
 
@@ -685,7 +771,10 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 			neb2_get_adjusted_fog_values(&fog_near, &fog_far, obj);
 			unsigned char r, g, b;
 			neb2_get_fog_color(&r, &g, &b);
-			gr_fog_set(GR_FOGMODE_FOG, r, g, b, fog_near, fog_far);
+
+			scene->setFog(GR_FOGMODE_FOG, r, g, b, fog_near, fog_far);
+		} else {
+			scene->setFog(GR_FOGMODE_NONE, 0, 0, 0);
 		}
 
 		if(in_shadow_map) {
@@ -720,21 +809,14 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 		scene->popLightFilter();
 	}
 
-	scene->setZBias(0);
-
 	if (set_autocen) {
 		g3_done_instance(false);
 	}
 
 	g3_done_instance(false);
-
-	// turn off fog after each model renders, RT This fixes HUD being fogged when debris is in target box
-	if(The_mission.flags & MISSION_FLAG_FULLNEB){
-		gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
-	}
 }
 
-void model_queue_render(interp_data *interp, DrawList *scene, int model_num, matrix *orient, vec3d *pos, uint flags, int objnum, int lighting_skip, int *replacement_textures)
+void model_queue_render(interp_data *interp, DrawList *scene, int model_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures)
 {
 	int cull = 0;
 	// replacement textures - Goober5000
@@ -750,9 +832,8 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 		scene->setTextureAddressing(TMAP_ADDRESS_WRAP);
 	}
 
-	// maybe turn off (hardware) culling
-	if ( flags & MR_NO_CULL ) {
-		scene->setCullMode(0);
+	if ( !(flags & MR_NO_LIGHTING) ) {
+		scene->pushLightFilter( objnum, pos, pm->rad );
 	}
 
 	interp->objnum = objnum;
@@ -972,7 +1053,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 
 	// When in htl mode render with htl method unless its a jump node
 	if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-		model_render_buffers(pm, pm->detail[interp->detail_level], render);
+		model_queue_render_buffers(scene, interp, pm, pm->detail[interp->detail_level]);
 	} else {
 		model_interp_subcall(pm, pm->detail[interp->detail_level], Interp_detail_level);
 	}
@@ -985,7 +1066,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 			if (pm->submodel[i].is_thruster) {
 				// When in htl mode render with htl method unless its a jump node
 				if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-					model_render_children_buffers( pm, i, interp->detail_level, render );
+					model_queue_render_children_buffers( scene, interp, pm, i, interp->detail_level );
 				} else {
 					model_interp_subcall( pm, i, interp->detail_level );
 				}
@@ -996,5 +1077,9 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 
 	if ( (interp->flags & MR_AUTOCENTER) && (set_autocen) ) {
 		g3_done_instance();
+	}
+
+	if ( !(flags & MR_NO_LIGHTING) ) {
+		scene->popLightFilter();
 	}
 }

@@ -349,9 +349,9 @@ void geometry_batcher::draw_quad(vertex* verts)
 	P[1] = verts[1];
 	P[2] = verts[2];
 
-	P[0] = verts[0];
-	P[2] = verts[2];
-	P[3] = verts[3];
+	P[3] = verts[0];
+	P[4] = verts[2];
+	P[5] = verts[3];
 
 	n_to_render += 2;
 	use_radius = false;
@@ -698,6 +698,75 @@ int batch_add_bitmap_rotated(int texture, int tmap_flags, vertex *pnt, float ang
 	item->add_allocate(1);
 
 	item->draw_bitmap(pnt, rad, angle, depth);
+
+	return 0;
+}
+
+int batch_add_polygon(int texture, int tmap_flags, vec3d *pos, matrix *orient, int width, int height, float alpha)
+{
+	//idiot-proof
+	if(width == 0 || height == 0)
+		return 0;
+
+	Assert(pos != NULL);
+	Assert(ori != NULL);
+
+	//Let's begin.
+
+	const int NUM_VERTICES = 4;
+	vec3d p[NUM_VERTICES] = { ZERO_VECTOR };
+	vertex v[NUM_VERTICES];
+
+	p[0].xyz.x = width;
+	p[0].xyz.y = height;
+
+	p[1].xyz.x = -width;
+	p[1].xyz.y = height;
+
+	p[2].xyz.x = -width;
+	p[2].xyz.y = -height;
+
+	p[3].xyz.x = width;
+	p[3].xyz.y = -height;
+
+	for(int i = 0; i < NUM_VERTICES; i++)
+	{
+		vec3d tmp = vmd_zero_vector;
+
+		//Rotate correctly
+		vm_vec_unrotate(&tmp, &p[i], ori);
+		//Move to point in space
+		vm_vec_add2(&tmp, pos);
+
+		//Convert to vertex
+		g3_transfer_vertex(&v[i], &tmp);
+	}
+
+	v[0].texture_position.u = 1.0f;
+	v[0].texture_position.v = 0.0f;
+
+	v[1].texture_position.u = 0.0f;
+	v[1].texture_position.v = 0.0f;
+
+	v[2].texture_position.u = 0.0f;
+	v[2].texture_position.v = 1.0f;
+
+	v[3].texture_position.u = 1.0f;
+	v[3].texture_position.v = 1.0f;
+
+	geometry_batcher *item = NULL;
+	size_t index = find_good_batch_item(texture);
+
+	Assertion( (geometry_map[index].laser == false), "Particle effect %s used as laser glow or laser bitmap\n", bm_get_filename(texture) );
+
+	geometry_map[index].tmap_flags = tmap_flags;
+	geometry_map[index].alpha = alpha;
+
+	item = &geometry_map[index].batch;
+
+	item->add_allocate(1);
+
+	item->draw_quad(v);
 
 	return 0;
 }

@@ -16,10 +16,6 @@
 #include "graphics/2d.h"
 #include "cmdline/cmdline.h"
 
-int cell_shaded_lightmap = -1;
-
-SceneLights Lights_manager;
-
 light Lights[MAX_LIGHTS];
 int Num_lights=0;
 extern int Cmdline_nohtl;

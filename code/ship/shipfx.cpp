@@ -4051,7 +4051,7 @@ int WE_BSG::warpShipRender()
 		if ( anim_frame < anim_nframes )
 		{
 			//Set the correct frame
-			gr_set_bitmap(anim + anim_frame, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 1.0f);		
+			//gr_set_bitmap(anim + anim_frame, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 1.0f);		
 
 			//Do warpout geometry
 			vec3d start, end;
@@ -4354,8 +4354,10 @@ int WE_Homeworld::warpShipRender()
 		frame = fl2i( (int)(((float)(timestamp() - (float)total_time_start)/1000.0f) * (float)anim_fps) % anim_nframes);
 
 	//Set the correct frame
-	gr_set_bitmap(anim + frame, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 1.0f);	
-	g3_draw_polygon(&pos, &objp->orient, width, height, TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT);
+// 	gr_set_bitmap(anim + frame, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 1.0f);	
+// 	g3_draw_polygon(&pos, &objp->orient, width, height, TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT);
+	batch_add_polygon(anim + frame, TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT, &pos, &objp->orient, width, height);
+
 	return 1;
 }
 

@@ -2217,3 +2217,28 @@ void gr_opengl_clear_shadow_map()
 	glClear(GL_DEPTH_BUFFER_BIT);
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, saved_fb);
 }
+
+bool gr_opengl_set_shader_flag(uint shader_flags)
+{
+	int sdr_index;
+
+	// find proper shader
+	if (shader_flags == GL_last_shader_flags) {
+		sdr_index = GL_last_shader_index;
+	} else {
+		sdr_index = gr_opengl_maybe_create_shader(shader_flags);
+
+		if (sdr_index < 0) {
+			return false;
+		}
+
+		GL_last_shader_index = sdr_index;
+		GL_last_shader_flags = shader_flags;
+	}
+
+	Assert( sdr_index >= 0 );
+
+	opengl_shader_set_current( &GL_shader[sdr_index] );
+
+	return true;
+}

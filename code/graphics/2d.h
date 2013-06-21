@@ -531,6 +531,7 @@ typedef struct screen {
 	void (*gf_end_shadow_map)();
 	void (*gf_clear_shadow_map)();
 
+	bool (*gf_set_shader_flag)(uint shader_flags);
 } screen;
 
 // handy macro
@@ -848,6 +849,8 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_end_shadow_map				GR_CALL(*gr_screen.gf_end_shadow_map)
 #define gr_clear_shadow_map				GR_CALL(*gr_screen.gf_clear_shadow_map)
 
+#define gr_set_shader_flag				GR_CALL(*gr_screen.gf_set_shader_flag)
+
 // color functions
 void gr_get_color( int *r, int *g, int  b );
 void gr_init_color(color *c, int r, int g, int b);
@@ -858,6 +861,23 @@ void gr_set_color_fast(color *dst);
 // shader functions
 void gr_create_shader(shader *shade, ubyte r, ubyte g, ubyte b, ubyte c);
 void gr_set_shader(shader *shade);
+
+uint gr_determine_shader_flags(
+	bool lighting, 
+	bool fog, 
+	bool textured, 
+	bool in_shadow_map, 
+	bool thruster_scale, 
+	bool team_color_set,
+	int tmap_flags, 
+	int diffuse_map, 
+	int spec_map, 
+	int glow_map, 
+	int normal_map, 
+	int height_map,
+	int env_map,
+	int misc_map
+);
 
 // new bitmap functions
 void gr_bitmap(int x, int y, bool resize = true);

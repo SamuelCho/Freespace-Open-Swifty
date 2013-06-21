@@ -919,6 +919,7 @@ bool gr_stub_init()
 	gr_screen.gf_end_shadow_map		= gr_stub_end_shadow_map;
 	gr_screen.gf_clear_shadow_map	= gr_stub_clear_shadow_map;
 
+	gr_screen.gf_set_shader_flag	= gr_stub_set_shader_flag;
 	gr_screen.gf_maybe_create_shader = gr_stub_maybe_create_shader;
 
 	gr_screen.gf_flush_data_states	= gr_stub_flush_data_states;
