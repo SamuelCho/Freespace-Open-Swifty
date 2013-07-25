@@ -716,7 +716,7 @@ void gr_stub_start_shadow_map(float neardist, float middist, float fardist)
 {
 }
 
-void gr_stub_set_team_color(const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime) {
+void gr_stub_set_team_color(team_color *colors) {
 }
 
 void gr_stub_enable_team_color() {

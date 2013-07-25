@@ -6171,7 +6171,15 @@ void ship_render(object * obj)
 				}
 
 				if (sip->uses_team_colors) {
-					gr_set_team_color(shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
+					team_color color;
+
+					bool set_team_color = model_set_team_color(&color, shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
+					
+					if ( set_team_color ) {
+						gr_set_team_color(&color);
+					} else {
+						gr_disable_team_color();
+					}
 				}
 
 				if(sip->flags2 & SIF2_NO_LIGHTING)
@@ -17832,7 +17840,7 @@ void ship_queue_weapon_models(interp_data *interp, DrawList *scene, object *obj,
 			for ( k = 0; k < bank->num_slots; k++ ) {	
 				polymodel* pm = model_get(Weapon_info[swp->primary_bank_weapons[i]].external_model_num);
 				pm->gun_submodel_rotation = shipp->primary_rotate_ang[i];
-				model_queue_render(interp, scene, Weapon_info[swp->primary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
+				model_queue_render(interp, scene, Weapon_info[swp->primary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags, -1, NULL);
 				pm->gun_submodel_rotation = 0.0f;
 			}
 		}
@@ -17851,7 +17859,7 @@ void ship_queue_weapon_models(interp_data *interp, DrawList *scene, object *obj,
 
 			if (Weapon_info[swp->secondary_bank_weapons[i]].wi_flags2 & WIF2_EXTERNAL_WEAPON_LNCH) {
 				for(k = 0; k < bank->num_slots; k++) {
-					model_queue_render(interp, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
+					model_queue_render(interp, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags, -1, NULL);
 				}
 			} else {
 				num_secondaries_rendered = 0;
@@ -17870,7 +17878,7 @@ void ship_queue_weapon_models(interp_data *interp, DrawList *scene, object *obj,
 					num_secondaries_rendered++;
 
 					vm_vec_scale_add2(&secondary_weapon_pos, &vmd_z_vector, -(1.0f-shipp->secondary_point_reload_pct[i][k]) * model_get(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num)->rad);
-					model_queue_render(interp, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos, render_flags);
+					model_queue_render(interp, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos, render_flags, -1, NULL);
 				}
 			}
 		}
@@ -17885,6 +17893,7 @@ void ship_queue_render(object* obj, DrawList* scene)
 	ship_info *sip = &Ship_info[Ships[num].ship_info_index];
 	ship *warp_shipp = NULL;
 	bool is_first_stage_arrival = false;
+	bool show_thrusters = ((shipp->flags2 & SF2_NO_THRUSTERS) == 0) && !in_shadow_map;
 	dock_function_info dfi;
 	interp_data interp;
 
@@ -17921,8 +17930,6 @@ void ship_queue_render(object* obj, DrawList* scene)
 			shipp->warpout_effect->warpShipRender();
 		}
 
-		gr_disable_team_color();
-
 		return;
 	}
 
@@ -17937,6 +17944,8 @@ void ship_queue_render(object* obj, DrawList* scene)
 
 	uint render_flags = MR_NORMAL;
 
+	scene->setClipPlane();
+
 	if ( shipp->large_ship_blowup_index >= 0 )	{
 		shipfx_large_blowup_queue_render(&interp, scene, shipp);
 
@@ -17949,8 +17958,6 @@ void ship_queue_render(object* obj, DrawList* scene)
 		} else if(shipp->flags & SF_DEPART_WARP) {
 			shipp->warpout_effect->warpShipRender();
 		}
-
-		gr_disable_team_color();
 
 		return;
 	}
@@ -18042,8 +18049,15 @@ void ship_queue_render(object* obj, DrawList* scene)
 	}
 
 	if ( sip->uses_team_colors ) {
-		gr_set_team_color(shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
-		scene->setTeamColor(Current_team_color);
+		team_color color;
+
+		bool set_team_color = model_set_team_color(&color, shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
+		
+		if ( set_team_color ) {
+			scene->setTeamColor(&color);
+		} else {
+			scene->setTeamColor(NULL);
+		}
 	}
 
 	if ( in_shadow_map ) {
@@ -18060,12 +18074,12 @@ void ship_queue_render(object* obj, DrawList* scene)
 			float fog_val = neb2_get_fog_intensity(obj);
 			if ( fog_val >= 0.6f ) {
 				interp.detail_level_locked = 2;
-				model_queue_render(&interp, scene, sip->model_num, &obj->orient, &obj->pos, render_flags | MR_LOCK_DETAIL, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures);
+				model_queue_render(&interp, scene, sip->model_num, &obj->orient, &obj->pos, render_flags | MR_LOCK_DETAIL, OBJ_INDEX(obj), shipp->ship_replacement_textures);
 			} else {
-				model_queue_render(&interp, scene, sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures);
+				model_queue_render(&interp, scene, sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), shipp->ship_replacement_textures);
 			}
 		} else {
-			model_queue_render(&interp, scene, sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures);
+			model_queue_render(&interp, scene, sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), shipp->ship_replacement_textures);
 		}
 	}
 

@@ -702,6 +702,54 @@ int batch_add_bitmap_rotated(int texture, int tmap_flags, vertex *pnt, float ang
 	return 0;
 }
 
+int batch_add_tri(int texture, int tmap_flags, vertex *verts, float alpha = 1.0f)
+{
+	if (texture < 0) {
+		Int3();
+		return 1;
+	}
+
+	geometry_batcher *item = NULL;
+	size_t index = find_good_batch_item(texture);
+
+	Assertion( (geometry_map[index].laser == false), "Particle effect %s used as laser glow or laser bitmap\n", bm_get_filename(texture) );
+
+	geometry_map[index].tmap_flags = tmap_flags;
+	geometry_map[index].alpha = alpha;
+
+	item = &geometry_map[index].batch;
+
+	item->add_allocate(0, 1);	// just allocating for one triangle
+
+	item->draw_tri(verts);
+
+	return 0;
+}
+
+int batch_add_quad(int texture, int tmap_flags, vertex *verts, float alpha = 1.0f)
+{
+	if (texture < 0) {
+		Int3();
+		return 1;
+	}
+
+	geometry_batcher *item = NULL;
+	size_t index = find_good_batch_item(texture);
+
+	Assertion( (geometry_map[index].laser == false), "Particle effect %s used as laser glow or laser bitmap\n", bm_get_filename(texture) );
+
+	geometry_map[index].tmap_flags = tmap_flags;
+	geometry_map[index].alpha = alpha;
+
+	item = &geometry_map[index].batch;
+
+	item->add_allocate(1);
+
+	item->draw_quad(verts);
+
+	return 0;
+}
+
 int batch_add_polygon(int texture, int tmap_flags, vec3d *pos, matrix *orient, int width, int height, float alpha)
 {
 	//idiot-proof

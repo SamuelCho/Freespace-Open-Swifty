@@ -545,7 +545,14 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, 1, target_objp));
 
 				if (Ship_info[Ships[target_objp->instance].ship_info_index].uses_team_colors) {
-					gr_set_team_color(Ships[target_objp->instance].team_name, Ships[target_objp->instance].secondary_team_name, Ships[target_objp->instance].team_change_timestamp, Ships[target_objp->instance].team_change_time);
+					team_color color;
+					bool set_team_color = model_set_team_color(&color, Ships[target_objp->instance].team_name, Ships[target_objp->instance].secondary_team_name, Ships[target_objp->instance].team_change_timestamp, Ships[target_objp->instance].team_change_time);
+					
+					if ( set_team_color ) {
+						gr_set_team_color(&color);
+					} else {
+						gr_disable_team_color();
+					}
 				}
 
 				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;

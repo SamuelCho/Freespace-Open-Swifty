@@ -15,6 +15,7 @@
 #include "globalincs/systemvars.h"
 #include "graphics/2d.h"
 #include "cmdline/cmdline.h"
+#include "model/modelrender.h"
 
 light Lights[MAX_LIGHTS];
 int Num_lights=0;
@@ -1076,4 +1077,156 @@ void light_add_cone( vec3d * pos, vec3d * dir, float angle, float inner_angle, b
 	l->instance = Num_lights-1;
 
 	Assert( Num_light_levels <= 1 );
+}
+
+void SceneLights::addLight(light *light_ptr)
+{
+	Assert(light_ptr != NULL);
+
+	AllLights.push_back(*light_ptr);
+
+	if ( light_ptr->type == LT_DIRECTIONAL ) {
+		StaticLightIndices.push_back(AllLights.size() - 1);
+	}
+}
+
+void SceneLights::setLightFilter(int objnum, vec3d *pos, float rad)
+{
+	size_t i;
+
+	// clear out current filtered lights
+	FilteredLights.clear();
+
+	for ( i = 0; i < AllLights.size(); ++i ) {
+		light *l = &AllLights[i];
+
+		switch ( l->type ) {
+			case LT_DIRECTIONAL:
+				break;
+			case LT_POINT: {
+				// if this is a "unique" light source, it only affects one guy
+				if ( l->affected_objnum >= 0 ) {
+					if ( objnum == l->affected_objnum ) {
+						vec3d to_light;
+						float dist_squared, max_dist_squared;
+						vm_vec_sub( &to_light, &l->vec, pos );
+						dist_squared = vm_vec_mag_squared(&to_light);
+
+						max_dist_squared = l->radb+rad;
+						max_dist_squared *= max_dist_squared;
+
+						if ( dist_squared < max_dist_squared )	{
+							FilteredLights.push_back(i);
+						}
+					}
+				} else { // otherwise check all relevant objects
+					vec3d to_light;
+					float dist_squared, max_dist_squared;
+					vm_vec_sub( &to_light, &l->vec, pos );
+					dist_squared = vm_vec_mag_squared(&to_light);
+
+					max_dist_squared = l->radb+rad;
+					max_dist_squared *= max_dist_squared;
+
+					if ( dist_squared < max_dist_squared )	{
+						FilteredLights.push_back(i);
+					}
+				}
+			}
+			break;
+			case LT_TUBE: {
+				if ( Use_GLSL > 1 ) {
+					if ( l->light_ignore_objnum != objnum ) {
+						vec3d nearest;
+						float dist_squared, max_dist_squared;
+						vm_vec_dist_squared_to_line(pos,&l->vec,&l->vec2,&nearest,&dist_squared);
+
+						max_dist_squared = l->radb+rad;
+						max_dist_squared *= max_dist_squared;
+
+						if ( dist_squared < max_dist_squared ) {
+							FilteredLights.push_back(i);
+						}
+					}
+				} else {
+					// all tubes are "unique" light sources for now
+					if ( ( l->affected_objnum >= 0 ) && ( objnum == l->affected_objnum ) ) {
+						FilteredLights.push_back(i);
+					}
+				}
+			}
+			break;
+
+			case LT_CONE:
+				break;
+
+			default:
+				break;
+		}
+	}
+}
+
+SceneLights::LightIndexingInfo SceneLights::bufferLights()
+{
+	size_t i;
+
+	SceneLights::LightIndexingInfo light_info;
+
+	light_info.index_start = 0;
+	light_info.num_lights = 0;
+
+	// make sure that there are lights to bind?
+	if ( FilteredLights.size() <= 0 ) {
+		return light_info;
+	}
+
+	light_info.index_start = BufferedLights.size();
+	
+	for ( i = 0; i < FilteredLights.size(); ++i ) {
+		int light_index = FilteredLights[i];
+
+		BufferedLights.push_back(light_index);
+
+		light_info.num_lights++;
+	}
+
+	return light_info;
+}
+
+bool SceneLights::setLights(SceneLights::LightIndexingInfo *info)
+{
+	size_t i;
+
+	gr_reset_lighting();
+
+	for ( i = 0; i < StaticLightIndices.size(); ++i) {
+		int light_index = StaticLightIndices[i];
+		
+		gr_set_light( &AllLights[i] );
+	}
+
+	extern bool Deferred_lighting;
+	if ( Deferred_lighting ) {
+		return false;
+	}
+
+	int index_start = info->index_start;
+	int num_lights = info->num_lights;
+
+	// check if there are any lights to actually set
+	if ( num_lights <= 0 ) {
+		return false;
+	}
+
+	// we definitely shouldn't be exceeding the number of buffered lights
+	Assert(index_start + num_lights <= BufferedLights.size());
+
+	for ( i = 0; i < num_lights; ++i ) {
+		int buffered_light_index = index_start + i;
+		int light_index = BufferedLights[buffered_light_index];
+
+		gr_set_light(&AllLights[light_index]);
+	}
+
+	return true;
 }

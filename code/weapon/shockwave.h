@@ -103,6 +103,7 @@ void shockwave_delete(object *objp);
 void shockwave_move_all(float frametime);
 int  shockwave_create(int parent_objnum, vec3d *pos, shockwave_create_info *sci, int flag, int delay = -1);
 void shockwave_render(object *objp);
+void shockwave_queue_render(object *objp, DrawList *scene);
 int shockwave_load(char *s_name, bool shock_3D = false);
 
 int   shockwave_get_weapon_index(int index);

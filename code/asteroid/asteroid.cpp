@@ -1178,6 +1178,25 @@ void asteroid_render(object * obj)
 	}
 }
 
+void asteroid_queue_render(object * obj, DrawList *scene)
+{
+	if (Asteroids_enabled) {
+		int			num;
+		asteroid		*asp;
+		interp_data interp;
+
+		num = obj->instance;
+
+		Assert((num >= 0) && (num < MAX_ASTEROIDS));
+		asp = &Asteroids[num];
+
+		Assert( asp->flags & AF_USED );
+
+		model_clear_instance( Asteroid_info[asp->asteroid_type].model_num[asp->asteroid_subtype]);
+		model_queue_render(&interp, scene, Asteroid_info[asp->asteroid_type].model_num[asp->asteroid_subtype], &obj->orient, &obj->pos, MR_NORMAL|MR_IS_ASTEROID, OBJ_INDEX(obj), NULL);	//	Replace MR_NORMAL with 0x07 for big yellow blobs
+	}
+}
+
 /**
  * Create a normalized vector generally in the direction from *hitpos to other_obj->pos
  */

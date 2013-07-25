@@ -7,35 +7,90 @@
  *
 */ 
 
+#include "globalincs/pstypes.h"
 #include "Math/vecmat.h"
+#include "model/model.h"
 #include "model/modelrender.h"
 #include "ship/ship.h"
 #include "cmdline/cmdline.h"
 #include "nebula/neb.h"
 #include "graphics/tmapper.h"
+#include "graphics/gropenglshader.h"
+#include "particle/particle.h"
+#include "gamesequence/gamesequence.h"
+#include "render/3dinternal.h"
+
+extern int Model_texturing;
+extern int Model_polys;
+extern int tiling;
+extern float model_radius;
 
 DrawList::DrawList()
 {
 	set_clip_plane = -1;
+
+	dirty_render_state = true;
+
+	current_textures[TM_BASE_TYPE] = -1;
+	current_textures[TM_GLOW_TYPE] = -1;
+	current_textures[TM_SPECULAR_TYPE] = -1;
+	current_textures[TM_NORMAL_TYPE] = -1;
+	current_textures[TM_HEIGHT_TYPE] = -1;
+	current_textures[TM_MISC_TYPE] = -1;
 }
 
-void DrawList::setClipPlane(vec3d *position, vec3d normal)
+void DrawList::sortDraws()
 {
+	DrawListSorter::sort(this);
+}
+
+void DrawList::setDepthMode(int depth_set)
+{
+// 	if ( !dirty_render_state && depth_set != current_render_state.depth_mode ) {
+// 		dirty_render_state = true;
+// 	}
+
+	current_depth_mode = depth_set;
+}
+
+void DrawList::addLight(light *light_ptr)
+{
+	Lights.addLight(light_ptr);
+}
+
+void DrawList::setLightFilter(int objnum, vec3d *pos, float rad)
+{
+	Lights.setLightFilter(objnum, pos, rad);
+
+	dirty_render_state = true;
+	current_render_state.lights = Lights.bufferLights();
+}
+
+void DrawList::setClipPlane(vec3d *position, vec3d *normal)
+{
+	if ( position == NULL && normal == NULL ) {
+		current_render_state.clip_plane_handle = -1;
+	}
+
 	clip_plane_state clip_normal;
+
+	clip_normal.point = *position;
+	clip_normal.normal = *normal;
 
 	clip_planes.push_back(clip_normal);
 
+	dirty_render_state = true;
 	current_render_state.clip_plane_handle = clip_planes.size() - 1;
 }
 
-void DrawList::addBufferDraw(matrix* orient, vec3d* pos, vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp)
+void DrawList::addBufferDraw(matrix *orient, vec3d *pos, vec3d *scale, vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp)
 {
-	uint sdr_flags = determineShaderFlags(&current_render_state, buffer, tmap_flags);
-
-	current_render_state.light = interp->light;
-
 	// need to do a check to see if the top render state matches the current.
-	render_states.push_back(current_render_state);
+	//if ( dirty_render_state ) {
+		render_states.push_back(current_render_state);
+	//}
+
+	dirty_render_state = false;
 
 	queued_buffer_draw draw_data;
 
@@ -45,37 +100,39 @@ void DrawList::addBufferDraw(matrix* orient, vec3d* pos, vertex_buffer *buffer, 
 	draw_data.buffer = buffer;
 	draw_data.texi = texi;
 	draw_data.flags = tmap_flags;
-	draw_data.uniform_data_handle = uniforms.size() - 1;
-	draw_data.sdr_flags = sdr_flags;
+	draw_data.scale = *scale;
 
-	uniform_data new_uniforms;
-
-	// create uniform data here
-	determineUniforms(&new_uniforms, &current_render_state, tmap_flags, sdr_flags);
+	draw_data.clr = gr_screen.current_color;
+	draw_data.alpha = current_alpha;
+	draw_data.blend_filter = current_blend_filter;
+	draw_data.depth_mode = current_depth_mode;
 	
-	uniforms.push_back(new_uniforms);
+	draw_data.texture_maps[TM_BASE_TYPE] = current_textures[TM_BASE_TYPE];
+	draw_data.texture_maps[TM_GLOW_TYPE] = current_textures[TM_GLOW_TYPE];
+	draw_data.texture_maps[TM_SPECULAR_TYPE] = current_textures[TM_SPECULAR_TYPE];
+	draw_data.texture_maps[TM_NORMAL_TYPE] = current_textures[TM_NORMAL_TYPE];
+	draw_data.texture_maps[TM_HEIGHT_TYPE] = current_textures[TM_HEIGHT_TYPE];
+	draw_data.texture_maps[TM_MI] = current_textures[TM_MISC_TYPE];
+
+	if ( interp->thrust_scale_subobj ) {
+		draw_data.thrust_scale = interp->thrust_scale;
+	} else {
+		draw_data.thrust_scale = -1.0f;
+	}
+
+	draw_data.light_factor = interp->light;
+
+	draw_data.sdr_flags = determineShaderFlags(&current_render_state, &draw_data, buffer, tmap_flags);
+
 	render_elements.push_back(draw_data);
 
 	render_keys.push_back(render_elements.size() - 1);
 }
 
-void DrawList::determineUniforms(uniform_data *uniform_data_instance, render_state *render_state_instance, uint tmap_flags, uint sdr_flags)
-{
-
-	uniform_data_instance->anim_timer = opengl_shader_get_animated_timer();
-	uniform_data_instance->effect_num = opengl_shader_get_animated_effect();
-	uniform_data_instance->vp_width = 1.0f/gr_screen.max_w;
-	uniform_data_instance->vp_width = 1.0f/gr_screen.max_h;
-
-	uniform_data_instance->red = gr_screen.current_color.red/255.0f;
-	uniform_data_instance->green = gr_screen.current_color.green/255.0f;
-	uniform_data_instance->blue = gr_screen.current_color.blue/255.0f;
-}
-
-uint DrawList::determineShaderFlags(render_state *state, vertex_buffer *buffer, int flags)
+uint DrawList::determineShaderFlags(render_state *state, queued_buffer_draw *draw_info, vertex_buffer *buffer, int tmap_flags)
 {
 	bool enable_lighting = state->lighting > 0;
-	bool texture = (flags & TMAP_FLAG_TEXTURED) && (buffer->flags & VB_FLAG_UV1);
+	bool texture = (tmap_flags & TMAP_FLAG_TEXTURED) && (buffer->flags & VB_FLAG_UV1);
 	
 	bool fog = false;
 
@@ -83,7 +140,22 @@ uint DrawList::determineShaderFlags(render_state *state, vertex_buffer *buffer, 
 		fog = true;
 	}
 
-	gr_determine_shader_flags(enable_lighting, fog, texture, in_shadow_map, );
+	return gr_determine_shader_flags(
+		enable_lighting, 
+		fog, 
+		texture, 
+		in_shadow_map, 
+		draw_info->thrust_scale, 
+		state->using_team_color, 
+		tmap_flags, 
+		draw_info->texture_maps[TM_BASE_TYPE], 
+		draw_info->texture_maps[TM_SPECULAR_TYPE],
+		draw_info->texture_maps[TM_GLOW_TYPE],
+		draw_info->texture_maps[TM_NORMAL_TYPE],
+		draw_info->texture_maps[TM_HEIGHT_TYPE],
+		ENVMAP,
+		draw_info->texture_maps[TM_MISC_TYPE]
+	);
 }
 
 void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
@@ -99,29 +171,57 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 
 		clip_plane_state *clip_plane = &clip_planes[set_clip_plane];
 
-		G3_user_clip_normal = clip_plane->normal;
-		G3_user_clip_point = clip_plane->point;
-
-		gr_start_clip();
+		g3_start_user_clip_plane(&clip_plane->point, &clip_plane->normal);
 	} else ( draw_state->clip_plane_handle < 0 && set_clip_plane >= 0 ) {
-		// draw call doesn't have a clip plane so check if the clip plane is currently set.
-		gr_end_clip();
+		// stop the clip plane if this draw call doesn't have clip plane and clip plane is set.
+		g3_stop_user_clip_plane();
 	}
 
 	opengl_shader_set_animated_effect(draw_state->animated_effect);
 	opengl_shader_set_animated_timer(draw_state->animated_timer);
 
+	if ( draw_state->using_team_color ) {
+		gr_set_team_color(&draw_state->tm_color);
+	} else {
+		gr_set_team_color(NULL);
+	}
+
 	gr_set_texture_addressing(draw_state->texture_addressing);
+
+	gr_fog_set(draw_state->fog_mode, draw_state->r, draw_state->g, draw_state->b, draw_state->fog_near, draw_state->fog_far);
 
 	gr_zbuffer_set(draw_state->depth_mode);
 
 	gr_set_cull(draw_state->cull_mode);
 
-	gr_center_alpha(draw_state->center_alpha);
-
 	gr_set_fill_mode(draw_state->fill_mode);
 
+	gr_center_alpha(draw_state->center_alpha);
+
+	Interp_light = render_elements->light_factor;
+
+	gr_set_color_fast(&render_elements->clr);
+
+	if ( draw_state->lighting ) {
+		gr_set_lighting(true, true);
+
+		if ( current_lights_set.index_start != draw_state->lights.index_start || current_lights_set.num_lights != draw_state->lights.num_lights ) {
+			current_lights_set.index_start = draw_state->lights.index_start;
+			current_lights_set.num_lights = draw_state->lights.num_lights;
+
+			Lights.setLights(&draw_state->lights);
+		}
+	} else {
+		gr_set_lighting(false, false);
+	}
+
+	gr_set_buffer(draw_state->buffer_id);
+
 	gr_zbias(draw_state->zbias);
+
+	g3_start_instance_matrix(&render_elements->pos, &render_elements->orient);
+
+	gr_push_scale_matrix(&render_elements->scale);
 
 	gr_set_bitmap(draw_state->texture_maps[TM_BASE_TYPE], draw_state->blend_filter, GR_BITBLT_MODE_NORMAL, draw_state->alpha);
 
@@ -130,6 +230,114 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 	NORMMAP = draw_state->texture_maps[TM_NORMAL_TYPE];
 	HEIGHTMAP = draw_state->texture_maps[TM_HEIGHT_TYPE];
 	MISCMAP = draw_state->texture_maps[TM_MISC_TYPE];
+
+	if ( render_elements->thrust_scale > 0.0f ) {
+		Interp_thrust_scale_subobj = 1;
+		Interp_thrust_scale = render_elements->thrust_scale;
+	} else {
+		Interp_thrust_scale_subobj = 0;
+	}
+
+	gr_render_buffer(0, render_elements->buffer, render_elements->texi, render_elements->flags);
+
+	gr_pop_scale_matrix();
+
+	g3_done_instance();
+}
+
+void DrawList::setBuffer(int buffer)
+{
+// 	if ( !dirty_render_state && current_render_state.buffer_id != buffer) {
+// 		dirty_render_state = true;
+// 	}
+
+	current_render_state.buffer_id = buffer;
+}
+
+void DrawList::setBlendFilter(int filter, float alpha)
+{
+// 	if ( !dirty_render_state && ( current_render_state.alpha != alpha && current_render_state.blend_filter != filter ) ) {
+// 		dirty_render_state = true;
+// 	}
+
+	current_blend_filter = filter;
+	current_alpha = alpha;
+}
+
+void DrawList::setTexture(int texture_type, int texture_handle)
+{
+	Assert(texture_type > -1);
+	Assert(texture_type < TM_NUM_TYPES);
+
+	current_textures[texture_type] = texture_handle;
+}
+
+void DrawList::setCullMode(int mode)
+{
+	current_render_state.cull_mode = mode;
+}
+
+void DrawList::setZBias(int bias)
+{
+	current_render_state.zbias = bias;
+}
+
+void DrawList::setLighting(bool lighting)
+{
+	current_render_state.lighting = lighting;
+}
+
+void DrawList::setTeamColor(team_color *color)
+{
+	if ( color ) {
+		current_render_state.using_team_color = true;
+		current_render_state.tm_color = *color;
+	} else {
+		current_render_state.using_team_color = false;
+	}
+}
+
+void DrawList::setTextureAddressing(int addressing)
+{
+	current_render_state.texture_addressing = addressing;
+}
+
+void DrawList::setFog(int fog_mode, int r, int g, int b, float fog_near = -1.0f, float fog_far = -1.0f)
+{
+	current_render_state.fog_mode = fog_mode;
+	current_render_state.r = r;
+	current_render_state.g = g;
+	current_render_state.b = b;
+	current_render_state.fog_near = fog_near;
+	current_render_state.fog_far = fog_far;
+}
+
+void DrawList::setFillMode(int mode)
+{
+	current_render_state.fill_mode = mode;
+}
+
+void DrawList::setCenterAlpha(int center_alpha)
+{
+	current_render_state.center_alpha = center_alpha;
+}
+
+void DrawListSorter::sort(DrawList *target_list)
+{
+	Target = target_list;
+	qsort(&Target->render_keys, Target->render_keys.size(), sizeof(int), DrawListSorter::sortDrawPair);
+}
+
+int DrawListSorter::sortDrawPair(const void* a, const void* b)
+{
+	int *A = (int*)(a);
+	int *B = (int*)(b);
+
+	queued_buffer_draw *draw_call_a = &Target->render_elements[*A];
+	queued_buffer_draw *draw_call_b = &Target->render_elements[*B];
+
+	render_state *render_state_a = &Target->render_states[draw_call_a->render_state_handle];
+	render_state *render_state_b = &Target->render_states[draw_call_b->render_state_handle];
 }
 
 void model_queue_render_lightning( DrawList *scene, interp_data* interp, polymodel *pm, bsp_info * sm )
@@ -304,7 +512,13 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 	if ( interp->thrust_scale_subobj ) {
 		scale.xyz.x = 1.0f;
 		scale.xyz.y = 1.0f;
-		scale.xyz.z = interp->thrust_scale;
+
+		if ( Use_GLSL > 1 ) {
+			// since thruster scaling is done in the shader, no need to transform using the api
+			scale.xyz.z = 1.0f;
+		} else {
+			scale.xyz.z = interp->thrust_scale;
+		}
 	} else {
 		scale.xyz.x = interp->warp_scale_x;
 		scale.xyz.y = interp->warp_scale_y;
@@ -337,12 +551,6 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 	} else if ( interp->flags & MR_ALL_XPARENT ) {
 		forced_alpha = interp->xparent_alpha;
 		forced_blend_filter = GR_ALPHABLEND_FILTER;
-	}
-
-	if ( !interp->thrust_scale_subobj ) {
-		scene->setScale(&scale);
-	} else {
-		scene->setScale();
 	}
 
 	int texture_maps[TM_NUM_TYPES] = {-1, -1, -1, -1, -1, -1};
@@ -459,6 +667,16 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 			blend_filter = forced_blend_filter;
 		}
 
+		if (blend_filter != GR_ALPHABLEND_NONE) {
+			scene->setDepthMode(GR_ZBUFF_READ);
+		} else {
+			if ( (interp->flags & MR_NO_ZBUFFER) || (interp->flags & MR_ALL_XPARENT) ) {
+				scene->setDepthMode(GR_ZBUFF_NONE);
+			} else {
+				scene->setDepthMode(GR_ZBUFF_FULL);
+			}
+		}
+
 		scene->setBlendFilter(blend_filter, alpha);
 
 		scene->setTexture(TM_BASE_TYPE,	texture_maps[TM_BASE_TYPE]);
@@ -468,7 +686,7 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 		scene->setTexture(TM_HEIGHT_TYPE, texture_maps[TM_HEIGHT_TYPE]);
 		scene->setTexture(TM_MISC_TYPE,	texture_maps[TM_MISC_TYPE]);
 
-		scene->addBufferDraw(&Object_matrix, &Object_position, &model->buffer, i, interp->tmap_flags);
+		scene->addBufferDraw(&Object_matrix, &Object_position, &scale, &model->buffer, i, interp->tmap_flags, interp);
 
 		texture_maps[TM_BASE_TYPE] = -1;
 		texture_maps[TM_GLOW_TYPE] = -1;
@@ -652,7 +870,7 @@ void model_queue_render_set_thrust(interp_data *interp, int model_num, mst_info 
 	interp->draw_distortion = mst->draw_distortion;
 }
 
-void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures, int render)
+void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures)
 {
 	// replacement textures - Goober5000
 	interp->new_replacement_textures = replacement_textures;
@@ -740,7 +958,7 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 	if ( !( interp->flags & MR_NO_LIGHTING ) ) {
 		interp->light = 1.0f;
 
-		scene->pushLightFilter(-1, pos, pm->submodel[submodel_num].rad);
+		scene->setLightFilter(-1, pos, pm->submodel[submodel_num].rad);
 
 		scene->setLighting(true);
 	}
@@ -806,7 +1024,7 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 	}
 
 	if ( !( interp->flags & MR_NO_LIGHTING ) )	{
-		scene->popLightFilter();
+		scene->resetLightFilter();
 	}
 
 	if (set_autocen) {
@@ -816,8 +1034,629 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 	g3_done_instance(false);
 }
 
+void model_queue_render_glowpoint(int point_num, vec3d *pos, matrix *orient, glow_point_bank *bank, glow_point_bank_override *gpo, polymodel *pm, ship* shipp, bool use_depth_buffer)
+{
+	glow_point *gpt = &bank->points[point_num];
+	vec3d loc_offset = gpt->pnt;
+	vec3d loc_norm = gpt->norm;
+	vec3d world_pnt;
+	vec3d world_norm;
+	vec3d tempv;
+	vec3d submodel_static_offset; // The associated submodel's static offset in the ship's frame of reference
+	bool submodel_rotation = false;
+
+	if ( bank->submodel_parent > 0 && pm->submodel[bank->submodel_parent].can_move && (gameseq_get_state_idx(GS_STATE_LAB) == -1) && shipp != NULL ) {
+		model_find_submodel_offset(&submodel_static_offset, Ship_info[shipp->ship_info_index].model_num, bank->submodel_parent);
+
+		submodel_rotation = true;
+	}
+
+	if ( submodel_rotation ) {
+		vm_vec_sub(&loc_offset, &gpt->pnt, &submodel_static_offset);
+
+		tempv = loc_offset;
+		find_submodel_instance_point_normal(&loc_offset, &loc_norm, &Objects[shipp->objnum], bank->submodel_parent, &tempv, &loc_norm);
+	}
+
+	vm_vec_unrotate(&world_pnt, &loc_offset, orient);
+	vm_vec_add2(&world_pnt, pos);
+
+	vm_vec_unrotate(&world_norm, &loc_norm, orient);
+
+	if ( (shipp != NULL) && (shipp->flags & (SF_ARRIVING | SF_DEPART_WARP) ) && (shipp->warpin_effect) && Ship_info[shipp->ship_info_index].warpin_type != WT_HYPERSPACE) {
+		if ( g3_point_behind_user_plane(&world_pnt) ) {
+			return;
+		}
+	}
+
+	switch ((gpo && gpo->type_override)?gpo->type:bank->type)
+	{
+	case 0:
+		{
+			float d,pulse = 1.0f;
+
+			if ( IS_VEC_NULL(&world_norm) ) {
+				d = 1.0f;	//if given a nul vector then always show it
+			} else {
+				vm_vec_sub(&tempv,&View_position,&world_pnt);
+				vm_vec_normalize(&tempv);
+
+				d = vm_vec_dot(&tempv,&world_norm);
+				d -= 0.25;	
+			}
+
+			float w = gpt->radius;
+			if (d > 0.0f) {
+				vertex p;
+
+				d *= 3.0f;
+
+				if (d > 1.0f)
+					d = 1.0f;
+
+
+				// fade them in the nebula as well
+				if ( The_mission.flags & MISSION_FLAG_FULLNEB ) {
+					//vec3d npnt;
+					//vm_vec_add(&npnt, &loc_offset, pos);
+
+					d *= (1.0f - neb2_get_fog_intensity(&world_pnt));
+					w *= 1.5;	//make it bigger in a nebula
+				}
+				
+				if (!Cmdline_nohtl) {
+					g3_transfer_vertex(&p, &world_pnt);
+				} else {
+					g3_rotate_vertex(&p, &world_pnt);
+				}
+
+				p.r = p.g = p.b = p.a = (ubyte)(255.0f * MAX(d,0.0f));
+
+				if((gpo && gpo->glow_bitmap_override)?(gpo->glow_bitmap > -1):(bank->glow_bitmap > -1)) {
+					int gpflags = TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT;
+
+					if (use_depth_buffer)
+						gpflags |= TMAP_FLAG_SOFT_QUAD;
+
+					batch_add_bitmap(
+						(gpo && gpo->glow_bitmap_override)?gpo->glow_bitmap:bank->glow_bitmap,
+						gpflags,  
+						&p,
+						0,
+						(w * 0.5f),
+						d * pulse,
+						w
+						);
+				}
+			} //d>0.0f
+			if ( gpo && gpo->pulse_type ) {
+				int period;
+
+				if(gpo->pulse_period_override) {
+					period = gpo->pulse_period;
+				} else {
+					if(gpo->on_time_override) {
+						period = 2 * gpo->on_time;
+					} else {
+						period = 2 * bank->on_time;
+					}
+				}
+
+				int x = 0;
+
+				if ( (gpo && gpo->off_time_override) ? gpo->off_time : bank->off_time ) {
+					x = (timestamp() - ((gpo && gpo->disp_time_override)?gpo->disp_time:bank->disp_time)) % ( ((gpo && gpo->on_time_override)?gpo->on_time:bank->on_time) + ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time) ) - ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time);
+				} else {
+					x = (timestamp() - ((gpo && gpo->disp_time_override)?gpo->disp_time:bank->disp_time)) % gpo->pulse_period;
+				}
+
+				switch ( gpo->pulse_type ) {
+
+				case PULSE_SIN:
+					pulse = gpo->pulse_bias + gpo->pulse_amplitude * pow(sin( PI2 / period * x),gpo->pulse_exponent);
+					break;
+
+				case PULSE_COS:
+					pulse = gpo->pulse_bias + gpo->pulse_amplitude * pow(cos( PI2 / period * x),gpo->pulse_exponent);
+					break;
+
+				case PULSE_SHIFTTRI:
+					x += period / 4;
+					if((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time) {
+						x %= ( ((gpo && gpo->on_time_override)?gpo->on_time:bank->on_time) + ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time) );
+					} else {
+						x %= gpo->pulse_period;
+					}
+
+				case PULSE_TRI:
+					float inv;
+					if( x > period / 2) {
+						inv = -1;
+					} else {
+						inv = 1;
+					}
+					if( x > period / 4) {
+						pulse = gpo->pulse_bias + gpo->pulse_amplitude * inv * pow( 1.0f - ((x - period / 4.0f) * 4 / period) ,gpo->pulse_exponent);
+					} else {
+						pulse = gpo->pulse_bias + gpo->pulse_amplitude * inv * pow( (x * 4.0f / period) ,gpo->pulse_exponent);
+					}
+					break;
+				}
+			}
+
+			extern bool Deferred_lighting;
+
+			if ( Deferred_lighting && gpo && gpo->is_lightsource ) {
+				if ( gpo->lightcone ) {
+					vec3d cone_dir_rot;
+					vec3d cone_dir_model;
+					vec3d cone_dir_world;
+					vec3d cone_dir_screen;
+					vec3d unused;
+
+					if ( gpo->rotating ) {
+						vm_rot_point_around_line(&cone_dir_rot, &gpo->cone_direction, PI * timestamp() * 0.000033333f * gpo->rotation_speed, &vmd_zero_vector, &gpo->rotation_axis);
+					} else {
+						cone_dir_rot = gpo->cone_direction; 
+					}
+
+					find_submodel_instance_point_normal(&unused, &cone_dir_model, &Objects[shipp->objnum], bank->submodel_parent, &unused, &cone_dir_rot);
+					vm_vec_unrotate(&cone_dir_world, &cone_dir_model, orient);
+					vm_vec_rotate(&cone_dir_screen, &cone_dir_world, &Eye_matrix);
+					cone_dir_screen.xyz.z = -cone_dir_screen.xyz.z;
+					light_add_cone(&world_pnt, &cone_dir_screen, gpo->cone_angle, gpo->cone_inner_angle, gpo->dualcone, 1.0f, w * gpo->radius_multi, 1, pulse * gpo->light_color.xyz.x + (1.0f-pulse) * gpo->light_mix_color.xyz.x, pulse * gpo->light_color.xyz.y + (1.0f-pulse) * gpo->light_mix_color.xyz.y, pulse * gpo->light_color.xyz.z + (1.0f-pulse) * gpo->light_mix_color.xyz.z, -1);
+				} else {
+					light_add_point(&world_pnt, 1.0f, w * gpo->radius_multi, 1, pulse * gpo->light_color.xyz.x + (1.0f-pulse) * gpo->light_mix_color.xyz.x, pulse * gpo->light_color.xyz.y + (1.0f-pulse) * gpo->light_mix_color.xyz.y, pulse * gpo->light_color.xyz.z + (1.0f-pulse) * gpo->light_mix_color.xyz.z, -1);
+				}
+			}
+			break;
+		}
+
+	case 1:
+		{
+			vertex verts[4];
+			vec3d fvec, top1, bottom1, top2, bottom2, start, end;
+
+			vm_vec_add2(&loc_norm, &loc_offset);
+
+			vm_vec_rotate(&start, &loc_offset, orient);
+			vm_vec_rotate(&end, &loc_norm, orient);
+			vm_vec_sub(&fvec, &end, &start);
+
+			vm_vec_normalize(&fvec);
+
+			moldel_calc_facing_pts(&top1, &bottom1, &fvec, &loc_offset, gpt->radius, 1.0f, &View_position);
+			moldel_calc_facing_pts(&top2, &bottom2, &fvec, &loc_norm, gpt->radius, 1.0f, &View_position);
+
+			int idx = 0;
+
+			if ( Cmdline_nohtl ) {
+				g3_rotate_vertex(&verts[0], &bottom1);
+				g3_rotate_vertex(&verts[1], &bottom2);
+				g3_rotate_vertex(&verts[2], &top2);
+				g3_rotate_vertex(&verts[3], &top1);
+
+				for ( idx = 0; idx < 4; idx++ ) {
+					g3_project_vertex(&verts[idx]);
+				}
+			} else {
+				g3_transfer_vertex(&verts[0], &bottom1);
+				g3_transfer_vertex(&verts[1], &bottom2);
+				g3_transfer_vertex(&verts[2], &top2);
+				g3_transfer_vertex(&verts[3], &top1);
+			}
+
+			verts[0].texture_position.u = 0.0f;
+			verts[0].texture_position.v = 0.0f;
+
+			verts[1].texture_position.u = 1.0f;
+			verts[1].texture_position.v = 0.0f;
+
+			verts[2].texture_position.u = 1.0f;
+			verts[2].texture_position.v = 1.0f;
+
+			verts[3].texture_position.u = 0.0f;
+			verts[3].texture_position.v = 1.0f;
+
+			vm_vec_sub(&tempv,&View_position,&loc_offset);
+			vm_vec_normalize(&tempv);
+
+			if ( The_mission.flags & MISSION_FLAG_FULLNEB ) {
+				batch_add_quad(bank->glow_neb_bitmap, TMAP_FLAG_TILED | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT, verts);
+			} else {
+				batch_add_quad(bank->glow_bitmap, TMAP_FLAG_TILED | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT, verts);
+			}
+
+			break;
+		}
+	}
+}
+
+void model_queue_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d *pos, bool use_depth_buffer = true)
+{
+	int i, j;
+
+	int cull = gr_set_cull(0);
+
+	glow_point_bank_override *gpo = NULL;
+	bool override_all = false;
+	SCP_unordered_map<int, void*>::iterator gpoi;
+	ship_info *sip = NULL;
+
+	if ( shipp ) {
+		sip = &Ship_info[shipp->ship_info_index];
+		SCP_unordered_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
+
+		if(gpoi != sip->glowpoint_bank_override_map.end()) {
+			override_all = true;
+			gpo = (glow_point_bank_override*) sip->glowpoint_bank_override_map[-1];
+		}
+	}
+
+	for (i = 0; i < pm->n_glow_point_banks; i++ ) {
+		glow_point_bank *bank = &pm->glow_point_banks[i];
+
+		if(!override_all && sip) {
+			gpoi = sip->glowpoint_bank_override_map.find(i);
+			if(gpoi != sip->glowpoint_bank_override_map.end()) {
+				gpo = (glow_point_bank_override*) sip->glowpoint_bank_override_map[i];
+			} else {
+				gpo = NULL;
+			}
+		}
+
+		if (pm->submodel[bank->submodel_parent].blown_off)
+			continue;
+
+		if ((gpo && gpo->off_time_override && !gpo->off_time)?gpo->is_on:bank->is_on) {
+			if ( (shipp != NULL) && !(shipp->glow_point_bank_active[i]) )
+				continue;
+
+			for (j = 0; j < bank->num_points; j++) {
+				Assert( bank->points != NULL );
+				int flick;
+
+				if (pm->submodel[pm->detail[0]].num_arcs) {
+					flick = static_rand( timestamp() % 20 ) % (pm->submodel[pm->detail[0]].num_arcs + j); //the more damage, the more arcs, the more likely the lights will fail
+				} else {
+					flick = 1;
+				}
+
+				if (flick == 1) {
+					model_queue_render_glowpoint(j, pos, orient, bank, gpo, pm, shipp, use_depth_buffer);
+				} // flick
+			} // for slot
+		} // bank is on
+	} // for bank
+
+	gr_set_cull(cull);
+}
+
+void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum, ship *shipp, matrix *orient, vec3d *pos)
+{
+	int i, j;
+	int n_q = 0;
+	size_t 	k;
+	vec3d norm, norm2, fvec, pnt, npnt;
+	thruster_bank *bank = NULL;
+	vertex p;
+	bool do_render = false;
+
+	if ( pm == NULL ) {
+		Int3();
+		return;
+	}
+
+	if ( !(interp->flags & MR_SHOW_THRUSTERS) ) {
+		return;
+	}
+
+	// get an initial count to figure out how man geo batchers we need allocated
+	for (i = 0; i < pm->n_thrusters; i++ ) {
+		bank = &pm->thrusters[i];
+		n_q += bank->num_points;
+	}
+
+	if (n_q <= 0) {
+		return;
+	}
+
+	// primary_thruster_batcher
+	if (interp->thrust_glow_bitmap >= 0) {
+		do_render = true;
+	}
+
+	// secondary_thruster_batcher
+	if (interp->secondary_thrust_glow_bitmap >= 0) {
+		do_render = true;
+	}
+
+	// tertiary_thruster_batcher
+	if (interp->tertiary_thrust_glow_bitmap >= 0) {
+		do_render = true;
+	}
+
+	if (do_render == false) {
+		return;
+	}
+
+	// this is used for the secondary thruster glows 
+	// it only needs to be calculated once so I'm doing it here -Bobboau
+	norm.xyz.z = -1.0f;
+	norm.xyz.x = 1.0f;
+	norm.xyz.y = -1.0f;
+	norm.xyz.x *= interp->thrust_rotvel.xyz.y/2;
+	norm.xyz.y *= interp->thrust_rotvel.xyz.x/2;
+	vm_vec_normalize(&norm);
+
+	for (i = 0; i < pm->n_thrusters; i++ ) {
+		vec3d submodel_static_offset; // The associated submodel's static offset in the ship's frame of reference
+		bool submodel_rotation = false;
+
+		bank = &pm->thrusters[i];
+
+		// don't draw this thruster if the engine is destroyed or just not on
+		if ( !model_should_render_engine_glow(objnum, bank->obj_num) )
+			continue;
+
+		// If bank is attached to a submodel, prepare to account for rotations
+		//
+		// TODO: This won't work in the ship lab, because the lab code doesn't
+		// set the the necessary submodel instance info needed here. The second
+		// condition is thus a hack to disable the feature while in the lab, and
+		// can be removed if the lab is re-structured accordingly. -zookeeper
+		if ( bank->submodel_num > -1 && pm->submodel[bank->submodel_num].can_move && (gameseq_get_state_idx(GS_STATE_LAB) == -1) ) {
+			model_find_submodel_offset(&submodel_static_offset, Ship_info[shipp->ship_info_index].model_num, bank->submodel_num);
+
+			submodel_rotation = true;
+		}
+
+		for (j = 0; j < bank->num_points; j++) {
+			Assert( bank->points != NULL );
+
+			float d, D;
+			vec3d tempv;
+			glow_point *gpt = &bank->points[j];
+			vec3d loc_offset = gpt->pnt;
+			vec3d loc_norm = gpt->norm;
+			vec3d world_pnt;
+			vec3d world_norm;
+
+			if ( submodel_rotation ) {
+				vm_vec_sub(&loc_offset, &gpt->pnt, &submodel_static_offset);
+
+				tempv = loc_offset;
+				find_submodel_instance_point_normal(&loc_offset, &loc_norm, &Objects[objnum], bank->submodel_num, &tempv, &loc_norm);
+			}
+
+			vm_vec_unrotate(&world_pnt, &loc_offset, orient);
+			vm_vec_add2(&world_pnt, pos);
+
+			if (shipp) {
+				// if ship is warping out, check position of the engine glow to the warp plane
+				if ( (shipp->flags & (SF_ARRIVING) ) && (shipp->warpin_effect) && Ship_info[shipp->ship_info_index].warpin_type != WT_HYPERSPACE) {
+					vec3d warp_pnt, tmp;
+					matrix warp_orient;
+
+					shipp->warpin_effect->getWarpPosition(&warp_pnt);
+					shipp->warpin_effect->getWarpOrientation(&warp_orient);
+					vm_vec_sub( &tmp, &world_pnt, &warp_pnt );
+
+					if ( vm_vec_dot( &tmp, &warp_orient.vec.fvec ) < 0.0f ) {
+						break;
+					}
+				}
+
+				if ( (shipp->flags & (SF_DEPART_WARP) ) && (shipp->warpout_effect) && Ship_info[shipp->ship_info_index].warpout_type != WT_HYPERSPACE) {
+					vec3d warp_pnt, tmp;
+					matrix warp_orient;
+
+					shipp->warpout_effect->getWarpPosition(&warp_pnt);
+					shipp->warpout_effect->getWarpOrientation(&warp_orient);
+					vm_vec_sub( &tmp, &world_pnt, &warp_pnt );
+
+					if ( vm_vec_dot( &tmp, &warp_orient.vec.fvec ) > 0.0f ) {
+						break;
+					}
+				}
+			}
+
+			vm_vec_sub(&tempv, &View_position, &world_pnt);
+			vm_vec_normalize(&tempv);
+			vm_vec_unrotate(&world_norm, &loc_norm, orient);
+			D = d = vm_vec_dot(&tempv, &world_norm);
+
+			// ADAM: Min throttle draws rad*MIN_SCALE, max uses max.
+#define NOISE_SCALE 0.5f
+#define MIN_SCALE 3.4f
+#define MAX_SCALE 4.7f
+
+			float magnitude;
+			vec3d scale_vec = { { { 1.0f, 0.0f, 0.0f } } };
+
+			// normalize banks, in case of incredibly big normals
+			if ( !IS_VEC_NULL_SQ_SAFE(&world_norm) )
+				vm_vec_copy_normalize(&scale_vec, &world_norm);
+
+			// adjust for thrust
+			(scale_vec.xyz.x *= interp->thrust_scale_x) -= 0.1f;
+			(scale_vec.xyz.y *= interp->thrust_scale_y) -= 0.1f;
+			(scale_vec.xyz.z *= interp->thrust_scale)   -= 0.1f;
+
+			// get magnitude, which we will use as the scaling reference
+			magnitude = vm_vec_normalize(&scale_vec);
+
+			// get absolute value
+			if (magnitude < 0.0f)
+				magnitude *= -1.0f;
+
+			float scale = magnitude * (MAX_SCALE - MIN_SCALE) + MIN_SCALE;
+
+			if (d > 0.0f){
+				// Make glow bitmap fade in/out quicker from sides.
+				d *= 3.0f;
+
+				if (d > 1.0f)
+					d = 1.0f;
+			}
+
+			float fog_int = 1.0f;
+
+			// fade them in the nebula as well
+			if (The_mission.flags & MISSION_FLAG_FULLNEB) {
+				vm_vec_rotate(&npnt, &gpt->pnt, orient);
+				vm_vec_add2(&npnt, pos);
+
+				fog_int = (1.0f - (neb2_get_fog_intensity(&npnt)));
+
+				if (fog_int > 1.0f)
+					fog_int = 1.0f;
+
+				d *= fog_int;
+
+				if (d > 1.0f)
+					d = 1.0f;
+			}
+
+			float w = gpt->radius * (scale + interp->thrust_glow_noise * NOISE_SCALE);
+
+			// these lines are used by the tertiary glows, thus we will need to project this all of the time
+			if (Cmdline_nohtl) {
+				g3_rotate_vertex( &p, &world_pnt );
+			} else {
+				g3_transfer_vertex( &p, &world_pnt );
+			}
+
+			// start primary thruster glows
+			if ( (interp->thrust_glow_bitmap >= 0) && (d > 0.0f) ) {
+				p.r = p.g = p.b = p.a = (ubyte)(255.0f * d);
+				batch_add_bitmap(
+					interp->thrust_glow_bitmap, 
+					TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD, 
+					&p,
+					0,
+					(w * 0.5f * interp->thrust_glow_rad_factor),
+					1.0f,
+					(w * 0.325f)
+					);
+			}
+
+			// start tertiary thruster glows
+			if (interp->tertiary_thrust_glow_bitmap >= 0) {
+				p.screen.xyw.w -= w;
+				p.r = p.g = p.b = p.a = (ubyte)(255.0f * fog_int);
+				batch_add_bitmap_rotated(
+					interp->tertiary_thrust_glow_bitmap,
+					TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD,
+					&p,
+					(magnitude * 4),
+					(w * 0.6f * interp->tertiary_thrust_glow_rad_factor),
+					1.0f,
+					(-(D > 0) ? D : -D)
+					);
+			}
+
+			// begin secondary glows
+			if (interp->secondary_thrust_glow_bitmap >= 0) {
+				pnt = world_pnt;
+				scale = magnitude * (MAX_SCALE - (MIN_SCALE / 2)) + (MIN_SCALE / 2);
+				vm_vec_unrotate(&world_norm, &norm, orient);
+				d = vm_vec_dot(&tempv, &world_norm);
+				d += 0.75f;
+				d *= 3.0f;
+
+				if (d > 1.0f)
+					d = 1.0f;
+
+				if (d > 0.0f) {
+					vm_vec_add(&norm2, &world_norm, &pnt);
+					vm_vec_sub(&fvec, &norm2, &pnt);
+					vm_vec_normalize(&fvec);
+
+					float wVal = gpt->radius * scale * 2;
+
+					vm_vec_scale_add(&norm2, &pnt, &fvec, wVal * 2 * interp->thrust_glow_len_factor);
+
+					if (The_mission.flags & MISSION_FLAG_FULLNEB) {
+						vm_vec_add(&npnt, &pnt, pos);
+						d *= fog_int;
+					}
+
+					batch_add_beam(interp->secondary_thrust_glow_bitmap,
+						TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT,
+						&pnt, &norm2, wVal*interp->secondary_thrust_glow_rad_factor*0.5f, d
+						);
+					if (Scene_framebuffer_in_frame && interp->draw_distortion) {
+						vm_vec_scale_add(&norm2, &pnt, &fvec, wVal * 2 * interp->distortion_thrust_length_factor);
+						int dist_bitmap;
+						if (interp->distortion_thrust_bitmap > 0) {
+							dist_bitmap = interp->distortion_thrust_bitmap;
+						}
+						else {
+							dist_bitmap = interp->secondary_thrust_glow_bitmap;
+						}
+						float mag = vm_vec_mag(&gpt->pnt); 
+						mag -= (float)((int)mag);//Valathil - Get a fairly random but constant number to offset the distortion texture
+						distortion_add_beam(dist_bitmap,
+							TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT | TMAP_FLAG_DISTORTION_THRUSTER | TMAP_FLAG_SOFT_QUAD,
+							&pnt, &norm2, wVal*interp->distortion_thrust_rad_factor*0.5f, 1.0f, mag
+							);
+					}
+				}
+			}
+
+			// begin particles
+			if (shipp) {
+				ship_info *sip = &Ship_info[shipp->ship_info_index];
+				particle_emitter pe;
+				thruster_particles *tp;
+				size_t num_particles = 0;
+
+				if (interp->afterburner)
+					num_particles = sip->afterburner_thruster_particles.size();
+				else
+					num_particles = sip->normal_thruster_particles.size();
+
+				for (k = 0; k < num_particles; k++) {
+					if (interp->afterburner)
+						tp = &sip->afterburner_thruster_particles[k];
+					else
+						tp = &sip->normal_thruster_particles[k];
+
+					float v = vm_vec_mag_quick(&Objects[shipp->objnum].phys_info.desired_vel);
+
+					vm_vec_unrotate(&npnt, &gpt->pnt, orient);
+					vm_vec_add2(&npnt, pos);
+
+					// Where the particles emit from
+					pe.pos = npnt;
+					// Initial velocity of all the particles
+					pe.vel = Objects[shipp->objnum].phys_info.desired_vel;
+					pe.min_vel = v * 0.75f;
+					pe.max_vel =  v * 1.25f;
+					// What normal the particle emit around
+					pe.normal = orient->vec.fvec;
+					vm_vec_negate(&pe.normal);
+
+					// Lowest number of particles to create
+					pe.num_low = tp->n_low;
+					// Highest number of particles to create
+					pe.num_high = tp->n_high;
+					pe.min_rad = gpt->radius * tp->min_rad;
+					pe.max_rad = gpt->radius * tp->max_rad;
+					// How close they stick to that normal 0=on normal, 1=180, 2=360 degree
+					pe.normal_variance = tp->variance;
+
+					particle_emit( &pe, PARTICLE_BITMAP, tp->thruster_bitmap.first_frame);
+				}
+			}
+		}
+	}
+}
+
 void model_queue_render(interp_data *interp, DrawList *scene, int model_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures)
 {
+	int i;
 	int cull = 0;
 	// replacement textures - Goober5000
 	model_set_replacement_textures(replacement_textures);
@@ -833,7 +1672,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 	}
 
 	if ( !(flags & MR_NO_LIGHTING) ) {
-		scene->pushLightFilter( objnum, pos, pm->rad );
+		scene->setLightFilter( objnum, pos, pm->rad );
 	}
 
 	interp->objnum = objnum;
@@ -983,23 +1822,13 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 	} else {
 		scene->setFillMode(GR_FILL_MODE_SOLID);
 	}
-
-	int zbuf_mode;
-
-	if ( (interp->flags & MR_NO_ZBUFFER) || (interp->flags & MR_ALL_XPARENT) ) {
-		zbuf_mode = GR_ZBUFF_NONE;
-	} else {
-		zbuf_mode = GR_ZBUFF_FULL;
-	}
-
-	gr_zbuffer_set(zbuf_mode);
-
+	
 	if ( interp->flags & MR_EDGE_ALPHA ) {
-		gr_center_alpha(-1);
+		scene->setCenterAlpha(-1);
 	} else if ( interp->flags & MR_CENTER_ALPHA ) {
-		gr_center_alpha(1);
+		scene->setCenterAlpha(1);
 	} else {
-		gr_center_alpha(0);
+		scene->setCenterAlpha(0);
 	}
 
 	if ( ( interp->flags & MR_NO_CULL ) || ( interp->flags & MR_ALL_XPARENT ) || ( interp->warp_bitmap >= 0 ) ) {
@@ -1017,6 +1846,8 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 
 	if ( !(interp->flags & MR_NO_LIGHTING) ) {
 		scene->setLighting(true);
+	} else {
+		scene->setLighting(false);
 	}
 	
 	if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
@@ -1030,16 +1861,12 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 	}
 
 	// Draw the subobjects
+	bool draw_thrusters = false;
 	i = pm->submodel[pm->detail[interp->detail_level]].first_child;
 
 	while( i >= 0 )	{
 		if ( !pm->submodel[i].is_thruster ) {
-			// When in htl mode render with htl method unless its a jump node
-			if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-				model_queue_render_children_buffers( scene, interp, pm, i, interp->detail_level );
-			} else {
-				model_interp_subcall( pm, i, interp->detail_level );
-			}
+			model_queue_render_children_buffers( scene, interp, pm, i, interp->detail_level );
 		} else {
 			draw_thrusters = true;
 		}
@@ -1050,13 +1877,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 	model_radius = pm->submodel[pm->detail[interp->detail_level]].rad;
 
 	//*************************** draw the hull of the ship *********************************************
-
-	// When in htl mode render with htl method unless its a jump node
-	if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-		model_queue_render_buffers(scene, interp, pm, pm->detail[interp->detail_level]);
-	} else {
-		model_interp_subcall(pm, pm->detail[interp->detail_level], Interp_detail_level);
-	}
+	model_queue_render_buffers(scene, interp, pm, pm->detail[interp->detail_level]);
 
 	// Draw the thruster subobjects
 	if ( draw_thrusters ) {
@@ -1064,12 +1885,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 
 		while( i >= 0 ) {
 			if (pm->submodel[i].is_thruster) {
-				// When in htl mode render with htl method unless its a jump node
-				if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-					model_queue_render_children_buffers( scene, interp, pm, i, interp->detail_level );
-				} else {
-					model_interp_subcall( pm, i, interp->detail_level );
-				}
+				model_queue_render_children_buffers( scene, interp, pm, i, interp->detail_level );
 			}
 			i = pm->submodel[i].next_sibling;
 		}
@@ -1079,7 +1895,24 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 		g3_done_instance();
 	}
 
-	if ( !(flags & MR_NO_LIGHTING) ) {
-		scene->popLightFilter();
+	g3_done_instance();
+
+	// start rendering glow points -Bobboau
+	if ( (pm->n_glow_point_banks) && !is_outlines_only && !is_outlines_only_htl && !Glowpoint_override ) {
+		model_queue_render_glow_points(pm, shipp, orient, pos, Glowpoint_use_depth_buffer);
+	}
+
+	// Draw the thruster glow
+	if ( !is_outlines_only && !is_outlines_only_htl ) {
+		if ( ( interp->flags & MR_AUTOCENTER ) && set_autocen ) {
+			vec3d autoback_rotated;
+
+			vm_vec_unrotate(&autoback_rotated, &auto_back, orient);
+			vm_vec_add2(&autoback_rotated, pos);
+
+			model_queue_render_thrusters( interp, pm, objnum, shipp, orient, &autoback_rotated );
+		} else {
+			model_queue_render_thrusters( interp, pm, objnum, shipp, orient, pos );
+		}
 	}
 }

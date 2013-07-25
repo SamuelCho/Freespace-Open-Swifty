@@ -11,6 +11,9 @@
 #include "Math/vecmat.h"
 #include "lighting/lighting.h"
 
+extern light Lights[MAX_LIGHTS];
+extern int Num_lights;
+
 extern bool in_shadow_map;
 
 extern matrix Object_matrix;
@@ -31,28 +34,21 @@ struct clip_plane_state
 struct render_state
 {
 	int clip_plane_handle;
-	int blend_filter;
-	float alpha;
-	int depth_mode;
-	int shader_handle;
-	int texture_maps[TM_NUM_TYPES];
 	int texture_addressing;
 	int fill_mode;
 	int cull_mode;
 	int center_alpha;
 	int zbias;
+	int buffer_id;
 
 	float animated_timer;
 	int animated_effect;
 
 	bool lighting;
-
-	float light;
+	SceneLights::LightIndexingInfo lights;
 	
 	bool using_team_color;
 	team_color tm_color;
-
-	bool thruster;
 
 	// fog state maybe shouldn't belong here. if we have fog, then it's probably occurring for all objects in scene.
 	int fog_mode;
@@ -61,35 +57,35 @@ struct render_state
 	int b;
 	float fog_near;
 	float fog_far;
-};
 
-struct uniform_data
-{
-	float anim_timer;
-	int effect_num;
-	float vp_width;
-	float vp_height;
+	render_state()
+	{
+		clip_plane_handle = -1;
+		texture_addressing = TMAP_ADDRESS_WRAP;
+		fill_mode = GR_FILL_MODE_SOLID;
 
-	int desaturate;
-	float red;
-	float green;
-	float blue;
+		buffer_id = -1;
 
-	float lmatrix[16];
-	float lprojmatrix[3][16];
-	float modelmatrix[16];
+		lighting = false;
 
-	float shadow_neardist;
-	float shadow_middist;
-	float shadow_fardist;
-
-	float thrust_scale;
+		fog_mode = GR_FOGMODE_NONE;
+		r = 0;
+		g = 0;
+		b = 0;
+		fog_near = -1.0f;
+		fog_far = -1.0f;
+	}
 };
 
 struct queued_buffer_draw
 {
 	int render_state_handle;
-	int uniform_data_handle;
+	int texture_maps[TM_NUM_TYPES];
+
+	color clr;
+	int blend_filter;
+	float alpha;
+	int depth_mode;
 
 	matrix orient;
 	vec3d pos;
@@ -99,41 +95,59 @@ struct queued_buffer_draw
 	int texi;
 	int flags;
 	int sdr_flags;
+
+	float thrust_scale;
+	float light_factor;
+
+	queued_buffer_draw()
+	{
+		depth_mode = GR_ZBUFF_FULL;
+		light_factor = 1.0f;
+
+		texture_maps[TM_BASE_TYPE]		= -1;
+		texture_maps[TM_GLOW_TYPE]		= -1;
+		texture_maps[TM_HEIGHT_TYPE]	= -1;
+		texture_maps[TM_MISC_TYPE]		= -1;
+		texture_maps[TM_NORMAL_TYPE]	= -1;
+		texture_maps[TM_SPECULAR_TYPE]	= -1;
+	}
 };
 
 class DrawList
 {
+	friend class DrawListSorter;
+
 	bool in_shadow_map;
 
-	SCP_vector<clip_plane_state> clip_planes;
-	int set_clip_plane;
-
-	SCP_vector<render_state> render_states;
-	SCP_vector<uniform_data> uniforms;
+	render_state current_render_state;
+	bool dirty_render_state;
 
 	SceneLights Lights;
+	
+	int current_textures[TM_NUM_TYPES];
+	int current_blend_filter;
+	float current_alpha;
+	int current_depth_mode;
 
-	SCP_vector<queued_buffer_draw> render_elements;
-
-	SCP_vector<int> render_keys;
-
-	clip_plane_state current_clip_plane;
-	bool clip_plane_set;
-
-	render_state current_render_state;
+	int set_clip_plane;
+	SceneLights::LightIndexingInfo current_lights_set;
 
 	void drawRenderElement(queued_buffer_draw *render_elements);
+	uint determineShaderFlags(render_state *state, queued_buffer_draw *draw_info, vertex_buffer *buffer, int tmap_flags);
+	void sortDraws();
 
-	uint determineShaderFlags(render_state *state, vertex_buffer *buffer, int flags);
-	void determineUniforms(uniform_data *uniform_data_instance, render_state *render_state_instance, uint sdr_flags);
+protected:
+	SCP_vector<clip_plane_state> clip_planes;
+	SCP_vector<render_state> render_states;
+	SCP_vector<queued_buffer_draw> render_elements;
+	SCP_vector<int> render_keys;
+	
 public:
 	DrawList();
-	void addStaticLight(light *light_ptr);
 	void addLight(light *light_ptr);
 
 	void resetState();
-	void setClipPlane(vec3d *position, vec3d *normal);
-	void setShader(int shader_handle);
+	void setClipPlane(vec3d *position = NULL, vec3d *normal = NULL);
 	void setTexture(int texture_type, int texture_handle);
 	void setDepthMode(int depth_set);
 	void setBlendFilter(int filter, float alpha);
@@ -142,18 +156,24 @@ public:
 	void setFillMode(int mode);
 	void setCullMode(int mode);
 	void setZBias(int bias);
+	void setCenterAlpha(int center_alpha);
 	void setLighting(bool mode);
-	void setScale(vec3d *scale = NULL);
 	void setBuffer(int buffer);
 	void setTeamColor(team_color *color);
 	void setAnimatedTimer(float time);
 	void setAnimatedEffect(int effect);
-	void addBufferDraw(matrix* orient, vec3d* pos, vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp);
+	void addBufferDraw(matrix* orient, vec3d* pos, vec3d *scale, vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp);
 	void addArc(matrix *orient, vec3d *pos, vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width);
 
-	void pushLightFilter(int objnum, vec3d *pos, float rad);
-	void popLightFilter();
+	void setLightFilter(int objnum, vec3d *pos, float rad);
+};
 
+class DrawListSorter
+{
+	static DrawList *Target;
+public:
+	static void sort(DrawList *target);
+	static int sortDrawPair(const void* a, const void* b);
 };
 
 struct interp_data
@@ -212,9 +232,14 @@ struct interp_data
 	vec3d render_sphere_offset;
 
 	float thrust_scale;
+	float thrust_scale_x;
+	float thrust_scale_y;
+
 	float warp_scale_x;
 	float warp_scale_y;
 	float warp_scale_z;
+
+	bool draw_distortion;
 
 	interp_data() 
 	{
@@ -264,10 +289,12 @@ struct interp_data
 		thrust_glow_len_factor = 1.0f;
 
 		afterburner = false;
+
+		draw_distortion = false;
 	}
 };
 
 void model_queue_render(interp_data *interp, DrawList* scene, int model_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures);
-void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures);
+void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1, int *replacement_textures = NULL);
 void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel *pm, int mn, bool is_child = false);
 void model_queue_render_set_thrust(interp_data *interp, int model_num, mst_info *mst);

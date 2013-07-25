@@ -719,7 +719,13 @@ void labviewer_render_model(float frametime)
 		}
 
 		if (sip->uses_team_colors && !Teamcolor_override) {
-			gr_set_team_color(Lab_team_color, "<none>", 0, 0);
+			team_color color;
+
+			if ( model_set_team_color(&color, Lab_team_color, "<none>", 0, 0) ) {
+				gr_set_team_color(&color);
+			} else {
+				gr_disable_team_color();
+			}
 		}
 	}
 

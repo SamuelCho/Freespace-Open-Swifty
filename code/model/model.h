@@ -1314,6 +1314,10 @@ void model_do_look_at(int model_num); //Bobboau
 
 void model_do_dumb_rotation(int modelnum); //Bobboau
 
+int model_should_render_engine_glow(int objnum, int bank_obj);
+
+bool model_set_team_color(team_color *color, const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime);
+
 void glowpoint_init();
 SCP_vector<glow_point_bank_override>::iterator get_glowpoint_bank_override_by_name(const char* name);
 extern SCP_vector<glow_point_bank_override> glowpoint_bank_overrides;

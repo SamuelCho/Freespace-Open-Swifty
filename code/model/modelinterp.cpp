@@ -33,6 +33,7 @@
 #include "graphics/gropengllight.h"
 #include "ship/shipfx.h"
 #include "gamesequence/gamesequence.h"
+#include "globalincs/alphacolors.h"
 
 #include <limits.h>
 
@@ -4866,6 +4867,54 @@ void model_set_warp_globals(float scale_x, float scale_y, float scale_z, int bit
 
 	Interp_warp_bitmap = bitmap_id;
 	Interp_warp_alpha = alpha;
+}
+
+void model_mix_two_team_colors(team_color* dest, team_color* a, team_color* b, float mix_factor)
+{
+	dest->base.r = a->base.r * (1.0f - mix_factor) + b->base.r * mix_factor;
+	dest->base.g = a->base.g * (1.0f - mix_factor) + b->base.g * mix_factor;
+	dest->base.b = a->base.b * (1.0f - mix_factor) + b->base.b * mix_factor;
+
+	dest->stripe.r = a->stripe.r * (1.0f - mix_factor) + b->stripe.r * mix_factor;
+	dest->stripe.g = a->stripe.g * (1.0f - mix_factor) + b->stripe.g * mix_factor;
+	dest->stripe.b = a->stripe.b * (1.0f - mix_factor) + b->stripe.b * mix_factor;
+}
+
+bool model_set_team_color(team_color *color, const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime)
+{
+	if (secondaryteam == "<none>") {
+		if (Team_Colors.find(team) != Team_Colors.end()) {
+			*color = Team_Colors[team];
+			return true;
+		} else
+			return false;
+	} else {
+		if ( Team_Colors.find(secondaryteam) != Team_Colors.end()) {
+			team_color temp_color;
+			team_color start;
+
+			if (Team_Colors.find(team) != Team_Colors.end()) {
+				start = Team_Colors[team];
+			} else {
+				start.base.r = 0.0f;
+				start.base.g = 0.0f;
+				start.base.b = 0.0f;
+
+				start.stripe.r = 0.0f;
+				start.stripe.g = 0.0f;
+				start.stripe.b = 0.0f;
+			}
+
+			team_color end = Team_Colors[secondaryteam];
+			float time_remaining = (f2fl(Missiontime - timestamp) * 1000)/fadetime;
+			CLAMP(time_remaining, 0.0f, 1.0f);
+			model_mix_two_team_colors(&temp_color, &start, &end, time_remaining);
+
+			*color = temp_color;
+			return true;
+		} else
+			return false;
+	}
 }
 
 //********************-----CLASS: texture_info-----********************//
