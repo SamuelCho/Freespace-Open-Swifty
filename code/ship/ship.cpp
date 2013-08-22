@@ -17933,6 +17933,8 @@ void ship_queue_render(object* obj, DrawList* scene)
 		return;
 	}
 
+	ship_model_start(obj);
+
 	// Only render electrical arcs if within 500m of the eye (for a 10m piece)
 	if ( vm_vec_dist_quick( &obj->pos, &Eye_position ) < obj->radius*50.0f && !in_shadow_map ) {
 		for ( int i = 0; i < MAX_SHIP_ARCS; i++ )	{
@@ -17943,8 +17945,6 @@ void ship_queue_render(object* obj, DrawList* scene)
 	}
 
 	uint render_flags = MR_NORMAL;
-
-	scene->setClipPlane();
 
 	if ( shipp->large_ship_blowup_index >= 0 )	{
 		shipfx_large_blowup_queue_render(&interp, scene, shipp);
@@ -17978,6 +17978,8 @@ void ship_queue_render(object* obj, DrawList* scene)
 	// set up the model renderer to only draw the polygons in front
 	// of the warp in effect
 	int clip_started = 0;
+
+	scene->setClipPlane();
 
 	// Warp_shipp points to the ship that is going through a
 	// warp... either this ship or the ship it is docked with.
@@ -18092,6 +18094,4 @@ void ship_queue_render(object* obj, DrawList* scene)
 	} else if(shipp->flags & SF_DEPART_WARP) {
 		shipp->warpout_effect->warpShipRender();
 	}
-
-	gr_disable_team_color();
 }

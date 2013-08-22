@@ -15,12 +15,15 @@
 #include "mission/missionparse.h"
 #include "nebula/neb.h"
 #include "ship/ship.h"
-
 #include <list>
+#include "jumpnode/jumpnode.h"
 #include "weapon/weapon.h"
 #include "debris/debris.h"
 #include "asteroid/asteroid.h"
 #include "model/modelrender.h"
+#include "cmdline/cmdline.h"
+#include "graphics/gropengldraw.h"
+#include "parse/scripting.h"
 
 typedef struct sorted_obj {
 	object			*obj;					// a pointer to the original object
@@ -378,17 +381,19 @@ void obj_queue_render(object* obj, DrawList* scene)
 		asteroid_queue_render(obj, scene);
 		break;
 	case OBJ_JUMP_NODE:
-		for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
-			if(jnp->GetSCPObject() != obj)
+		for ( SCP_list<CJumpNode>::iterator jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp ) {
+			if ( jnp->GetSCPObject() != obj ) {
 				continue;
+			}
+
 			jnp->QueueRender(scene, &obj->pos, &Eye_position);
 		}
 		break;
 	case OBJ_WAYPOINT:
-		if (Show_waypoints)	{
-			gr_set_color( 128, 128, 128 );
-			g3_draw_sphere_ez( &obj->pos, 5.0f );
-		}
+// 		if (Show_waypoints)	{
+// 			gr_set_color( 128, 128, 128 );
+// 			g3_draw_sphere_ez( &obj->pos, 5.0f );
+// 		}
 		break;
 	case OBJ_GHOST:
 		break;
@@ -407,19 +412,168 @@ void obj_render_queue_all()
 
 	objp = Objects;
 
+	gr_deferred_lighting_begin();
+
 	// load lights into draw list
 	for ( i = 0; i < Num_lights; ++i ) {
-		scene.addLight(&Lights[i]);
+		if ( Lights[i].type == LT_DIRECTIONAL || !Deferred_lighting ) {
+			scene.addLight(&Lights[i]);
+		}	
 	}
 
 	for ( i = 0; i <= Highest_object_index; i++,objp++ ) {
 		if ( (objp->type != OBJ_NONE) && ( objp->flags & OF_RENDERS ) )	{
 			objp->flags &= ~OF_WAS_RENDERED;
 
-			if ( obj_in_view_cone(objp) ) {
-				obj_queue_render(objp, &scene);
+			if ( !obj_in_view_cone(objp) ) {
+				continue;
 			}
+
+			if ( (The_mission.flags & MISSION_FLAG_FULLNEB) && (Neb2_render_mode != NEB2_RENDER_NONE) && !Fred_running ) {
+				vec3d to_obj;
+				vm_vec_sub( &to_obj, &objp->pos, &Eye_position );
+				float z = vm_vec_dot( &Eye_matrix.vec.fvec, &to_obj );
+
+				if ( neb2_skip_render(objp, z) ){
+					continue;
+				}
+			}
+
+			if ( (objp == Viewer_obj)
+				&& (objp->type == OBJ_SHIP)
+				&& (Ship_info[Ships[objp->instance].ship_info_index].flags2 & SIF2_SHOW_SHIP_MODEL)
+				&& (!Viewer_mode || (Viewer_mode & VM_PADLOCK_ANY) || (Viewer_mode & VM_OTHER_SHIP) || (Viewer_mode & VM_TRACK)) )
+			{
+				continue;
+			}
+			
+			obj_queue_render(objp, &scene);
 		}
 	}
+
+	scene.sortDraws();
+	scene.renderAll(GR_ALPHABLEND_NONE);
+
+	gr_deferred_lighting_end();
+	gr_deferred_lighting_finish();
+
+	scene.renderAll(GR_ALPHABLEND_FILTER);
 }
 
+void obj_render_queue_shadow_maps()
+{
+	extern SCP_vector<light*> Static_light;
+
+	if ( Static_light.empty() ) {
+		return;
+	}
+
+	light *lp = *(Static_light.begin());
+
+	if( !Cmdline_nohtl && Cmdline_shadow_quality && lp ) {
+		return;
+	}
+
+	gr_end_proj_matrix();
+	gr_end_view_matrix();
+
+	gr_start_shadow_map(400.0f, 3000.0f, 20000.0f);
+	object *objp = Objects;
+
+	double clip_width, clip_height;
+	float minx = 0.0f, miny = 0.0f, minz = 0.0f, maxx = 0.0f, maxy = 0.0f, maxz = 0.0f;
+	vec3d frustum[8];
+	matrix orient;
+	vec3d bb_r;
+
+	vm_vector_2_matrix(&orient, &lp->vec, &Eye_matrix.vec.uvec, NULL);
+	clip_height = tan( (double)Proj_fov * 0.5 );
+	clip_width = clip_height * (double)gr_screen.clip_aspect;
+
+	vm_vec_scale_add(&frustum[0], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, (float)clip_width);
+	vm_vec_scale_add2(&frustum[0], &Eye_matrix.vec.uvec, (float)clip_height);
+
+	vm_vec_scale_add(&frustum[1], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, (float)clip_width);
+	vm_vec_scale_add2(&frustum[1], &Eye_matrix.vec.uvec, -(float)clip_height);
+
+	vm_vec_scale_add(&frustum[2], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, -(float)clip_width);
+	vm_vec_scale_add2(&frustum[2], &Eye_matrix.vec.uvec, (float)clip_height);
+
+	vm_vec_scale_add(&frustum[3], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, -(float)clip_width);
+	vm_vec_scale_add2(&frustum[3], &Eye_matrix.vec.uvec, -(float)clip_height);
+
+	vm_vec_copy_scale(&frustum[4], &frustum[0], 20000.0);
+	vm_vec_copy_scale(&frustum[5], &frustum[1], 20000.0);
+	vm_vec_copy_scale(&frustum[6], &frustum[2], 20000.0);
+	vm_vec_copy_scale(&frustum[7], &frustum[3], 20000.0);
+
+	for ( int i = 0; i < 8; i++ ) {
+		vm_vec_rotate(&bb_r, &frustum[i], &orient);
+
+		if ( !i ) {
+			minx = bb_r.xyz.x;
+			maxx = bb_r.xyz.x;
+			miny = bb_r.xyz.y;
+			maxy = bb_r.xyz.y;
+			minz = bb_r.xyz.z;
+			maxz = bb_r.xyz.z;
+		} else {
+			minx = MIN(bb_r.xyz.x, minx);
+			maxx = MAX(bb_r.xyz.x, maxx);
+			miny = MIN(bb_r.xyz.y, miny);
+			maxy = MAX(bb_r.xyz.y, maxy);
+			minz = MIN(bb_r.xyz.z, minz);
+			maxz = MAX(bb_r.xyz.z, maxz);
+		}
+	}
+
+	DrawList scene;
+
+	for ( int i = 0; i <= Highest_object_index; i++, objp++ ) {
+		vec3d pos, pos_rot;
+		vm_vec_sub(&pos, &objp->pos, &Eye_position);
+		vm_vec_rotate(&pos_rot, &pos, &orient);
+
+		if((pos_rot.xyz.x - objp->radius) > maxx || (pos_rot.xyz.x + objp->radius) < minx || (pos_rot.xyz.y - objp->radius) > maxy || (pos_rot.xyz.y + objp->radius) < miny || (pos_rot.xyz.z - objp->radius) > maxz)
+			continue;
+
+		switch(objp->type)
+		{
+		case OBJ_SHIP:
+			ship_queue_render(objp, &scene);
+			break;
+		case OBJ_ASTEROID:
+			{
+				interp_data interp;
+
+				model_clear_instance( Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype]);
+				model_queue_render(&interp, &scene, Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype], &objp->orient, &objp->pos, MR_NORMAL | MR_IS_ASTEROID | MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp), NULL );
+			}
+			break;
+
+		case OBJ_DEBRIS:
+			{
+				debris *db;
+				db = &Debris[objp->instance];
+
+				if ( !(db->flags & DEBRIS_USED)){
+					continue;
+				}
+
+				interp_data interp;
+
+				objp = &Objects[db->objnum];
+				submodel_queue_render(&interp, &scene, db->model_num, db->submodel_num, &objp->orient, &objp->pos, MR_NO_TEXTURING | MR_NO_LIGHTING, -1, NULL);
+			}
+			break; 
+		}
+	}
+
+	scene.sortDraws();
+	scene.renderAll();
+
+	gr_end_shadow_map();
+
+	gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+	gr_set_view_matrix(&Eye_position, &Eye_matrix);
+}

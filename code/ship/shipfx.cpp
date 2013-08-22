@@ -1955,7 +1955,7 @@ void shipfx_queue_render_ship_halves_and_debris(DrawList *scene, interp_data *in
 	vm_vec_unrotate(&model_clip_plane_pt, &temp, &half_ship->orient);
 	vm_vec_add2(&model_clip_plane_pt, &orig_ship_world_center);
 	scene->setClipPlane(&model_clip_plane_pt, &clip_plane_norm);
-	model_queue_render(interp, scene, pm->id, &half_ship->orient, &orig_ship_world_center, render_flags, -1, -1, shipp->ship_replacement_textures);
+	model_queue_render(interp, scene, pm->id, &half_ship->orient, &orig_ship_world_center, render_flags, -1, shipp->ship_replacement_textures);
 }
 
 void shipfx_large_blowup_level_init()

@@ -712,6 +712,12 @@ void gr_stub_bm_page_in_start()
 int gr_stub_maybe_create_shader(unsigned int flags) {
 	return -1;
 }
+
+bool gr_stub_set_shader_flag(uint shader_flags)
+{
+	return true;
+}
+
 void gr_stub_start_shadow_map(float neardist, float middist, float fardist)
 {
 }

@@ -702,7 +702,7 @@ int batch_add_bitmap_rotated(int texture, int tmap_flags, vertex *pnt, float ang
 	return 0;
 }
 
-int batch_add_tri(int texture, int tmap_flags, vertex *verts, float alpha = 1.0f)
+int batch_add_tri(int texture, int tmap_flags, vertex *verts, float alpha)
 {
 	if (texture < 0) {
 		Int3();
@@ -726,7 +726,7 @@ int batch_add_tri(int texture, int tmap_flags, vertex *verts, float alpha = 1.0f
 	return 0;
 }
 
-int batch_add_quad(int texture, int tmap_flags, vertex *verts, float alpha = 1.0f)
+int batch_add_quad(int texture, int tmap_flags, vertex *verts, float alpha)
 {
 	if (texture < 0) {
 		Int3();
@@ -750,7 +750,7 @@ int batch_add_quad(int texture, int tmap_flags, vertex *verts, float alpha = 1.0
 	return 0;
 }
 
-int batch_add_polygon(int texture, int tmap_flags, vec3d *pos, matrix *orient, int width, int height, float alpha)
+int batch_add_polygon(int texture, int tmap_flags, vec3d *pos, matrix *orient, float width, float height, float alpha)
 {
 	//idiot-proof
 	if(width == 0 || height == 0)
@@ -782,7 +782,7 @@ int batch_add_polygon(int texture, int tmap_flags, vec3d *pos, matrix *orient, i
 		vec3d tmp = vmd_zero_vector;
 
 		//Rotate correctly
-		vm_vec_unrotate(&tmp, &p[i], ori);
+		vm_vec_unrotate(&tmp, &p[i], orient);
 		//Move to point in space
 		vm_vec_add2(&tmp, pos);
 

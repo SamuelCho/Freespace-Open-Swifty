@@ -8,22 +8,40 @@
 */ 
 
 #include "globalincs/pstypes.h"
+#include "io/timer.h"
 #include "Math/vecmat.h"
 #include "model/model.h"
 #include "model/modelrender.h"
 #include "ship/ship.h"
+#include "ship/shipfx.h"
 #include "cmdline/cmdline.h"
 #include "nebula/neb.h"
 #include "graphics/tmapper.h"
 #include "graphics/gropenglshader.h"
+#include "graphics/gropengldraw.h"
 #include "particle/particle.h"
 #include "gamesequence/gamesequence.h"
 #include "render/3dinternal.h"
+#include "Math/staticrand.h"
 
 extern int Model_texturing;
 extern int Model_polys;
 extern int tiling;
 extern float model_radius;
+
+extern const int MAX_ARC_SEGMENT_POINTS;
+extern int Num_arc_segment_points;
+extern vec3d Arc_segment_points[];
+
+extern bool Scene_framebuffer_in_frame;
+
+extern void interp_render_arc_segment( vec3d *v1, vec3d *v2, int depth );
+
+extern float Interp_light;
+extern int Interp_thrust_scale_subobj;
+extern float Interp_thrust_scale;
+
+DrawList *DrawList::Target = NULL;
 
 DrawList::DrawList()
 {
@@ -41,7 +59,8 @@ DrawList::DrawList()
 
 void DrawList::sortDraws()
 {
-	DrawListSorter::sort(this);
+	Target = this;
+	qsort(&Target->render_keys, Target->render_keys.size(), sizeof(int), DrawList::sortDrawPair);
 }
 
 void DrawList::setDepthMode(int depth_set)
@@ -79,7 +98,6 @@ void DrawList::setClipPlane(vec3d *position, vec3d *normal)
 
 	clip_planes.push_back(clip_normal);
 
-	dirty_render_state = true;
 	current_render_state.clip_plane_handle = clip_planes.size() - 1;
 }
 
@@ -112,7 +130,7 @@ void DrawList::addBufferDraw(matrix *orient, vec3d *pos, vec3d *scale, vertex_bu
 	draw_data.texture_maps[TM_SPECULAR_TYPE] = current_textures[TM_SPECULAR_TYPE];
 	draw_data.texture_maps[TM_NORMAL_TYPE] = current_textures[TM_NORMAL_TYPE];
 	draw_data.texture_maps[TM_HEIGHT_TYPE] = current_textures[TM_HEIGHT_TYPE];
-	draw_data.texture_maps[TM_MI] = current_textures[TM_MISC_TYPE];
+	draw_data.texture_maps[TM_MISC_TYPE] = current_textures[TM_MISC_TYPE];
 
 	if ( interp->thrust_scale_subobj ) {
 		draw_data.thrust_scale = interp->thrust_scale;
@@ -131,7 +149,6 @@ void DrawList::addBufferDraw(matrix *orient, vec3d *pos, vec3d *scale, vertex_bu
 
 uint DrawList::determineShaderFlags(render_state *state, queued_buffer_draw *draw_info, vertex_buffer *buffer, int tmap_flags)
 {
-	bool enable_lighting = state->lighting > 0;
 	bool texture = (tmap_flags & TMAP_FLAG_TEXTURED) && (buffer->flags & VB_FLAG_UV1);
 	
 	bool fog = false;
@@ -140,12 +157,18 @@ uint DrawList::determineShaderFlags(render_state *state, queued_buffer_draw *dra
 		fog = true;
 	}
 
+	bool use_thrust_scale = false;
+
+	if ( draw_info->thrust_scale > 0.0f ) {
+		use_thrust_scale = true;
+	}
+
 	return gr_determine_shader_flags(
-		enable_lighting, 
+		state->lighting, 
 		fog, 
 		texture, 
 		in_shadow_map, 
-		draw_info->thrust_scale, 
+		use_thrust_scale, 
 		state->using_team_color, 
 		tmap_flags, 
 		draw_info->texture_maps[TM_BASE_TYPE], 
@@ -172,7 +195,7 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 		clip_plane_state *clip_plane = &clip_planes[set_clip_plane];
 
 		g3_start_user_clip_plane(&clip_plane->point, &clip_plane->normal);
-	} else ( draw_state->clip_plane_handle < 0 && set_clip_plane >= 0 ) {
+	} else if ( draw_state->clip_plane_handle < 0 && set_clip_plane >= 0 ) {
 		// stop the clip plane if this draw call doesn't have clip plane and clip plane is set.
 		g3_stop_user_clip_plane();
 	}
@@ -190,7 +213,7 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 
 	gr_fog_set(draw_state->fog_mode, draw_state->r, draw_state->g, draw_state->b, draw_state->fog_near, draw_state->fog_far);
 
-	gr_zbuffer_set(draw_state->depth_mode);
+	gr_zbuffer_set(render_elements->depth_mode);
 
 	gr_set_cull(draw_state->cull_mode);
 
@@ -205,12 +228,7 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 	if ( draw_state->lighting ) {
 		gr_set_lighting(true, true);
 
-		if ( current_lights_set.index_start != draw_state->lights.index_start || current_lights_set.num_lights != draw_state->lights.num_lights ) {
-			current_lights_set.index_start = draw_state->lights.index_start;
-			current_lights_set.num_lights = draw_state->lights.num_lights;
-
-			Lights.setLights(&draw_state->lights);
-		}
+		Lights.setLights(&draw_state->lights);
 	} else {
 		gr_set_lighting(false, false);
 	}
@@ -223,13 +241,13 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 
 	gr_push_scale_matrix(&render_elements->scale);
 
-	gr_set_bitmap(draw_state->texture_maps[TM_BASE_TYPE], draw_state->blend_filter, GR_BITBLT_MODE_NORMAL, draw_state->alpha);
+	gr_set_bitmap(render_elements->texture_maps[TM_BASE_TYPE], render_elements->blend_filter, GR_BITBLT_MODE_NORMAL, render_elements->alpha);
 
-	GLOWMAP = draw_state->texture_maps[TM_GLOW_TYPE];
-	SPECMAP = draw_state->texture_maps[TM_SPECULAR_TYPE];
-	NORMMAP = draw_state->texture_maps[TM_NORMAL_TYPE];
-	HEIGHTMAP = draw_state->texture_maps[TM_HEIGHT_TYPE];
-	MISCMAP = draw_state->texture_maps[TM_MISC_TYPE];
+	GLOWMAP = render_elements->texture_maps[TM_GLOW_TYPE];
+	SPECMAP = render_elements->texture_maps[TM_SPECULAR_TYPE];
+	NORMMAP = render_elements->texture_maps[TM_NORMAL_TYPE];
+	HEIGHTMAP = render_elements->texture_maps[TM_HEIGHT_TYPE];
+	MISCMAP = render_elements->texture_maps[TM_MISC_TYPE];
 
 	if ( render_elements->thrust_scale > 0.0f ) {
 		Interp_thrust_scale_subobj = 1;
@@ -297,12 +315,22 @@ void DrawList::setTeamColor(team_color *color)
 	}
 }
 
+void DrawList::setAnimatedTimer(float time)
+{
+	current_render_state.animated_timer = time;
+}
+
+void DrawList::setAnimatedEffect(int effect)
+{
+	current_render_state.animated_effect = effect;
+}
+
 void DrawList::setTextureAddressing(int addressing)
 {
 	current_render_state.texture_addressing = addressing;
 }
 
-void DrawList::setFog(int fog_mode, int r, int g, int b, float fog_near = -1.0f, float fog_far = -1.0f)
+void DrawList::setFog(int fog_mode, int r, int g, int b, float fog_near, float fog_far)
 {
 	current_render_state.fog_mode = fog_mode;
 	current_render_state.r = r;
@@ -322,13 +350,20 @@ void DrawList::setCenterAlpha(int center_alpha)
 	current_render_state.center_alpha = center_alpha;
 }
 
-void DrawListSorter::sort(DrawList *target_list)
+void DrawList::renderAll(int blend_filter)
 {
-	Target = target_list;
-	qsort(&Target->render_keys, Target->render_keys.size(), sizeof(int), DrawListSorter::sortDrawPair);
+	size_t i;
+
+	for ( i = 0; i < render_keys.size(); ++i ) {
+		int render_index = render_keys[i];
+
+		if ( blend_filter == -1 || render_elements[render_index].blend_filter == blend_filter ) {
+			drawRenderElement(&render_elements[render_index]);
+		}
+	}
 }
 
-int DrawListSorter::sortDrawPair(const void* a, const void* b)
+int DrawList::sortDrawPair(const void* a, const void* b)
 {
 	int *A = (int*)(a);
 	int *B = (int*)(b);
@@ -338,70 +373,244 @@ int DrawListSorter::sortDrawPair(const void* a, const void* b)
 
 	render_state *render_state_a = &Target->render_states[draw_call_a->render_state_handle];
 	render_state *render_state_b = &Target->render_states[draw_call_b->render_state_handle];
+
+	if ( draw_call_a->blend_filter == GR_ALPHABLEND_NONE && draw_call_b->blend_filter == GR_ALPHABLEND_FILTER ) {
+		return 1;
+	} else if ( draw_call_a->blend_filter == GR_ALPHABLEND_FILTER && draw_call_b->blend_filter == GR_ALPHABLEND_NONE ) {
+		return -1;
+	}
+
+	if ( render_state_a->clip_plane_handle > render_state_b->clip_plane_handle ) {
+		return 1;
+	} else if ( render_state_a->clip_plane_handle < render_state_b->clip_plane_handle ) {
+		return -1;
+	}
+	
+	if ( draw_call_a->sdr_flags > draw_call_b->sdr_flags ) {
+		return 1;
+	} else if ( draw_call_a->sdr_flags < draw_call_b->sdr_flags ) {
+		return -1;
+	}
+	
+	if ( render_state_a->buffer_id > render_state_b->buffer_id) {
+		return 1;
+	} else if ( render_state_a->buffer_id < render_state_b->buffer_id ) {
+		return -1;
+	}
+
+	if ( draw_call_a->texture_maps[TM_BASE_TYPE] > draw_call_b->texture_maps[TM_BASE_TYPE] ) {
+		return 1;
+	} else if ( draw_call_a->texture_maps[TM_BASE_TYPE] < draw_call_b->texture_maps[TM_BASE_TYPE] ) {
+		return -1;
+	}
+
+	if ( draw_call_a->texture_maps[TM_SPECULAR_TYPE] > draw_call_b->texture_maps[TM_SPECULAR_TYPE] ) {
+		return 1;
+	} else if ( draw_call_a->texture_maps[TM_SPECULAR_TYPE] < draw_call_b->texture_maps[TM_SPECULAR_TYPE] ) {
+		return -1;
+	}
+
+	if ( draw_call_a->texture_maps[TM_GLOW_TYPE] > draw_call_b->texture_maps[TM_GLOW_TYPE] ) {
+		return 1;
+	} else if ( draw_call_a->texture_maps[TM_GLOW_TYPE] < draw_call_b->texture_maps[TM_GLOW_TYPE] ) {
+		return -1;
+	}
+
+	if ( draw_call_a->texture_maps[TM_NORMAL_TYPE] > draw_call_b->texture_maps[TM_NORMAL_TYPE] ) {
+		return 1;
+	} else if ( draw_call_a->texture_maps[TM_NORMAL_TYPE] < draw_call_b->texture_maps[TM_NORMAL_TYPE] ) {
+		return -1;
+	}
+
+	if ( draw_call_a->texture_maps[TM_HEIGHT_TYPE] > draw_call_b->texture_maps[TM_HEIGHT_TYPE] ) {
+		return 1;
+	} else if ( draw_call_a->texture_maps[TM_HEIGHT_TYPE] < draw_call_b->texture_maps[TM_HEIGHT_TYPE] ) {
+		return -1;
+	}
+
+	if ( draw_call_a->texture_maps[TM_MISC_TYPE] > draw_call_b->texture_maps[TM_MISC_TYPE] ) {
+		return 1;
+	} else if ( draw_call_a->texture_maps[TM_MISC_TYPE] < draw_call_b->texture_maps[TM_MISC_TYPE] ) {
+		return -1;
+	}
+
+	if ( draw_call_a->texture_maps[TM_MISC_TYPE] > draw_call_b->texture_maps[TM_MISC_TYPE] ) {
+		return 1;
+	} else if ( draw_call_a->texture_maps[TM_MISC_TYPE] < draw_call_b->texture_maps[TM_MISC_TYPE] ) {
+		return -1;
+	}
+
+	return 0;
 }
 
-void model_queue_render_lightning( DrawList *scene, interp_data* interp, polymodel *pm, bsp_info * sm )
+int model_queue_render_batch_rod(int num_points, vec3d *pvecs, float width, uint tmap_flags)
 {
-	int i;
-	float width = 0.9f;
-	color primary, secondary;
+	const int MAX_ROD_VECS = 100;
 
-	Assert( sm->num_arcs > 0 );
+	vec3d uvec, fvec, rvec;
+	vec3d vecs[2];
+	vertex pts[MAX_ROD_VECS];
+	vertex *ptlist[MAX_ROD_VECS];
+	int i, nv = 0;
 
-	if ( interp->flags & MR_SHOW_OUTLINE_PRESET ) {
-		return;
-	}
+	Assert( num_points >= 2 );
+	Assert( (num_points * 2) <= MAX_ROD_VECS );
 
-/*	if ( !Interp_lightning ) {
- 		return;
- 	}
-*/
-	// try and scale the size a bit so that it looks equally well on smaller vessels
-	if ( pm->rad < 500.0f ) {
-		width *= (pm->rad * 0.01f);
+	for (i = 0; i < num_points; i++) {
+		vm_vec_sub(&fvec, &View_position, &pvecs[i]);
+		vm_vec_normalize_safe(&fvec);
 
-		if ( width < 0.2f ) {
-			width = 0.2f;
-		}
-	}
+		int first = i+1;
+		int second = i-1;
 
-	for ( i = 0; i < sm->num_arcs; i++ ) {
-		// pick a color based upon arc type
-		switch ( sm->arc_type[i] ) {
-			// "normal", FreeSpace 1 style arcs
-		case MARC_TYPE_NORMAL:
-			if ( (rand()>>4) & 1 )	{
-				gr_init_color(&primary, 64, 64, 255);
-			} else {
-				gr_init_color(&primary, 128, 128, 255);
-			}
-
-			gr_init_color(&secondary, 200, 200, 255);
-			break;
-
-			// "EMP" style arcs
-		case MARC_TYPE_EMP:
-			if ( (rand()>>4) & 1 )	{
-				gr_init_color(&primary, AR, AG, AB);
-			} else {
-				gr_init_color(&primary, AR2, AG2, AB2);
-			}
-
-			gr_init_color(&secondary, 255, 255, 10);
-			break;
-
-		default:
-			Int3();
+		if (i == 0) {
+			first = 1;
+			second = 0;
+		} else if (i == num_points-1) {
+			first = i;
 		}
 
-		// render the actual arc segment
-		scene->addArc(&Object_matrix, &Object_position, &sm->arc_pts[i][0], &sm->arc_pts[i][1], &primary, &secondary, width);
+		vm_vec_sub(&rvec, &pvecs[first], &pvecs[second]);
+		vm_vec_normalize_safe(&rvec);
+
+		vm_vec_crossprod(&uvec, &rvec, &fvec);
+
+		vm_vec_scale_add(&vecs[0], &pvecs[i], &uvec, width * 0.5f);
+		vm_vec_scale_add(&vecs[1], &pvecs[i], &uvec, -width * 0.5f);
+
+		if (nv > MAX_ROD_VECS-2) {
+			Warning(LOCATION, "Hit high-water mark (%i) in g3_draw_rod()!!\n", MAX_ROD_VECS);
+			break;
+		}
+
+		ptlist[nv] = &pts[nv];
+		ptlist[nv+1] = &pts[nv+1];
+
+		if (Cmdline_nohtl) {
+			g3_rotate_vertex( &pts[nv], &vecs[0] );
+			g3_rotate_vertex( &pts[nv+1], &vecs[1] );
+		} else {
+			g3_transfer_vertex( &pts[nv], &vecs[0] );
+			g3_transfer_vertex( &pts[nv+1], &vecs[1] );
+		}
+
+		ptlist[nv]->texture_position.u = 1.0f;
+		ptlist[nv]->texture_position.v = i2fl(i);
+		ptlist[nv]->r = gr_screen.current_color.red;
+		ptlist[nv]->g = gr_screen.current_color.green;
+		ptlist[nv]->b = gr_screen.current_color.blue;
+		ptlist[nv]->a = gr_screen.current_color.alpha;
+
+		ptlist[nv+1]->texture_position.u = 0.0f;
+		ptlist[nv+1]->texture_position.v = i2fl(i);
+		ptlist[nv+1]->r = gr_screen.current_color.red;
+		ptlist[nv+1]->g = gr_screen.current_color.green;
+		ptlist[nv+1]->b = gr_screen.current_color.blue;
+		ptlist[nv+1]->a = gr_screen.current_color.alpha;
+
+		nv += 2;
+	}
+
+	// we should always have at least 4 verts, and there should always be an even number
+	Assert( (nv >= 4) && !(nv % 2) );
+
+	int rc = g3_draw_poly(nv, ptlist, tmap_flags);
+
+	return rc;
+}
+
+void model_queue_render_add_arc(vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width)
+{
+	Num_arc_segment_points = 0;
+
+	// need need to add the first point
+	memcpy( &Arc_segment_points[Num_arc_segment_points++], v1, sizeof(vec3d) );
+
+	// this should fill in all of the middle, and the last, points
+	interp_render_arc_segment(v1, v2, 0);
+
+	int tmap_flags = (TMAP_FLAG_RGB | TMAP_FLAG_GOURAUD | TMAP_HTL_3D_UNLIT | TMAP_FLAG_TRISTRIP);
+
+	int mode = gr_zbuffer_set(GR_ZBUFF_READ);
+
+	// use primary color for fist pass
+	Assert( primary );
+	gr_set_color_fast(primary);
+
+	model_queue_render_batch_rod(Num_arc_segment_points, Arc_segment_points, arc_width, tmap_flags);
+
+	if (secondary) {
+		// now render again with a secondary center color
+		gr_set_color_fast(secondary);
+
+		model_queue_render_batch_rod(Num_arc_segment_points, Arc_segment_points, arc_width * 0.33f, tmap_flags);
 	}
 }
+
+// void model_queue_render_lightning( DrawList *scene, interp_data* interp, polymodel *pm, bsp_info * sm )
+// {
+// 	int i;
+// 	float width = 0.9f;
+// 	color primary, secondary;
+// 
+// 	Assert( sm->num_arcs > 0 );
+// 
+// 	if ( interp->flags & MR_SHOW_OUTLINE_PRESET ) {
+// 		return;
+// 	}
+// 
+// /*	if ( !Interp_lightning ) {
+//  		return;
+//  	}
+// */
+// 	// try and scale the size a bit so that it looks equally well on smaller vessels
+// 	if ( pm->rad < 500.0f ) {
+// 		width *= (pm->rad * 0.01f);
+// 
+// 		if ( width < 0.2f ) {
+// 			width = 0.2f;
+// 		}
+// 	}
+// 
+// 	for ( i = 0; i < sm->num_arcs; i++ ) {
+// 		// pick a color based upon arc type
+// 		switch ( sm->arc_type[i] ) {
+// 			// "normal", FreeSpace 1 style arcs
+// 		case MARC_TYPE_NORMAL:
+// 			if ( (rand()>>4) & 1 )	{
+// 				gr_init_color(&primary, 64, 64, 255);
+// 			} else {
+// 				gr_init_color(&primary, 128, 128, 255);
+// 			}
+// 
+// 			gr_init_color(&secondary, 200, 200, 255);
+// 			break;
+// 
+// 			// "EMP" style arcs
+// 		case MARC_TYPE_EMP:
+// 			if ( (rand()>>4) & 1 )	{
+// 				gr_init_color(&primary, AR, AG, AB);
+// 			} else {
+// 				gr_init_color(&primary, AR2, AG2, AB2);
+// 			}
+// 
+// 			gr_init_color(&secondary, 255, 255, 10);
+// 			break;
+// 
+// 		default:
+// 			Int3();
+// 		}
+// 
+// 		// render the actual arc segment
+// 		model_queue_render_add_arc(&sm->arc_pts[i][0], &sm->arc_pts[i][1], &primary, &secondary, width);
+// 	}
+// }
 
 int model_queue_render_determine_detail(int obj_num, int model_num, matrix* orient, vec3d* pos, int flags, int detail_level_locked)
 {
 	Assert( pm->n_detail_levels < MAX_MODEL_DETAIL_LEVELS );
+
+	int tmp_detail_level = Game_detail_level;
 
 	polymodel *pm = model_get(model_num);
 
@@ -783,7 +992,7 @@ void model_queue_render_children_buffers(DrawList* scene, interp_data* interp, p
 	model_queue_render_buffers(scene, interp, pm, mn, true);
 
 	if ( model->num_arcs ) {
-		model_queue_render_lightning( scene, interp, pm, &pm->submodel[mn] );
+		//model_queue_render_lightning( scene, interp, pm, &pm->submodel[mn] );
 	}
 
 	i = model->first_child;
@@ -959,8 +1168,9 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 		interp->light = 1.0f;
 
 		scene->setLightFilter(-1, pos, pm->submodel[submodel_num].rad);
-
 		scene->setLighting(true);
+	} else {
+		scene->setLighting(false);
 	}
 
 	interp->base_frametime = 0;
@@ -976,58 +1186,38 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 	// fixes disappearing HUD in OGL - taylor
 	scene->setCullMode(1);
 
-	if (!Cmdline_nohtl) {
+	// RT - Put this here to fog debris
+	if( interp->tmap_flags & TMAP_FLAG_PIXEL_FOG ) {
+		float fog_near, fog_far;
+		object *obj = NULL;
 
-		// RT - Put this here to fog debris
-		if( interp->tmap_flags & TMAP_FLAG_PIXEL_FOG ) {
-			float fog_near, fog_far;
-			object *obj = NULL;
+		if (objnum >= 0)
+			obj = &Objects[objnum];
 
-			if (objnum >= 0)
-				obj = &Objects[objnum];
+		neb2_get_adjusted_fog_values(&fog_near, &fog_far, obj);
+		unsigned char r, g, b;
+		neb2_get_fog_color(&r, &g, &b);
 
-			neb2_get_adjusted_fog_values(&fog_near, &fog_far, obj);
-			unsigned char r, g, b;
-			neb2_get_fog_color(&r, &g, &b);
-
-			scene->setFog(GR_FOGMODE_FOG, r, g, b, fog_near, fog_far);
-		} else {
-			scene->setFog(GR_FOGMODE_NONE, 0, 0, 0);
-		}
-
-		if(in_shadow_map) {
-			scene->setZBias(-1024);
-		} else {
-			scene->setZBias(0);
-		}
-
-		scene->setBuffer(pm->vertex_buffer_id);
-
-		model_queue_render_buffers(scene, interp, pm, submodel_num);
+		scene->setFog(GR_FOGMODE_FOG, r, g, b, fog_near, fog_far);
 	} else {
-		model_interp_sub( pm->submodel[submodel_num].bsp_data, pm, &pm->submodel[submodel_num], 0 );
+		scene->setFog(GR_FOGMODE_NONE, 0, 0, 0);
 	}
 
-	if ( !( interp->flags & MR_NO_LIGHTING ) ) {
-		gr_set_lighting(false, false);
-		gr_reset_lighting();
+	if(in_shadow_map) {
+		scene->setZBias(-1024);
+	} else {
+		scene->setZBias(0);
 	}
 
-	scene->setFillMode(GR_FILL_MODE_SOLID);
+	scene->setBuffer(pm->vertex_buffer_id);
+
+	model_queue_render_buffers(scene, interp, pm, submodel_num);
 
 	if ( pm->submodel[submodel_num].num_arcs )	{
-		model_queue_render_lightning( scene, interp, pm, &pm->submodel[submodel_num] );
+		//model_queue_render_lightning( scene, interp, pm, &pm->submodel[submodel_num] );
 	}
 
-	if ( interp->flags & MR_SHOW_PIVOTS ) {
-		model_draw_debug_points( pm, &pm->submodel[submodel_num] );
-	}
-
-	if ( !( interp->flags & MR_NO_LIGHTING ) )	{
-		scene->resetLightFilter();
-	}
-
-	if (set_autocen) {
+	if ( set_autocen ) {
 		g3_done_instance(false);
 	}
 
@@ -1183,8 +1373,6 @@ void model_queue_render_glowpoint(int point_num, vec3d *pos, matrix *orient, glo
 					break;
 				}
 			}
-
-			extern bool Deferred_lighting;
 
 			if ( Deferred_lighting && gpo && gpo->is_lightsource ) {
 				if ( gpo->lightcone ) {
@@ -1808,6 +1996,8 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 		neb2_get_fog_color(&r, &g, &b);
 
 		scene->setFog(GR_FOGMODE_FOG, r, g, b, fog_near, fog_far);
+	} else {
+		scene->setFog(GR_FOGMODE_NONE, 0, 0, 0);
 	}
 
 	if ( is_outlines_only_htl ) {
@@ -1892,10 +2082,10 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 	}
 
 	if ( (interp->flags & MR_AUTOCENTER) && (set_autocen) ) {
-		g3_done_instance();
+		g3_done_instance(false);
 	}
 
-	g3_done_instance();
+	g3_done_instance(false);
 
 	// start rendering glow points -Bobboau
 	if ( (pm->n_glow_point_banks) && !is_outlines_only && !is_outlines_only_htl && !Glowpoint_override ) {

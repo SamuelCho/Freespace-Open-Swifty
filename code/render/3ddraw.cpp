@@ -2201,7 +2201,6 @@ void flash_ball::render(int texture, float rad, float intinsity, float life){
 		vm_vec_interp_constant(&end, &ray[i].start.world, &ray[i].end.world, life);
 		vm_vec_scale(&end, rad);
 		vm_vec_add2(&end, &center);
-		flash_ball::batcher.draw_beam(&center, &end, ray[i].width*rad, intinsity);
 
 		batch_add_beam(texture, TMAP_FLAG_TEXTURED | TMAP_FLAG_XPARENT | TMAP_HTL_3D_UNLIT | TMAP_FLAG_RGB | TMAP_FLAG_GOURAUD | TMAP_FLAG_CORRECT, &center, &end, ray[i].width*rad, intinsity);
 	}

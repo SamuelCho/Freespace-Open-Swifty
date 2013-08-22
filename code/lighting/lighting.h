@@ -57,6 +57,9 @@ class SceneLights
 	SCP_vector<int> FilteredLights;
 
 	SCP_vector<int> BufferedLights;
+
+	int current_light_index;
+	int current_num_lights;
 public:
 	struct LightIndexingInfo
 	{
@@ -64,6 +67,11 @@ public:
 		int num_lights;
 	};
 
+	SceneLights()
+	{
+		current_light_index = 0;
+		current_num_lights = 0;
+	}
 	void addLight(light *light_ptr);
 	void setLightFilter(int objnum, vec3d *pos, float rad);
 	bool setLights(SceneLights::LightIndexingInfo *info);

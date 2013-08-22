@@ -3855,6 +3855,182 @@ void game_render_frame( camid cid )
 	g3_end_frame();
 }
 
+void game_render_frame_new( camid cid )
+{
+
+	g3_start_frame(game_zbuffer);
+
+	camera *cam = cid.getCamera();
+	matrix eye_no_jitter = vmd_identity_matrix;
+	if(cam != NULL)
+	{
+		vec3d eye_pos;
+		matrix eye_orient;
+
+		//Get current camera info
+		cam->get_info(&eye_pos, &eye_orient);
+
+		//Handle jitter if not cutscene camera
+		eye_no_jitter = eye_orient;
+		if( !(Viewer_mode & VM_FREECAMERA) ) {
+			apply_view_shake(&eye_orient);
+			cam->set_rotation(&eye_orient);
+		}
+
+		//Maybe override FOV from SEXP
+		if(Sexp_fov <= 0.0f)
+			g3_set_view_matrix(&eye_pos, &eye_orient, cam->get_fov());
+		else
+			g3_set_view_matrix(&eye_pos, &eye_orient, Sexp_fov);
+	}
+	else
+	{
+		g3_set_view_matrix(&vmd_zero_vector, &vmd_identity_matrix, VIEWER_ZOOM_DEFAULT);
+	}
+
+	// maybe offset the HUD (jitter stuff) and measure the 2D displacement between the player's view and ship vector
+	int dont_offset = ((Game_mode & GM_MULTIPLAYER) && (Net_player->flags & NETINFO_FLAG_OBSERVER));
+	HUD_set_offsets(Viewer_obj, !dont_offset, &eye_no_jitter);
+
+	// for multiplayer clients, call code in Shield.cpp to set up the Shield_hit array.  Have to
+	// do this becaues of the disjointed nature of this system (in terms of setup and execution).
+	// must be done before ships are rendered
+	if ( MULTIPLAYER_CLIENT ) {
+		shield_point_multi_setup();
+	}
+
+	// this needs to happen after g3_start_frame() and before the primary projection and view matrix is setup
+	if ( Cmdline_env && !Env_cubemap_drawn ) {
+		setup_environment_mapping(cid);
+
+		if ( !Dynamic_environment ) {
+			Env_cubemap_drawn = true;
+		}
+	}
+	gr_zbuffer_clear(TRUE);
+
+	gr_scene_texture_begin();
+
+	neb2_render_setup(cid);
+
+#ifndef DYN_CLIP_DIST
+	if (!Cmdline_nohtl) {
+		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+		gr_set_view_matrix(&Eye_position, &Eye_matrix);
+	}
+#endif
+
+	if ( Game_subspace_effect )	{
+		stars_draw(0,0,0,1,0);
+	} else {
+		stars_draw(1,1,1,0,0);
+	}
+
+	obj_render_queue_shadow_maps();
+
+	obj_render_queue_all();
+
+	render_shields();
+
+	particle_render_all();					// render particles after everything else.
+#ifdef DYN_CLIP_DIST
+	if(!Cmdline_nohtl)
+	{
+		gr_end_proj_matrix();
+		gr_end_view_matrix();
+		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+		gr_set_view_matrix(&Eye_position, &Eye_matrix);
+	}
+#endif
+
+	beam_render_all();						// render all beam weapons
+	trail_render_all();						// render missilie trails after everything else.	
+
+	// render nebula lightning
+	nebl_render_all();
+
+	// render local player nebula
+	neb2_render_player();
+
+	gr_copy_effect_texture();
+
+	// render all ships with shader effects on them
+	SCP_vector<object*>::iterator obji = effect_ships.begin();
+	for(;obji != effect_ships.end();++obji)
+	{
+		obj_render(*obji);
+	}
+	effect_ships.clear();
+
+	batch_render_distortion_map_bitmaps();
+
+	Shadow_override = true;
+	//Draw the viewer 'cause we didn't before.
+	//This is so we can change the minimum clipping distance without messing everything up.
+// 	if(draw_viewer_last && Viewer_obj)
+// 	{
+// 		gr_post_process_save_zbuffer();
+// 		ship_render_show_ship_cockpit(Viewer_obj);
+// 	}
+
+
+#ifndef NDEBUG
+	ai_debug_render_stuff();
+	extern void snd_spew_debug_info();
+	snd_spew_debug_info();
+#endif
+
+	if(!Cmdline_nohtl)
+	{
+		gr_end_proj_matrix();
+		gr_end_view_matrix();
+	}
+
+
+	//Draw viewer cockpit
+	if(Viewer_obj != NULL && Viewer_mode != VM_TOPDOWN && Ship_info[Ships[Viewer_obj->instance].ship_info_index].cockpit_model_num > 0)
+	{
+		gr_post_process_save_zbuffer();
+		ship_render_cockpit(Viewer_obj);
+	}
+
+	if (!Cmdline_nohtl) {
+		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+		gr_set_view_matrix(&Eye_position, &Eye_matrix);
+
+		// Do the sunspot
+		game_sunspot_process(flFrametime);
+
+		gr_end_proj_matrix();
+		gr_end_view_matrix();
+	}
+	Shadow_override = false;
+	//================ END OF 3D RENDERING STUFF ====================
+
+	gr_scene_texture_end();
+
+	extern int Multi_display_netinfo;
+	if(Multi_display_netinfo){
+		extern void multi_display_netinfo();
+		multi_display_netinfo();
+	}	
+
+	game_tst_frame_pre();
+
+#ifndef NDEBUG
+	do_timing_test(flFrametime);
+
+	extern int OO_update_index;	
+	multi_rate_display(OO_update_index, 375, 0);
+
+	// test
+	extern void oo_display();
+	oo_display();			
+#endif
+
+	g3_end_frame();
+}
+
 //#define JOHNS_DEBUG_CODE	1
 
 #ifdef JOHNS_DEBUG_CODE

@@ -1138,7 +1138,7 @@ void debris_queue_render(object * obj, DrawList *scene)
 
 	if ( db->is_hull )	{
 		MONITOR_INC(NumHullDebrisRend,1);
-		submodel_queue_render( &interp, scene, db->model_num, db->submodel_num, &obj->orient, &obj->pos );
+		submodel_queue_render( &interp, scene, db->model_num, db->submodel_num, &obj->orient, &obj->pos, MR_NORMAL );
 	} else {
 		MONITOR_INC(NumSmallDebrisRend,1);
 		submodel_queue_render( &interp, scene, db->model_num, db->submodel_num, &obj->orient, &obj->pos, MR_NO_LIGHTING );

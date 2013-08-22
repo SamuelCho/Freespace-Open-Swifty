@@ -329,4 +329,7 @@ bool object_glide_forced(object* objp);
 int obj_get_by_signature(int sig);
 int object_get_model(object *objp);
 
+void obj_render_queue_shadow_maps();
+void obj_render_queue_all();
+
 #endif

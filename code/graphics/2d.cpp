@@ -31,7 +31,7 @@
 #include "parse/scripting.h"
 #include "gamesequence/gamesequence.h"	//WMC - for scripting hooks in gr_flip()
 #include "io/keycontrol.h" // m!m
-
+#include "graphics/gropengldraw.h"
 
 #if defined(SCP_UNIX) && !defined(__APPLE__)
 #if ( SDL_VERSION_ATLEAST(1, 2, 7) )
@@ -1598,7 +1598,7 @@ uint gr_determine_shader_flags(
 				}
 			}
 
-			if ( ( normal_map > 0) && GL_state.Light(0) && !Normalmap_override ) {
+			if ( ( normal_map > 0) && !Normalmap_override ) {
 				shader_flags |= SDR_FLAG_NORMAL_MAP;
 			}
 

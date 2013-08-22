@@ -50,17 +50,17 @@ void draw_face( vertex *v1, vertex *v2, vertex *v3 )
 void warpin_batch_draw_face( int texture, vertex *v1, vertex *v2, vertex *v3 )
 {
 	vec3d norm;
-	vertex *vertlist[3];
+	vertex vertlist[3];
 
 	vm_vec_perp(&norm,&v1->world, &v2->world, &v3->world);
 	if ( vm_vec_dot(&norm, &v1->world ) >= 0.0 ) {
-		vertlist[0] = v3;
-		vertlist[1] = v2;
-		vertlist[2] = v1;
+		vertlist[0] = *v3;
+		vertlist[1] = *v2;
+		vertlist[2] = *v1;
 	} else {
-		vertlist[0] = v1;
-		vertlist[1] = v2;
-		vertlist[2] = v3;
+		vertlist[0] = *v1;
+		vertlist[1] = *v2;
+		vertlist[2] = *v3;
 	}
 
 	batch_add_tri(texture, TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT, vertlist, 1.0f);
@@ -276,7 +276,6 @@ void warpin_queue_render(DrawList *scene, object *obj, matrix *orient, vec3d *po
 		interp_data interp;
 
 		float scale = radius / 25.0f;
-		//model_set_warp_globals(scale, scale, scale, texture_bitmap_num, (radius/max_radius) );
 
 		interp.warp_scale_x = scale;
 		interp.warp_scale_y = scale;
@@ -342,10 +341,10 @@ void warpin_queue_render(DrawList *scene, object *obj, matrix *orient, vec3d *po
 			g3_transfer_vertex( &verts[4], &vecs[4] );
 		}
 
-		warpin_batch_draw_face( texture, &verts[0], &verts[4], &verts[1] );
-		warpin_batch_draw_face( texture, &verts[1], &verts[4], &verts[2] );
-		warpin_batch_draw_face( texture, &verts[4], &verts[3], &verts[2] );
-		warpin_batch_draw_face( texture, &verts[0], &verts[3], &verts[4] );
+		warpin_batch_draw_face( texture_bitmap_num, &verts[0], &verts[4], &verts[1] );
+		warpin_batch_draw_face( texture_bitmap_num, &verts[1], &verts[4], &verts[2] );
+		warpin_batch_draw_face( texture_bitmap_num, &verts[4], &verts[3], &verts[2] );
+		warpin_batch_draw_face( texture_bitmap_num, &verts[0], &verts[3], &verts[4] );
 	}
 
 	if (Warp_ball_bitmap > -1 && Cmdline_warp_flash == 1) {
@@ -356,9 +355,7 @@ void warpin_queue_render(DrawList *scene, object *obj, matrix *orient, vec3d *po
 		float pct = (powf(adg, 4.0f) - powf(adg, 128.0f)) * 4.0f;
 
 		if (pct > 0.00001f) {
-			gr_set_bitmap(Warp_ball_bitmap, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 0.9999f);		
-
-			warp_ball.render(max_radius * pct * 0.5f, adg * adg, adg * adg * 6.0f);
+			warp_ball.render(Warp_ball_bitmap, max_radius * pct * 0.5f, adg * adg, adg * adg * 6.0f);
 		}
 	}
 }

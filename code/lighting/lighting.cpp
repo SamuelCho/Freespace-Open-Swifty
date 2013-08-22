@@ -1197,6 +1197,10 @@ bool SceneLights::setLights(SceneLights::LightIndexingInfo *info)
 {
 	size_t i;
 
+	if ( info->index_start == current_light_index && info->num_lights == current_num_lights ) {
+		return false;
+	}
+
 	gr_reset_lighting();
 
 	for ( i = 0; i < StaticLightIndices.size(); ++i) {
@@ -1214,7 +1218,7 @@ bool SceneLights::setLights(SceneLights::LightIndexingInfo *info)
 	int num_lights = info->num_lights;
 
 	// check if there are any lights to actually set
-	if ( num_lights <= 0 ) {
+	if ( num_lights <= 0 || index_start < 0 ) {
 		return false;
 	}
 

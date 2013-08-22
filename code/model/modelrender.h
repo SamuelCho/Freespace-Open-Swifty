@@ -7,6 +7,9 @@
  *
 */ 
 
+#ifndef _MODELRENDER_H
+#define _MODELRENDER_H
+
 #include "model/model.h"
 #include "Math/vecmat.h"
 #include "lighting/lighting.h"
@@ -24,6 +27,123 @@ extern team_color* Current_team_color;
 extern inline int in_sphere(vec3d *pos, float radius);
 extern inline int in_box(vec3d *min, vec3d *max, vec3d *pos);
 extern int model_interp_get_texture(texture_info *tinfo, fix base_frametime);
+
+struct interp_data
+{
+	int objnum;
+	matrix orient;
+	vec3d pos;
+
+	int thrust_scale_subobj;
+	int flags;
+	int tmap_flags;
+	int detail_level_locked;
+	int detail_level;
+	float depth_scale;
+	float light;
+	fix base_frametime;
+	bool desaturate;
+	int warp_bitmap;
+	float warp_alpha;
+	color outline_color;
+
+	float xparent_alpha;
+
+	int forced_bitmap;
+
+	int thrust_bitmap;
+
+	int insignia_bitmap;
+
+	int *new_replacement_textures;
+
+	int thrust_glow_bitmap;
+
+	int secondary_thrust_glow_bitmap;
+	int tertiary_thrust_glow_bitmap;
+	int distortion_thrust_bitmap;
+
+	float thrust_glow_noise;
+	bool afterburner;
+
+	vec3d thrust_rotvel;
+
+	float thrust_glow_rad_factor;
+
+	float secondary_thrust_glow_rad_factor;
+	float tertiary_thrust_glow_rad_factor;
+	float distortion_thrust_rad_factor;
+	float distortion_thrust_length_factor;
+	float thrust_glow_len_factor;
+
+	float box_scale; // this is used to scale both detail boxes and spheres
+	vec3d render_box_min;
+	vec3d render_box_max;
+	float render_sphere_radius;
+	vec3d render_sphere_offset;
+
+	float thrust_scale;
+	float thrust_scale_x;
+	float thrust_scale_y;
+
+	float warp_scale_x;
+	float warp_scale_y;
+	float warp_scale_z;
+
+	bool draw_distortion;
+
+	interp_data() 
+	{
+		warp_scale_x = 1.0f;
+		warp_scale_y = 1.0f;
+		warp_scale_z = 1.0f;
+
+		warp_alpha = -1.0f;
+
+		xparent_alpha = 1.0f;
+
+		forced_bitmap = -1;
+
+		new_replacement_textures = NULL;
+
+		distortion_thrust_bitmap = -1;
+
+		distortion_thrust_rad_factor = 1.0f;
+		distortion_thrust_length_factor = 1.0f;
+
+		draw_distortion = false;
+
+		thrust_scale = 0.1f;
+		thrust_scale_x = 0.0f;//added-Bobboau
+		thrust_scale_y = 0.0f;//added-Bobboau
+		thrust_bitmap = -1;
+		thrust_glow_bitmap = -1;
+		thrust_glow_noise = 1.0f;
+		insignia_bitmap = -1;
+		afterburner = false;
+
+		// Bobboau's thruster stuff
+		{
+			thrust_glow_rad_factor = 1.0f;
+
+			secondary_thrust_glow_bitmap = -1;
+			secondary_thrust_glow_rad_factor = 1.0f;
+
+			tertiary_thrust_glow_bitmap = -1;
+			tertiary_thrust_glow_rad_factor = 1.0f;
+
+			thrust_glow_len_factor = 1.0f;
+
+			vm_vec_zero(&thrust_rotvel);
+		}
+
+		box_scale = 1.0f;
+		render_box_min = vmd_zero_vector;
+		render_box_max = vmd_zero_vector;
+		render_sphere_radius = 0.0f;
+		render_sphere_offset = vmd_zero_vector;
+	}
+};
 
 struct clip_plane_state
 {
@@ -115,8 +235,6 @@ struct queued_buffer_draw
 
 class DrawList
 {
-	friend class DrawListSorter;
-
 	bool in_shadow_map;
 
 	render_state current_render_state;
@@ -134,14 +252,14 @@ class DrawList
 
 	void drawRenderElement(queued_buffer_draw *render_elements);
 	uint determineShaderFlags(render_state *state, queued_buffer_draw *draw_info, vertex_buffer *buffer, int tmap_flags);
-	void sortDraws();
-
-protected:
+	
 	SCP_vector<clip_plane_state> clip_planes;
 	SCP_vector<render_state> render_states;
 	SCP_vector<queued_buffer_draw> render_elements;
 	SCP_vector<int> render_keys;
 	
+	static DrawList *Target;
+	static int sortDrawPair(const void* a, const void* b);
 public:
 	DrawList();
 	void addLight(light *light_ptr);
@@ -166,6 +284,9 @@ public:
 	void addArc(matrix *orient, vec3d *pos, vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width);
 
 	void setLightFilter(int objnum, vec3d *pos, float rad);
+
+	void sortDraws();
+	void renderAll(int blend_filter = -1);
 };
 
 class DrawListSorter
@@ -176,125 +297,9 @@ public:
 	static int sortDrawPair(const void* a, const void* b);
 };
 
-struct interp_data
-{
-	int objnum;
-	matrix orient;
-	vec3d pos;
-
-	int thrust_scale_subobj;
-	int flags;
-	int tmap_flags;
-	int detail_level_locked;
-	int detail_level;
-	float depth_scale;
-	float light;
-	fix base_frametime;
-	bool desaturate;
-	int warp_bitmap;
-	float warp_alpha;
-	color outline_color;
-
-	float xparent_alpha;
-
-	int forced_bitmap;
-
-	int thrust_bitmap;
-
-	int insignia_bitmap;
-
-	int *new_replacement_textures;
-
-	int thrust_bitmap;
-	int thrust_glow_bitmap;
-
-	int secondary_thrust_glow_bitmap;
-	int tertiary_thrust_glow_bitmap;
-	int distortion_thrust_bitmap;
-
-	float thrust_glow_noise;
-	bool afterburner;
-
-	vec3d thrust_rotvel;
-
-	float thrust_glow_rad_factor;
-
-	float secondary_thrust_glow_rad_factor;
-	float tertiary_thrust_glow_rad_factor;
-	float distortion_thrust_rad_factor;
-	float distortion_thrust_length_factor;
-	float thrust_glow_len_factor;
-
-	float box_scale; // this is used to scale both detail boxes and spheres
-	vec3d render_box_min;
-	vec3d render_box_max;
-	float render_sphere_radius;
-	vec3d render_sphere_offset;
-
-	float thrust_scale;
-	float thrust_scale_x;
-	float thrust_scale_y;
-
-	float warp_scale_x;
-	float warp_scale_y;
-	float warp_scale_z;
-
-	bool draw_distortion;
-
-	interp_data() 
-	{
-		vec3d zero = ZERO_VECTOR;
-
-		box_scale = 1.0f; 
-		render_box_min = zero;
-		render_box_max = zero;
-		render_sphere_radius = 0.0f;
-		render_sphere_offset = zero;
-
-		thrust_scale = 0.1f;
-
-		warp_scale_x = 1.0f;
-		warp_scale_y = 1.0f;
-		warp_scale_z = 1.0f;
-
-		warp_alpha = -1.0f;
-
-		xparent_alpha = 1.0f;
-
-		thrust_bitmap = -1;
-
-		forced_bitmap = -1;
-
-		insignia_bitmap = -1;
-
-		new_replacement_textures = NULL;
-
-		thrust_bitmap = -1;
-		thrust_glow_bitmap = -1;
-
-		secondary_thrust_glow_bitmap = -1;
-		tertiary_thrust_glow_bitmap = -1;
-		distortion_thrust_bitmap = -1;
-
-		thrust_glow_noise = 1.0f;
-
-		thrust_rotvel = zero;
-
-		thrust_glow_rad_factor = 1.0f;
-
-		secondary_thrust_glow_rad_factor = 1.0f;
-		tertiary_thrust_glow_rad_factor = 1.0f;
-		distortion_thrust_rad_factor = 1.0f;
-		distortion_thrust_length_factor = 1.0f;
-		thrust_glow_len_factor = 1.0f;
-
-		afterburner = false;
-
-		draw_distortion = false;
-	}
-};
-
 void model_queue_render(interp_data *interp, DrawList* scene, int model_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures);
 void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1, int *replacement_textures = NULL);
 void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel *pm, int mn, bool is_child = false);
 void model_queue_render_set_thrust(interp_data *interp, int model_num, mst_info *mst);
+
+#endif

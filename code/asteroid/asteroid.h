@@ -19,6 +19,7 @@
 struct object;
 struct polymodel;
 struct collision_info_struct;
+class DrawList;
 
 #define	MAX_ASTEROIDS			512
 

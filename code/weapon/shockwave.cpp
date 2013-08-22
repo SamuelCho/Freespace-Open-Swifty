@@ -459,6 +459,7 @@ void shockwave_queue_render(object *objp, DrawList *scene)
 
 	if (sw->model_id > -1) {
 		float model_Interp_scale_xyz = sw->radius / 50.0f;
+
 		interp_data interp;
 
 		interp.warp_scale_x = model_Interp_scale_xyz;
@@ -473,8 +474,7 @@ void shockwave_queue_render(object *objp, DrawList *scene)
 
 		model_queue_render( &interp, scene, sw->model_id, &Objects[sw->objnum].orient, &sw->pos, MR_NO_LIGHTING | MR_NO_FOGGING | MR_NORMAL | MR_CENTER_ALPHA | MR_NO_CULL, sw->objnum, NULL);
 
-		if(Cmdline_fb_explosions)
-		{
+		if ( Cmdline_fb_explosions ) {
 			g3_transfer_vertex(&p, &sw->pos);
 
 			distortion_add_bitmap_rotated(
@@ -492,8 +492,8 @@ void shockwave_queue_render(object *objp, DrawList *scene)
 		} else {
 			g3_rotate_vertex(&p, &sw->pos);
 		}
-		if(Cmdline_fb_explosions)
-		{
+
+		if ( Cmdline_fb_explosions ) {
 			distortion_add_bitmap_rotated(
 				sw->current_bitmap, 
 				TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD | TMAP_FLAG_DISTORTION, 
@@ -501,15 +501,16 @@ void shockwave_queue_render(object *objp, DrawList *scene)
 				fl_radians(sw->rot_angles.p), 
 				sw->radius,
 				((sw->time_elapsed/sw->total_time)>0.9f)?(1.0f-(sw->time_elapsed/sw->total_time))*10.0f:1.0f
-				);
+			);
 		}
+
 		batch_add_bitmap_rotated(
 			sw->current_bitmap, 
 			TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD,
 			&p, 
 			fl_radians(sw->rot_angles.p), 
 			sw->radius
-			);
+		);
 	}
 }
 

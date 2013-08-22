@@ -6803,8 +6803,7 @@ void weapon_queue_render(object* obj, DrawList *scene)
 		{
 			if(wip->laser_length < 0.0001f)
 				return;
-			// turn off fogging for good measure
-			gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
+
 			int alpha = 255;
 			int framenum = 0;
 
@@ -6933,16 +6932,14 @@ void weapon_queue_render(object* obj, DrawList *scene)
 
 			int clip_plane=0;
 
-			scene->setClipPlane();
-
-			//start a clip plane
-			if (wp->lssm_stage==2)
-			{
+			// start a clip plane
+			if ( wp->lssm_stage == 2 ) {
 				object *wobj=&Objects[wp->lssm_warp_idx];		//warphole object
 				clip_plane=1;
 
 				scene->setClipPlane(&wobj->pos, &wobj->orient.vec.fvec);
-				//g3_start_user_clip_plane(&wobj->pos,&wobj->orient.vec.fvec);
+			} else {
+				scene->setClipPlane();
 			}
 
 
