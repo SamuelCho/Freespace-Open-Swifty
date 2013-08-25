@@ -16,6 +16,7 @@
 #include "graphics/2d.h"
 #include "cmdline/cmdline.h"
 #include "model/modelrender.h"
+#include "graphics/gropengllight.h"
 
 light Lights[MAX_LIGHTS];
 int Num_lights=0;
@@ -1198,19 +1199,24 @@ bool SceneLights::setLights(SceneLights::LightIndexingInfo *info)
 	size_t i;
 
 	if ( info->index_start == current_light_index && info->num_lights == current_num_lights ) {
+		// don't need to set new lights since the ones requested to be set are currently set
 		return false;
 	}
+
+	current_light_index = info->index_start;
+	current_num_lights = info->num_lights;
 
 	gr_reset_lighting();
 
 	for ( i = 0; i < StaticLightIndices.size(); ++i) {
 		int light_index = StaticLightIndices[i];
 		
-		gr_set_light( &AllLights[i] );
+		gr_set_light( &AllLights[light_index] );
 	}
 
 	extern bool Deferred_lighting;
 	if ( Deferred_lighting ) {
+		opengl_change_active_lights(0);
 		return false;
 	}
 
@@ -1231,6 +1237,8 @@ bool SceneLights::setLights(SceneLights::LightIndexingInfo *info)
 
 		gr_set_light(&AllLights[light_index]);
 	}
+
+	opengl_change_active_lights(0);
 
 	return true;
 }

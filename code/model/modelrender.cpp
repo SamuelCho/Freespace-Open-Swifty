@@ -49,6 +49,8 @@ DrawList::DrawList()
 
 	dirty_render_state = true;
 
+	current_render_state = render_state();
+
 	current_textures[TM_BASE_TYPE] = -1;
 	current_textures[TM_GLOW_TYPE] = -1;
 	current_textures[TM_SPECULAR_TYPE] = -1;
@@ -60,7 +62,7 @@ DrawList::DrawList()
 void DrawList::sortDraws()
 {
 	Target = this;
-	qsort(&Target->render_keys, Target->render_keys.size(), sizeof(int), DrawList::sortDrawPair);
+	std::sort(Target->render_keys.begin(), Target->render_keys.end(), DrawList::sortDrawPair);
 }
 
 void DrawList::setDepthMode(int depth_set)
@@ -87,8 +89,9 @@ void DrawList::setLightFilter(int objnum, vec3d *pos, float rad)
 
 void DrawList::setClipPlane(vec3d *position, vec3d *normal)
 {
-	if ( position == NULL && normal == NULL ) {
+	if ( position == NULL || normal == NULL ) {
 		current_render_state.clip_plane_handle = -1;
+		return;
 	}
 
 	clip_plane_state clip_normal;
@@ -189,16 +192,16 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 	render_state *draw_state = &render_states[render_state_num];
 
 	// set clip plane if necessary
-	if ( draw_state->clip_plane_handle >= 0 && draw_state->clip_plane_handle != set_clip_plane ) {
-		set_clip_plane = draw_state->clip_plane_handle;
-
-		clip_plane_state *clip_plane = &clip_planes[set_clip_plane];
-
-		g3_start_user_clip_plane(&clip_plane->point, &clip_plane->normal);
-	} else if ( draw_state->clip_plane_handle < 0 && set_clip_plane >= 0 ) {
-		// stop the clip plane if this draw call doesn't have clip plane and clip plane is set.
-		g3_stop_user_clip_plane();
-	}
+// 	if ( draw_state->clip_plane_handle >= 0 && draw_state->clip_plane_handle != set_clip_plane ) {
+// 		set_clip_plane = draw_state->clip_plane_handle;
+// 
+// 		clip_plane_state *clip_plane = &clip_planes[set_clip_plane];
+// 
+// 		g3_start_user_clip_plane(&clip_plane->point, &clip_plane->normal);
+// 	} else if ( draw_state->clip_plane_handle < 0 && set_clip_plane >= 0 ) {
+// 		// stop the clip plane if this draw call doesn't have clip plane and clip plane is set.
+// 		g3_stop_user_clip_plane();
+// 	}
 
 	opengl_shader_set_animated_effect(draw_state->animated_effect);
 	opengl_shader_set_animated_timer(draw_state->animated_timer);
@@ -258,9 +261,15 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 
 	gr_render_buffer(0, render_elements->buffer, render_elements->texi, render_elements->flags);
 
+	GLOWMAP = -1;
+	SPECMAP = -1;
+	NORMMAP = -1;
+	HEIGHTMAP = -1;
+	MISCMAP = -1;
+
 	gr_pop_scale_matrix();
 
-	g3_done_instance();
+	g3_done_instance(true);
 }
 
 void DrawList::setBuffer(int buffer)
@@ -363,13 +372,10 @@ void DrawList::renderAll(int blend_filter)
 	}
 }
 
-int DrawList::sortDrawPair(const void* a, const void* b)
+int DrawList::sortDrawPair(const int a, const int b)
 {
-	int *A = (int*)(a);
-	int *B = (int*)(b);
-
-	queued_buffer_draw *draw_call_a = &Target->render_elements[*A];
-	queued_buffer_draw *draw_call_b = &Target->render_elements[*B];
+	queued_buffer_draw *draw_call_a = &Target->render_elements[a];
+	queued_buffer_draw *draw_call_b = &Target->render_elements[a];
 
 	render_state *render_state_a = &Target->render_states[draw_call_a->render_state_handle];
 	render_state *render_state_b = &Target->render_states[draw_call_b->render_state_handle];
@@ -608,11 +614,11 @@ void model_queue_render_add_arc(vec3d *v1, vec3d *v2, color *primary, color *sec
 
 int model_queue_render_determine_detail(int obj_num, int model_num, matrix* orient, vec3d* pos, int flags, int detail_level_locked)
 {
-	Assert( pm->n_detail_levels < MAX_MODEL_DETAIL_LEVELS );
-
 	int tmp_detail_level = Game_detail_level;
 
 	polymodel *pm = model_get(model_num);
+
+	Assert( pm->n_detail_levels < MAX_MODEL_DETAIL_LEVELS );
 
 	vec3d closest_pos;
 	float depth = model_find_closest_point( &closest_pos, model_num, -1, orient, pos, &Eye_position );
@@ -1026,13 +1032,16 @@ float model_queue_render_determine_light(interp_data* interp, vec3d *pos, uint f
 		// Dim it based on distance
 		float depth = vm_vec_dist_quick( pos, &Eye_position );
 		if ( depth > interp->depth_scale )	{
-			return interp->depth_scale/depth;
+			float temp_light = interp->depth_scale/depth;
+
 			// If it is too far, exit
-			if ( interp->light < (1.0f/32.0f) ) {
+			if ( temp_light < (1.0f/32.0f) ) {
 				return 0.0f;
-			} else if ( interp->light > 1.0f )	{
+			} else if ( temp_light > 1.0f )	{
 				return 1.0f;
 			}
+
+			return temp_light;
 		} else {
 			return 1.0f;
 		}
@@ -1086,7 +1095,7 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 
 	polymodel * pm;
 
-	MONITOR_INC( NumModelsRend, 1 );	
+	//MONITOR_INC( NumModelsRend, 1 );	
 
 	if ( !( Game_detail_flags & DETAIL_FLAG_MODELS ) )	return;
 
@@ -1935,15 +1944,15 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 
 	interp->detail_level = model_queue_render_determine_detail(objnum, model_num, orient, pos, flags, interp->detail_level_locked);
 
-#ifndef NDEBUG
-	if ( Interp_detail_level == 0 )	{
-		MONITOR_INC( NumHiModelsRend, 1 );
-	} else if ( Interp_detail_level == pm->n_detail_levels-1 ) {
-		MONITOR_INC( NumLowModelsRend, 1 );
-	}  else {
-		MONITOR_INC( NumMedModelsRend, 1 );
-	}
-#endif
+// #ifndef NDEBUG
+// 	if ( Interp_detail_level == 0 )	{
+// 		MONITOR_INC( NumHiModelsRend, 1 );
+// 	} else if ( Interp_detail_level == pm->n_detail_levels-1 ) {
+// 		MONITOR_INC( NumLowModelsRend, 1 );
+// 	}  else {
+// 		MONITOR_INC( NumMedModelsRend, 1 );
+// 	}
+// #endif
 
 	// scale the render box settings based on the "Model Detail" slider
 	switch ( Detail.detail_distance ) {
@@ -1986,7 +1995,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 		}
 	}
 
-	gr_zbias(1);
+	//gr_zbias(1);
 
 	if ( interp->tmap_flags & TMAP_FLAG_PIXEL_FOG ) {
 		float fog_near = 10.0f, fog_far = 1000.0f;

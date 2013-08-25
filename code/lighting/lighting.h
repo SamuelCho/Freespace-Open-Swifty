@@ -69,8 +69,8 @@ public:
 
 	SceneLights()
 	{
-		current_light_index = 0;
-		current_num_lights = 0;
+		current_light_index = -1;
+		current_num_lights = -1;
 	}
 	void addLight(light *light_ptr);
 	void setLightFilter(int objnum, vec3d *pos, float rad);

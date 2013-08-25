@@ -18060,6 +18060,8 @@ void ship_queue_render(object* obj, DrawList* scene)
 		} else {
 			scene->setTeamColor(NULL);
 		}
+	} else {
+		scene->setTeamColor(NULL);
 	}
 
 	if ( in_shadow_map ) {

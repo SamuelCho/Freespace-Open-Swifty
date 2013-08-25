@@ -3927,8 +3927,16 @@ void game_render_frame_new( camid cid )
 	}
 
 	obj_render_queue_shadow_maps();
-
+//	render_shadow_maps();
 	obj_render_queue_all();
+//  	gr_deferred_lighting_begin();
+//  	bool draw_viewer_last = false;
+//  	extern int ship_render_mode;
+//  	ship_render_mode = MODEL_RENDER_OPAQUE;
+//  	obj_render_all(obj_render, &draw_viewer_last);
+//  	ship_render_mode = MODEL_RENDER_ALL;
+//  	gr_deferred_lighting_end();
+//  	gr_deferred_lighting_finish();
 
 	render_shields();
 
@@ -4720,7 +4728,8 @@ void game_frame(bool paused)
 			DEBUG_GET_TIME( render3_time1 )
 			
 			camid cid = game_render_frame_setup();
-			game_render_frame( cid );
+			//game_render_frame( cid );
+			game_render_frame_new( cid );
 			
 			//Cutscene bars
 			clip_frame_view();

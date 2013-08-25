@@ -1631,4 +1631,6 @@ uint gr_determine_shader_flags(
 	if ( thruster_scale ) {
 		shader_flags |= SDR_FLAG_THRUSTER;
 	}
+
+	return shader_flags;
 }

@@ -757,7 +757,7 @@ int batch_add_polygon(int texture, int tmap_flags, vec3d *pos, matrix *orient, f
 		return 0;
 
 	Assert(pos != NULL);
-	Assert(ori != NULL);
+	Assert(orient != NULL);
 
 	//Let's begin.
 

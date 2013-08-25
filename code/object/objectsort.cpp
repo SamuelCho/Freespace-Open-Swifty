@@ -369,10 +369,10 @@ void obj_queue_render(object* obj, DrawList* scene)
 		ship_queue_render(obj, scene);
 		break;
 	case OBJ_FIREBALL:
-		fireball_queue_render(obj, scene);
+		//fireball_queue_render(obj, scene);
 		break;
 	case OBJ_SHOCKWAVE:
-		shockwave_queue_render(obj, scene);
+		//shockwave_queue_render(obj, scene);
 		break;
 	case OBJ_DEBRIS:
 		debris_queue_render(obj, scene);
@@ -386,7 +386,7 @@ void obj_queue_render(object* obj, DrawList* scene)
 				continue;
 			}
 
-			jnp->QueueRender(scene, &obj->pos, &Eye_position);
+			//jnp->QueueRender(scene, &obj->pos, &Eye_position);
 		}
 		break;
 	case OBJ_WAYPOINT:
@@ -452,12 +452,41 @@ void obj_render_queue_all()
 	}
 
 	scene.sortDraws();
+
+	gr_zbuffer_set(ZBUFFER_TYPE_FULL);
+
 	scene.renderAll(GR_ALPHABLEND_NONE);
+	gr_zbias(0);
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+	gr_set_cull(0);
 
-	gr_deferred_lighting_end();
+	gr_flush_data_states();
+	gr_set_buffer(-1);
+
+ 	gr_deferred_lighting_end();
+ 
+// 	gr_flush_data_states();
+// 	gr_set_buffer(-1);
+// 
+// 	scene.renderAll(GR_ALPHABLEND_FILTER);
+
+	//WMC - draw maneuvering thrusters
+ 	extern void batch_render_man_thrusters();
+ 	batch_render_man_thrusters();
+
+	// if we're fullneb, switch off the fog effet
+	if((The_mission.flags & MISSION_FLAG_FULLNEB) && (Neb2_render_mode != NEB2_RENDER_NONE)){
+		gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
+	}
+
+	batch_render_all();
+
+	gr_reset_lighting();
+	gr_set_lighting(false, false);
+
+	//gr_deferred_lighting_end();
+
 	gr_deferred_lighting_finish();
-
-	scene.renderAll(GR_ALPHABLEND_FILTER);
 }
 
 void obj_render_queue_shadow_maps()
@@ -470,7 +499,7 @@ void obj_render_queue_shadow_maps()
 
 	light *lp = *(Static_light.begin());
 
-	if( !Cmdline_nohtl && Cmdline_shadow_quality && lp ) {
+	if( Cmdline_nohtl || !Cmdline_shadow_quality || !lp ) {
 		return;
 	}
 
@@ -546,8 +575,8 @@ void obj_render_queue_shadow_maps()
 			{
 				interp_data interp;
 
-				model_clear_instance( Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype]);
-				model_queue_render(&interp, &scene, Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype], &objp->orient, &objp->pos, MR_NORMAL | MR_IS_ASTEROID | MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp), NULL );
+				//model_clear_instance( Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype]);
+				//model_queue_render(&interp, &scene, Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype], &objp->orient, &objp->pos, MR_NORMAL | MR_IS_ASTEROID | MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp), NULL );
 			}
 			break;
 
@@ -563,7 +592,7 @@ void obj_render_queue_shadow_maps()
 				interp_data interp;
 
 				objp = &Objects[db->objnum];
-				submodel_queue_render(&interp, &scene, db->model_num, db->submodel_num, &objp->orient, &objp->pos, MR_NO_TEXTURING | MR_NO_LIGHTING, -1, NULL);
+				//submodel_queue_render(&interp, &scene, db->model_num, db->submodel_num, &objp->orient, &objp->pos, MR_NO_TEXTURING | MR_NO_LIGHTING, -1, NULL);
 			}
 			break; 
 		}
@@ -573,6 +602,13 @@ void obj_render_queue_shadow_maps()
 	scene.renderAll();
 
 	gr_end_shadow_map();
+
+	gr_zbias(0);
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+	gr_set_cull(0);
+
+	gr_flush_data_states();
+	gr_set_buffer(-1);
 
 	gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
 	gr_set_view_matrix(&Eye_position, &Eye_matrix);

@@ -94,6 +94,11 @@ struct interp_data
 
 	interp_data() 
 	{
+		tmap_flags = 0;
+		flags = 0;
+
+		desaturate = false;
+
 		warp_scale_x = 1.0f;
 		warp_scale_y = 1.0f;
 		warp_scale_z = 1.0f;
@@ -194,6 +199,9 @@ struct render_state
 		b = 0;
 		fog_near = -1.0f;
 		fog_far = -1.0f;
+
+		animated_timer = 0.0f;
+		animated_effect = 0;
 	}
 };
 
@@ -259,7 +267,7 @@ class DrawList
 	SCP_vector<int> render_keys;
 	
 	static DrawList *Target;
-	static int sortDrawPair(const void* a, const void* b);
+	static int sortDrawPair(const int a, const int b);
 public:
 	DrawList();
 	void addLight(light *light_ptr);
