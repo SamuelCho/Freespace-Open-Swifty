@@ -97,12 +97,24 @@ struct interp_data
 		tmap_flags = 0;
 		flags = 0;
 
+		objnum = -1;
+
 		desaturate = false;
+
+		detail_level_locked = 0;
+		detail_level = 0;
+
+		depth_scale = 1500.0f;
+
+		light = 0.0f;
+
+		base_frametime = 0;
 
 		warp_scale_x = 1.0f;
 		warp_scale_y = 1.0f;
 		warp_scale_z = 1.0f;
 
+		warp_bitmap = -1;
 		warp_alpha = -1.0f;
 
 		xparent_alpha = 1.0f;
@@ -139,7 +151,7 @@ struct interp_data
 
 			thrust_glow_len_factor = 1.0f;
 
-			vm_vec_zero(&thrust_rotvel);
+			thrust_rotvel = vmd_zero_vector;
 		}
 
 		box_scale = 1.0f;

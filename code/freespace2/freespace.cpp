@@ -3857,7 +3857,6 @@ void game_render_frame( camid cid )
 
 void game_render_frame_new( camid cid )
 {
-
 	g3_start_frame(game_zbuffer);
 
 	camera *cam = cid.getCamera();

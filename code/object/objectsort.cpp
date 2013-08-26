@@ -369,10 +369,10 @@ void obj_queue_render(object* obj, DrawList* scene)
 		ship_queue_render(obj, scene);
 		break;
 	case OBJ_FIREBALL:
-		//fireball_queue_render(obj, scene);
+		fireball_queue_render(obj, scene);
 		break;
 	case OBJ_SHOCKWAVE:
-		//shockwave_queue_render(obj, scene);
+		shockwave_queue_render(obj, scene);
 		break;
 	case OBJ_DEBRIS:
 		debris_queue_render(obj, scene);
@@ -447,6 +447,8 @@ void obj_render_queue_all()
 				continue;
 			}
 			
+			objp->flags |= OF_WAS_RENDERED;
+
 			obj_queue_render(objp, &scene);
 		}
 	}
@@ -464,11 +466,6 @@ void obj_render_queue_all()
 	gr_set_buffer(-1);
 
  	gr_deferred_lighting_end();
- 
-// 	gr_flush_data_states();
-// 	gr_set_buffer(-1);
-// 
-// 	scene.renderAll(GR_ALPHABLEND_FILTER);
 
 	//WMC - draw maneuvering thrusters
  	extern void batch_render_man_thrusters();
@@ -487,6 +484,8 @@ void obj_render_queue_all()
 	//gr_deferred_lighting_end();
 
 	gr_deferred_lighting_finish();
+
+	//scene.renderAll(GR_ALPHABLEND_FILTER);
 }
 
 void obj_render_queue_shadow_maps()
@@ -569,14 +568,16 @@ void obj_render_queue_shadow_maps()
 		switch(objp->type)
 		{
 		case OBJ_SHIP:
-			ship_queue_render(objp, &scene);
+			{
+				obj_queue_render(objp, &scene);
+			}
 			break;
 		case OBJ_ASTEROID:
 			{
 				interp_data interp;
 
-				//model_clear_instance( Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype]);
-				//model_queue_render(&interp, &scene, Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype], &objp->orient, &objp->pos, MR_NORMAL | MR_IS_ASTEROID | MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp), NULL );
+				model_clear_instance( Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype]);
+				model_queue_render(&interp, &scene, Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype], &objp->orient, &objp->pos, MR_NORMAL | MR_IS_ASTEROID | MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp), NULL );
 			}
 			break;
 
@@ -592,7 +593,7 @@ void obj_render_queue_shadow_maps()
 				interp_data interp;
 
 				objp = &Objects[db->objnum];
-				//submodel_queue_render(&interp, &scene, db->model_num, db->submodel_num, &objp->orient, &objp->pos, MR_NO_TEXTURING | MR_NO_LIGHTING, -1, NULL);
+				submodel_queue_render(&interp, &scene, db->model_num, db->submodel_num, &objp->orient, &objp->pos, MR_NO_TEXTURING | MR_NO_LIGHTING, -1, NULL);
 			}
 			break; 
 		}

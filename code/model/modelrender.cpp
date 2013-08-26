@@ -287,6 +287,9 @@ void DrawList::setBlendFilter(int filter, float alpha)
 // 		dirty_render_state = true;
 // 	}
 
+// 	current_blend_filter = GR_ALPHABLEND_NONE;
+// 	current_alpha = 1.0f;
+
 	current_blend_filter = filter;
 	current_alpha = alpha;
 }
@@ -367,6 +370,7 @@ void DrawList::renderAll(int blend_filter)
 		int render_index = render_keys[i];
 
 		if ( blend_filter == -1 || render_elements[render_index].blend_filter == blend_filter ) {
+			
 			drawRenderElement(&render_elements[render_index]);
 		}
 	}
@@ -379,12 +383,6 @@ int DrawList::sortDrawPair(const int a, const int b)
 
 	render_state *render_state_a = &Target->render_states[draw_call_a->render_state_handle];
 	render_state *render_state_b = &Target->render_states[draw_call_b->render_state_handle];
-
-	if ( draw_call_a->blend_filter == GR_ALPHABLEND_NONE && draw_call_b->blend_filter == GR_ALPHABLEND_FILTER ) {
-		return 1;
-	} else if ( draw_call_a->blend_filter == GR_ALPHABLEND_FILTER && draw_call_b->blend_filter == GR_ALPHABLEND_NONE ) {
-		return -1;
-	}
 
 	if ( render_state_a->clip_plane_handle > render_state_b->clip_plane_handle ) {
 		return 1;
@@ -778,6 +776,13 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 		float alpha = 1.0f;
 		int blend_filter = GR_ALPHABLEND_NONE;
 
+		texture_maps[TM_BASE_TYPE] = -1;
+		texture_maps[TM_GLOW_TYPE] = -1;
+		texture_maps[TM_SPECULAR_TYPE] = -1;
+		texture_maps[TM_NORMAL_TYPE] = -1;
+		texture_maps[TM_HEIGHT_TYPE] = -1;
+		texture_maps[TM_MISC_TYPE] = -1;
+
 		if (forced_texture != -2) {
 			texture_maps[TM_BASE_TYPE] = forced_texture;
 			alpha = forced_alpha;
@@ -902,13 +907,6 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 		scene->setTexture(TM_MISC_TYPE,	texture_maps[TM_MISC_TYPE]);
 
 		scene->addBufferDraw(&Object_matrix, &Object_position, &scale, &model->buffer, i, interp->tmap_flags, interp);
-
-		texture_maps[TM_BASE_TYPE] = -1;
-		texture_maps[TM_GLOW_TYPE] = -1;
-		texture_maps[TM_SPECULAR_TYPE] = -1;
-		texture_maps[TM_NORMAL_TYPE] = -1;
-		texture_maps[TM_HEIGHT_TYPE] = -1;
-		texture_maps[TM_MISC_TYPE] = -1;
 	}
 }
 

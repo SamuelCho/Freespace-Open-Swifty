@@ -17959,6 +17959,8 @@ void ship_queue_render(object* obj, DrawList* scene)
 			shipp->warpout_effect->warpShipRender();
 		}
 
+		ship_model_stop(obj);
+
 		return;
 	}
 
@@ -18096,4 +18098,6 @@ void ship_queue_render(object* obj, DrawList* scene)
 	} else if(shipp->flags & SF_DEPART_WARP) {
 		shipp->warpout_effect->warpShipRender();
 	}
+
+	ship_model_stop(obj);
 }
