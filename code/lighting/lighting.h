@@ -69,12 +69,12 @@ public:
 
 	SceneLights()
 	{
-		current_light_index = -1;
-		current_num_lights = -1;
+		resetLightState();
 	}
 	void addLight(light *light_ptr);
 	void setLightFilter(int objnum, vec3d *pos, float rad);
 	bool setLights(SceneLights::LightIndexingInfo *info);
+	void resetLightState();
 	SceneLights::LightIndexingInfo bufferLights();
 };
 
@@ -120,4 +120,6 @@ int light_get_global_dir(vec3d *pos, int n);
 
 // Set to non-zero if we're in a shadow.
 void light_set_shadow( int state );
+
+bool light_compare_by_type(const light &a, const light &b);
 #endif

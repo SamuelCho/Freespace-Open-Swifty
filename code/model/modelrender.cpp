@@ -366,6 +366,8 @@ void DrawList::renderAll(int blend_filter)
 {
 	size_t i;
 
+	Lights.resetLightState();
+
 	for ( i = 0; i < render_keys.size(); ++i ) {
 		int render_index = render_keys[i];
 
@@ -376,7 +378,7 @@ void DrawList::renderAll(int blend_filter)
 	}
 }
 
-int DrawList::sortDrawPair(const int a, const int b)
+bool DrawList::sortDrawPair(const int a, const int b)
 {
 	queued_buffer_draw *draw_call_a = &Target->render_elements[a];
 	queued_buffer_draw *draw_call_b = &Target->render_elements[a];
@@ -384,67 +386,41 @@ int DrawList::sortDrawPair(const int a, const int b)
 	render_state *render_state_a = &Target->render_states[draw_call_a->render_state_handle];
 	render_state *render_state_b = &Target->render_states[draw_call_b->render_state_handle];
 
-	if ( render_state_a->clip_plane_handle > render_state_b->clip_plane_handle ) {
-		return 1;
-	} else if ( render_state_a->clip_plane_handle < render_state_b->clip_plane_handle ) {
-		return -1;
+// 	if ( render_state_a->clip_plane_handle > render_state_b->clip_plane_handle ) {
+// 		return 1;
+// 	} else if ( render_state_a->clip_plane_handle < render_state_b->clip_plane_handle ) {
+// 		return -1;
+// 	}
+	
+	if ( draw_call_a->sdr_flags != draw_call_b->sdr_flags ) {
+		return draw_call_a->sdr_flags < draw_call_b->sdr_flags;
 	}
 	
-	if ( draw_call_a->sdr_flags > draw_call_b->sdr_flags ) {
-		return 1;
-	} else if ( draw_call_a->sdr_flags < draw_call_b->sdr_flags ) {
-		return -1;
-	}
-	
-	if ( render_state_a->buffer_id > render_state_b->buffer_id) {
-		return 1;
-	} else if ( render_state_a->buffer_id < render_state_b->buffer_id ) {
-		return -1;
+	if ( render_state_a->buffer_id != render_state_b->buffer_id) {
+		return render_state_a->buffer_id < render_state_b->buffer_id;
 	}
 
-	if ( draw_call_a->texture_maps[TM_BASE_TYPE] > draw_call_b->texture_maps[TM_BASE_TYPE] ) {
-		return 1;
-	} else if ( draw_call_a->texture_maps[TM_BASE_TYPE] < draw_call_b->texture_maps[TM_BASE_TYPE] ) {
-		return -1;
+	if ( draw_call_a->texture_maps[TM_BASE_TYPE] != draw_call_b->texture_maps[TM_BASE_TYPE] ) {
+		return draw_call_a->texture_maps[TM_BASE_TYPE] < draw_call_b->texture_maps[TM_BASE_TYPE];
 	}
 
-	if ( draw_call_a->texture_maps[TM_SPECULAR_TYPE] > draw_call_b->texture_maps[TM_SPECULAR_TYPE] ) {
-		return 1;
-	} else if ( draw_call_a->texture_maps[TM_SPECULAR_TYPE] < draw_call_b->texture_maps[TM_SPECULAR_TYPE] ) {
-		return -1;
+	if ( draw_call_a->texture_maps[TM_SPECULAR_TYPE] != draw_call_b->texture_maps[TM_SPECULAR_TYPE] ) {
+		return draw_call_a->texture_maps[TM_SPECULAR_TYPE] < draw_call_b->texture_maps[TM_SPECULAR_TYPE];
 	}
 
-	if ( draw_call_a->texture_maps[TM_GLOW_TYPE] > draw_call_b->texture_maps[TM_GLOW_TYPE] ) {
-		return 1;
-	} else if ( draw_call_a->texture_maps[TM_GLOW_TYPE] < draw_call_b->texture_maps[TM_GLOW_TYPE] ) {
-		return -1;
+	if ( draw_call_a->texture_maps[TM_GLOW_TYPE] != draw_call_b->texture_maps[TM_GLOW_TYPE] ) {
+		return draw_call_a->texture_maps[TM_GLOW_TYPE] < draw_call_b->texture_maps[TM_GLOW_TYPE];
 	}
 
-	if ( draw_call_a->texture_maps[TM_NORMAL_TYPE] > draw_call_b->texture_maps[TM_NORMAL_TYPE] ) {
-		return 1;
-	} else if ( draw_call_a->texture_maps[TM_NORMAL_TYPE] < draw_call_b->texture_maps[TM_NORMAL_TYPE] ) {
-		return -1;
+	if ( draw_call_a->texture_maps[TM_NORMAL_TYPE] != draw_call_b->texture_maps[TM_NORMAL_TYPE] ) {
+		return draw_call_a->texture_maps[TM_NORMAL_TYPE] < draw_call_b->texture_maps[TM_NORMAL_TYPE];
 	}
 
-	if ( draw_call_a->texture_maps[TM_HEIGHT_TYPE] > draw_call_b->texture_maps[TM_HEIGHT_TYPE] ) {
-		return 1;
-	} else if ( draw_call_a->texture_maps[TM_HEIGHT_TYPE] < draw_call_b->texture_maps[TM_HEIGHT_TYPE] ) {
-		return -1;
+	if ( draw_call_a->texture_maps[TM_HEIGHT_TYPE] != draw_call_b->texture_maps[TM_HEIGHT_TYPE] ) {
+		return draw_call_a->texture_maps[TM_HEIGHT_TYPE] < draw_call_b->texture_maps[TM_HEIGHT_TYPE];
 	}
 
-	if ( draw_call_a->texture_maps[TM_MISC_TYPE] > draw_call_b->texture_maps[TM_MISC_TYPE] ) {
-		return 1;
-	} else if ( draw_call_a->texture_maps[TM_MISC_TYPE] < draw_call_b->texture_maps[TM_MISC_TYPE] ) {
-		return -1;
-	}
-
-	if ( draw_call_a->texture_maps[TM_MISC_TYPE] > draw_call_b->texture_maps[TM_MISC_TYPE] ) {
-		return 1;
-	} else if ( draw_call_a->texture_maps[TM_MISC_TYPE] < draw_call_b->texture_maps[TM_MISC_TYPE] ) {
-		return -1;
-	}
-
-	return 0;
+	return draw_call_a->texture_maps[TM_MISC_TYPE] < draw_call_b->texture_maps[TM_MISC_TYPE];
 }
 
 int model_queue_render_batch_rod(int num_points, vec3d *pvecs, float width, uint tmap_flags)
@@ -1469,6 +1445,10 @@ void model_queue_render_glowpoint(int point_num, vec3d *pos, matrix *orient, glo
 
 void model_queue_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d *pos, bool use_depth_buffer = true)
 {
+	if ( in_shadow_map ) {
+		return;
+	}
+
 	int i, j;
 
 	int cull = gr_set_cull(0);
@@ -1536,6 +1516,10 @@ void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum
 	thruster_bank *bank = NULL;
 	vertex p;
 	bool do_render = false;
+
+	if ( in_shadow_map ) {
+		return;
+	}
 
 	if ( pm == NULL ) {
 		Int3();

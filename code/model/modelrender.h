@@ -279,7 +279,7 @@ class DrawList
 	SCP_vector<int> render_keys;
 	
 	static DrawList *Target;
-	static int sortDrawPair(const int a, const int b);
+	static bool sortDrawPair(const int a, const int b);
 public:
 	DrawList();
 	void addLight(light *light_ptr);

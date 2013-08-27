@@ -2220,29 +2220,35 @@ void gr_opengl_draw_deferred_light_sphere(vec3d *position, float rad, bool clear
 	
 	vglUniform3fARB(opengl_shader_get_uniform("Scale"), rad, rad, rad);
 
-	vglBindBufferARB(GL_ARRAY_BUFFER, deferred_light_sphere_vbo);
-	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, deferred_light_sphere_ibo);
+	GL_state.Array.BindArrayBuffer(deferred_light_sphere_vbo);
+	GL_state.Array.BindElementBuffer(deferred_light_sphere_ibo);
+// 	vglBindBufferARB(GL_ARRAY_BUFFER, deferred_light_sphere_vbo);
+// 	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, deferred_light_sphere_ibo);
 
-	vglEnableVertexAttribArrayARB(0);
-	vglVertexAttribPointerARB(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	GL_state.Array.EnableVertexAttrib(0);
+	GL_state.Array.VertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
-	glEnable(GL_STENCIL_TEST);
-	glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
-	glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
-	glStencilMask(0xFF);
-	if(clearStencil)
-		glClear(GL_STENCIL_BUFFER_BIT);
+// 	vglEnableVertexAttribArrayARB(0);
+// 	vglVertexAttribPointerARB(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+// 	glEnable(GL_STENCIL_TEST);
+// 	glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
+// 	glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
+// 	glStencilMask(0xFF);
+
+// 	if(clearStencil)
+// 		glClear(GL_STENCIL_BUFFER_BIT);
 
 	vglDrawRangeElements(GL_TRIANGLES, 0, deferred_light_sphere_vcount, deferred_light_sphere_icount, GL_UNSIGNED_SHORT, 0);
 	
 	g3_done_instance(true);
 	
-	glDisable(GL_STENCIL_TEST);
+//	glDisable(GL_STENCIL_TEST);
 
-	vglDisableVertexAttribArrayARB(0);
-
-	vglBindBufferARB(GL_ARRAY_BUFFER, 0);
-	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, 0);
+// 	vglDisableVertexAttribArrayARB(0);
+// 
+// 	vglBindBufferARB(GL_ARRAY_BUFFER, 0);
+// 	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void gr_opengl_deferred_light_cylinder_init(int segments) // Generate a VBO of a cylinder of radius and height 1.0f, based on code at http://www.ogre3d.org/tikiwiki/ManualSphereMeshes
@@ -2361,29 +2367,34 @@ void gr_opengl_draw_deferred_light_cylinder(vec3d *position,matrix *orient, floa
 
 	vglUniform3fARB(opengl_shader_get_uniform("Scale"), rad, rad, length);
 
-	vglBindBufferARB(GL_ARRAY_BUFFER, deferred_light_cylinder_vbo);
-	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, deferred_light_cylinder_ibo);
+	GL_state.Array.BindArrayBuffer(deferred_light_cylinder_vbo);
+	GL_state.Array.BindElementBuffer(deferred_light_cylinder_ibo);
+// 	vglBindBufferARB(GL_ARRAY_BUFFER, deferred_light_cylinder_vbo);
+// 	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, deferred_light_cylinder_ibo);
 
-	vglEnableVertexAttribArrayARB(0);
-	vglVertexAttribPointerARB(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+ 	GL_state.Array.EnableVertexAttrib(0);
+ 	GL_state.Array.VertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+//	vglEnableVertexAttribArrayARB(0);
+//	vglVertexAttribPointerARB(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
-	glEnable(GL_STENCIL_TEST);
-	glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
-	glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
-	glStencilMask(0xFF);
-	if(clearStencil)
-		glClear(GL_STENCIL_BUFFER_BIT);
+// 	glEnable(GL_STENCIL_TEST);
+// 	glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
+// 	glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
+// 	glStencilMask(0xFF);
 
+// 	if(clearStencil)
+// 		glClear(GL_STENCIL_BUFFER_BIT);
+	
 	vglDrawRangeElements(GL_TRIANGLES, 0, deferred_light_cylinder_vcount, deferred_light_cylinder_icount, GL_UNSIGNED_SHORT, 0);
 	
 	g3_done_instance(true);
 	
-	glDisable(GL_STENCIL_TEST);
+//	glDisable(GL_STENCIL_TEST);
 
-	vglDisableVertexAttribArrayARB(0);
-
-	vglBindBufferARB(GL_ARRAY_BUFFER, 0);
-	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, 0);
+// 	vglDisableVertexAttribArrayARB(0);
+// 
+// 	vglBindBufferARB(GL_ARRAY_BUFFER, 0);
+// 	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void gr_opengl_draw_line_list(colored_vector *lines, int num)
@@ -2939,6 +2950,13 @@ void gr_opengl_deferred_lighting_finish()
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, Scene_stencil_buffer);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, Scene_stencil_buffer);
 
+	std::sort(Lights, Lights+Num_lights, light_compare_by_type);
+
+	glEnable(GL_STENCIL_TEST);
+	glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
+	glStencilOp(GL_ZERO, GL_ZERO, GL_ZERO);
+	glStencilMask(0xFF);
+
 	for(int i = 0; i < Num_lights; ++i)
 	{
 		light *l = &Lights[i];
@@ -2988,13 +3006,20 @@ void gr_opengl_deferred_lighting_finish()
 					vm_vec_sub(&a, &Eye_position, &l->vec2);
 					dist = vm_vec_mag(&a);
 				}
+
+				glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 				gr_opengl_draw_deferred_light_cylinder(&l->vec2, &orient, l->radb * 1.53f, length);
 				vglUniform1iARB( opengl_shader_get_uniform("lighttype"), 0 );
 				gr_opengl_draw_deferred_light_sphere(&l->vec, l->radb * 1.53f, false);
 				gr_opengl_draw_deferred_light_sphere(&l->vec2, l->radb * 1.53f, false);
+				glStencilOp(GL_ZERO, GL_ZERO, GL_ZERO);
 				break;
 		}
 	}
+
+	glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
+	glClear(GL_STENCIL_BUFFER_BIT);
+	glDisable(GL_STENCIL_TEST);
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, Scene_depth_texture, 0);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
@@ -3007,6 +3032,8 @@ void gr_opengl_deferred_lighting_finish()
 	GL_state.SetAlphaBlendMode( ALPHA_BLEND_NONE );
 	gr_zbuffer_set(zbuff);
 	opengl_shader_set_current( 0 );
+
+	gr_flush_data_states();
 }
 
 void gr_opengl_update_distortion()

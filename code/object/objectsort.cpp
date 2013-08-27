@@ -439,14 +439,6 @@ void obj_render_queue_all()
 				}
 			}
 
-			if ( (objp == Viewer_obj)
-				&& (objp->type == OBJ_SHIP)
-				&& (Ship_info[Ships[objp->instance].ship_info_index].flags2 & SIF2_SHOW_SHIP_MODEL)
-				&& (!Viewer_mode || (Viewer_mode & VM_PADLOCK_ANY) || (Viewer_mode & VM_OTHER_SHIP) || (Viewer_mode & VM_TRACK)) )
-			{
-				continue;
-			}
-			
 			objp->flags |= OF_WAS_RENDERED;
 
 			obj_queue_render(objp, &scene);
@@ -482,10 +474,21 @@ void obj_render_queue_all()
 	gr_set_lighting(false, false);
 
 	//gr_deferred_lighting_end();
-
 	gr_deferred_lighting_finish();
 
-	//scene.renderAll(GR_ALPHABLEND_FILTER);
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+
+	scene.renderAll(GR_ALPHABLEND_FILTER);
+
+	gr_zbias(0);
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+	gr_set_cull(0);
+
+	gr_flush_data_states();
+	gr_set_buffer(-1);
+
+	gr_reset_lighting();
+	gr_set_lighting(false, false);
 }
 
 void obj_render_queue_shadow_maps()

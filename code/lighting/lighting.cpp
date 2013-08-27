@@ -1080,6 +1080,14 @@ void light_add_cone( vec3d * pos, vec3d * dir, float angle, float inner_angle, b
 	Assert( Num_light_levels <= 1 );
 }
 
+bool light_compare_by_type(const light &a, const light &b)
+{
+	if ( a.type == LT_POINT )
+		return true;
+
+	return false;
+}
+
 void SceneLights::addLight(light *light_ptr)
 {
 	Assert(light_ptr != NULL);
@@ -1192,6 +1200,12 @@ SceneLights::LightIndexingInfo SceneLights::bufferLights()
 	}
 
 	return light_info;
+}
+
+void SceneLights::resetLightState()
+{
+	current_light_index = -1;
+	current_num_lights = -1;
 }
 
 bool SceneLights::setLights(SceneLights::LightIndexingInfo *info)
