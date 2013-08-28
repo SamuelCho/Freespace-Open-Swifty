@@ -229,7 +229,7 @@ int create_wing()
 	leader = cur_object_index;
 	ptr = GET_FIRST(&obj_used_list);
 	while (ptr != END_OF_LIST(&obj_used_list)) {
-		if ((ptr->type == OBJ_SHIP) && (ptr->flags & OF_MARKED)) {
+		if (( (ptr->type == OBJ_SHIP) || (ptr->type == OBJ_START) ) && (ptr->flags & OF_MARKED)) {
 			count++;
 			i = -1;
 			switch (ptr->type) {
@@ -306,10 +306,14 @@ int create_wing()
 		Wings[wing].arrival_location = Wings[wing].departure_location = 0;
 		Wings[wing].arrival_distance = 0;
 		Wings[wing].arrival_anchor = -1;
+		Wings[wing].arrival_delay = 0;
 		Wings[wing].arrival_cue = Locked_sexp_true;
+		Wings[wing].departure_delay = 0;
 		Wings[wing].departure_cue = Locked_sexp_false;
 		Wings[wing].hotkey = -1;
 		Wings[wing].flags = 0;
+		Wings[wing].wave_delay_min = 0;
+		Wings[wing].wave_delay_max = 0;
 
 		for (i=0; i<MAX_AI_GOALS; i++) {
 			Wings[wing].ai_goals[i].ai_mode = AI_GOAL_NONE;

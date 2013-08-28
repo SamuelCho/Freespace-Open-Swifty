@@ -32,6 +32,7 @@
 #include "ai/aigoals.h"
 #include "gamesnd/gamesnd.h"
 #include "mission/missionmessage.h"
+#include "mission/missionparse.h"
 #include "cmeasure/cmeasure.h"
 #include "math/staticrand.h"
 #include "ship/afterburner.h"
@@ -193,6 +194,11 @@ int Num_alloced_ai_classes;
 int	AI_FrameCount = 0;
 int	AI_watch_object = 0; // Debugging, object to spew debug info for.
 int	Mission_all_attack = 0;					//	!0 means all teams attack all teams.
+
+//	Constant for flag,				Name of flag,				In flags or flags2
+ai_flag_name Ai_flag_names[] = {
+	{AIF_NO_DYNAMIC,				"no-dynamic",					1,	},
+};
 
 char *Skill_level_names(int level, int translate)
 {
@@ -1033,15 +1039,11 @@ float compute_dots(object *objp, object *other_objp, float *to_dot, float *from_
  */
 void update_ai_stealth_info_with_error(ai_info *aip)
 {
-	object *ship;
 	object *stealth_objp;
 
 	// make sure I am targeting a stealth ship
 	Assert( is_object_stealth_ship(&Objects[aip->target_objnum]) );
 	stealth_objp = &Objects[aip->target_objnum];
-
-	// my_ship
-	ship = &Objects[Ships[aip->shipnum].objnum];
 
 	// if update is due to weapon fire, get exact stealth position
 	aip->stealth_last_pos = stealth_objp->pos;
@@ -1832,28 +1834,7 @@ int is_ignore_object(ai_info *aip, int objnum, int just_the_original = 0)
 	return 0;
 }
 
-/**
- * Given a ship with bounding box and a point, find the closest point on the bbox
- */
-int get_nearest_bbox_point(object *ship_obj, vec3d *start, vec3d *box_pt)
-{
-	vec3d temp, rf_start;
-	polymodel *pm;
-	pm = model_get(Ship_info[Ships[ship_obj->instance].ship_info_index].model_num);
 
-	// get start in ship rf
-	vm_vec_sub(&temp, start, &ship_obj->pos);
-	vm_vec_rotate(&rf_start, &temp, &ship_obj->orient);
-
-	// find box_pt
-	int inside = project_point_onto_bbox(&pm->mins, &pm->maxs, &rf_start, &temp);
-
-	// get box_pt in world rf
-	vm_vec_unrotate(box_pt, &temp, &ship_obj->orient);
-	vm_vec_add2(box_pt, &ship_obj->pos);
-
-	return inside;
-}
 
 
 typedef struct eval_nearest_objnum {
@@ -2048,13 +2029,10 @@ int find_nearby_threat(int objnum, int enemy_team_mask, float range, int *count)
 	int		nearest_objnum;
 	float		nearest_dist;
 	object	*objp;
-	ai_info	*aip;
 	ship_obj	*so;
 
 	nearest_objnum = -1;
 	nearest_dist = range;
-
-	aip = &Ai_info[Ships[Objects[objnum].instance].ai_index];
 
 	*count = 0;
 
@@ -2851,7 +2829,7 @@ void ai_find_path(object *pl_objp, int objnum, int path_num, int exit_flag, int 
 
 			ship	*shipp = &Ships[objp->instance];
 			pm = model_get(Ship_info[shipp->ship_info_index].model_num);
-			if(pm->n_paths <= path_num)
+			if(path_num >= pm->n_paths)
 				Error(LOCATION,"ai_find_path tring to find a path (%d) that doesn't exist, on ship %s", path_num, shipp->ship_name);
 
 			aip->goal_objnum = objnum;
@@ -3695,12 +3673,12 @@ float ai_path_0()
 {
 	polymodel	*pm;
 	int		num_paths, num_points;
-	float		dot, dist_to_goal, dist_to_next, speed, dot_to_next;
+	float		dot, dist_to_goal, dist_to_next, dot_to_next;
 	ship		*shipp = &Ships[Pl_objp->instance];
 	ship_info	*sip = &Ship_info[shipp->ship_info_index];
 	ai_info	*aip;
 	vec3d	nvel_vec;
-	float		mag, prev_dot_to_goal;
+	float		mag;
 	vec3d	temp_vec, *slop_vec;
 	object	*gobjp;
 	ship		*gshipp;
@@ -3775,8 +3753,6 @@ float ai_path_0()
 	gcvp = *cvp;
 	gnvp = *nvp;
 
-	speed = Pl_objp->phys_info.speed;
-
 	dist_to_goal = vm_vec_dist_quick(&Pl_objp->pos, &gcvp);
 	dist_to_next = vm_vec_dist_quick(&Pl_objp->pos, &gnvp);
 	//	Can't use fvec, need to use velocity vector because we aren't necessarily
@@ -3807,7 +3783,6 @@ float ai_path_0()
 
 	//	Code to control speed is MUCH less forgiving in path following than in waypoint
 	//	following.  Must be very close to path or might hit objects.
-	prev_dot_to_goal = aip->prev_dot_to_goal;
 	dot = vm_vec_dot_to_point(&nvel_vec, &Pl_objp->pos, &gcvp);
 	dot_to_next = vm_vec_dot_to_point(&nvel_vec, &Pl_objp->pos, &gnvp);
 
@@ -3849,12 +3824,12 @@ float ai_path_1()
 {
 	polymodel	*pm;
 	int		num_paths, num_points;
-	float		dot, dist_to_goal, dist_to_next, speed, dot_to_next;
+	float		dot, dist_to_goal, dist_to_next, dot_to_next;
 	ship		*shipp = &Ships[Pl_objp->instance];
 	ship_info	*sip = &Ship_info[shipp->ship_info_index];
 	ai_info	*aip;
 	vec3d	nvel_vec;
-	float		mag, prev_dot_to_goal;
+	float		mag;
 	object	*gobjp;
 	ship		*gshipp;
 	vec3d	*pvp, *cvp, *nvp, next_vec, gpvp, gcvp, gnvp;		//	previous, current and next vertices in global coordinates.
@@ -3919,8 +3894,6 @@ float ai_path_1()
 	gcvp = *cvp;
 	gnvp = *nvp;
 
-	speed = Pl_objp->phys_info.speed;
-
 	dist_to_goal = vm_vec_dist_quick(&Pl_objp->pos, &gcvp);
 	dist_to_next = vm_vec_dist_quick(&Pl_objp->pos, &gnvp);
 
@@ -3965,7 +3938,6 @@ float ai_path_1()
 
 	//	Code to control speed is MUCH less forgiving in path following than in waypoint
 	//	following.  Must be very close to path or might hit objects.
-	prev_dot_to_goal = aip->prev_dot_to_goal;
 	dot = vm_vec_dot_to_point(&nvel_vec, &Pl_objp->pos, &gcvp);
 	dot_to_next = vm_vec_dot_to_point(&nvel_vec, &Pl_objp->pos, &gnvp);
 
@@ -4181,7 +4153,7 @@ void ai_safety()
 // valid if Pl_done_p was not NULL and was set true by function.
 void ai_fly_to_target_position(vec3d* target_pos, bool* pl_done_p=NULL, bool* pl_treat_as_ship_p=NULL)
 {
-	float		dot, dist_to_goal, speed;
+	float		dot, dist_to_goal;
 	ship		*shipp = &Ships[Pl_objp->instance];
 	ship_info	*sip = &Ship_info[shipp->ship_info_index];
 	ai_info	*aip;
@@ -4208,8 +4180,6 @@ void ai_fly_to_target_position(vec3d* target_pos, bool* pl_done_p=NULL, bool* pl
 	if ( (aip->active_goal == AI_GOAL_NONE) || (aip->active_goal == AI_ACTIVE_GOAL_DYNAMIC) ) {
 		aip->mode = AIM_NONE;
 	}
-
-	speed = Pl_objp->phys_info.speed;
 
 	dist_to_goal = vm_vec_dist_quick(&Pl_objp->pos, target_pos);
 
@@ -4851,7 +4821,7 @@ void evade_weapon()
 			rdot = vm_vec_dot(&Pl_objp->orient.vec.rvec, &vec_from_enemy);
 			udot = vm_vec_dot(&Pl_objp->orient.vec.uvec, &vec_from_enemy);
 
-			if (aip->ai_profile_flags & AIPF_ALLOW_VERTICAL_DODGE && abs(udot) > abs(rdot))
+			if (aip->ai_profile_flags & AIPF_ALLOW_VERTICAL_DODGE && fl_abs(udot) > fl_abs(rdot))
 			{
 				if ((udot < -0.5f) || (udot > 0.5f))
 					vm_vec_scale_add(&goal_point, &Pl_objp->pos, &Pl_objp->orient.vec.uvec, -200.0f);
@@ -4889,7 +4859,7 @@ void slide_face_ship()
 		return;
 
 	vec3d	goal_pos;
-	float		dot_from_enemy, dot_to_enemy;
+	float		dot_from_enemy;
 	vec3d	vec_from_enemy, vec_to_goal;
 	float		dist;
 	float		up, right;
@@ -4902,7 +4872,6 @@ void slide_face_ship()
 	ai_turn_towards_vector(&En_objp->pos, Pl_objp, flFrametime, sip->srotation_time, NULL, NULL, 0.0f, 0);
 
 	dot_from_enemy = vm_vec_dot(&vec_from_enemy, &En_objp->orient.vec.fvec);
-	dot_to_enemy = -vm_vec_dot(&vec_from_enemy, &Pl_objp->orient.vec.fvec);
 
 	if (vm_vec_dot(&vec_from_enemy, &En_objp->orient.vec.rvec) > 0.0f)
 		right = 1.0f;
@@ -5087,11 +5056,8 @@ int ai_select_primary_weapon_OLD(object *objp, object *other_objp, int flags)
 {
 	ship	*shipp = &Ships[objp->instance];
 	ship_weapon *swp = &shipp->weapons;
-	ship_info *sip;
 
 	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < Num_ship_classes);
-
-	sip = &Ship_info[shipp->ship_info_index];
 
 	if (flags & WIF_PUNCTURE) {
 		if (swp->current_primary_bank >= 0) {
@@ -5164,7 +5130,6 @@ int ai_select_primary_weapon(object *objp, object *other_objp, int flags)
 	// Pointer Set Up
 	ship	*shipp = &Ships[objp->instance];
 	ship_weapon *swp = &shipp->weapons;
-	ship_info *sip;
 
 	// Debugging
 	if (other_objp==NULL)
@@ -5183,7 +5148,6 @@ int ai_select_primary_weapon(object *objp, object *other_objp, int flags)
 
 	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < Num_ship_classes);
 	
-	sip = &Ship_info[shipp->ship_info_index];
 	//made it so it only selects puncture weapons if the active goal is to disable something -Bobboau
 	if ((flags & WIF_PUNCTURE) && (Ai_info[shipp->ai_index].goals[0].ai_mode & (AI_GOAL_DISARM_SHIP | AI_GOAL_DISABLE_SHIP))) 
 	{
@@ -5417,7 +5381,7 @@ void set_primary_weapon_linkage(object *objp)
 	}
 
 	//	Don't want all ships always linking weapons at start, so asynchronize.
-	if (The_mission.ai_profile->flags2 & AIPF2_ALLOW_PRIMARY_LINK_DELAY)
+	if (!(The_mission.ai_profile->flags2 & AIPF2_ALLOW_PRIMARY_LINK_AT_START))
 	{
 		if (Missiontime < i2f(30))
 			return;
@@ -5495,12 +5459,11 @@ int ai_fire_primary_weapon(object *objp)
 {
 	ship		*shipp = &Ships[objp->instance];
 	ship_weapon	*swp = &shipp->weapons;
-	ship_info	*sip, *enemy_sip;
+	ship_info	*enemy_sip;
 	ai_info		*aip;
 	object		*enemy_objp;
 
 	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < Num_ship_classes);
-	sip = &Ship_info[shipp->ship_info_index];
 
 	aip = &Ai_info[shipp->ai_index];
 
@@ -5915,7 +5878,6 @@ int ai_fire_secondary_weapon(object *objp, int priority1, int priority2)
 {
 	ship_weapon *swp;
 	ship	*shipp;
-	ship_info *sip;
 	int		current_bank;
 	int		rval = 0;
 
@@ -5930,7 +5892,6 @@ int ai_fire_secondary_weapon(object *objp, int priority1, int priority2)
 	swp = &shipp->weapons;
 
 	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < Num_ship_classes);
-	sip = &Ship_info[shipp->ship_info_index];
 
 	//	Select secondary weapon.
 	current_bank = swp->current_secondary_bank; //ai_select_secondary_weapon(objp, swp, priority1, priority2);
@@ -6688,10 +6649,8 @@ int will_collide_with_big_ship_all(object *objp, object *ignore_objp, vec3d *goa
 	object	*big_objp;
 	int		collision_obj_index = -1;
 	float		min_dist = 999999.9f;
-	float		collision_time = -1.0f;
 
 	for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) {
-		float	time = 0.0f;
 		big_objp = &Objects[so->objnum];
 
 		if (big_objp == ignore_objp)
@@ -6708,7 +6667,6 @@ int will_collide_with_big_ship_all(object *objp, object *ignore_objp, vec3d *goa
 				if (cur_dist < min_dist) {
 					min_dist = cur_dist;
 					*collision_point = cur_collision_point;
-					collision_time = time;
 					collision_obj_index = OBJ_INDEX(big_objp);
 				}
 			}
@@ -7387,9 +7345,9 @@ void ai_set_guard_object(object *objp, object *other_objp)
 	aip = &Ai_info[shipp->ai_index];
 	aip->avoid_check_timestamp = timestamp(1);
 
-	//	If ship to guard is in a wing, guard that whole wing.
+	//	If ship to guard is in a wing, guard that whole wing, unless the appropriate flag has been set
 	ai_info	*other_aip = &Ai_info[Ships[other_objp->instance].ai_index];
-	if ((other_aip->wing != -1) && (other_aip->wing != aip->wing)) {
+	if ((other_aip->wing != -1) && (other_aip->wing != aip->wing) && !(The_mission.ai_profile->flags2 & AIPF2_AI_GUARDS_SPECIFIC_SHIP_IN_WING)) {
 		ai_set_guard_wing(objp, Ai_info[Ships[other_objp->instance].ai_index].wing);
 	} else {
 
@@ -7681,7 +7639,7 @@ void ai_chase_big_circle_set_goal(vec3d *goal_pos, object *attack_objp, object *
  */
 void ai_chase_big_get_separations(object *attack_objp, object *target_objp, vec3d *horz_vec_to_target, float *desired_separation, float *cur_separation)
 {
-	float temp, r_target, r_attacker, h_attacker, h_target;
+	float temp, r_target, r_attacker;
 	float perp_dist;
 	vec3d vec_to_target;
 
@@ -7692,13 +7650,11 @@ void ai_chase_big_get_separations(object *attack_objp, object *target_objp, vec3
 	temp = MAX(pm->maxs.xyz.x, pm->maxs.xyz.y);
 	r_attacker = MAX(-pm->mins.xyz.x, -pm->mins.xyz.y);
 	r_attacker = MAX(temp, r_attacker);
-	h_attacker = MAX(-pm->mins.xyz.z, pm->maxs.xyz.z);
 
 	// get radius of target (for rotations about forward)
 	temp = MAX(pm->maxs.xyz.x, pm->maxs.xyz.y);
 	r_target = MAX(-pm->mins.xyz.x, -pm->mins.xyz.y);
 	r_target = MAX(temp, r_target);
-	h_target = MAX(-pm->mins.xyz.z, pm->maxs.xyz.z);
 
 	// find separation between cylinders [if parallel]
 	vm_vec_sub(&vec_to_target, &attack_objp->pos, &target_objp->pos);
@@ -7717,7 +7673,7 @@ void ai_chase_big_get_separations(object *attack_objp, object *target_objp, vec3
 void ai_chase_big_parallel_set_goal(vec3d *goal_pos, object *attack_objp, object *target_objp, float *accel)
 {
 	int opposing;
-	float temp, r_target, r_attacker, h_attacker, h_target;
+	float temp, r_target, r_attacker;
 	float separation, optimal_separation;
 	vec3d  horz_vec_to_target;
 
@@ -7728,13 +7684,11 @@ void ai_chase_big_parallel_set_goal(vec3d *goal_pos, object *attack_objp, object
 	temp = MAX(pm->maxs.xyz.x, pm->maxs.xyz.y);
 	r_attacker = MAX(-pm->mins.xyz.x, -pm->mins.xyz.y);
 	r_attacker = MAX(temp, r_attacker);
-	h_attacker = MAX(-pm->mins.xyz.z, pm->maxs.xyz.z);
 
 	// get radius of target (for rotations about forward)
 	temp = MAX(pm->maxs.xyz.x, pm->maxs.xyz.y);
 	r_target = MAX(-pm->mins.xyz.x, -pm->mins.xyz.y);
 	r_target = MAX(temp, r_target);
-	h_target = MAX(-pm->mins.xyz.z, pm->maxs.xyz.z);
 
 	// are we opposing (only when other ship is not moving)
 	opposing = ( vm_vec_dotprod(&attack_objp->orient.vec.fvec, &target_objp->orient.vec.fvec) < 0 );
@@ -7845,10 +7799,8 @@ void ai_cruiser_chase()
 	}
 
 	ship			*eshipp;
-	ship_info	*esip;
 
 	eshipp = &Ships[En_objp->instance];
-	esip = &Ship_info[eshipp->ship_info_index];
 
 	vec3d	goal_pos;
 	float turn_time = Ship_info[Ships[Pl_objp->instance].ship_info_index].srotation_time;
@@ -8097,7 +8049,7 @@ void ai_chase()
 	}
 
 	// Can only acquire lock on a target that isn't hidden from sensors
-	if ( !(Ships[En_objp->instance].flags & SF_HIDDEN_FROM_SENSORS) && !is_stealthy_ship ) {
+	if ( En_objp->type == OBJ_SHIP && !(Ships[En_objp->instance].flags & SF_HIDDEN_FROM_SENSORS) && !is_stealthy_ship ) {
 		update_aspect_lock_information(aip, &real_vec_to_enemy, dist_to_enemy, En_objp->radius);
 	} else {
 		aip->current_target_is_locked = 0;
@@ -9092,14 +9044,25 @@ float dock_orient_and_approach(object *docker_objp, int docker_index, object *do
 			//	Note, we're interested in distance from goal, so if we're still turning, bash that into return value.
 			fdist += 10.0f * vm_vec_mag_quick(&omega_out);
 		} else {
-			vec3d offset;
-
 			Assert(dock_mode == DOA_DOCK_STAY);
-			
-			docker_objp->orient = dom;
+			matrix temp, m_offset;
+			vec3d origin_docker_point, adjusted_docker_point, v_offset;
 
-			vm_vec_sub(&offset, &dockee_point, &docker_point);
-			vm_vec_add2(&docker_objp->pos, &offset);
+			// find out the rotation matrix that will get us from the old to the new rotation
+			vm_copy_transpose_matrix(&temp, &docker_objp->orient);
+			vm_matrix_x_matrix(&m_offset, &temp, &dom);
+
+			// now find out the new docker point after being adjusted for the new orientation
+			vm_vec_sub(&origin_docker_point, &docker_point, &docker_objp->pos);
+			vm_vec_rotate(&adjusted_docker_point, &origin_docker_point, &m_offset);
+			vm_vec_add2(&adjusted_docker_point, &docker_objp->pos);
+
+			// find the vector that will get us from the old to the new position
+			vm_vec_sub(&v_offset, &dockee_point, &adjusted_docker_point);
+			
+			// now set the new rotation and move to the new position
+			docker_objp->orient = dom;
+			vm_vec_add2(&docker_objp->pos, &v_offset);
 		}
 
 		break;
@@ -9188,7 +9151,7 @@ int num_ships_attacking(int target_objnum)
 	ai_info	*attacking_aip;
 	ship_obj	*so;
 	int		count = 0;
-	int target_team = Ships[Objects[target_objnum].instance].team;
+	int target_team = obj_team(&Objects[target_objnum]);
 
 	for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) )
 	{
@@ -9199,7 +9162,6 @@ int num_ships_attacking(int target_objnum)
 		attacking_aip = &Ai_info[Ships[attacking_objp->instance].ai_index];
 
 		// don't count instructor
-		int is_training_mission();
 		if (is_training_mission() && is_instructor(attacking_objp))
 			continue;	// Goober5000 10/06/2005 changed from break
 
@@ -9801,8 +9763,7 @@ void ai_guard()
 	ship			*shipp = &Ships[Pl_objp->instance];
 	ai_info		*aip = &Ai_info[shipp->ai_index];
 	object		*guard_objp;	
-	ship			*gshipp;
-	float			dist_to_guardobj, dot_to_guardobj;
+	float			dist_to_guardobj;
 	vec3d		vec_to_guardobj;
 
 	if (aip->guard_objnum == -1) {
@@ -9838,8 +9799,6 @@ void ai_guard()
 		return;
 	}
 
-	gshipp = &Ships[guard_objp->instance];
-
 	float			objval;
 	vec3d		goal_point;
 	vec3d		rel_vec;
@@ -9854,7 +9813,6 @@ void ai_guard()
 	case AIS_GUARD_PATROL:
 		//	Stay near ship
 		dist_to_guardobj = vm_vec_normalized_dir(&vec_to_guardobj, &guard_objp->pos, &Pl_objp->pos);
-		dot_to_guardobj = vm_vec_dot(&Pl_objp->orient.vec.fvec, &vec_to_guardobj);
 
 		rel_vec = aip->guard_vec;
 		vm_vec_add(&goal_point, &guard_objp->pos, &rel_vec);
@@ -10218,13 +10176,6 @@ void ai_cleanup_dock_mode_subjective(object *objp)
 	// if the object is in dock mode, force them to near last stage
 	if ( (aip->mode == AIM_DOCK) && (aip->submode < AIS_UNDOCK_3) )
 	{
-		// get the active goal
-		ai_goal *aigp;
-		if (aip->active_goal >= 0)
-			aigp = &aip->goals[aip->active_goal];
-		else
-			aigp = NULL;
-
 		// get the object being acted upon
 		object		*goal_objp;
 		ship		*goal_shipp;
@@ -10633,6 +10584,7 @@ void ai_dock()
 	case AIS_DOCK_4A:
 	{
 		if (aigp == NULL) {	//	Can happen for initially docked ships.
+			// this now "just sits here" for docked ships
 			ai_do_default_behavior( &Objects[Ships[aip->shipnum].objnum] );		// do the default behavior
 		} else {
 			mission_log_add_entry(LOG_SHIP_DOCKED, shipp->ship_name, goal_shipp->ship_name);
@@ -10773,11 +10725,9 @@ void ai_dock()
 	case AIS_UNDOCK_2:
 	{
 		float dist;
-		ai_info *other_aip;
 
 		// get pointer to docked object's aip to reset flags, etc
 		Assert( aip->goal_objnum != -1 );
-		other_aip = &Ai_info[goal_shipp->ai_index];
 
 		//	Second stage of undocking.
 		dist = dock_orient_and_approach(Pl_objp, docker_index, goal_objp, dockee_index, DOA_UNDOCK_2);
@@ -10928,8 +10878,8 @@ void process_subobjects(int objnum)
 	for ( pss = GET_FIRST(&shipp->subsys_list); pss !=END_OF_LIST(&shipp->subsys_list); pss = GET_NEXT(pss) ) {
 		psub = pss->system_info;
 
-		// Don't process destroyed objects (but allow subobjects with hitpoints disabled -nuke)
-		if (pss->max_hits > 0 && pss->current_hits <= 0.0f ) 
+		// Don't process destroyed objects (but allow subobjects with hitpoints disabled -nuke) (but also process subobjects that are allowed to rotate)
+		if (pss->max_hits > 0 && pss->current_hits <= 0.0f && !(psub->flags2 & MSS_FLAG2_DESTROYED_ROTATION))
 			continue;
 
 		switch (psub->type) {
@@ -11003,13 +10953,16 @@ void process_subobjects(int objnum)
 		// Karajorma - if Player_use_ai is ever fixed to work on multiplayer it should be checked that any player ships 
 		// aren't under AI control here
 		if ( (!(objp->flags & OF_PLAYER_SHIP) ) && (sip->flags & (SIF_FIGHTER | SIF_BOMBER)) && !(shipp->flags & SF_DYING) ) {
-			// AL: Only attack forever if not trying to depart to a docking bay.  Need to have this in, since
-			//     a ship may get repaired... and it should still try to depart.  Since docking bay departures
-			//     are not handled as goals, we don't want to leave the AIM_BAY_DEPART mode.
-			if ( aip->mode != AIM_BAY_DEPART ) {
-				ai_attack_object(objp, NULL, NULL);		//	Regardless of current mode, enter attack mode.
-				aip->submode = SM_ATTACK_FOREVER;				//	Never leave attack submode, don't avoid, evade, etc.
-				aip->submode_start_time = Missiontime;
+			// Goober5000 - don't do anything if docked
+			if (!object_is_docked(objp)) {
+				// AL: Only attack forever if not trying to depart to a docking bay.  Need to have this in, since
+				//     a ship may get repaired... and it should still try to depart.  Since docking bay departures
+				//     are not handled as goals, we don't want to leave the AIM_BAY_DEPART mode.
+				if ( aip->mode != AIM_BAY_DEPART ) {
+					ai_attack_object(objp, NULL, NULL);		//	Regardless of current mode, enter attack mode.
+					aip->submode = SM_ATTACK_FOREVER;				//	Never leave attack submode, don't avoid, evade, etc.
+					aip->submode_start_time = Missiontime;
+				}
 			}
 		}
 	}
@@ -11522,6 +11475,14 @@ int ai_formation()
 	}
 	
 	if (aip->mode == AIM_WAYPOINTS) {
+
+		if (The_mission.ai_profile->flags2 & AIPF2_FIX_AI_PATH_ORDER_BUG){
+			// skip if wing leader has no waypoint order or a different waypoint list
+			if ((laip->mode != AIM_WAYPOINTS) || !(aip->wp_list == laip->wp_list)){
+				return 1;
+			}
+		}
+
 		aip->wp_list = laip->wp_list;
 		aip->wp_index = laip->wp_index;
 		aip->wp_flags = laip->wp_flags;
@@ -11780,6 +11741,9 @@ void ai_maybe_launch_cmeasure(object *objp, ai_info *aip)
 	if (!(sip->flags & (SIF_SMALL_SHIP | SIF_TRANSPORT)))
 		return;
 
+	if (object_is_docked(objp))
+		return;
+
 	if (!shipp->cmeasure_count)
 		return;
 
@@ -11797,11 +11761,9 @@ void ai_maybe_launch_cmeasure(object *objp, ai_info *aip)
 	if ((aip->nearest_locked_object != -1) && (Objects[aip->nearest_locked_object].type == OBJ_WEAPON)) {
 		object	*weapon_objp;
 		weapon	*weaponp;
-		weapon_info	*wip;
 
 		weapon_objp = &Objects[aip->nearest_locked_object];
 		weaponp = &Weapons[weapon_objp->instance];
-		wip = &Weapon_info[weaponp->weapon_info_index];
 
 		if ((dist = vm_vec_dist_quick(&objp->pos, &weapon_objp->pos)) < weapon_objp->phys_info.speed*2.0f) {
 	
@@ -11852,7 +11814,10 @@ void ai_preprocess_ignore_objnum(object *objp, ai_info *aip)
 
 	if (is_ignore_object(aip, aip->goal_objnum))
 	{
-		aip->goal_objnum = -1;
+		// you can land and launch on a ship you're ignoring!
+		if (aip->mode != AIM_BAY_EMERGE && aip->mode != AIM_BAY_DEPART) {
+			aip->goal_objnum = -1;
+		}
 
 		// AL 12-11-97: If in STRAFE mode, we need to ensure that target_objnum is also
 		//              set to -1
@@ -12033,13 +11998,15 @@ void ai_manage_shield(object *objp, ai_info *aip)
 void ai_maybe_evade_locked_missile(object *objp, ai_info *aip)
 {
 	ship			*shipp;
-	ship_info	*sip;
-
 	shipp = &Ships[objp->instance];
-	sip = &Ship_info[shipp->ship_info_index];
 
 	//	Only small ships evade an incoming missile.  Why would a capital ship try to swerve?
 	if (!(Ship_info[Ships[objp->instance].ship_info_index].flags & SIF_SMALL_SHIP)) {
+		return;
+	}
+
+	// don't evade missiles if you're docked
+	if (object_is_docked(objp)) {
 		return;
 	}
 
@@ -12138,6 +12105,11 @@ void maybe_evade_dumbfire_weapon(ai_info *aip)
 {
 	//	Only small ships evade an incoming missile.  Why would a capital ship try to swerve?
 	if (!(Ship_info[Ships[Pl_objp->instance].ship_info_index].flags & SIF_SMALL_SHIP)) {
+		return;
+	}
+
+	// don't evade missiles if you're docked
+	if (object_is_docked(Pl_objp)) {
 		return;
 	}
 
@@ -12602,7 +12574,7 @@ int ai_acquire_depart_path(object *pl_objp, int parent_objnum, int allowed_path_
 	shipp->bay_doors_launched_from = (ubyte)ship_bay_path;
 	shipp->bay_doors_parent_shipnum = parent_objp->instance;
 
-	Assert(pm->n_paths > path_index);
+	Assert(path_index < pm->n_paths);
 	ai_find_path(pl_objp, parent_objnum, path_index, 0);
 
 	// Set this flag, so we don't bother recreating the path... we won't need to update the path
@@ -12886,6 +12858,12 @@ int maybe_request_support(object *objp)
 		return 0;
 
 	if (!is_support_allowed(objp))
+		return 0;
+
+	// Goober5000 - a ship that is currently docked shouldn't request repair.
+	// This is to prevent support ships being summoned for a ship that is getting
+	// towed away by other means.
+	if (object_is_docked(objp))
 		return 0;
 
 	//	Compute a desire value.
@@ -13173,7 +13151,8 @@ void ai_announce_ship_dying(object *dying_objp)
 			object	*A = &Objects[so->objnum];
 			Assert(A->type == OBJ_SHIP);
 
-			if (Ship_info[Ships[A->instance].ship_info_index].flags & (SIF_SMALL_SHIP | SIF_FREIGHTER | SIF_TRANSPORT)) {
+			// Goober5000 - the disallow is now handled uniformly in the ai_avoid_shockwave function
+			/*if (Ship_info[Ships[A->instance].ship_info_index].flags & (SIF_SMALL_SHIP | SIF_FREIGHTER | SIF_TRANSPORT))*/ {
 				ai_info	*aip = &Ai_info[Ships[A->instance].ai_index];
 
 				// AL 1-5-98: only avoid shockwave if not docked or repairing
@@ -13372,7 +13351,8 @@ int ai_avoid_shockwave(object *objp, ai_info *aip)
 	vec3d	safe_pos;
 
 	// BIG|HUGE do not respond to shockwaves
-	if (Ship_info[Ships[objp->instance].ship_info_index].flags & (SIF_BIG_SHIP|SIF_HUGE_SHIP)) {
+	// Goober5000 - let's treat shockwave response the same way whether from weapon or ship
+	if (!(Ship_info[Ships[objp->instance].ship_info_index].flags & (SIF_AVOID_SHOCKWAVE))) {
 		// don't come here again
 		aip->ai_flags &= ~AIF_AVOID_SHOCKWAVE;
 		return 0;
@@ -14141,6 +14121,12 @@ int combine_flags(int base_flags, int override_flags, int override_set)
 //just says which flags are set.
 void init_aip_from_class_and_profile(ai_info *aip, ai_class *aicp, ai_profile_t *profile)
 {
+	// since we use it so much in this function, sanity check the value for Game_skill_level
+	if (Game_skill_level < 0 || Game_skill_level >= NUM_SKILL_LEVELS) {
+		Warning(LOCATION, "Invalid skill level %i! Valid range 0 to %i. Resetting to default.", Game_skill_level, NUM_SKILL_LEVELS);
+		Game_skill_level = game_get_default_skill_level();
+	}
+
 	//ai_class-only stuff
 	aip->ai_courage = aicp->ai_courage[Game_skill_level];
 	aip->ai_patience = aicp->ai_patience[Game_skill_level];
@@ -14223,42 +14209,42 @@ void ai_set_default_behavior(object *obj, int classnum)
 
 void ai_do_default_behavior(object *obj)
 {
-	ai_info	*aip;
-	int		ship_flags;
-
 	Assert(obj != NULL);
 	Assert(obj->instance != -1);
 	Assert(Ships[obj->instance].ai_index != -1);
 
-	aip = &Ai_info[Ships[obj->instance].ai_index];
+	ai_info	*aip = &Ai_info[Ships[obj->instance].ai_index];
+	int	si_flags = Ship_info[Ships[obj->instance].ship_info_index].flags;
 
-	ship_flags = Ship_info[Ships[obj->instance].ship_info_index].flags;
-	if (!is_instructor(obj) && (ship_flags & (SIF_FIGHTER | SIF_BOMBER)))
-	{
-		int enemy_objnum = find_enemy(OBJ_INDEX(obj), 1000.0f, The_mission.ai_profile->max_attackers[Game_skill_level]);
-		set_target_objnum(aip, enemy_objnum);
-		aip->mode = AIM_CHASE;
-		aip->submode = SM_ATTACK;
-		aip->submode_start_time = Missiontime;
-	}
-	else if (ship_flags & (SIF_SUPPORT))
-	{
-		aip->mode = AIM_SAFETY;
-		aip->submode = AISS_1;
-		aip->submode_start_time = Missiontime;
-		aip->ai_flags &= ~(AIF_REPAIRING);
-	}
-	else if ( ship_flags & SIF_SENTRYGUN )
-	{
-		aip->mode = AIM_SENTRYGUN;
-	}
-	else
-	{
-		aip->mode = AIM_NONE;
-	}
-	
+	// default behavior in most cases (especially if we're docked) is to just stay put
+	aip->mode = AIM_NONE;
 	aip->submode_start_time = Missiontime;
 	aip->active_goal = AI_GOAL_NONE;
+
+	// if we're not docked, we may modify the behavior a bit
+	if (!object_is_docked(obj))
+	{
+		// fighters automatically chase things
+		if (!is_instructor(obj) && (si_flags & (SIF_FIGHTER | SIF_BOMBER)))
+		{
+			int enemy_objnum = find_enemy(OBJ_INDEX(obj), 1000.0f, The_mission.ai_profile->max_attackers[Game_skill_level]);
+			set_target_objnum(aip, enemy_objnum);
+			aip->mode = AIM_CHASE;
+			aip->submode = SM_ATTACK;
+		}
+		// support ships automatically keep a safe distance
+		else if (si_flags & SIF_SUPPORT)
+		{
+			aip->mode = AIM_SAFETY;
+			aip->submode = AISS_1;
+			aip->ai_flags &= ~(AIF_REPAIRING);
+		}
+		// sentry guns... do their thing
+		else if (si_flags & SIF_SENTRYGUN)
+		{
+			aip->mode = AIM_SENTRYGUN;
+		}
+	}
 }
 
 #define	FRIENDLY_DAMAGE_THRESHOLD	50.0f		//	Display a message at this threshold.  Note, this gets scaled by Skill_level
@@ -14654,23 +14640,24 @@ void ai_ship_hit(object *objp_ship, object *hit_objp, vec3d *hitpos, int shield_
 		
 		//	Hit by a protected ship, don't attack it.
 		if (objp_hitter->flags & OF_PROTECTED) {
-			if ((Ship_info[shipp->ship_info_index].flags & (SIF_FIGHTER | SIF_BOMBER)) && (aip->target_objnum == -1)) {
-				if (aip->mode == AIM_CHASE) {
-					if (aip->submode != SM_EVADE_WEAPON) {
-						aip->mode = AIM_CHASE;
-						aip->submode = SM_EVADE_WEAPON;
+			if (!object_is_docked(objp_ship)) {
+				if ((Ship_info[shipp->ship_info_index].flags & (SIF_FIGHTER | SIF_BOMBER)) && (aip->target_objnum == -1)) {
+					if (aip->mode == AIM_CHASE) {
+						if (aip->submode != SM_EVADE_WEAPON) {
+							aip->mode = AIM_CHASE;
+							aip->submode = SM_EVADE_WEAPON;
+							aip->submode_start_time = Missiontime;
+						}
+					} else if (aip->mode != AIM_EVADE_WEAPON) {
+						aip->active_goal = AI_ACTIVE_GOAL_DYNAMIC;
+						aip->previous_mode = aip->mode;
+						aip->previous_submode = aip->submode;
+						aip->mode = AIM_EVADE_WEAPON;
+						aip->submode = -1;
 						aip->submode_start_time = Missiontime;
+						aip->mode_time = timestamp(MAX_EVADE_TIME);	//	Evade for up to five seconds.
 					}
-				} else if (aip->mode != AIM_EVADE_WEAPON) {
-					aip->active_goal = AI_ACTIVE_GOAL_DYNAMIC;
-					aip->previous_mode = aip->mode;
-					aip->previous_submode = aip->submode;
-					aip->mode = AIM_EVADE_WEAPON;
-					aip->submode = -1;
-					aip->submode_start_time = Missiontime;
-					aip->mode_time = timestamp(MAX_EVADE_TIME);	//	Evade for up to five seconds.
 				}
-
 			}
 			return;
 		}
@@ -14749,10 +14736,12 @@ void ai_ship_hit(object *objp_ship, object *hit_objp, vec3d *hitpos, int shield_
 	//	If the hitter object is the ignore object, don't attack it.
 	ship_info	*sip = &Ship_info[shipp->ship_info_index];
 	if ((is_ignore_object(aip, objp_hitter-Objects)) && (sip->flags & (SIF_BOMBER | SIF_FIGHTER))) {
-		if (aip->mode == AIM_NONE) {
-			aip->mode = AIM_CHASE;	//	This will cause the ship to move, if not attack.
-			aip->submode = SM_EVADE;
-			aip->submode_start_time = Missiontime;
+		if (!object_is_docked(objp_ship)) {
+			if (aip->mode == AIM_NONE) {
+				aip->mode = AIM_CHASE;	//	This will cause the ship to move, if not attack.
+				aip->submode = SM_EVADE;
+				aip->submode_start_time = Missiontime;
+			}
 		}
 		return;
 	}

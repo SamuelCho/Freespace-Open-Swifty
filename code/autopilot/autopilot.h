@@ -27,7 +27,7 @@
 
 struct NavPoint 
 {
-	char NavName[32];
+	char m_NavName[32];
 	int flags;
 
 	void *target_obj;
@@ -83,7 +83,7 @@ inline bool CanAutopilot(bool send_msg=false) { return CanAutopilot(Player_obj->
 //        * Checks if Autopilot is allowed.  See CanAutopilot() for conditions.
 //        * Control switched from player to AI
 //        * Time compression to 32x
-//        * Tell AI to fly to targetted Nav Point (for all nav-status wings/ships)
+//        * Tell AI to fly to targeted Nav Point (for all nav-status wings/ships)
 //        * Sets max waypoint speed to the best-speed of the slowest ship tagged
 // Returns false if autopilot cannot be started. True otherwise.
 bool StartAutopilot();
@@ -111,6 +111,12 @@ void parse_autopilot_table(char *filename);
 
 // Finds a Nav point by name
 int FindNav(char *Nav);
+
+// Selects a Nav point by name
+void SelectNav(char *Nav);
+
+// Deselects any navpoint selected.
+void DeselectNav();
 
 // Set A Nav point to "ZERO"
 void ZeroNav(int i);

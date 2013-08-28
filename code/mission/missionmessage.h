@@ -14,6 +14,7 @@
 
 #include "globalincs/globals.h"		// include so that we can gets defs for lengths of tokens
 #include "anim/packunpack.h"
+#include "graphics/generic.h"
 
 struct ship;
 
@@ -26,7 +27,7 @@ struct ship;
 typedef struct message_extra {
 	char				name[MAX_FILENAME_LEN];
 	int				num;
-	anim				*anim_data;
+	generic_anim		anim_data;
 } message_extra;
 
 extern SCP_vector<message_extra> Message_avis;
@@ -55,10 +56,20 @@ extern SCP_vector<message_extra> Message_waves;
 // defines for message id's used in FreeSpace code.  Callers to message_send_to_player() should
 // probably use these defines.
 
+typedef struct builtin_message {
+	char			*name;
+	int				occurrence_chance;
+	int				max_count;
+	int				min_delay;
+} builtin_message;
+
+extern SCP_vector<SCP_string> Builtin_moods;
+extern int Current_mission_mood;
+
 // this number in this define should match the number of elements in the next array
 #define MAX_BUILTIN_MESSAGE_TYPES	45
 
-extern char *Builtin_message_types[MAX_BUILTIN_MESSAGE_TYPES];
+extern builtin_message Builtin_messages[];
 
 #define MESSAGE_ARRIVE_ENEMY		0
 #define MESSAGE_ATTACK_TARGET		1
@@ -111,6 +122,8 @@ typedef struct MissionMessage {
 	char	message[MESSAGE_LENGTH];			// actual message
 	int	persona_index;							// which persona says this message
 	int	multi_team;								// multiplayer team filter (important for TvT only)
+	int				mood;
+	SCP_vector<int> excluded_moods;
 
 	// unions for avi/wave information.  Because of issues with Fred, we are using
 	// the union to specify either the index into the avi or wave arrays above,
@@ -132,7 +145,7 @@ extern SCP_vector<MMessage> Messages;
 
 typedef struct pmessage {
 	//anim_instance *anim;		// handle of anim currently playing
-	anim *anim_data;			// animation data to be used by the talking head HUD gauge handler
+	generic_anim *anim_data;			// animation data to be used by the talking head HUD gauge handler
 	int start_frame;			// the start frame needed to play the animation
 	bool play_anim;			// used to tell HUD gauges if they should be playing or not
 	int wave;					// handle of wave currently playing

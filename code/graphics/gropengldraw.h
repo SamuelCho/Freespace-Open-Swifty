@@ -11,6 +11,8 @@
 #ifndef GR_OPENGLDRAW_H
 #define GR_OPENGLDRAW_H
 
+#include "graphics/gropenglstate.h"
+
 void gr_opengl_aabitmap_ex(int x, int y, int w, int h, int sx, int sy, bool resize, bool mirror);
 void gr_opengl_aabitmap(int x, int y, bool resize, bool mirror);
 void gr_opengl_string(int sx, int sy, const char *s, bool resize = true);
@@ -46,6 +48,70 @@ void opengl_setup_scene_textures();
 void opengl_scene_texture_shutdown();
 void gr_opengl_scene_texture_begin();
 void gr_opengl_scene_texture_end();
+
+inline void opengl_draw_textured_quad(
+	GLfloat x1, GLfloat y1, GLfloat u1, GLfloat v1,
+	GLfloat x2, GLfloat y2, GLfloat u2, GLfloat v2 )
+{
+	GLfloat glVertices[4][4] = {
+		{ x1, y1, u1, v1 },
+		{ x1, y2, u1, v2 },
+		{ x2, y1, u2, v1 },
+		{ x2, y2, u2, v2 }
+	};
+
+	GL_state.Array.BindArrayBuffer(0);
+
+	GL_state.Array.EnableClientVertex();
+	GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(glVertices[0]), glVertices);
+
+	GL_state.Array.SetActiveClientUnit(0);
+	GL_state.Array.EnableClientTexture();
+	GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(glVertices[0]), &(glVertices[0][2]));
+
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	GL_state.Array.DisableClientVertex();
+	GL_state.Array.DisableClientTexture();
+}
+
+inline void opengl_draw_coloured_quad(
+	GLint x1, GLint y1, 
+	GLint x2, GLint y2 )
+{
+	GLint glVertices[8] = {
+		x1, y1,
+		x1, y2,
+		x2, y1,
+		x2, y2
+	};
+
+	GL_state.Array.EnableClientVertex();
+	GL_state.Array.VertexPointer(2, GL_INT, 0, glVertices);
+
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	GL_state.Array.DisableClientVertex();
+}
+
+inline void opengl_draw_coloured_quad(
+	GLfloat x1, GLfloat y1,
+	GLfloat x2, GLfloat y2 )
+{
+	GLfloat glVertices[8] = {
+		x1, y1,
+		x1, y2,
+		x2, y1,
+		x2, y2
+	};
+
+	GL_state.Array.EnableClientVertex();
+	GL_state.Array.VertexPointer(2, GL_FLOAT, 0, glVertices);
+
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	GL_state.Array.DisableClientVertex();
+}
 
 extern int Scene_texture_initialized;
 

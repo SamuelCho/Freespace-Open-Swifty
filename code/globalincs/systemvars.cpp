@@ -72,8 +72,10 @@ bool Specmap_override = false;
 bool Normalmap_override = false;
 bool Heightmap_override = false;
 bool Glowpoint_override = false;
+bool Glowpoint_use_depth_buffer = true;
 bool GLSL_override = false;
 bool PostProcessing_override = false;
+bool Teamcolor_override = false;
 
 // Values used for noise for thruster animations
 float Noise[NOISE_NUM_FRAMES] = { 
@@ -418,13 +420,13 @@ detail_levels Detail_defaults[NUM_DEFAULT_DETAIL_LEVELS] = {
 	{				// Medium
 		1,			// setting
 					// ===== Analogs (0-MAX_DETAIL_LEVEL) ====
-		1,			// nebula_detail;				// 0=lowest detail, MAX_DETAIL_LEVEL=highest detail
-		1,			// detail_distance;			// 0=lowest MAX_DETAIL_LEVEL=highest		
-		1,			//	hardware_textures;			// 0=max culling, MAX_DETAIL_LEVEL=no culling
+		2,			// nebula_detail;				// 0=lowest detail, MAX_DETAIL_LEVEL=highest detail
+		2,			// detail_distance;			// 0=lowest MAX_DETAIL_LEVEL=highest		
+		2,			//	hardware_textures;			// 0=max culling, MAX_DETAIL_LEVEL=no culling
 		2,			//	num_small_debris;			// 0=min number, MAX_DETAIL_LEVEL=max number
 		2,			//	num_particles;				// 0=min number, MAX_DETAIL_LEVEL=max number
 		2,			//	num_stars;					// 0=min number, MAX_DETAIL_LEVEL=max number
-		1,			//	shield_effects;			// 0=min, MAX_DETAIL_LEVEL=max
+		2,			//	shield_effects;			// 0=min, MAX_DETAIL_LEVEL=max
 		3,			// lighting;					// 0=min, MAX_DETAIL_LEVEL=max		
 
 		// ====  Booleans ====
@@ -436,7 +438,7 @@ detail_levels Detail_defaults[NUM_DEFAULT_DETAIL_LEVELS] = {
 		2,			// setting
 					// ===== Analogs (0-MAX_DETAIL_LEVEL) ====
 		2,			// nebula_detail;				// 0=lowest detail, MAX_DETAIL_LEVEL=highest detail
-		3,			// detail_distance;			// 0=lowest MAX_DETAIL_LEVEL=highest		
+		2,			// detail_distance;			// 0=lowest MAX_DETAIL_LEVEL=highest		
 		3,			//	hardware_textures;			// 0=max culling, MAX_DETAIL_LEVEL=no culling
 		3,			//	num_small_debris;			// 0=min number, MAX_DETAIL_LEVEL=max number
 		3,			//	num_particles;				// 0=min number, MAX_DETAIL_LEVEL=max number
@@ -456,7 +458,7 @@ detail_levels Detail_defaults[NUM_DEFAULT_DETAIL_LEVELS] = {
 		3,			// detail_distance;			// 0=lowest MAX_DETAIL_LEVEL=highest		
 		4,			//	hardware_textures;			// 0=max culling, MAX_DETAIL_LEVEL=no culling
 		4,			//	num_small_debris;			// 0=min number, MAX_DETAIL_LEVEL=max number
-		3,			//	num_particles;				// 0=min number, MAX_DETAIL_LEVEL=max number
+		4,			//	num_particles;				// 0=min number, MAX_DETAIL_LEVEL=max number
 		4,			//	num_stars;					// 0=min number, MAX_DETAIL_LEVEL=max number
 		4,			//	shield_effects;			// 0=min, MAX_DETAIL_LEVEL=max
 		4,			// lighting;					// 0=min, MAX_DETAIL_LEVEL=max		

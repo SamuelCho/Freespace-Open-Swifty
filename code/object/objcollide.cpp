@@ -41,6 +41,14 @@ obj_pair *Obj_pairs = NULL;
 obj_pair pair_used_list;
 obj_pair pair_free_list;
 
+SCP_vector<int> Collision_sort_list;
+SCP_hash_map<uint, collider_pair> Collision_cached_pairs;
+
+struct checkobject;
+extern checkobject CheckObjects[MAX_OBJECTS];
+
+extern int Cmdline_old_collision_sys;
+
 void obj_pairs_close()
 {
 	if (Obj_pairs != NULL) {
@@ -780,6 +788,12 @@ int weapon_will_never_hit( object *obj_weapon, object *other, obj_pair * current
 			float a,b,c, delta_x_dot_vl, delta_t;
 			float root1, root2, root, earliest_time;
 
+			if (max_vel_weapon == max_vel_other) {
+				// this will give us NAN using the below formula, so check every frame
+				current_pair->next_check_time = timestamp(0);
+				return 0;
+			}
+
 			vm_vec_sub( &delta_x, &obj_weapon->pos, &other->pos );
 			laser_vel = obj_weapon->phys_info.vel;
 			// vm_vec_copy_scale( &laser_vel, &weapon->orient.vec.fvec, max_vel_weapon );
@@ -800,22 +814,34 @@ int weapon_will_never_hit( object *obj_weapon, object *other, obj_pair * current
 				root2 = (-b - root) / (2.0f * a) * 1000.0f;	// get time in ms
 			}
 
-			// find earliest positive time
-			if ( root1 > root2 ) {
-				float temp = root1;
-				root1 = root2;
-				root2 = temp;
-			}
+			// standard algorithm
+			if (max_vel_weapon > max_vel_other) {
+				// find earliest positive time
+				if ( root1 > root2 ) {
+					float temp = root1;
+					root1 = root2;
+					root2 = temp;
+				}
 
-			if (root1 > 0) {
-				earliest_time = root1;
-			} else if (root2 > 0) {
-				// root1 < 0 and root2 > 0, so we're inside sphere and next check should be next frame
-				current_pair->next_check_time = timestamp(0);	// check next time
-				return 0;
-			} else {
-				// both times negative, so never collides
-				return 1;
+				if (root1 > 0) {
+					earliest_time = root1;
+				} else if (root2 > 0) {
+					// root1 < 0 and root2 > 0, so we're inside sphere and next check should be next frame
+					current_pair->next_check_time = timestamp(0);	// check next time
+					return 0;
+				} else {
+					// both times negative, so never collides
+					return 1;
+				}
+			}
+			// need to modify it for weapons that are slower than ships
+			else {
+				if (root2 > 0) {
+					earliest_time = root2;
+				} else {
+					current_pair->next_check_time = timestamp(0);
+					return 0;
+				}
 			}
 
 
@@ -998,18 +1024,47 @@ int collide_remove_weapons( )
 
 	// first pass is to see if any of the weapons don't have collision pairs.
 
-	opp = &pair_used_list;
-	opp = opp->next;
-	while( opp != NULL )	{
-		// for each collide pair, if the two objects can still collide, then set the remove_weapon
-		// parameter for the weapon to 0.  need to check both parameters
-		if ( opp->a->type == OBJ_WEAPON )
-			crw_check_weapon( opp->a->instance, opp->next_check_time );
-
-		if ( opp->b->type == OBJ_WEAPON )
-			crw_check_weapon( opp->b->instance, opp->next_check_time );
-
+	if ( Cmdline_old_collision_sys ) {
+		opp = &pair_used_list;
 		opp = opp->next;
+		while( opp != NULL )	{
+			// for each collide pair, if the two objects can still collide, then set the remove_weapon
+			// parameter for the weapon to 0.  need to check both parameters
+			if ( opp->a->type == OBJ_WEAPON )
+				crw_check_weapon( opp->a->instance, opp->next_check_time );
+
+			if ( opp->b->type == OBJ_WEAPON )
+				crw_check_weapon( opp->b->instance, opp->next_check_time );
+
+			opp = opp->next;
+		}
+	} else {
+		SCP_hash_map<uint, collider_pair>::iterator it;
+		collider_pair *pair_obj;
+
+		for ( it = Collision_cached_pairs.begin(); it != Collision_cached_pairs.end(); ++it ) {
+			pair_obj = &it->second;
+			
+			if ( !pair_obj->initialized ) {
+				continue;
+			}
+
+			if ( pair_obj->a->type == OBJ_WEAPON && pair_obj->signature_a == pair_obj->a->signature ) {
+				crw_check_weapon(pair_obj->a->instance, pair_obj->next_check_time);
+
+				if ( crw_status[pair_obj->a->instance] == CRW_CAN_DELETE ) {
+					pair_obj->initialized = false;
+				}
+			}
+
+			if ( pair_obj->b->type == OBJ_WEAPON && pair_obj->signature_b == pair_obj->b->signature ) {
+				crw_check_weapon(pair_obj->b->instance, pair_obj->next_check_time);
+
+				if ( crw_status[pair_obj->b->instance] == CRW_CAN_DELETE ) {
+					pair_obj->initialized = false;
+				}
+			}
+		}
 	}
 
 	// for each weapon which could be removed, delete the object
@@ -1075,4 +1130,503 @@ void init_collision_info_struct(collision_info_struct *cis)
 {
 	memset(cis, -1, sizeof(collision_info_struct));
 	cis->is_landing = false;
+}
+
+void obj_add_collider(int obj_index)
+{
+	object *objp = &Objects[obj_index];
+
+#ifdef OBJECT_CHECK 
+	CheckObjects[obj_index].type = objp->type;
+	CheckObjects[obj_index].signature = objp->signature;
+	CheckObjects[obj_index].flags = objp->flags & ~(OF_NOT_IN_COLL);
+	CheckObjects[obj_index].parent_sig = objp->parent_sig;
+	CheckObjects[obj_index].parent_type = objp->parent_type;
+#endif
+
+	if(!(objp->flags & OF_NOT_IN_COLL)){
+		return;
+	}
+
+	Collision_sort_list.push_back(obj_index);
+
+	objp->flags &= ~OF_NOT_IN_COLL;	
+}
+
+void obj_remove_collider(int obj_index)
+{
+#ifdef OBJECT_CHECK 
+	CheckObjects[obj_index].flags |= OF_NOT_IN_COLL;
+#endif	
+
+	size_t i;
+
+	for ( i = 0; i < Collision_sort_list.size(); ++i ) {
+		if ( Collision_sort_list[i] == obj_index ) {
+			Collision_sort_list[i] = Collision_sort_list.back();
+			Collision_sort_list.pop_back();
+			break;
+		}
+	}
+
+	Objects[obj_index].flags |= OF_NOT_IN_COLL;	
+}
+
+void obj_reset_colliders()
+{
+	Collision_sort_list.clear();
+	Collision_cached_pairs.clear();
+}
+
+void obj_collide_retime_cached_pairs(int checkdly)
+{
+	SCP_hash_map<uint, collider_pair>::iterator it;
+
+	for ( it = Collision_cached_pairs.begin(); it != Collision_cached_pairs.end(); ++it ) {
+		it->second.next_check_time = timestamp(checkdly);
+	}
+}
+
+void obj_sort_and_collide()
+{
+	if (Cmdline_dis_collisions)
+		return;
+
+	if ( !(Game_detail_flags & DETAIL_FLAG_COLLISION) )
+		return;
+
+	SCP_vector<int> sort_list_y;
+	SCP_vector<int> sort_list_z;
+
+	sort_list_y.clear();
+	obj_quicksort_colliders(&Collision_sort_list, 0, Collision_sort_list.size() - 1, 0);
+	obj_find_overlap_colliders(&sort_list_y, &Collision_sort_list, 0, false);
+
+	sort_list_z.clear();
+	obj_quicksort_colliders(&sort_list_y, 0, sort_list_y.size() - 1, 1);
+	obj_find_overlap_colliders(&sort_list_z, &sort_list_y, 1, false);
+
+	sort_list_y.clear();
+	obj_quicksort_colliders(&sort_list_z, 0, sort_list_z.size() - 1, 2);
+	obj_find_overlap_colliders(&sort_list_y, &sort_list_z, 2, true);
+}
+
+void obj_find_overlap_colliders(SCP_vector<int> *overlap_list_out, SCP_vector<int> *list, int axis, bool collide)
+{
+	size_t i, j;
+	bool overlapped;
+	bool first_not_added = true;
+	SCP_vector<int> overlappers;
+
+	float min;
+	float max;
+	float overlap_min;
+	float overlap_max;
+	
+	overlappers.clear();
+
+	for ( i = 0; i < (*list).size(); ++i ) {
+		overlapped = false;
+
+		min = obj_get_collider_endpoint((*list)[i], axis, true);
+		max = obj_get_collider_endpoint((*list)[i], axis, false);
+
+		for ( j = 0; j < overlappers.size(); ) {
+			overlap_min = obj_get_collider_endpoint(overlappers[j], axis, true);
+			overlap_max = obj_get_collider_endpoint(overlappers[j], axis, false);
+			if ( min <= overlap_max ) {
+				overlapped = true;
+
+				if ( overlappers.size() == 1 && first_not_added ) {
+					first_not_added = false;
+					overlap_list_out->push_back(overlappers[j]);
+				}
+				
+				if ( collide ) {
+					obj_collide_pair(&Objects[(*list)[i]], &Objects[overlappers[j]]);
+				}
+			} else {
+				overlappers[j] = overlappers.back();
+				overlappers.pop_back();
+				continue;
+			}
+
+			++j;
+		}
+
+		if ( overlappers.size() == 0 ) {
+			first_not_added = true;
+		}
+
+		if ( overlapped ) {
+			overlap_list_out->push_back((*list)[i]);
+		}
+
+		overlappers.push_back((*list)[i]);
+	}
+
+	overlapped = true;
+}
+
+float obj_get_collider_endpoint(int obj_num, int axis, bool min)
+{
+	if ( Objects[obj_num].type == OBJ_BEAM ) {
+		beam *b = &Beams[Objects[obj_num].instance];
+
+		// use the last start and last shot as endpoints
+		float min_end, max_end;
+		if ( b->last_start.a1d[axis] > b->last_shot.a1d[axis] ) {
+			min_end = b->last_shot.a1d[axis];
+			max_end = b->last_start.a1d[axis];
+		} else {
+			min_end = b->last_start.a1d[axis];
+			max_end = b->last_shot.a1d[axis];
+		}
+
+		if ( min ) {
+			return min_end;
+		} else {
+			return max_end;
+		}
+	} else if ( Objects[obj_num].type == OBJ_WEAPON ) {
+		float min_end, max_end;
+
+		if ( Objects[obj_num].pos.a1d[axis] > Objects[obj_num].last_pos.a1d[axis] ) {
+			min_end = Objects[obj_num].last_pos.a1d[axis];
+			max_end = Objects[obj_num].pos.a1d[axis];
+		} else {
+			min_end = Objects[obj_num].pos.a1d[axis];
+			max_end = Objects[obj_num].last_pos.a1d[axis];
+		}
+
+		if ( min ) {
+			return min_end - Objects[obj_num].radius;
+		} else {
+			return max_end + Objects[obj_num].radius;
+		}
+	} else {
+		vec3d *pos = &Objects[obj_num].pos;
+
+		if ( min ) {
+			return pos->a1d[axis] - Objects[obj_num].radius;
+		} else {
+			return pos->a1d[axis] + Objects[obj_num].radius;
+		}
+	}
+}
+
+void obj_quicksort_colliders(SCP_vector<int> *list, int left, int right, int axis)
+{
+	Assert( axis >= 0 );
+	Assert( axis <= 2 );
+
+	if ( right > left ) {
+		int pivot_index = left + (right - left) / 2;
+
+		float pivot_value = obj_get_collider_endpoint((*list)[pivot_index], axis, true);
+
+		// swap!
+		int temp = (*list)[pivot_index];
+		(*list)[pivot_index] = (*list)[right];
+		(*list)[right] = temp;
+
+		int store_index = left;
+
+		int i;
+		for ( i = left; i < right; ++i ) {
+			if ( obj_get_collider_endpoint((*list)[i], axis, true) <= pivot_value ) {
+				temp = (*list)[i];
+				(*list)[i] = (*list)[store_index];
+				(*list)[store_index] = temp;
+				store_index++;
+			}
+		}
+
+		temp = (*list)[right];
+		(*list)[right] = (*list)[store_index];
+		(*list)[store_index] = temp;
+
+		obj_quicksort_colliders(list, left, store_index - 1, axis);
+		obj_quicksort_colliders(list, store_index + 1, right, axis);
+	}
+}
+
+void obj_collide_pair(object *A, object *B)
+{
+	uint ctype;
+	int (*check_collision)( obj_pair *pair );
+	int swapped = 0;	
+	
+	check_collision = NULL;
+
+	if ( A==B ) return;		// Don't check collisions with yourself
+
+	if ( !(A->flags&OF_COLLIDES) ) return;		// This object doesn't collide with anything
+	if ( !(B->flags&OF_COLLIDES) ) return;		// This object doesn't collide with anything
+	
+	// Make sure you're not checking a parent with it's kid or vicy-versy
+//	if ( A->parent_sig == B->signature && !(A->type == OBJ_SHIP && B->type == OBJ_DEBRIS) ) return;
+//	if ( B->parent_sig == A->signature && !(A->type == OBJ_DEBRIS && B->type == OBJ_SHIP) ) return;
+	if ( reject_obj_pair_on_parent(A,B) ) {
+		return;
+	}
+
+	Assert( A->type < 127 );
+	Assert( B->type < 127 );
+
+	ctype = COLLISION_OF(A->type,B->type);
+	switch( ctype )	{
+	case COLLISION_OF(OBJ_WEAPON,OBJ_SHIP):
+		swapped = 1;
+		check_collision = collide_ship_weapon;
+		break;
+	case COLLISION_OF(OBJ_SHIP, OBJ_WEAPON):
+		check_collision = collide_ship_weapon;
+		break;
+	case COLLISION_OF(OBJ_DEBRIS, OBJ_WEAPON):
+		check_collision = collide_debris_weapon;
+		break;
+	case COLLISION_OF(OBJ_WEAPON, OBJ_DEBRIS):
+		swapped = 1;
+		check_collision = collide_debris_weapon;
+		break;
+	case COLLISION_OF(OBJ_DEBRIS, OBJ_SHIP):
+		check_collision = collide_debris_ship;		
+		break;
+	case COLLISION_OF(OBJ_SHIP, OBJ_DEBRIS):
+		check_collision = collide_debris_ship;
+		swapped = 1;
+		break;
+	case COLLISION_OF(OBJ_ASTEROID, OBJ_WEAPON):
+		// Only check collision's with player weapons
+//		if ( Objects[B->parent].flags & OF_PLAYER_SHIP ) {
+			check_collision = collide_asteroid_weapon;
+//		}
+		break;
+	case COLLISION_OF(OBJ_WEAPON, OBJ_ASTEROID):
+		swapped = 1;
+		// Only check collision's with player weapons
+//		if ( Objects[A->parent].flags & OF_PLAYER_SHIP ) {
+			check_collision = collide_asteroid_weapon;
+//		}
+		break;
+	case COLLISION_OF(OBJ_ASTEROID, OBJ_SHIP):
+		// Only check collisions with player ships
+//		if ( B->flags & OF_PLAYER_SHIP )	{
+			check_collision = collide_asteroid_ship;
+//		}
+		break;
+	case COLLISION_OF(OBJ_SHIP, OBJ_ASTEROID):
+		// Only check collisions with player ships
+//		if ( A->flags & OF_PLAYER_SHIP )	{
+			check_collision = collide_asteroid_ship;
+//		}
+		swapped = 1;
+		break;
+	case COLLISION_OF(OBJ_SHIP,OBJ_SHIP):
+		check_collision = collide_ship_ship;
+		break;	
+	
+	case COLLISION_OF(OBJ_SHIP, OBJ_BEAM):
+		if(beam_collide_early_out(B, A)){
+			return;
+		}
+		swapped = 1;
+		check_collision = beam_collide_ship;
+		break;
+
+	case COLLISION_OF(OBJ_BEAM, OBJ_SHIP):
+		if(beam_collide_early_out(A, B)){
+			return;
+		}
+		check_collision = beam_collide_ship;
+		break;
+
+	case COLLISION_OF(OBJ_ASTEROID, OBJ_BEAM):
+		if(beam_collide_early_out(B, A)) {
+			return;
+		}
+		swapped = 1;
+		check_collision = beam_collide_asteroid;
+		break;
+
+	case COLLISION_OF(OBJ_BEAM, OBJ_ASTEROID):
+		if(beam_collide_early_out(A, B)){
+			return;
+		}
+		check_collision = beam_collide_asteroid;
+		break;
+	case COLLISION_OF(OBJ_DEBRIS, OBJ_BEAM):
+		if(beam_collide_early_out(B, A)) {
+			return;
+		}
+		swapped = 1;
+		check_collision = beam_collide_debris;
+		break;
+	case COLLISION_OF(OBJ_BEAM, OBJ_DEBRIS):
+		if(beam_collide_early_out(A, B)){
+			return;
+		}
+		check_collision = beam_collide_debris;
+		break;
+	case COLLISION_OF(OBJ_WEAPON, OBJ_BEAM):
+		if(beam_collide_early_out(B, A)) {
+			return;
+		}
+		swapped = 1;
+		check_collision = beam_collide_missile;
+		break;
+
+	case COLLISION_OF(OBJ_BEAM, OBJ_WEAPON):
+		if(beam_collide_early_out(A, B)){
+			return;
+		}		
+		check_collision = beam_collide_missile;
+		break;
+
+	case COLLISION_OF(OBJ_WEAPON, OBJ_WEAPON): {
+		weapon_info *awip, *bwip;
+		awip = &Weapon_info[Weapons[A->instance].weapon_info_index];
+		bwip = &Weapon_info[Weapons[B->instance].weapon_info_index];
+
+		if ((awip->weapon_hitpoints > 0) || (bwip->weapon_hitpoints > 0)) {
+			if (bwip->weapon_hitpoints == 0) {
+				check_collision = collide_weapon_weapon;
+				swapped=1;
+			} else {
+				check_collision = collide_weapon_weapon;
+			}
+		}
+
+		break;
+	}
+
+	default:
+		return;
+	}
+
+	if ( !check_collision ) return;
+
+	// Swap them if needed
+	if ( swapped )	{
+		object *tmp = A;
+		A = B;
+		B = tmp;
+	}
+
+	collider_pair *collision_info = NULL;
+	bool valid = false;
+	uint key = (OBJ_INDEX(A) << 12) + OBJ_INDEX(B);
+
+	collision_info = &Collision_cached_pairs[key];
+
+	if ( collision_info->initialized ) {
+		// make sure we're referring to the correct objects in case the original pair was deleted
+		if ( collision_info->signature_a == collision_info->a->signature && 
+			collision_info->signature_b == collision_info->b->signature ) {
+			valid = true;
+		} else {
+			collision_info->a = A;
+			collision_info->b = B;
+			collision_info->signature_a = A->signature;
+			collision_info->signature_b = B->signature;
+			collision_info->next_check_time = timestamp(0);
+		}
+	} else {
+		collision_info->a = A;
+		collision_info->b = B;
+		collision_info->signature_a = A->signature;
+		collision_info->signature_b = B->signature;
+		collision_info->initialized = true;
+		collision_info->next_check_time = timestamp(0);
+	}
+
+	if ( valid &&  A->type != OBJ_BEAM ) {
+		// if this signature is valid, make the necessary checks to see if we need to collide check
+		if ( collision_info->next_check_time == -1 ) {
+			return;
+		} else {
+			if ( !timestamp_elapsed(collision_info->next_check_time) ) {
+				return;
+			}
+		}
+	} else {
+		//if ( A->type == OBJ_BEAM ) {
+			//if(beam_collide_early_out(A, B)){
+				//collision_info->next_check_time = -1;
+				//return;
+			//}
+		//}
+
+		// only check debris:weapon collisions for player
+		if (check_collision == collide_debris_weapon) {
+			// weapon is B
+			if ( !(Weapon_info[Weapons[B->instance].weapon_info_index].wi_flags & WIF_TURNS) ) {
+				// check for dumbfire weapon
+				// check if debris is behind laser
+				float vdot;
+				if (Weapon_info[Weapons[B->instance].weapon_info_index].subtype == WP_LASER) {
+					vec3d velocity_rel_weapon;
+					vm_vec_sub(&velocity_rel_weapon, &B->phys_info.vel, &A->phys_info.vel);
+					vdot = -vm_vec_dot(&velocity_rel_weapon, &B->orient.vec.fvec);
+				} else {
+					vdot = vm_vec_dot( &A->phys_info.vel, &B->phys_info.vel);
+				}
+				if ( vdot <= 0.0f )	{
+					// They're heading in opposite directions...
+					// check their positions
+					vec3d weapon2other;
+					vm_vec_sub( &weapon2other, &A->pos, &B->pos );
+					float pdot = vm_vec_dot( &B->orient.vec.fvec, &weapon2other );
+					if ( pdot <= -A->radius )	{
+						// The other object is behind the weapon by more than
+						// its radius, so it will never hit...
+						collision_info->next_check_time = -1;
+						return;
+					}
+				}
+
+				// check dist vs. dist moved during weapon lifetime
+				vec3d delta_v;
+				vm_vec_sub(&delta_v, &B->phys_info.vel, &A->phys_info.vel);
+				if (vm_vec_dist_squared(&A->pos, &B->pos) > (vm_vec_mag_squared(&delta_v)*Weapons[B->instance].lifeleft*Weapons[B->instance].lifeleft)) {
+					collision_info->next_check_time = -1;
+					return;
+				}
+
+				// for nonplayer ships, only create collision pair if close enough
+				if ( (B->parent >= 0) && !(Objects[B->parent].flags & OF_PLAYER_SHIP) && (vm_vec_dist(&B->pos, &A->pos) < (4.0f*A->radius + 200.0f)) ) {
+					collision_info->next_check_time = -1;
+					return;
+				}
+			}
+		}
+
+		// don't check same team laser:ship collisions on small ships if not player
+		if (check_collision == collide_ship_weapon) {
+			// weapon is B
+			if ( (B->parent >= 0)
+				&& !(Objects[B->parent].flags & OF_PLAYER_SHIP)
+				&& (Ships[Objects[B->parent].instance].team == Ships[A->instance].team) 
+				&& (Ship_info[Ships[A->instance].ship_info_index].flags & SIF_SMALL_SHIP) 
+				&& (Weapon_info[Weapons[B->instance].weapon_info_index].subtype == WP_LASER) ) {
+				collision_info->next_check_time = -1;
+				return;
+			}
+		}
+	}
+
+	obj_pair new_pair;	
+
+	new_pair.a = A;
+	new_pair.b = B;
+	new_pair.check_collision = check_collision;
+	new_pair.next_check_time = collision_info->next_check_time;
+
+	if ( check_collision(&new_pair) ) {
+		// don't have to check ever again
+		collision_info->next_check_time = -1;
+	} else {
+		collision_info->next_check_time = new_pair.next_check_time;
+	}
 }

@@ -11,6 +11,7 @@
 #include "ship/ship.h" //compute_slew_matrix
 #include "graphics/font.h"
 #include "mod_table/mod_table.h"
+#include "globalincs/linklist.h"
 
 //*************************IMPORTANT GLOBALS*************************
 float VIEWER_ZOOM_DEFAULT = 0.75f;			//	Default viewer zoom, 0.625 as per multi-lateral agreement on 3/24/97
@@ -110,6 +111,27 @@ void camera::set_object_host(object *objp, int n_object_host_submodel)
 
 	object_host = object_h(objp);
 	object_host_submodel = n_object_host_submodel;
+	set_custom_position_function(NULL);
+	set_custom_orientation_function(NULL);
+	if(n_object_host_submodel > 0)
+	{
+		if(objp->type == OBJ_SHIP)
+		{
+			ship_subsys* ssp = GET_FIRST(&Ships[objp->instance].subsys_list);
+			while ( ssp != END_OF_LIST( &Ships[objp->instance].subsys_list ) )
+			{
+				if(ssp->system_info->subobj_num == n_object_host_submodel)
+				{
+					if(ssp->system_info->type == SUBSYSTEM_TURRET)
+					{
+						set_custom_position_function(get_turret_cam_pos);
+						set_custom_orientation_function(get_turret_cam_orient);
+					}
+				}
+				ssp = GET_NEXT( ssp );
+			}
+		}
+	}
 }
 
 void camera::set_object_target(object *objp, int n_object_target_submodel)
@@ -141,6 +163,8 @@ void camera::set_custom_orientation_function(void (*n_func_custom_orientation)(c
 
 void camera::set_position(vec3d *in_position, float in_translation_time, float in_translation_acceleration_time, float in_translation_deceleration_time, float in_end_velocity)
 {
+	if (in_position == NULL)
+		return;
 	if(in_translation_time == 0.0f && in_translation_acceleration_time == 0.0f && in_translation_deceleration_time == 0.0f)
 	{
 		c_pos = *in_position;
@@ -174,6 +198,9 @@ void camera::set_translation_velocity(vec3d *in_velocity, float in_acceleration_
 
 void camera::set_rotation(matrix *in_orientation, float in_rotation_time, float in_rotation_acceleration_time, float in_rotation_deceleration_time)
 {
+	if (in_orientation == NULL)
+		return;
+
 	if(in_rotation_time == 0.0f && in_rotation_acceleration_time == 0.0f && in_rotation_deceleration_time == 0.0f)
 	{
 		c_ori = *in_orientation;
@@ -271,11 +298,14 @@ float camera::get_fov()
 	return c_fov;
 }
 
+eye* get_submodel_eye(polymodel *pm, int submodel_num);
 void camera::get_info(vec3d *position, matrix *orientation)
 {
 	if(position == NULL && orientation == NULL)
 		return;
-
+	
+	eye* eyep = NULL;
+	vec3d host_normal;
 	//POSITION
 	if(!(flags & CAM_STATIONARY_POS) || object_host.IsValid())
 	{
@@ -304,7 +334,18 @@ void camera::get_info(vec3d *position, matrix *orientation)
 			}
 			else
 			{
-				model_find_world_point( &c_pos, &pt, pm->id, object_host_submodel, &objp->orient, &objp->pos );
+				eyep = get_submodel_eye(pm, object_host_submodel);
+				if(eyep)
+				{
+					vec3d c_pos_in;
+					find_submodel_instance_point_normal( &c_pos_in, &host_normal, objp, eyep->parent, &eyep->pnt, &eyep->norm);
+					vm_vec_unrotate(&c_pos, &c_pos_in, &objp->orient);
+					vm_vec_add2(&c_pos, &objp->pos);
+				}
+				else
+				{
+					model_find_world_point( &c_pos, &pt, pm->id, object_host_submodel, &objp->orient, &objp->pos );
+				}
 			}
 		}
 		else
@@ -313,7 +354,7 @@ void camera::get_info(vec3d *position, matrix *orientation)
 		}
 
 		//Do custom position stuff, if needed
-		if(func_custom_position != NULL)
+		if(func_custom_position != NULL && !eyep)
 		{
 			func_custom_position(this, &c_pos);
 		}
@@ -325,6 +366,7 @@ void camera::get_info(vec3d *position, matrix *orientation)
 	//ORIENTATION
 	if(orientation != NULL)
 	{
+		bool target_set = false;
 		if(!(flags & CAM_STATIONARY_ORI) || object_target.IsValid() || object_host.IsValid())
 		{
 			if(object_target.IsValid())
@@ -354,10 +396,19 @@ void camera::get_info(vec3d *position, matrix *orientation)
 				vec3d targetvec;
 				vm_vec_normalized_dir(&targetvec, &target_pos, &c_pos);
 				vm_vector_2_matrix(&c_ori, &targetvec, NULL, NULL);
+				target_set = true;
 			}
 			else if(object_host.IsValid())
 			{
-				c_ori = object_host.objp->orient;
+				if(eyep)
+				{
+					vm_vector_2_matrix(&c_ori, &host_normal, vm_vec_same(&host_normal, &object_host.objp->orient.vec.uvec)?NULL:&object_host.objp->orient.vec.uvec, NULL);
+					target_set = true;
+				}
+				else
+				{
+					c_ori = object_host.objp->orient;
+				}
 			}
 			else
 			{
@@ -377,7 +428,7 @@ void camera::get_info(vec3d *position, matrix *orientation)
 			vm_orthogonalize_matrix(&c_ori);
 		}
 		//Do custom orientation stuff, if needed
-		if(func_custom_orientation != NULL)
+		if(func_custom_orientation != NULL && !target_set)
 		{
 			func_custom_orientation(this, &c_ori);
 		}
@@ -931,7 +982,7 @@ bool cam_set_camera(camid cid)
 	Viewer_mode |= VM_FREECAMERA;
 	Current_camera = cid;
 
-	if (Cutscene_camera_disables_hud) 
+	if (!Cutscene_camera_displays_hud) 
 	{
 		if(!Camera_hud_draw_saved)
 		{
@@ -947,7 +998,7 @@ void cam_reset_camera()
 {
 	Viewer_mode &= ~VM_FREECAMERA;
 
-	if (Cutscene_camera_disables_hud) 
+	if (!Cutscene_camera_displays_hud) 
 	{
 		hud_set_draw(Camera_hud_draw_value);
 		Camera_hud_draw_saved = false;
@@ -977,4 +1028,59 @@ void subtitles_do_frame_post_shaded(float frametime)
 		if ( sub->is_post_shaded( ) )
 			sub->do_frame(frametime);
 	}
+}
+
+vec3d normal_cache;
+
+void get_turret_cam_pos(camera *cam, vec3d *pos)
+{
+	object_h obj(cam->get_object_host());
+	if(!obj.IsValid())
+		return;
+	ship* shipp = &Ships[cam->get_object_host()->instance];
+	ship_subsys* ssp = GET_FIRST(&shipp->subsys_list);
+	while ( ssp != END_OF_LIST( &shipp->subsys_list ) )
+	{
+		if(ssp->system_info->subobj_num == cam->get_object_host_submodel())
+		{
+			ship_get_global_turret_gun_info(cam->get_object_host(), ssp, pos, &normal_cache, 1, NULL);
+			vec3d offset = vmd_zero_vector;
+			offset.xyz.x = 0.0001f;
+			vm_vec_add2(pos, &offset); // prevent beam turrets from crashing with a nullvec
+			break;
+		}
+		ssp = GET_NEXT( ssp );
+	}
+}
+
+void get_turret_cam_orient(camera *cam, matrix *ori)
+{
+	object_h obj(cam->get_object_host());
+	if(!obj.IsValid())
+		return;
+	vm_vector_2_matrix(ori, &normal_cache, vm_vec_same(&normal_cache, &cam->get_object_host()->orient.vec.uvec)?NULL:&cam->get_object_host()->orient.vec.uvec, NULL);
+}
+
+eye* get_submodel_eye(polymodel *pm, int submodel_num)
+{
+	if(pm->n_view_positions > 0)
+	{
+		for(int i = 0; i < pm->n_view_positions; ++i)
+		{
+			if(pm->view_positions[i].parent == submodel_num)
+			{
+				return &pm->view_positions[i];
+			}
+			int sm = pm->submodel[submodel_num].first_child;
+			while(sm > 0) //look for eyepoints attached to children, important for turret arms
+			{
+				if(pm->view_positions[i].parent == sm)
+				{
+					return &pm->view_positions[i];
+				}
+				sm = pm->submodel[sm].next_sibling;
+			}
+		}
+	}
+	return NULL;
 }

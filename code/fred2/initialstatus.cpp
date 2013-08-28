@@ -16,6 +16,7 @@
 #include "InitialStatus.h"
 #include "Management.h"
 #include "globalincs/linklist.h"
+#include "globalincs/alphacolors.h"
 #include "object/objectdock.h"
 
 #ifdef _DEBUG
@@ -80,6 +81,7 @@ void initial_status::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_VELOCITY_SPIN, m_velocity_spin);
 	DDX_Control(pDX, IDC_SHIELDS_SPIN, m_shields_spin);
 	DDX_Control(pDX, IDC_DAMAGE_SPIN, m_damage_spin);
+	DDX_Control(pDX, IDC_TEAMSELECT, m_team_color_setting);
 	DDX_Text(pDX, IDC_DAMAGE, m_damage);
 	DDV_MinMaxInt(pDX, m_damage, 0, 100);
 	DDX_Check(pDX, IDC_HAS_SHIELDS, m_has_shields);
@@ -143,7 +145,7 @@ BOOL initial_status::OnInitDialog()
 	int z, vflag, sflag, hflag;
 	ship_subsys *ptr;
 	CString str;
-	object *objp;
+	object *objp = NULL;
 
 	m_ship = cur_ship;
 	if (m_ship == -1) {
@@ -376,6 +378,33 @@ BOOL initial_status::OnInitDialog()
 	if (hflag)
 		GetDlgItem(IDC_HULL)->SetWindowText("");
 
+	if (objp != NULL) {
+		if (objp->type == OBJ_SHIP || objp->type == OBJ_START) {
+			ship* shipp = &Ships[objp->instance];
+			int i = 0;
+
+			if (Ship_info[shipp->ship_info_index].uses_team_colors) {
+				//Add a "None" entry at the beginning to allow simple deselection of colours
+				int t = m_team_color_setting.AddString("None");
+				m_team_color_setting.SetItemData(t, i);
+				++i;
+
+				for (SCP_vector<SCP_string>::iterator tni = Team_Names.begin(); tni != Team_Names.end(); ++tni) {
+					int z = m_team_color_setting.AddString(tni->c_str());
+					if (!stricmp(tni->c_str(), shipp->team_name.c_str())) {
+						m_team_color_setting.SetCurSel(i);
+					}
+					m_team_color_setting.SetItemData(z, i);
+					i++;
+
+				}
+				m_team_color_setting.EnableWindow();
+			} else {
+				m_team_color_setting.EnableWindow(FALSE);
+			}
+		}
+	}
+
 	return TRUE;
 }
 
@@ -508,6 +537,10 @@ void initial_status::OnOK()
 			Ships[m_ship].flags2 &= ~SF2_AFTERBURNER_LOCKED;
 	}
 
+	if (m_team_color_setting.IsWindowEnabled() && m_team_color_setting.GetCurSel() > 0)
+		Ships[m_ship].team_name = Team_Names[m_team_color_setting.GetCurSel() - 1];
+	else
+		Ships[m_ship].team_name = "None";
 
 	update_docking_info();
 
@@ -979,7 +1012,7 @@ void initial_status::undock(object *objp1, object *objp2)
 	ship_num = get_ship_from_obj(OBJ_INDEX(objp1));
 	other_ship_num = get_ship_from_obj(OBJ_INDEX(objp2));
 
-	if (ship_class_compare(Ships[ship_num].ship_info_index, Ships[other_ship_num].ship_info_index) > 0)
+	if (ship_class_compare(Ships[ship_num].ship_info_index, Ships[other_ship_num].ship_info_index) <= 0)
 		vm_vec_scale_add2(&objp2->pos, &v, objp2->radius * 2.0f);
 	else
 		vm_vec_scale_add2(&objp1->pos, &v, objp1->radius * -2.0f);
@@ -1011,51 +1044,6 @@ void initial_status::undock(object *objp1, object *objp2)
 
 // ----- the following are not contained in the class because of apparent scope issues -----
 
-// NOTE - in both retail and SCP, the dock "leader" is defined as the only guy in his
-// group with a non-false arrival cue
-void initial_status_mark_dock_leader_helper(object *objp, dock_function_info *infop)
-{
-	ship *shipp = &Ships[objp->instance];
-
-	// all ships except the leader should have a locked false arrival cue
-	if (shipp->arrival_cue != Locked_sexp_false)
-	{
-		object *existing_leader;
-
-		// increment number of leaders found
-		infop->maintained_variables.int_value++;
-
-		// see if we already found a leader
-		existing_leader = infop->maintained_variables.objp_value;
-		if (existing_leader != NULL)
-		{
-			ship *leader_shipp = &Ships[existing_leader->instance];
-
-			// keep existing leader if he has a higher priority than us
-			if (ship_class_compare(shipp->ship_info_index, leader_shipp->ship_info_index) < 0)
-			{
-				// set my arrival cue to false
-				reset_arrival_to_false(SHIP_INDEX(shipp), true);
-				return;
-			}
-
-			// otherwise, unmark the existing leader and set his arrival cue to false
-			leader_shipp->flags &= ~SF_DOCK_LEADER;
-			reset_arrival_to_false(SHIP_INDEX(leader_shipp), true);
-		}
-
-		// mark and save me as the leader
-		shipp->flags |= SF_DOCK_LEADER;
-		infop->maintained_variables.objp_value = objp;
-	}
-}
-
-// self-explanatory, really
-void initial_status_unmark_dock_handled_flag(object *objp, dock_function_info *infop)
-{
-	objp->flags &= ~OF_DOCKED_ALREADY_HANDLED;
-}
-
 bool set_cue_to_false(int *cue)
 {
 	// if the cue is not false, make it false.  Be sure to set all ship editor dialog functions
@@ -1063,11 +1051,13 @@ bool set_cue_to_false(int *cue)
 	if (*cue != Locked_sexp_false)
 	{
 		Ship_editor_dialog.update_data(1);
+		Wing_editor_dialog.update_data(1);
 
 		free_sexp2(*cue);
 		*cue = Locked_sexp_false;
 
 		Ship_editor_dialog.initialize_data(1);
+		Wing_editor_dialog.initialize_data(1);
 
 		return true;
 	}
@@ -1103,6 +1093,63 @@ void reset_arrival_to_false(int shipnum, bool reset_wing)
 		for (i = 0; i < wingp->wave_count; i++)
 			reset_arrival_to_false(wingp->ship_index[i], false);
 	}
+}
+
+// NOTE - in both retail and SCP, the dock "leader" is defined as the only guy in his
+// group with a non-false arrival cue
+void initial_status_mark_dock_leader_helper(object *objp, dock_function_info *infop)
+{
+	ship *shipp = &Ships[objp->instance];
+	int cue_to_check;
+
+	// if this guy is part of a wing, he uses his wing's arrival cue
+	if (shipp->wingnum >= 0)
+	{
+		cue_to_check = Wings[shipp->wingnum].arrival_cue;
+	}
+	// check the ship's arrival cue
+	else
+	{
+		cue_to_check = shipp->arrival_cue;
+	}
+
+	// all ships except the leader should have a locked false arrival cue
+	if (cue_to_check != Locked_sexp_false)
+	{
+		object *existing_leader;
+
+		// increment number of leaders found
+		infop->maintained_variables.int_value++;
+
+		// see if we already found a leader
+		existing_leader = infop->maintained_variables.objp_value;
+		if (existing_leader != NULL)
+		{
+			ship *leader_shipp = &Ships[existing_leader->instance];
+
+			// keep existing leader if he has a higher priority than us
+			if (ship_class_compare(shipp->ship_info_index, leader_shipp->ship_info_index) >= 0)
+			{
+				// set my arrival cue to false
+				reset_arrival_to_false(SHIP_INDEX(shipp), true);
+				return;
+			}
+
+			// otherwise, unmark the existing leader and set his arrival cue to false
+			leader_shipp->flags &= ~SF_DOCK_LEADER;
+			reset_arrival_to_false(SHIP_INDEX(leader_shipp), true);
+		}
+
+		// mark and save me as the leader
+		shipp->flags |= SF_DOCK_LEADER;
+		infop->maintained_variables.objp_value = objp;
+	}
+}
+
+// self-explanatory, really
+void initial_status_unmark_dock_handled_flag(object *objp, dock_function_info *infop)
+{
+	objp->flags &= ~OF_DOCKED_ALREADY_HANDLED;
 }
 
 void initial_status::OnPrimariesLocked() 

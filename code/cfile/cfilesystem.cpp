@@ -823,12 +823,13 @@ void cf_free_secondary_filelist()
  *
  * @note Follows all rules and precedence and searches CD's and pack files.
  *
- * @param filespace     Filename & extension
+ * @param filespec      Filename & extension
  * @param pathtype      See CF_TYPE_ defines in CFILE.H
  * @param max_out       Maximum string length that should be stuffed into pack_filename
  * @param pack_filename OUTPUT: Absolute path and filename of this file.   Could be a packfile or the actual file.
  * @param size          OUTPUT: File size
  * @param offset        OUTPUT: Offset into pack file.  0 if not a packfile.
+ * @param localize      Undertake localization
  *
  * @return If not found returns 0.
  */
@@ -1039,6 +1040,7 @@ extern char *stristr(const char *str, const char *substr);
  * @param pack_filename OUTPUT: Absolute path and filename of this file.   Could be a packfile or the actual file.
  * @param size          OUTPUT: File size
  * @param offset        OUTPUT: Offset into pack file.  0 if not a packfile.
+ * @param localize      Undertake localization
  *
  * @return If not found returns -1, else returns offset into ext_list.
  */
@@ -1445,11 +1447,8 @@ int cf_get_file_list( SCP_vector<SCP_string> &list, int pathtype, char *filter, 
 	find_handle = _findfirst( filespec, &find );
 	if (find_handle != -1) {
 		do {
-            if (strcmp(strstr(filter, "."), strstr(find.name,".")) != 0)
+            if (strcmp(strrchr(filter, '.'), strrchr(find.name,'.')) != 0)
                 continue;
-
-			if ( strlen(find.name) >= MAX_FILENAME_LEN )
-				continue;
 
 			if (!(find.attrib & _A_SUBDIR)) {
 				if ( !Get_file_list_filter || (*Get_file_list_filter)(find.name) ) {
@@ -1486,9 +1485,6 @@ int cf_get_file_list( SCP_vector<SCP_string> &list, int pathtype, char *filter, 
 	dirp = opendir (filespec);
 	if ( dirp ) {
 		while ((dir = readdir (dirp)) != NULL) {
-			if ( strlen(dir->d_name) >= MAX_FILENAME_LEN ) {
-				continue;
-			}
 
 			if (fnmatch(filter, dir->d_name, 0) != 0)
 				continue;
@@ -1648,7 +1644,7 @@ int cf_get_file_list( int max, char **list, int pathtype, char *filter, int sort
 			if (num_files >= max)
 				break;
 
-            if (strcmp(strstr(filter, "."), strstr(find.name,".")) != 0)
+            if (strcmp(strrchr(filter, '.'), strrchr(find.name,'.')) != 0)
                 continue;
 
 			if ( strlen(find.name) >= MAX_FILENAME_LEN )
@@ -2037,14 +2033,6 @@ int cf_create_default_path_string( char *path, uint path_max, int pathtype, char
 				strcat_s(path, path_max, DIR_SEPARATOR_STR);
 			}
 		}
-
-#ifdef INF_BUILD
-		// keep pilot files separated for an Inferno build since they aren't compatible
-		if ( pathtype == CF_TYPE_SINGLE_PLAYERS || pathtype == CF_TYPE_MULTI_PLAYERS ) {
-			strcat_s(path, path_max, "inferno");
-			strcat_s(path, path_max, DIR_SEPARATOR_STR);
-		}
-#endif
 
 		// add filename
 		if (filename) {

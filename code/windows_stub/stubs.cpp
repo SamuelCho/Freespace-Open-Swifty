@@ -33,6 +33,18 @@ int Global_error_count = 0;
 #define MAX_BUF_SIZE	1024
 static char buffer[MAX_BUF_SIZE], buffer_tmp[MAX_BUF_SIZE];
 
+#ifndef NDEBUG
+#ifdef __APPLE__
+#include <malloc/malloc.h>
+#define MALLOC_USABLE(pointer) malloc_size(pointer)
+#else
+#ifdef SCP_BSD
+#include <stdlib.h>
+#include <malloc_np.h>
+#endif
+#define MALLOC_USABLE(pointer) malloc_usable_size(pointer)
+#endif // __APPLE__
+#endif // NDEBUG
 
 char *strnset( char* string, int fill, size_t count)
 {
@@ -84,9 +96,11 @@ void WinAssert(char * text, char *filename, int line)
 	// this stuff migt be really useful for solving bug reports and user errors. We should output it! 
 	mprintf(("ASSERTION: \"%s\" at %s:%d\n", text, strrchr(filename, '/')+1, line ));
 
+#ifdef Allow_NoWarn
 	if (Cmdline_nowarn) {
 		return;
 	}
+#endif
 
 	// we have to call os_deinit() before abort() so we make sure that SDL gets
 	// closed out and we don't lose video/input control
@@ -134,9 +148,11 @@ void WinAssert(char * text, char *filename, int line, const char * format, ... )
 	// this stuff migt be really useful for solving bug reports and user errors. We should output it! 
 	mprintf(("ASSERTION: \"%s\" at %s:%d  %s\n", text, strrchr(filename, '/')+1, line, buffer ));
 
+#ifdef Allow_NoWarn
 	if (Cmdline_nowarn) {
 		return;
 	}
+#endif
 
 	// we have to call os_deinit() before abort() so we make sure that SDL gets
 	// closed out and we don't lose video/input control
@@ -208,8 +224,10 @@ void Error( const char * filename, int line, const char * format, ... )
 	Global_error_count++;
 
 	va_list args;
+#ifndef APPLE_APP
 	int i;
 	int slen = 0;
+#endif
 
 	memset( buffer, 0, sizeof(buffer) );
 	memset( buffer_tmp, 0, sizeof(buffer_tmp) );
@@ -533,17 +551,7 @@ void strlwr(char *s)
  *
  * *************************************/
 
-// RamTable stuff comes out of icculus.org
-#ifndef NDEBUG
-typedef struct RAM {
-	ptr_u addr;
-	int size;
-
-	RAM *next;
-} RAM;
-
-static RAM *RamTable;
-#endif
+// RamTable stuff replaced due to slow performance when freeing large amounts of memory
 
 int vm_init(int min_heap_size)
 {
@@ -571,19 +579,13 @@ void *_vm_malloc( int size, int quiet )
 	}
 
 #ifndef NDEBUG
+	size_t used_size = MALLOC_USABLE(ptr);
 	if ( Watch_malloc )	{
-		mprintf(( "Malloc %d bytes [%s(%d)]\n", size, clean_filename(filename), line ));
+		// mprintf now uses SCP_strings = recursion! Whee!!
+		fprintf( stdout, "Malloc %zu bytes [%s(%d)]\n", used_size, clean_filename(filename), line );
 	}
 
-	RAM *next = (RAM *)malloc(sizeof(RAM));
-
-	next->addr = (ptr_u)ptr;
-	next->size = (size + sizeof(RAM));
-
-	next->next = RamTable;
-	RamTable = next;
-
-	TotalRam += size;
+	TotalRam += used_size;
 #endif
 
 	return ptr;
@@ -598,6 +600,10 @@ void *_vm_realloc( void *ptr, int size, int quiet )
 	if (ptr == NULL)
 		return vm_malloc(size);
 
+#ifndef NDEBUG
+	size_t old_size = MALLOC_USABLE(ptr);
+#endif
+
 	void *ret_ptr = realloc( ptr, size );
 
 	if (!ret_ptr)	{
@@ -610,16 +616,13 @@ void *_vm_realloc( void *ptr, int size, int quiet )
 	}
 
 #ifndef NDEBUG
-	RAM *item = RamTable;
+	size_t used_size = MALLOC_USABLE(ret_ptr);
+	if ( Watch_malloc )	{
+		// mprintf now uses SCP_strings = recursion! Whee!!
+		fprintf( stdout, "Realloc %zu bytes [%s(%d)]\n", used_size, clean_filename(filename), line );
+	}
 
-	while (item != NULL) {
-		if (item->addr == (ptr_u)ret_ptr) {
-			TotalRam += (size - item->size);
-			item->size = size;
-			break;
-		}
-		item = item->next;
-    }
+	TotalRam += (used_size - old_size);
 #endif
 
 	return ret_ptr;
@@ -680,26 +683,7 @@ void _vm_free( void *ptr )
 	}
 
 #ifndef NDEBUG
-	RAM *item = RamTable;
-    RAM **mark = &RamTable;
-
-	while (item != NULL) {
-		if (item->addr == (ptr_u)ptr) {
-			RAM *tmp = item;
-
-			*mark = item->next;
-
-			TotalRam -= tmp->size;
-
-			free(tmp);
-
-			break;
-		}
-
-		mark = &(item->next);
-
-		item = item->next;
-    }
+	TotalRam -= MALLOC_USABLE(ptr);
 #endif // !NDEBUG
 
 	free(ptr);

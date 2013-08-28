@@ -1227,6 +1227,7 @@ int hud_squadmsg_send_ship_command( int shipnum, int command, int send_message, 
 			ai_mode = AI_GOAL_WARP;
 			ai_submode = -1;
 			message = MESSAGE_WARP_OUT;
+			Ships[shipnum].flags |= SF_DEPARTURE_ORDERED;
 			break;
 		
 		// the following are support ship options!!!
@@ -2304,22 +2305,7 @@ int hud_squadmsg_do_frame( )
 	}
 
 	// check for multiplayer mode - this is really a special case checker for support ship requesting and aborting
-	if(MULTIPLAYER_CLIENT && (Squad_msg_mode == SM_MODE_REPAIR_REARM || Squad_msg_mode == SM_MODE_REPAIR_REARM_ABORT)){
-		char *subsys_name;
-//		int who_to_sig;
-		ushort net_sig;
-		
-		// who_to_sig = Objects[Ships[shipnum].objnum].net_signature;
-		if(Player_ai->target_objnum != -1)
-			net_sig = Objects[Player_ai->target_objnum].net_signature;
-		else 
-			net_sig = 0;
-
-      if ((Player_ai->targeted_subsys != NULL) && (Player_ai->targeted_subsys->current_hits > 0.0f))
-			subsys_name = Player_ai->targeted_subsys->system_info->subobj_name;
-		else
-			subsys_name = NULL;
-		
+	if(MULTIPLAYER_CLIENT && (Squad_msg_mode == SM_MODE_REPAIR_REARM || Squad_msg_mode == SM_MODE_REPAIR_REARM_ABORT)){		
 		// send the correct packet
 		if(Squad_msg_mode == SM_MODE_REPAIR_REARM)		
 			send_player_order_packet(SQUAD_MSG_SHIP, 0, REARM_REPAIR_ME_ITEM);
@@ -2359,19 +2345,11 @@ int hud_squadmsg_do_frame( )
 		break;		
 		
 	case SM_MODE_REPAIR_REARM:
-		//if( MULTIPLAYER_MASTER && (addr != NULL)){
-		//	hud_squadmsg_repair_rearm(1,&Objects[Net_players[player_num].player->objnum]);
-		//} else {
-			hud_squadmsg_repair_rearm(1);				// note we return right away.  repair/rearm code handles messaging, etc
-		//}	
+        hud_squadmsg_repair_rearm(1);				// note we return right away.  repair/rearm code handles messaging, etc
 		break;
 
 	case SM_MODE_REPAIR_REARM_ABORT:
-		//if( MULTIPLAYER_MASTER && (addr != NULL)){
-		//	hud_squadmsg_repair_rearm_abort(1,&Objects[Net_players[player_num].player->objnum]);
-		//} else {
-			hud_squadmsg_repair_rearm_abort(1);		// note we return right away.  repair/rearm code handles messaging, etc
-		//}
+        hud_squadmsg_repair_rearm_abort(1);		// note we return right away.  repair/rearm code handles messaging, etc
 		break;
 
 	case SM_MODE_ALL_FIGHTERS:
@@ -2530,6 +2508,11 @@ void HudGaugeSquadMessage::initMiddleFrameStartOffsetY(int y)
 	Middle_frame_start_offset_y = y;
 }
 
+void HudGaugeSquadMessage::initBottomBgOffset(int offset)
+{
+	bottom_bg_offset = offset;
+}
+
 void HudGaugeSquadMessage::initItemHeight(int h)
 {
 	Item_h = h;
@@ -2615,7 +2598,7 @@ bool HudGaugeSquadMessage::canRender()
 		return false;
 	}
 
-	if (!( Players->flags & PLAYER_FLAGS_MSG_MODE )) {
+	if (!( Player->flags & PLAYER_FLAGS_MSG_MODE )) {
 		return false;
 	}
 
@@ -2730,7 +2713,7 @@ void HudGaugeSquadMessage::render(float frametime)
 	setGaugeColor();
 	if ( Mbox_gauge[2].first_frame >= 0 ) {
 	
-		renderBitmap(Mbox_gauge[2].first_frame, bx, by);
+		renderBitmap(Mbox_gauge[2].first_frame, bx, by + bottom_bg_offset);
 	}
 
 	// determine if we should put the text "[more]" at top or bottom to indicate you can page up or down
@@ -2747,7 +2730,7 @@ void HudGaugeSquadMessage::render(float frametime)
 	if ( messaging_allowed ) {
 		if ( none_valid ){
 			renderPrintf( sx, by - Item_h + 2, XSTR( "No valid items", 314));
-		} else if ( !none_valid && (Msg_shortcut_command != -1) ){
+		} else if (Msg_shortcut_command != -1){
 			renderPrintf( sx, by - Item_h + 2, "%s", comm_order_get_text(Msg_shortcut_command));
 		}
 	} else {

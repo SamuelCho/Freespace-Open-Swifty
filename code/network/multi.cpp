@@ -47,6 +47,7 @@
 #include "globalincs/pstypes.h"
 #include "cfile/cfile.h"
 #include "fs2netd/fs2netd_client.h"
+#include "pilotfile/pilotfile.h"
 
 
 
@@ -56,22 +57,11 @@
 //
 
 // timestamp defines
-// #define NETGAME_SEND_TIME								1000					// time between sending netgame update packets
-// #define STATE_SEND_TIME									1000					// time between sending netplayer state packets
-// #define GAMEINFO_SEND_TIME								3000					// time between sending game information packets
-// #define PING_SEND_TIME									2000					// time between player pings
-// #define INGAME_UPDATE_TIME								1000					// time limit between ingame join operations
 #define NETGAME_SEND_TIME								2						// time between sending netgame update packets
 #define STATE_SEND_TIME									2						// time between sending netplayer state packets
 #define GAMEINFO_SEND_TIME								3						// time between sending game information packets
 #define PING_SEND_TIME									2						// time between player pings
 #define BYTES_SENT_TIME									5						// every five seconds
-
-// netplayer stuff
-#define CULL_ZOMBIE_TIME								1000					//	zombies are checked for at this interval (in milliseconds)
-
-// object update stuff
-#define SEND_POS_INTERVAL								30						// min time in milliseconds between sending position updates
 
 // local network buffer stuff
 #define MAX_NET_BUFFER									(1024 * 16)			// define and variable declaration for our local tcp buffer
@@ -83,8 +73,6 @@
 #define MULTI_SERVER_WAIT_TIME						(F1_0 * 60)					// wait 60 seconds to reconnect with the server
 #define MULTI_SERVER_GONE								1
 #define MULTI_SERVER_ALIVE								2
-
-#define DISCONNECT_TIMEOUT								(F1_0 * 10)					// 10 seconds to timeout someone who cannot connnect
 
 // define for when to show "slow network" icon
 #define MULTI_SERVER_SLOW_PING_TIME					700					// when average ping time to server reaches this -- display hud icon
@@ -268,7 +256,7 @@ void multi_level_init()
 	ml_string(NOX("multi_level_init()"));
 
 	// initialize the Net_players array
-	for(idx=0;idx<MAX_PLAYERS;idx++) {
+	for ( idx = 0; idx < MAX_PLAYERS; idx++) {
 		// close all sockets down just for good measure
 		psnet_rel_close_socket(&Net_players[idx].reliable_socket);
 
@@ -280,11 +268,11 @@ void multi_level_init()
 	}
 
 	// initialize the Players array
-	for(idx=0;idx<MAX_PLAYERS;idx++){
-		if(Player == &Players[idx]){
+	for (idx=0;idx<MAX_PLAYERS;idx++) {
+		if (Player == &Players[idx]) {
 			continue;
 		}
-		memset(&Players[idx],0,sizeof(player));
+		Players[idx].reset();
 	}
 
 	multi_vars_init();	
@@ -319,7 +307,7 @@ void multi_level_init()
 	multi_respawn_init();
 
 	// initialize all netgame timestamps
-   multi_reset_timestamps();
+	multi_reset_timestamps();
 
 	// flush psnet sockets
 	psnet_flush();
@@ -1452,7 +1440,7 @@ void standalone_main_init()
 	}
 	if((Multi_options_g.protocol == NET_TCP) && !Tcp_active){
 		if (Tcp_failure_code == WSAEADDRINUSE) {
-			MessageBox((HWND)os_get_window(), XSTR("You have selected TCP/IP for multiplayer FreeSpace, but the TCP socket is already in use.  Check for another instance and/or use the \"-port <port_num>\" command line option to select an available port.", -1), "Error", MB_OK);
+			MessageBox((HWND)os_get_window(), XSTR("You have selected TCP/IP for multiplayer FreeSpace, but the TCP socket is already in use.  Check for another instance and/or use the \"-port <port_num>\" command line option to select an available port.", 1620), "Error", MB_OK);
 		} else {
 			MessageBox((HWND)os_get_window(), XSTR("You have selected TCP/IP for multiplayer FreeSpace, but the TCP/IP protocol was not detected on your machine.", 362), "Error", MB_OK);
 		}
@@ -1503,8 +1491,7 @@ void standalone_main_init()
 	timestamp_reset();
 
 	// setup a blank pilot (this is a standalone usage only!)
-	extern int read_pilot_file(char* callsign, int single = 1, player *p = NULL);
-	read_pilot_file(NULL);
+	Pilot.load_player(NULL);
 
 	// setup the netplayer for the standalone
 	Net_player = &Net_players[0];	

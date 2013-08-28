@@ -138,7 +138,8 @@ extern char* alloc_block(char* startstr, char* endstr, int extra_chars = 0);
 extern char *stuff_and_malloc_string(int type, char *terminators = NULL);
 extern void stuff_malloc_string(char **dest, int type, char *terminators = NULL);
 extern void stuff_float(float *f);
-extern int stuff_float_optional(float *f);
+extern int stuff_float_optional(float *f, bool raw = false);
+extern int stuff_int_optional(int *i, bool raw = false);
 extern void stuff_int(int *i);
 extern void stuff_sound(int *dest);
 extern void stuff_ubyte(ubyte *i);
@@ -164,8 +165,8 @@ extern void stuff_parenthesized_vec3d(vec3d *vp);
 extern void stuff_boolean(int *i, bool a_to_eol=true);
 extern void stuff_boolean(bool *b, bool a_to_eol=true);
 extern void stuff_boolean_flag(int *i, int flag, bool a_to_eol=true);
-extern int check_for_string(char *pstr);
-extern int check_for_string_raw(char *pstr);
+extern int check_for_string(const char *pstr);
+extern int check_for_string_raw(const char *pstr);
 extern int check_for_eof();
 extern int check_for_eoln();
 
@@ -243,6 +244,9 @@ extern void format_integer_with_commas(char *buf, int integer, bool use_comma_wi
 // Goober5000
 extern int scan_fso_version_string(const char *text, int *major, int *minor, int *build, int *revis);
 
+// Goober5000
+extern void truncate_message_lines(SCP_string &text, int num_allowed_lines);
+
 inline void parse_advance(int s){Mp+=s;}
 
 // parse a modular table, returns the number of files matching the "name_check" filter or 0 if it did nothing
@@ -256,21 +260,5 @@ int get_string_or_variable (char *str);
 int get_string_or_variable (SCP_string &str);
 #define PARSING_FOUND_STRING		0
 #define PARSING_FOUND_VARIABLE		1
-
-/**
- * @brief Reads a float and takes care of given limits
- *
- * Parses a float into @c destination if the specified tag is present. When the parsed float is less than
- * the specified @c min value then a warning will be generated and the destination will contain @c min as its
- * value. The same applies to @c max.
- *
- * @param tag The optional tag that should be checked
- * @param destination The destination float where the value should be stored
- * @param def The default value which should be used when the tag isn't present
- * @param min The minimum value which will be accepted. Optional parameter; defaults to @c FLT_MIN
- * @param max The maximum value which will be accepted. Optional parameter; defaults to @c FLT_MAX
- * @return
- */
-bool parse_optional_float(const char *tag, float *destination, float def, float min = FLT_MIN, float max = FLT_MAX);
 
 #endif

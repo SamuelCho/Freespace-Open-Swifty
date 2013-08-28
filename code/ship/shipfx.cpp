@@ -39,7 +39,7 @@
 #include "asteroid/asteroid.h"
 #include "bmpman/bmpman.h"
 #include "model/model.h"
-
+#include "cmdline/cmdline.h"
 
 
 #ifndef NDEBUG
@@ -299,7 +299,7 @@ void shipfx_maybe_create_live_debris_at_ship_death( object *ship_obj )
 
 }
 
-void shipfx_blow_off_subsystem(object *ship_obj,ship *ship_p,ship_subsys *subsys, vec3d *exp_center)
+void shipfx_blow_off_subsystem(object *ship_obj,ship *ship_p,ship_subsys *subsys, vec3d *exp_center, bool no_explosion)
 {
 	vec3d subobj_pos;
 	int model_num = Ship_info[ship_p->ship_info_index].model_num;
@@ -312,7 +312,7 @@ void shipfx_blow_off_subsystem(object *ship_obj,ship *ship_p,ship_subsys *subsys
 	shipfx_remove_submodel_ship_sparks(ship_p, psub->subobj_num);
 
 	// create debris shards
-	if (!(subsys->flags & SSF_VANISHED)) {
+	if (!(subsys->flags & SSF_VANISHED) && !no_explosion) {
 		shipfx_blow_up_model(ship_obj, model_num, psub->subobj_num, 50, &subobj_pos );
 
 		// create live debris objects, if any
@@ -394,7 +394,11 @@ void shipfx_blow_up_model(object *obj,int model, int submodel, int ndebris, vec3
 		vec3d pnt1, pnt2;
 
 		// Gets two random points on the surface of a submodel
-		submodel_get_two_random_points(model, submodel, &pnt1, &pnt2 );
+		if ( Cmdline_old_collision_sys ) {
+			submodel_get_two_random_points(model, submodel, &pnt1, &pnt2 );
+		} else {
+			submodel_get_two_random_points_better(model, submodel, &pnt1, &pnt2 );
+		}
 
 		vec3d tmp, outpnt;
 
@@ -651,8 +655,7 @@ int compute_special_warpout_stuff(object *objp, float *speed, float *warp_time, 
 	}
 	
 	if (!valid_reference_ship) {
-		Int3();
-		mprintf(("special warpout reference ship not found\n"));
+		mprintf(("Special warpout reference ship is not a Knossos\n"));
 		return -1;
 	}
 	sip = &Ship_info[Ships[objp->instance].ship_info_index];
@@ -1040,15 +1043,12 @@ int shipfx_eye_in_shadow( vec3d *eye_pos, object * src_obj, int sun_n )
 	}
 
 	// check cockpit model
-	if(Viewer_obj != NULL && Viewer_mode != VM_TOPDOWN)
-	{
-		if(Viewer_obj->type == OBJ_SHIP && Viewer_obj->instance >= 0)
-		{
+	if( Viewer_obj != NULL && Viewer_mode != VM_TOPDOWN ) {
+		if ( Viewer_obj->type == OBJ_SHIP && Viewer_obj->instance >= 0 ) {
 			ship *shipp = &Ships[Viewer_obj->instance];
 			ship_info *sip = &Ship_info[shipp->ship_info_index];
 
-			if(sip->cockpit_model_num > 0)
-			{
+			if(sip->cockpit_model_num > 0) {
 				vm_vec_scale_add( &rp1, &rp0, &light_dir, Viewer_obj->radius*2.0f );
 				vec3d pos,eye_posi;
 				matrix eye_ori;
@@ -1066,23 +1066,36 @@ int shipfx_eye_in_shadow( vec3d *eye_pos, object * src_obj, int sun_n )
 				int mc_result = model_collide(&mc);
 				mc.pos = NULL;
 
-				if(mc_result)
-				{
-					if(mc.t_poly)
-					{
+				if( mc_result ) {
+					if ( mc.t_poly ) {
 						polymodel *pm = model_get(sip->cockpit_model_num);
 						int tmap_num = w(mc.t_poly+40);
-						if(!(pm->maps[tmap_num].is_transparent)&&strcmp(bm_get_filename(mc.hit_bitmap),"glass.dds"))
-						{
+
+						if( !(pm->maps[tmap_num].is_transparent) && strcmp(bm_get_filename(mc.hit_bitmap), "glass.dds") ) {
 							return 1;
 						}
 					}
-					if(mc.f_poly)
+
+					if ( mc.f_poly ) {
 						 return 1;
+					}
+
+					if ( mc.bsp_leaf ) {
+						if ( mc.bsp_leaf->tmap_num < 255 ) {
+							polymodel *pm = model_get(sip->cockpit_model_num);
+							int tmap_num = mc.bsp_leaf->tmap_num;
+
+							if ( !(pm->maps[tmap_num].is_transparent) && strcmp(bm_get_filename(mc.hit_bitmap), "glass.dds") ) {
+								return 1;
+							}
+						} else {
+							return 1;
+						}
+					}
 				}
 			}
-			if(sip->flags2 & SIF2_SHOW_SHIP_MODEL)
-			{
+
+			if ( sip->flags2 & SIF2_SHOW_SHIP_MODEL ) {
 				vm_vec_scale_add( &rp1, &rp0, &light_dir, Viewer_obj->radius*10.0f );
 				mc.model_num = sip->model_num;
 				mc.orient = &Viewer_obj->orient;
@@ -1090,19 +1103,33 @@ int shipfx_eye_in_shadow( vec3d *eye_pos, object * src_obj, int sun_n )
 				mc.p0 = &rp0;
 				mc.p1 = &rp1;
 				mc.flags = MC_CHECK_MODEL;
-				if(model_collide(&mc))
-				{
-					if(mc.t_poly)
-					{
+
+				if( model_collide(&mc) ) {
+					if ( mc.t_poly ) {
 						polymodel *pm = model_get(sip->model_num);
 						int tmap_num = w(mc.t_poly+40);
-						if(!(pm->maps[tmap_num].is_transparent)&&strcmp(bm_get_filename(mc.hit_bitmap),"glass.dds"))
-						{
+
+						if ( !(pm->maps[tmap_num].is_transparent) && strcmp(bm_get_filename(mc.hit_bitmap),"glass.dds") ) {
 							return 1;
 						}
 					}
-					if(mc.f_poly)
+
+					if ( mc.f_poly ) {
 						 return 1;
+					}
+
+					if ( mc.bsp_leaf ) {
+						if ( mc.bsp_leaf->tmap_num < 255 ) {
+							polymodel *pm = model_get(sip->model_num);
+							int tmap_num = mc.bsp_leaf->tmap_num;
+
+							if ( !(pm->maps[tmap_num].is_transparent) && strcmp(bm_get_filename(mc.hit_bitmap), "glass.dds") ) {
+								return 1;
+							}
+						} else {
+							return 1;
+						}
+					}
 				}
 			}
 		}
@@ -2307,8 +2334,13 @@ void shipfx_do_damaged_arcs_frame( ship *shipp )
 		int n, n_arcs = ((rand()>>5) % 3)+1;		// Create 1-3 sparks
 
 		vec3d v1, v2, v3, v4;
-		submodel_get_two_random_points(model_num, -1, &v1, &v2);
-		submodel_get_two_random_points(model_num, -1, &v3, &v4);
+		if ( Cmdline_old_collision_sys ) {
+			submodel_get_two_random_points(model_num, -1, &v1, &v2);
+			submodel_get_two_random_points(model_num, -1, &v3, &v4);
+		} else {
+			submodel_get_two_random_points_better(model_num, -1, &v1, &v2);
+			submodel_get_two_random_points_better(model_num, -1, &v3, &v4);
+		}
 
 		// For large ships, cap the length to be 25% of max radius
 		if ( obj->radius > 200.0f )	{
@@ -2418,7 +2450,11 @@ void shipfx_do_damaged_arcs_frame( ship *shipp )
 				int mr = myrand();
 				if ( mr < RAND_MAX/5 )	{
 					vec3d v1, v2;
-					submodel_get_two_random_points(model_num, -1, &v1, &v2);
+					if ( Cmdline_old_collision_sys ) {
+						submodel_get_two_random_points(model_num, -1, &v1, &v2);
+					} else {
+						submodel_get_two_random_points_better(model_num, -1, &v1, &v2);
+					}
 
 					vec3d static_one;
 
@@ -2590,7 +2626,7 @@ void shipfx_do_shockwave_stuff(ship *shipp, shockwave_create_info *sci)
 	vec3d temp, dir, shockwave_pos;
 	vec3d head = vmd_zero_vector;
 	vec3d tail = vmd_zero_vector;	
-	float len, step, cur;
+	float step, cur;
 	int idx;
 
 	// sanity checks
@@ -2640,7 +2676,6 @@ void shipfx_do_shockwave_stuff(ship *shipp, shockwave_create_info *sci)
 
 	// now create as many shockwaves as needed
 	vm_vec_sub(&dir, &head, &tail);
-	len = vm_vec_mag(&dir);
 	step = 1.0f / ((float)sip->shockwave_count + 1.0f);
 	cur = step;
 	for(idx=0; idx<sip->shockwave_count; idx++){
@@ -3523,10 +3558,8 @@ int WE_Default::warpFrame(float frametime)
 
 		// Find the closest point on line from center of wormhole
 		vec3d cpos;
-		float dist;
 
 		fvi_ray_plane(&cpos, &objp->pos, &fvec, &pos, &fvec, 0.0f );
-		dist = vm_vec_dist( &cpos, &objp->pos );
 
 		if ( objp == Player_obj )	{
 			// Code for player warpout frame
@@ -3852,9 +3885,9 @@ int WE_BSG::warpShipClip()
 
 	if(direction == WD_WARP_OUT && stage > 0)
 	{
-		vec3d pos;
-		vm_vec_scale_add(&pos, &objp->pos, &objp->orient.vec.fvec, objp->radius);
-		g3_start_user_clip_plane( &pos, &objp->orient.vec.fvec );
+		vec3d position;
+		vm_vec_scale_add(&position, &objp->pos, &objp->orient.vec.fvec, objp->radius);
+		g3_start_user_clip_plane( &position, &objp->orient.vec.fvec );
 	}
 	return 1;
 }
@@ -3888,10 +3921,8 @@ int WE_BSG::warpShipRender()
 			vm_vec_scale_add(&start, &pos, &objp->orient.vec.fvec, z_offset_min);
 			vm_vec_scale_add(&end, &pos, &objp->orient.vec.fvec, z_offset_max);
 
-			batcher.draw_beam(&start, &end, tube_radius*2.0f, 1.0f);	
-
 			//Render the warpout effect
-			batcher.render(TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT);
+			batch_add_beam(anim + anim_frame, TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT, &start, &end, tube_radius*2.0f, 1.0f);
 		}
 	}
 
@@ -3908,8 +3939,8 @@ int WE_BSG::warpShipRender()
 			}else{
 				g3_transfer_vertex(&p, &pos);
 			}
-			gr_set_bitmap(shockwave + shockwave_frame, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 1.0f );
-			g3_draw_bitmap(&p, 0, shockwave_radius, TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT );
+
+			batch_add_bitmap(shockwave + shockwave_frame, TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD, &p, 0, shockwave_radius, 1.0f);
 		}
 	}
 
@@ -3935,10 +3966,10 @@ int WE_BSG::getWarpPosition(vec3d *output)
 	if(!this->isValid())
 		return 0;
 
-	vec3d pos;
-	vm_vec_scale_add(&pos, &objp->pos, &objp->orient.vec.fvec, objp->radius);
+	vec3d position;
+	vm_vec_scale_add(&position, &objp->pos, &objp->orient.vec.fvec, objp->radius);
 
-	*output = pos;
+	*output = position;
 	return 1;
 }
 

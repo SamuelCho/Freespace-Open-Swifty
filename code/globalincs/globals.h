@@ -36,17 +36,15 @@
 #define MAX_SHIPS					400			// max number of ship instances there can be.DTP; bumped from 200 to 400
 #define SHIPS_LIMIT					400			// what MAX_SHIPS will be at release time (for error checking in debug mode); dtp Bumped from 200 to 400
 
+// from missionparse.h and then redefined to the same value in sexp.h
+#define TOKEN_LENGTH	32
 // ****************************************************************
 // DO NOT CHANGE THIS - IT WILL LIKELY BREAK FREESPACE2 PXO SUPPORT
 // TALK TO DAVE B FIRST
 // ****************************************************************
 #define MAX_SHIP_CLASSES_MULTI	130
 
-#ifdef INF_BUILD
 #define MAX_SHIP_CLASSES		250
-#else
-#define MAX_SHIP_CLASSES		130
-#endif
 
 #define MAX_WINGS				75
 
@@ -69,33 +67,23 @@
 #define MAX_COMPLETE_ESCORT_LIST	20
              
 // from weapon.h
-#define MAX_WEAPONS	700
+#define MAX_WEAPONS	2000
 
-#ifdef INF_BUILD
 #define MAX_WEAPON_TYPES				300
-#else
-#define MAX_WEAPON_TYPES				200
-#endif
+
 
 // from model.h
 
 #define MAX_MODEL_TEXTURES	64
 
-#ifdef INF_BUILD
-	#define MAX_POLYGON_MODELS  300
-#else
-	#define MAX_POLYGON_MODELS  128 //DTP reset from 198 to original value of 128
-#endif
+#define MAX_POLYGON_MODELS  300
 
-// from scoring.h
-// ARGH. IMPORTANT : do not change NUM_MEDALS without talking to DaveB first. It will affect the size of the scoring struct and hence, will break
-// a lot of PXO related stuff. SEE ALSO : MAX_SHIP_CLASSES
 #define MAX_MEDALS			18
 #define NUM_MEDALS_FS1		16
 extern int Num_medals;
 
 // object.h
-#define MAX_OBJECTS			2000		
+#define MAX_OBJECTS			3500		
 
 // from lighting.cpp
 #define MAX_LIGHTS 256

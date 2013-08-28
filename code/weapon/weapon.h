@@ -39,6 +39,7 @@ extern int Num_weapon_subtypes;
 
 #define WIF_DEFAULT_VALUE	0
 #define WIF2_DEFAULT_VALUE	0
+#define WIF3_DEFAULT_VALUE	0
 
 #define	WIF_HOMING_HEAT	(1 << 0)				//	if set, this weapon homes via seeking heat
 #define	WIF_HOMING_ASPECT	(1 << 1)				//	if set, this weapon homes via chasing aspect
@@ -110,6 +111,11 @@ extern int Num_weapon_subtypes;
 #define WIF2_DONT_SHOW_ON_RADAR			(1 << 28)   // Force a weapon to not show on radar
 #define WIF2_RENDER_FLAK				(1 << 29)	// Even though this is a flak weapon, render the shell
 #define WIF2_CIWS						(1 << 30)	// This weapons' burst and shockwave damage can damage bombs (Basically, a reverse for TAKES_BLAST/SHOCKWAVE_DAMAGE
+#define WIF2_ANTISUBSYSBEAM				(1 << 31)	// This beam can target subsystems as per normal
+
+#define WIF3_NOLINK						(1 << 0)	// This weapon can not be linked with others
+#define WIF3_USE_EMP_TIME_FOR_CAPSHIP_TURRETS	(1 << 1)	// override MAX_TURRET_DISRUPT_TIME in emp.cpp - Goober5000
+
 
 #define	WIF_HOMING					(WIF_HOMING_HEAT | WIF_HOMING_ASPECT | WIF_HOMING_JAVELIN)
 #define WIF_LOCKED_HOMING           (WIF_HOMING_ASPECT | WIF_HOMING_JAVELIN)
@@ -216,6 +222,7 @@ typedef struct weapon {
 	float damage_ship[MAX_WEP_DAMAGE_SLOTS];    // damage applied from each player
 	int   damage_ship_id[MAX_WEP_DAMAGE_SLOTS]; // signature of the damager (corresponds to each entry in damage_ship)
 
+	int hud_in_flight_snd_sig;					// Signature of the sound played while the weapon is in flight
 } weapon;
 
 
@@ -288,6 +295,13 @@ extern weapon Weapons[MAX_WEAPONS];
 
 #define WEAPON_TITLE_LEN			48
 
+enum InFlightSoundType
+{
+	TARGETED,
+	UNTARGETED,
+	ALWAYS
+};
+
 typedef struct weapon_info {
 	char	name[NAME_LENGTH];				// name of this weapon
 	char	alt_name[NAME_LENGTH];			// alt name of this weapon
@@ -347,6 +361,7 @@ typedef struct weapon_info {
 	float energy_consumed;					// Energy used up when weapon is fired
 	int	wi_flags;							//	bit flags defining behavior, see WIF_xxxx
 	int wi_flags2;							// stupid int wi_flags, only 32 bits... argh - Goober5000
+	int wi_flags3;							// stupid int wi_flags2, only 32 bits... argh - The E
 	float turn_time;
 	float	cargo_size;							// cargo space taken up by individual weapon (missiles only)
 	float rearm_rate;							// rate per second at which secondary weapons are loaded during rearming
@@ -509,6 +524,10 @@ typedef struct weapon_info {
 
 	int			score; //Optional score for destroying the weapon
 
+	int hud_tracking_snd; // Sound played when this weapon tracks a target
+	int hud_locked_snd; // Sound played when this weapon locked onto a target
+	int hud_in_flight_snd; // Sound played while the weapon is in flight
+	InFlightSoundType in_flight_play_type; // The status when the sound should be played
 } weapon_info;
 
 // Data structure to track the active missiles
@@ -565,8 +584,6 @@ extern int Default_cmeasure_index;
 extern int Num_player_weapon_precedence;				// Number of weapon types in Player_weapon_precedence
 extern int Player_weapon_precedence[MAX_WEAPON_TYPES];	// Array of weapon types, precedence list for player weapon selection
 
-extern int Default_weapon_select_effect;
-
 #define WEAPON_INDEX(wp)				(wp-Weapons)
 #define WEAPON_INFO_INDEX(wip)		(wip-Weapon_info)
 
@@ -595,7 +612,7 @@ int weapon_create_group_id();
 
 // Passing a group_id of -1 means it isn't in a group.  See weapon_create_group_id for more 
 // help on weapon groups.
-int weapon_create( vec3d * pos, matrix * orient, int weapon_type, int parent_obj, int group_id=-1, int is_locked = 0, int is_spawned = 0, float fof_cooldown = 0.0f);
+int weapon_create( vec3d * pos, matrix * orient, int weapon_type, int parent_obj, int group_id=-1, int is_locked = 0, int is_spawned = 0, float fof_cooldown = 0.0f, ship_subsys * src_turret = NULL);
 void weapon_set_tracking_info(int weapon_objnum, int parent_objnum, int target_objnum, int target_is_locked = 0, ship_subsys *target_subsys = NULL);
 
 // for weapons flagged as particle spewers, spew particles. wheee
@@ -634,5 +651,11 @@ void weapon_hit_do_sound(object *hit_obj, weapon_info *wip, vec3d *hitpos, bool 
 
 // return a scale factor for damage which should be applied for 2 collisions
 float weapon_get_damage_scale(weapon_info *wip, object *wep, object *target);
+
+// Pauses all running weapon sounds
+void weapon_pause_sounds();
+
+// Unpauses all running weapon sounds
+void weapon_unpause_sounds();
 
 #endif

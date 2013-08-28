@@ -46,6 +46,7 @@ typedef struct config_item {
 	short key_id;  // actual key bound to action
 	short joy_id;  // joystick button bound to action
 	int used;				// has control been used yet in mission?  If so, this is the timestamp
+	bool disabled;			// whether this action should be available at all
 } config_item;
 
 /**
@@ -205,6 +206,9 @@ enum IoActionId  {
 
 	//Gliding
 	TOGGLE_GLIDING									=117,	//!< TOGGLE_GLIDING
+
+	//Inflight configurable firing sequence
+	CYCLE_PRIMARY_WEAPON_SEQUENCE					=118,	//!< cycle num primaries to fire at once
 
 	/**
 	 * This must always be below the last defined action

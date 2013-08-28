@@ -23,6 +23,7 @@
 #include "globalincs/linklist.h"
 #include "io/mouse.h"
 #include "playerman/player.h"
+#include "pilotfile/pilotfile.h"
 #include "menuui/snazzyui.h"
 #include "anim/animplay.h"
 #include "anim/packunpack.h"
@@ -819,8 +820,6 @@ void maybe_change_selected_ship(int offset)
 
 void maybe_change_selected_wing_ship(int wb_num, int ws_num)
 {
-	ss_slot_info	*ss_slot;
-
 	Assert(wb_num >= 0 && wb_num < MAX_WING_BLOCKS);
 	Assert(ws_num >= 0 && ws_num < MAX_WING_SLOTS);	
 	Assert( (Ss_wings != NULL) && (Wss_slots != NULL) );
@@ -829,7 +828,6 @@ void maybe_change_selected_wing_ship(int wb_num, int ws_num)
 		return;
 	}
 
-	ss_slot = &Ss_wings[wb_num].ss_slots[ws_num];
 	if ( Selected_ss_class != -1 && Selected_ss_class != Wss_slots[wb_num*MAX_WING_SLOTS+ws_num].ship_class ) {
 		Selected_ss_class = Wss_slots[wb_num*MAX_WING_SLOTS+ws_num].ship_class;
 		start_ship_animation(Selected_ss_class, 1);
@@ -1109,7 +1107,7 @@ void ship_select_blit_ship_info()
 	}
 	else
 	{
-		gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Gun Banks",-1));
+		gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Gun Banks",1626));
 		y_start += 10;
 		gr_set_color_fast(text);
 		if(sip->num_primary_banks)
@@ -1180,7 +1178,7 @@ void ship_select_blit_ship_info()
 		if(num_turrets)
 		{
 			gr_set_color_fast(header);
-			gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Turrets",-1));
+			gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Turrets",1627));
 			y_start += 10;
 			gr_set_color_fast(text);
 			sprintf(str, "%d", num_turrets);
@@ -1535,6 +1533,11 @@ void ship_select_do(float frametime)
 			if (sip->flags & SIF_HUGE_SHIP) {
 				rev_rate *= 3.0f;
 			}
+
+			if (sip->uses_team_colors) {
+				gr_set_team_color(sip->default_team_name, "<none>", 0, 0);
+			}
+
 			draw_model_rotating(ShipSelectModelNum,
 				Ship_anim_coords[gr_screen.res][0],
 				Ship_anim_coords[gr_screen.res][1],
@@ -1547,6 +1550,8 @@ void ship_select_do(float frametime)
 				MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING,
 				true,
 				sip->selection_effect);
+
+			gr_disable_team_color();
 		}
 	}
 
@@ -1775,15 +1780,12 @@ void start_ship_animation(int ship_class, int play_sound)
 			mprintf(("Couldn't load model file %s in missionshipchoice.cpp\n", sip->pof_file));
 		}
 	} else {
-		ss_icon_info *ss_icon;
 		Assert( ship_class >= 0 );
 		Assert( Ss_icons != NULL );
 		
 		if (Ship_anim_class == ship_class) {
 			return;
 		}
-
-		ss_icon = &Ss_icons[ship_class];
 
 		//If there was a model loaded for the previous ship, unload it
 		if (ShipSelectModelNum >= 0 ) {
@@ -1914,12 +1916,12 @@ void commit_pressed()
 	{
 		if (num_required_weapons == 1)
 		{
-			popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR("The %s is required for this mission, but it has not been added to any ship loadout.", -1), weapon_list.c_str());
+			popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR("The %s is required for this mission, but it has not been added to any ship loadout.", 1624), weapon_list.c_str());
 			return;
 		}
 		else if (num_required_weapons > 1)
 		{
-			popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR("The following weapons are required for this mission, but at least one of them has not been added to any ship loadout:\n\n%s", -1), weapon_list.c_str());
+			popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR("The following weapons are required for this mission, but at least one of them has not been added to any ship loadout:\n\n%s", 1625), weapon_list.c_str());
 			return;
 		}
 	}
@@ -2491,17 +2493,18 @@ void update_player_ship(int si_index)
 		change_ship_type(Player_obj->instance, si_index);
 
 	Player->last_ship_flown_si_index = si_index;
+	Pilot.save_savefile();  // saves both Recent_mission & last_ship_flown_si_index (for quick-start-missions)
 }
 
-// ----------------------------------------------------------------------------
-// create a default player ship
-//
-//	parameters:		use_last_flown	=> select ship that was last flown on a mission
-//						(this is a default parameter which is set to 1)
-//
-// returns:			0 => success
-//               !0 => failure
-//
+/*
+ * create a default player ship
+ *
+ * @note: only used for quick start missions
+ *
+ * @param	use_last_flown	select ship that was last flown on a mission (default parameter set to 1)
+ *
+ * @return	0 => success, !0 => failure
+ */
 int create_default_player_ship(int use_last_flown)
 {
 	int	player_ship_class=-1, i;
@@ -2524,7 +2527,14 @@ int create_default_player_ship(int use_last_flown)
 			return 1;
 	}
 
-	update_player_ship(player_ship_class);
+	// if we still haven't found the last flown ship, handle the error semi-gracefully
+	if (player_ship_class == -1) {
+		popup(PF_TITLE_BIG | PF_TITLE_RED | PF_USE_AFFIRMATIVE_ICON | PF_NO_NETWORKING, 1, POPUP_OK, XSTR("Error!\n\nCannot find "
+			"a valid last flown ship\n\nHave you played any missions since activating this mod/campaign?", 1619));
+		return 1;
+	} else {
+		update_player_ship(player_ship_class);
+	}
 
 	// debug code to keep using descent style physics if the player starts a new game
 #ifndef NDEBUG
@@ -2968,12 +2978,12 @@ void ss_init_wing_info(int wing_num,int starting_wing_num)
 		// Temporarily fill in the current count and initialize the ship list in the wing
 		// This gets cleaned up before the mission is started
 		for ( p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp) ) {
-			// niffiwan: don't overrun the array
-			if (ss_wing->num_slots > MAX_WING_SLOTS) {
-				Warning(LOCATION, "Starting Wing '%s' has more than 'MAX_WING_SLOTS' ships\n", Starting_wing_names[ss_wing->wingnum]);
-				break;
-			}
 			if ( p_objp->wingnum == WING_INDEX(wp) ) {
+				// niffiwan: don't overrun the array
+				if (ss_wing->num_slots >= MAX_WING_SLOTS) {
+					Warning(LOCATION, "Starting Wing '%s' has more than 'MAX_WING_SLOTS' ships\n", Starting_wing_names[ss_wing->wingnum]);
+					break;
+				}
 				slot = &ss_wing->ss_slots[ss_wing->num_slots++];
 				slot->sa_index = POBJ_INDEX(p_objp);
 				slot->original_ship_class = p_objp->ship_class;
@@ -3233,7 +3243,7 @@ void ss_synch_interface()
 // exit: data changed flag
 int ss_swap_slot_slot(int from_slot, int to_slot, int *sound)
 {
-	int i, tmp, fwnum, fsnum, twnum, tsnum;
+	int i, tmp;
 
 	if ( from_slot == to_slot ) {
 		*sound=SND_ICON_DROP_ON_WING;
@@ -3245,12 +3255,6 @@ int ss_swap_slot_slot(int from_slot, int to_slot, int *sound)
 		*sound=SND_ICON_DROP;
 		return 0;
 	}
-
-	fwnum = from_slot/MAX_WING_SLOTS;
-	fsnum = from_slot%MAX_WING_SLOTS;
-
-	twnum = to_slot/MAX_WING_SLOTS;
-	tsnum = to_slot%MAX_WING_SLOTS;
 
 	// swap ship class
 	tmp = Wss_slots[from_slot].ship_class;
@@ -3275,7 +3279,7 @@ int ss_swap_slot_slot(int from_slot, int to_slot, int *sound)
 // exit: data changed flag
 int ss_dump_to_list(int from_slot, int to_list, int *sound)
 {
-	int i, fwnum, fsnum;
+	int i;
 	wss_unit	*slot;
 
 	Assert( (Ss_pool != NULL) && (Wl_pool != NULL) && (Wss_slots != NULL) );
@@ -3287,9 +3291,6 @@ int ss_dump_to_list(int from_slot, int to_list, int *sound)
 		*sound=SND_ICON_DROP;
 		return 0;
 	}
-
-	fwnum = from_slot/MAX_WING_SLOTS;
-	fsnum = from_slot%MAX_WING_SLOTS;
 
 	// put ship back in list
 	Ss_pool[to_list]++;		// return to list
@@ -3447,8 +3448,7 @@ void ss_drop(int from_slot,int from_list,int to_slot,int to_list,int player_inde
 // lock/unlock any necessary slots for multiplayer
 void ss_recalc_multiplayer_slots()
 {
-	int				i,j,objnum;
-	wing				*wp;
+	int				i,j;
 	ss_slot_info	*ss_slot;
 	ss_wing_info	*ss_wing;
 	
@@ -3468,14 +3468,8 @@ void ss_recalc_multiplayer_slots()
 			continue;
 		}
 
-		// NOTE : the method below will eventually have to change to account for all possible netgame options
-		
-		// get the wing pointer
-		wp = &Wings[ss_wing->wingnum];		
+		// NOTE : the method below will eventually have to change to account for all possible netgame options	
 		for ( j = 0; j < ss_wing->num_slots; j++ ) {				
-			// get the objnum of the ship in this slot
-			objnum = Ships[wp->ship_index[j]].objnum;
-
 			// get the slot pointer
 			ss_slot = &ss_wing->ss_slots[j];			
 			

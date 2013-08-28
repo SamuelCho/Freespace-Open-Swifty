@@ -89,7 +89,7 @@ int Show_sexp_help = 1;
 int Show_ships = 1;
 int Show_starts = 1;
 int Show_ship_info = 1;
-int Show_ship_models = 0;
+int Show_ship_models = 1;
 int Show_compass = 1;
 int Show_dock_points = 0;
 int Show_paths_fred = 0;
@@ -2195,6 +2195,35 @@ void CFREDView::OnUpdateZoomSelected(CCmdUI* pCmdUI)
 
 void CFREDView::OnFormWing() 
 {
+	object *ptr = GET_FIRST(&obj_used_list);
+	bool found = false;
+	while (ptr != END_OF_LIST(&obj_used_list)) {
+		if (( (ptr->type == OBJ_SHIP) || (ptr->type == OBJ_START) ) && (ptr->flags & OF_MARKED)) {
+			if(Ships[ptr->instance].flags & SF_REINFORCEMENT) {
+				found = true;
+				break;
+			}
+		}
+
+		ptr = GET_NEXT(ptr);
+	}
+
+	if(found) {
+		int ok = MessageBox("Some of the ships you selected to create a wing are marked as reinforcements. Press Ok to clear the flag on all selected ships. Press Cancel to not create the wing.", "Reinforcement conflict", MB_ICONEXCLAMATION | MB_OKCANCEL);
+		if(ok == IDOK) {
+			ptr = GET_FIRST(&obj_used_list);
+			while (ptr != END_OF_LIST(&obj_used_list)) {
+				if (( (ptr->type == OBJ_SHIP) || (ptr->type == OBJ_START) ) && (ptr->flags & OF_MARKED)) {
+					set_reinforcement(Ships[ptr->instance].ship_name, 0);
+				}
+
+			ptr = GET_NEXT(ptr);
+			}
+		} else {
+			return;
+		}
+	}
+
 	if (!create_wing())
 		FREDDoc_ptr->autosave("form wing");
 }
@@ -3293,6 +3322,7 @@ int CFREDView::fred_check_sexp(int sexp, int type, const char *msg, ...)
 		return 0;
 
 	convert_sexp_to_string(sexp_buf, sexp, SEXP_ERROR_CHECK_MODE);
+	truncate_message_lines(sexp_buf, 30);
 	sprintf(error_buf, "Error in %s: %s\n\nIn sexpression: %s\n\n(Error appears to be: %s)", buf.c_str(), sexp_error_message(z), sexp_buf.c_str(), Sexp_nodes[faulty_node].text);
 
 	if (z < 0 && z > -100)

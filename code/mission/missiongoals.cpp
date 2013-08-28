@@ -32,6 +32,7 @@
 #include "network/multimsgs.h"
 #include "network/multi_team.h"
 #include "network/multi_sexp.h"
+#include "mod_table/mod_table.h"
 
 
 
@@ -169,7 +170,8 @@ struct goal_text {
 
 int Num_mission_events;
 int Num_goals = 0;								// number of goals for this mission
-int Event_index;  // used by sexp code to tell what event it came from
+int Event_index = -1;  // used by sexp code to tell what event it came from
+bool Log_event = false;
 int Mission_goal_timestamp;
 
 mission_event Mission_events[MAX_MISSION_EVENTS];
@@ -376,6 +378,7 @@ void mission_init_goals()
 		Mission_events[i].satisfied_time = 0;
 		Mission_events[i].born_on_date = 0;
 		Mission_events[i].team = -1;
+		Mission_events[i].mission_log_flags = 0;
 	}
 
 	Mission_goal_timestamp = timestamp(GOAL_TIMESTAMP);
@@ -883,6 +886,7 @@ void mission_process_event( int event )
 
 	int result, sindex;
 	bool bump_timestamp = false; 
+	Log_event = false;
 
 	Directive_count = 0;
 	Event_index = event;
@@ -891,8 +895,23 @@ void mission_process_event( int event )
 
 	// if chained, insure that previous event is true and next event is false
 	if (Mission_events[event].chain_delay >= 0) {  // this indicates it's chained
-		if (event > 0){
-			if (!Mission_events[event - 1].result || ((fix) Mission_events[event - 1].satisfied_time + i2f(Mission_events[event].chain_delay) > Missiontime)){
+		// What everyone expected the chaining behavior to be, as specified in Karajorma's original fix to Mantis #82
+		if (Alternate_chaining_behavior) {
+			if (event > 0){
+				if (!Mission_events[event - 1].result || ((fix) Mission_events[event - 1].satisfied_time + i2f(Mission_events[event].chain_delay) > Missiontime)){
+					sindex = -1;  // bypass evaluation
+				}
+			}
+		}
+		// Volition's original chaining behavior as used in retail and demonstrated in e.g. btm-01.fsm (or btm-01.fs2 in the Port)
+		else {
+			if (event > 0){
+				if (!Mission_events[event - 1].result || ((fix) Mission_events[event - 1].timestamp + i2f(Mission_events[event].chain_delay) > Missiontime)){
+					sindex = -1;  // bypass evaluation
+				}
+			}
+
+			if ((event < Num_mission_events - 1) && Mission_events[event + 1].result && (Mission_events[event + 1].chain_delay >= 0)){
 				sindex = -1;  // bypass evaluation
 			}
 		}
@@ -900,6 +919,9 @@ void mission_process_event( int event )
 
 	if (sindex >= 0) {
 		Sexp_useful_number = 1;
+		if (Mission_events[event].mission_log_flags != 0) {
+			Log_event = true;
+		}
 		result = eval_sexp(sindex);
 
 		// if the directive count is a special value, deal with that first.  Mark the event as a special
@@ -923,7 +945,11 @@ void mission_process_event( int event )
 		}
 	}
 
-	Event_index = 0;
+	if (Mission_events[event].mission_log_flags != 0) {
+		maybe_write_to_event_log(result);
+	}
+
+	Event_index = -1;
 	Mission_events[event].result = result;
 
 	// if the sexpression is known false, then no need to evaluate anymore
@@ -1067,6 +1093,8 @@ void mission_eval_goals()
 	if (Game_mode & GM_STANDALONE_SERVER){
 		std_multi_update_goals();
 	}
+	
+	Log_event = false;
 }
 
 //	evaluate_primary_goals() will determine if the primary goals for a mission are complete

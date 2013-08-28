@@ -15,7 +15,7 @@
 #include "bmpman/bmpman.h"
 #include "gamesequence/gamesequence.h"
 #include "io/key.h"
-#include "playerman/managepilot.h"
+#include "pilotfile/pilotfile.h"
 #include "freespace2/freespace.h"
 #include "gamesnd/gamesnd.h"
 #include "gamesnd/eventmusic.h"
@@ -30,7 +30,7 @@
 #include "globalincs/alphacolors.h"
 #include "io/timer.h"
 #include "nebula/neb.h"
-#include "weapon/beam.h"
+#include "weapon/weapon.h"
 #include "network/multi.h"
 #include "menuui/optionsmenumulti.h"
 
@@ -208,14 +208,14 @@ static struct {
 } Backgrounds[GR_NUM_RESOLUTIONS][NUM_TABS] = {
 //XSTR:OFF
 	{	// GR_640
-		{ "OptionsMain", "OptionsMain-M"},
-		{ "OptionsMulti", "OptionsMulti-M"},
-		{ "OptionsDetail", "OptionsDetail-M"},
+		{ "OptionsMain", "OptionsMain-M", -1, -1},
+		{ "OptionsMulti", "OptionsMulti-M", -1, -1},
+		{ "OptionsDetail", "OptionsDetail-M", -1, -1},
 	},
 	{	// GR_1024
-		{ "2_OptionsMain", "2_OptionsMain-M"},
-		{ "2_OptionsMulti", "2_OptionsMulti-M"},
-		{ "2_OptionsDetail", "2_OptionsDetail-M"},
+		{ "2_OptionsMain", "2_OptionsMain-M", -1, -1},
+		{ "2_OptionsMulti", "2_OptionsMulti-M", -1, -1},
+		{ "2_OptionsDetail", "2_OptionsDetail-M", -1, -1},
 	}
 //XSTR:ON
 };
@@ -887,7 +887,12 @@ void options_accept()
 {
 	// apply the selected multiplayer options
 	if ( Options_multi_inited ) {
-		options_multi_accept();
+		// if we've failed to provide a PXO password or username but have turned on PXO, we don't want to quit
+		if (!options_multi_accept()) {
+			gamesnd_play_iface(SND_COMMIT_PRESSED);
+			popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, "PXO is selected but password or username is missing");
+			return;
+		}
 	}
 
 	// If music is zero volume, disable
@@ -921,7 +926,7 @@ void options_menu_init()
 	Assert(!Options_menu_inited);
 
 	// pause all sounds, since we could get here through the game
-	beam_pause_sounds();
+	weapon_pause_sounds();
 	//audiostream_pause_all();
 
 	Tab = 0;
@@ -1016,8 +1021,6 @@ void options_menu_init()
 
 	Gamma_colors_inited = 0;
 
-	// used to allow all keystrokes, even when called from a demo playback
-	key_clear_filter();
 	Options_menu_inited = 1;
 
 	// hide options crap
@@ -1048,11 +1051,12 @@ void options_menu_close()
 
 	Ui_window.destroy();
 	common_free_interface_palette();		// restore game palette
-	write_pilot_file();
+	Pilot.save_player();
+	Pilot.save_savefile();
 	game_flush();
 	
 	// unpause all sounds, since we could be headed back to the game
-	beam_unpause_sounds();
+	weapon_unpause_sounds();
 	//audiostream_unpause_all();
 	
 	Options_menu_inited = 0;
@@ -1079,12 +1083,6 @@ void draw_gamma_box()
 		v = 0;
 	}
 
-	int Gamma_changed = 0;
-	if ( v != Gamma_last_set )	{
-		Gamma_changed = 1;
-	} else {
-		Gamma_changed = 0;
-	}
 	Gamma_last_set = v;
 
 	{

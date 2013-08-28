@@ -27,6 +27,7 @@
 #include "math/vecmat.h"
 #include "render/3d.h"
 #include "cmdline/cmdline.h"
+#include "mod_table/mod_table.h"
 
 
 SCP_vector<opengl_shader_t> GL_shader;
@@ -39,36 +40,24 @@ static int Effect_num = 0;
 static float Anim_timer = 0.0f;
 
 
-/*
-struct opengl_shader_uniform_reference_t {
-	int flag;
-
-	int num_uniforms;
-	char* uniforms[MAX_SHADER_UNIFORMS];
-
-	int num_attributes;
-	char* attributes[MAX_SDR_ATTRIBUTES];
-
-	SCP_string name;
-};
-*/
-
 /**
  * Static lookup reference for main shader uniforms
  * When adding a new SDR_ flag, list all associated uniforms and attributes here
  */
 static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
-	{ SDR_FLAG_LIGHT,		1, {"n_lights"}, 0, {}, "Lighting" },
-	{ SDR_FLAG_FOG,			0, {}, 0, {}, "Fog Effect" },
-	{ SDR_FLAG_DIFFUSE_MAP, 1, {"sBasemap"}, 0, {}, "Diffuse Mapping"},
-	{ SDR_FLAG_GLOW_MAP,	1, {"sGlowmap"}, 0, {}, "Glow Mapping" },
-	{ SDR_FLAG_SPEC_MAP,	1, {"sSpecmap"}, 0, {}, "Specular Mapping" },
-	{ SDR_FLAG_NORMAL_MAP,	1, {"sNormalmap"}, 0, {}, "Normal Mapping" },
-	{ SDR_FLAG_HEIGHT_MAP,	1, {"sHeightmap"}, 0, {}, "Parallax Mapping" },
-	{ SDR_FLAG_ENV_MAP,		3, {"sEnvmap", "alpha_spec", "envMatrix"}, 0, {}, "Environment Mapping" },
-	{ SDR_FLAG_ANIMATED,	5, {"sFramebuffer", "effect_num", "anim_timer", "vpwidth", "vpheight"}, 0, {}, "Animated Effects" },
-	{ SDR_FLAG_TRANSFORM,	1, {"transform_tex"}, 1, {"model_id"} }
-	{ SDR_FLAG_MISC_MAP,	1, {"sMiscmap"}, 0, {}, "Utility mapping" }
+	{ SDR_FLAG_LIGHT,		1, {"n_lights"}, 0, { NULL }, "Lighting" },
+	{ SDR_FLAG_FOG,			0, { NULL }, 0, { NULL }, "Fog Effect" },
+	{ SDR_FLAG_DIFFUSE_MAP, 5, {"sBasemap", "desaturate", "desaturate_r", "desaturate_g", "desaturate_b"}, 0, { NULL }, "Diffuse Mapping"},
+	{ SDR_FLAG_GLOW_MAP,	1, {"sGlowmap"}, 0, { NULL }, "Glow Mapping" },
+	{ SDR_FLAG_SPEC_MAP,	1, {"sSpecmap"}, 0, { NULL }, "Specular Mapping" },
+	{ SDR_FLAG_NORMAL_MAP,	1, {"sNormalmap"}, 0, { NULL }, "Normal Mapping" },
+	{ SDR_FLAG_HEIGHT_MAP,	1, {"sHeightmap"}, 0, { NULL }, "Parallax Mapping" },
+	{ SDR_FLAG_ENV_MAP,		3, {"sEnvmap", "alpha_spec", "envMatrix"}, 0, { NULL }, "Environment Mapping" },
+	{ SDR_FLAG_ANIMATED,	5, {"sFramebuffer", "effect_num", "anim_timer", "vpwidth", "vpheight"}, 0, { NULL }, "Animated Effects" },
+	{ SDR_FLAG_MISC_MAP,	1, {"sMiscmap"}, 0, { NULL }, "Utility mapping" },
+	{ SDR_FLAG_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, { NULL }, "Team Colors" },
+	{ SDR_FLAG_THRUSTER,	1, {"thruster_scale"}, 0, { NULL }, "Thruster scaling" },
+	{ SDR_FLAG_TRANSFORM,	1, {"transform_tex"}, 1, {"model_id"}, "Submodel Transforms" }
 };
 
 static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main) / sizeof(opengl_shader_uniform_reference_t);
@@ -77,7 +66,7 @@ static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main)
  * Static lookup referene for particle shader uniforms
  */
 static opengl_shader_uniform_reference_t GL_Uniform_Reference_Particle[] = {
-	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION), 5, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer"}, 1, { "offset_in" }, "Distorted Particles" },
+	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION), 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 1, { "offset_in" }, "Distorted Particles" },
 	{ (SDR_FLAG_SOFT_QUAD),	6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, { "radius_in" }, "Depth-blended Particles" }
 };
 
@@ -94,32 +83,34 @@ void opengl_shader_check_info_log(GLhandleARB shader_object);
  */
 void opengl_shader_set_current(opengl_shader_t *shader_obj)
 {
-	Current_shader = shader_obj;
-
-	if (Current_shader != NULL) {
-		vglUseProgramObjectARB(Current_shader->program_id);
+	if (shader_obj != NULL) {
+		if(!Current_shader || (Current_shader->program_id != shader_obj->program_id)) {
+			Current_shader = shader_obj;
+			vglUseProgramObjectARB(Current_shader->program_id);
 
 #ifndef NDEBUG
-		if ( opengl_check_for_errors("shader_set_current()") ) {
-			vglValidateProgramARB(Current_shader->program_id);
+			if ( opengl_check_for_errors("shader_set_current()") ) {
+				vglValidateProgramARB(Current_shader->program_id);
 
-			GLint obj_status = 0;
-			vglGetObjectParameterivARB(Current_shader->program_id, GL_OBJECT_VALIDATE_STATUS_ARB, &obj_status);
+				GLint obj_status = 0;
+				vglGetObjectParameterivARB(Current_shader->program_id, GL_OBJECT_VALIDATE_STATUS_ARB, &obj_status);
 
-			if ( !obj_status ) {
-				opengl_shader_check_info_log(Current_shader->program_id);
+				if ( !obj_status ) {
+					opengl_shader_check_info_log(Current_shader->program_id);
 	
-				mprintf(("VALIDATE INFO-LOG:\n"));
+					mprintf(("VALIDATE INFO-LOG:\n"));
 
-				if (strlen(GLshader_info_log) > 5) {
-					mprintf(("%s\n", GLshader_info_log));
-				} else {
-					mprintf(("<EMPTY>\n"));
+					if (strlen(GLshader_info_log) > 5) {
+						mprintf(("%s\n", GLshader_info_log));
+					} else {
+						mprintf(("<EMPTY>\n"));
+					}
 				}
 			}
-		}
 #endif
+		}
 	} else {
+		Current_shader = NULL;
 		vglUseProgramObjectARB(0);
 	}
 }
@@ -250,32 +241,43 @@ static char *opengl_load_shader(char *filename, int flags)
 		sflags += "#define FLAG_MISC_MAP\n";
 	}
 
+	if (flags & SDR_FLAG_TEAMCOLOR) {
+		sflags += "#define FLAG_TEAMCOLOR\n";
+	}
+
+	if (flags & SDR_FLAG_THRUSTER) {
+		sflags += "#define FLAG_THRUSTER\n";
+	}
+
 	const char *shader_flags = sflags.c_str();
 	int flags_len = strlen(shader_flags);
 
-	CFILE *cf_shader = cfopen(filename, "rt", CFILE_NORMAL, CF_TYPE_EFFECTS);
+	if (Enable_external_shaders) {
+		CFILE *cf_shader = cfopen(filename, "rt", CFILE_NORMAL, CF_TYPE_EFFECTS);
 	
-	if (cf_shader != NULL) {
-		int len = cfilelength(cf_shader);
-		char *shader = (char*) vm_malloc(len + flags_len + 1);
+		if (cf_shader != NULL) {
+			int len = cfilelength(cf_shader);
+			char *shader = (char*) vm_malloc(len + flags_len + 1);
 
-		strcpy(shader, shader_flags);
-		memset(shader + flags_len, 0, len + 1);
-		cfread(shader + flags_len, len + 1, 1, cf_shader);
-		cfclose(cf_shader);
+			strcpy(shader, shader_flags);
+			memset(shader + flags_len, 0, len + 1);
+			cfread(shader + flags_len, len + 1, 1, cf_shader);
+			cfclose(cf_shader);
 
-		return shader;	
-	} else {
-		mprintf(("   Loading built-in default shader for: %s\n", filename));
-		char* def_shader = defaults_get_file(filename);
-		size_t len = strlen(def_shader);
-		char *shader = (char*) vm_malloc(len + flags_len + 1);
-
-		strcpy(shader, shader_flags);
-		strcat(shader, def_shader);
-
-		return shader;
+			return shader;	
+		}
 	}
+
+	//If we're still here, proceed with internals
+	mprintf(("   Loading built-in default shader for: %s\n", filename));
+	char* def_shader = defaults_get_file(filename);
+	size_t len = strlen(def_shader);
+	char *shader = (char*) vm_malloc(len + flags_len + 1);
+
+	strcpy(shader, shader_flags);
+	strcat(shader, def_shader);
+
+	return shader;
 }
 
 /**
@@ -337,17 +339,19 @@ void opengl_compile_main_shader(int flags) {
 	if (new_shader.flags & SDR_FLAG_SOFT_QUAD) {
 		for (int j = 0; j < Particle_shader_flag_references; j++) {
 			if (new_shader.flags == GL_Uniform_Reference_Particle[j].flag) {
+				int k;
+
 			// Equality check needed because the combination of SDR_FLAG_SOFT_QUAD and SDR_FLAG_DISTORTION define something very different
 			// than just SDR_FLAG_SOFT_QUAD alone
-				for (int k = 0; k < GL_Uniform_Reference_Particle[j].num_uniforms; k++) {
+				for (k = 0; k < GL_Uniform_Reference_Particle[j].num_uniforms; k++) {
 					opengl_shader_init_uniform( GL_Uniform_Reference_Particle[j].uniforms[k] );
 				}
 
-				for (int k = 0; k < GL_Uniform_Reference_Particle[j].num_attributes; k++) {
+				for (k = 0; k < GL_Uniform_Reference_Particle[j].num_attributes; k++) {
 					opengl_shader_init_attribute( GL_Uniform_Reference_Particle[j].attributes[k] );
 				}
 
-				mprintf(("   %s\n", GL_Uniform_Reference_Particle[j].name.c_str()));
+				mprintf(("   %s\n", GL_Uniform_Reference_Particle[j].name));
 			}
 		}
 	} else {
@@ -365,7 +369,7 @@ void opengl_compile_main_shader(int flags) {
 					}
 				}
 
-				mprintf(("   %s\n", GL_Uniform_Reference_Main[j].name.c_str()));
+				mprintf(("   %s\n", GL_Uniform_Reference_Main[j].name));
 			}
 		}
 	}

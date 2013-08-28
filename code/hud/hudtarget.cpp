@@ -47,7 +47,7 @@
 #include "network/multiutil.h"
 #include "model/model.h"
 
-// If any of these bits in the ship->flags are set, ignore this ship when targetting
+// If any of these bits in the ship->flags are set, ignore this ship when targeting
 int TARGET_SHIP_IGNORE_FLAGS = (SF_EXPLODED|SF_DEPART_WARP|SF_DYING|SF_ARRIVING_STAGE_1|SF_HIDDEN_FROM_SENSORS);
 
 // Global values for the target bracket width and height, used for debugging
@@ -224,20 +224,6 @@ char Cm_fname[GR_NUM_RESOLUTIONS][MAX_FILENAME_LEN] = {
 #define TOGGLE_TEXT_TARGET		1
 #define TOGGLE_TEXT_AUTOS		2
 #define TOGGLE_TEXT_SPEED		3
-static int Hud_toggle_coords[GR_NUM_RESOLUTIONS][4][2] = {
-	{		// GR_640
-		{ 590, 382 },
-		{ 584, 390 },
-		{ 590, 406 },
-		{ 587, 414 }
-	},
-	{		// GR_1024
-		{ 973, 650 },
-		{ 967, 658 },
-		{ 973, 674 },
-		{ 970, 682 }
-	}
-};
 
 int Toggle_text_alpha = 255;
 
@@ -1297,8 +1283,8 @@ ship_obj *advance_ship(ship_obj *so, int next_flag)
 ///                                     classes of objects from being targeted.
 ///                                     Defaults to (SIF_CARGO | SIF_NAVBUOY)
 ///                                        
-/// \returns         The next object to target if targetting was successful. 
-///                  Returns NULL if targetting was unsuccessful.
+/// \returns         The next object to target if targeting was successful. 
+///                  Returns NULL if targeting was unsuccessful.
 static object* select_next_target_by_distance( const bool targeting_from_closest_to_farthest, const int valid_team_mask, const int attacked_object_number = -1, const int target_filters = (SIF_CARGO | SIF_NAVBUOY)) {
 	object *minimum_object_ptr, *maximum_object_ptr, *nearest_object_ptr;
 	minimum_object_ptr = maximum_object_ptr = nearest_object_ptr = NULL;
@@ -1357,7 +1343,7 @@ static object* select_next_target_by_distance( const bool targeting_from_closest
 			esct eval_ship_as_closest_target_args;
 			eval_ship_as_closest_target_args.attacked_objnum = attacked_object_number;
 			eval_ship_as_closest_target_args.check_all_turrets = (attacked_object_number == player_object_index);
-			eval_ship_as_closest_target_args.check_nearest_turret = false;
+			eval_ship_as_closest_target_args.check_nearest_turret = FALSE;
 				// We don't ever filter our target selection to just bombers or fighters
 				// because the select next attacker logic doesn't.  --Mastadon
 			eval_ship_as_closest_target_args.filter = 0;
@@ -2003,7 +1989,7 @@ void hud_target_auto_target_next()
 }
 
 
-// Given that object 'targeter' is targetting object 'targetee', 
+// Given that object 'targeter' is targeting object 'targetee', 
 // how far are they?   This uses the point closest to the targeter
 // object on the targetee's bounding box.  So if targeter is inside
 // targtee's bounding box, the distance is 0.
@@ -2154,7 +2140,7 @@ bool evaluate_ship_as_closest_target(esct *esct)
 		}
 	}
 
-	// If no turret is attacking, check if objp is actually targetting attacked_objnum
+	// If no turret is attacking, check if objp is actually targeting attacked_objnum
 	// don't bail if targeting is for player
 	if ( !targeting_player && !turret_is_attacking ) {
 		ai_info *aip = &Ai_info[esct->shipp->ai_index];
@@ -2191,7 +2177,7 @@ bool evaluate_ship_as_closest_target(esct *esct)
 /// closest hostile ship. Note only the square of the magnitude is required, 
 /// since we are only comparing magnitudes.
 ///
-/// \param[in] team            team of closest ship that should be targeted.
+/// \param[in] team_mask       team of closest ship that should be targeted.
 ///                            Default value is -1, if team doesn't matter.
 ///
 /// \param[in] attacked_objnum object number of ship that is being attacked
@@ -2227,61 +2213,58 @@ int hud_target_closest(int team_mask, int attacked_objnum, int play_fail_snd, in
 	int		player_obj_index = OBJ_INDEX(Player_obj);
 	ship_subsys *ss;
 
-	if (!(
-			(attacked_objnum >= 0) &&
-			(attacked_objnum != player_obj_index) &&
-			(
-				// bail if player does not have target
-				(Player_ai->target_objnum == -1) ||
-				// bail if not a ship
-				(Objects[attacked_objnum].type != OBJ_SHIP) ||
-				// bail if ship is to be ignored
-				(Ships[Objects[attacked_objnum].instance].flags & TARGET_SHIP_IGNORE_FLAGS)
-			)
-		))
-	{
+	int initial_attacked_objnum = attacked_objnum;
 
-		int initial_attacked_objnum = attacked_objnum;
-		if (attacked_objnum == -1) {
-			attacked_objnum = player_obj_index;
+	if ( (attacked_objnum >= 0) && (attacked_objnum != player_obj_index) ) {
+		// bail if player does not have target
+		if ( Player_ai->target_objnum == -1 ) {
+			goto Target_closest_done;
 		}
 
-		// check all turrets if for player.
-		esct.check_all_turrets = (attacked_objnum == player_obj_index);
-		esct.filter = filter;
-		esct.team_mask = team_mask;
-		esct.attacked_objnum = attacked_objnum;
-		esct.turret_attacking_target = get_closest_turret_attacking_player;
+		if ( Objects[attacked_objnum].type != OBJ_SHIP ) {
+			goto Target_closest_done;
+		}
 
-		for (so=GET_FIRST(&Ship_obj_list);
-			so!=END_OF_LIST(&Ship_obj_list);
-			so=GET_NEXT(so)
-			)
-		{
-
-			A = &Objects[so->objnum];
-			shipp = &Ships[A->instance];	// get a pointer to the ship information
-
-			// fill in rest of esct
-			esct.shipp = shipp;
-
-			// Filter out any target that is not targeting the player  --Mastadon
-			if ((initial_attacked_objnum == player_obj_index) &&
-				(Ai_info[shipp->ai_index].target_objnum != player_obj_index)
-				)
-			{
-				continue;
-			}
-			// check each shipp on list and update nearest obj and subsys
-			evaluate_ship_as_closest_target(&esct);
-			if (esct.min_distance < min_distance) {
-				target_found = TRUE;
-				min_distance = esct.min_distance;
-				nearest_obj = A;
-				check_nearest_turret = esct.check_nearest_turret;
-			}
+		// bail if ship is to be ignored
+		if (Ships[Objects[attacked_objnum].instance].flags & TARGET_SHIP_IGNORE_FLAGS) {
+			goto Target_closest_done;
 		}
 	}
+
+	if (attacked_objnum == -1) {
+		attacked_objnum = player_obj_index;
+	}
+
+	// check all turrets if for player.
+	esct.check_all_turrets = (attacked_objnum == player_obj_index);
+	esct.filter = filter;
+	esct.team_mask = team_mask;
+	esct.attacked_objnum = attacked_objnum;
+	esct.turret_attacking_target = get_closest_turret_attacking_player;
+
+	for ( so=GET_FIRST(&Ship_obj_list); so!=END_OF_LIST(&Ship_obj_list); so=GET_NEXT(so) ) {
+
+		A = &Objects[so->objnum];
+		shipp = &Ships[A->instance];	// get a pointer to the ship information
+
+		// fill in rest of esct
+		esct.shipp = shipp;
+
+		// Filter out any target that is not targeting the player  --Mastadon
+		if ( (initial_attacked_objnum == player_obj_index) && (Ai_info[shipp->ai_index].target_objnum != player_obj_index) ) {
+			continue;
+		}
+		// check each shipp on list and update nearest obj and subsys
+		evaluate_ship_as_closest_target(&esct);
+		if (esct.min_distance < min_distance) {
+			target_found = TRUE;
+			min_distance = esct.min_distance;
+			nearest_obj = A;
+			check_nearest_turret = esct.check_nearest_turret;
+		}
+	}
+
+	Target_closest_done:
 
 	// maybe ignore target if too far away
 	// DKA 9/8/99 Remove distance check
@@ -3011,17 +2994,15 @@ void HudGaugeReticleTriangle::renderTriangle(vec3d *hostile_pos, int aspect_flag
 	g3_project_vertex(&hostile_vertex);
 
 	if (hostile_vertex.codes == 0)  { // on screen
-		float		projected_x, projected_y;
+		int		projected_x, projected_y;
 
 		if (!(hostile_vertex.flags & PF_OVERFLOW)) {  // make sure point projected
-			float mag_squared;
+			int mag_squared;
 
-			projected_x = hostile_vertex.screen.xyw.x;
-			projected_y = hostile_vertex.screen.xyw.y;
+			projected_x = fl2i(hostile_vertex.screen.xyw.x);
+			projected_y = fl2i(hostile_vertex.screen.xyw.y);
 
-			gr_set_screen_scale(base_w, base_h);
-			gr_unsize_screen_posf( &projected_x, &projected_x );
-			gr_reset_screen_scale();
+			unsize(&projected_x, &projected_y);
 
 			mag_squared = (projected_x - position[0]) * (projected_x - position[0]) + 
 							  (projected_y - position[1]) * (projected_y - position[1]);
@@ -3041,9 +3022,7 @@ void HudGaugeReticleTriangle::renderTriangle(vec3d *hostile_pos, int aspect_flag
 
 	gr_resize_screen_pos(&HUD_nose_scaled_x, &HUD_nose_scaled_y);
 
-	gr_set_screen_scale(base_w, base_h);
-	gr_unsize_screen_posf( &hostile_vertex.world.xyz.x, &hostile_vertex.world.xyz.y );
-	gr_reset_screen_scale();
+	unsize( &hostile_vertex.world.xyz.x, &hostile_vertex.world.xyz.y );
 
 	ang = atan2_safe(hostile_vertex.world.xyz.y,hostile_vertex.world.xyz.x);
 	sin_ang=(float)sin(ang);
@@ -3418,6 +3397,13 @@ void hud_show_selection_set()
 		target_shipp = &Ships[targetp->instance];
 
 		if ( (Game_mode & GM_MULTIPLAYER) && (target_shipp == Player_ship) ) {
+			continue;
+		}
+
+		// Goober5000 - don't draw indicators for non-visible ships, per Mantis #1972
+		// (the only way we could get here is if the hotkey set contained a mix of visible
+		// and invisible ships)
+		if (awacs_get_level(targetp, Player_ship, 1) < 1) {
 			continue;
 		}
 
@@ -3865,7 +3851,7 @@ void HudGaugeLeadIndicator::render(float frametime)
 	// first render the current target the player has selected.
 	renderLeadCurrentTarget();
 
-	// if extra targetting info is enabled, render lead indicators for objects in the target display list.
+	// if extra targeting info is enabled, render lead indicators for objects in the target display list.
 	for(size_t i = 0; i < target_display_list.size(); i++) {
 		if ( (target_display_list[i].flags & TARGET_DISPLAY_LEAD) && target_display_list[i].objp ) {
 
@@ -4470,7 +4456,9 @@ void hud_target_change_check()
 			Player_ai->current_target_dist_trend = NO_CHANGE;
 		}
 
-		current_speed = Objects[Player_ai->target_objnum].phys_info.speed;
+		if ( (Player_ai->target_objnum >= 0) && (Player_ai->target_objnum < MAX_OBJECTS) ) {
+			current_speed = Objects[Player_ai->target_objnum].phys_info.speed;
+		}
 
 		if (current_speed < Player_ai->last_speed-0.01){
 			Player_ai->current_target_speed_trend = DECREASING;
@@ -4697,6 +4685,30 @@ void HudGaugeAutoTarget::initBitmaps(char *fname)
 	}
 }
 
+void HudGaugeAutoTarget::initOnColor(int r, int g, int b, int a)
+{
+	if ( r == -1 || g == -1 || b == -1 || a == -1 ) {
+		Use_on_color = false;
+		gr_init_alphacolor(&On_color, 0, 0, 0, 0);
+		return;
+	}
+
+	Use_on_color = true;
+	gr_init_alphacolor(&On_color, r, g, b, a);
+}
+
+void HudGaugeAutoTarget::initOffColor(int r, int g, int b, int a)
+{
+	if ( r == -1 || g == -1 || b == -1 || a == -1 ) {
+		Use_off_color = false;
+		gr_init_alphacolor(&Off_color, 0, 0, 0, 0);
+		return;
+	}
+
+	Use_off_color = true;
+	gr_init_alphacolor(&Off_color, r, g, b, a);
+}
+
 void HudGaugeAutoTarget::render(float frametime)
 {
 	if (Player_ship->flags2 & SF2_PRIMITIVE_SENSORS)
@@ -4716,9 +4728,13 @@ void HudGaugeAutoTarget::render(float frametime)
 
 	// draw the text on top
 	if (frame_offset == 1) {
-		static color text_color;
-		gr_init_alphacolor(&text_color, 0, 0, 0, Toggle_text_alpha);
-		gr_set_color_fast(&text_color);
+		//static color text_color;
+		//gr_init_alphacolor(&text_color, 0, 0, 0, Toggle_text_alpha);
+		if ( Use_on_color ) {
+			gr_set_color_fast(&On_color);
+		}
+	} else if ( Use_off_color ) {
+		gr_set_color_fast(&Off_color);
 	}
 
 	renderString(position[0] + Auto_text_offsets[0], position[1] + Auto_text_offsets[1], XSTR("auto", 1463));
@@ -4755,6 +4771,30 @@ void HudGaugeAutoSpeed::initBitmaps(char *fname)
 	}
 }
 
+void HudGaugeAutoSpeed::initOnColor(int r, int g, int b, int a)
+{
+	if ( r == -1 || g == -1 || b == -1 || a == -1 ) {
+		Use_on_color = false;
+		gr_init_alphacolor(&On_color, 0, 0, 0, 0);
+		return;
+	}
+
+	Use_on_color = true;
+	gr_init_alphacolor(&On_color, r, g, b, a);
+}
+
+void HudGaugeAutoSpeed::initOffColor(int r, int g, int b, int a)
+{
+	if ( r == -1 || g == -1 || b == -1 || a == -1 ) {
+		Use_off_color = false;
+		gr_init_alphacolor(&Off_color, 0, 0, 0, 0);
+		return;
+	}
+
+	Use_off_color = true;
+	gr_init_alphacolor(&Off_color, r, g, b, a);
+}
+
 void HudGaugeAutoSpeed::render(float frametime)
 {
 	if (Player_ship->flags2 & SF2_PRIMITIVE_SENSORS)
@@ -4774,9 +4814,13 @@ void HudGaugeAutoSpeed::render(float frametime)
 
 	// draw the text on top
 	if (frame_offset == 3) {
-		static color text_color;
-		gr_init_alphacolor(&text_color, 0, 0, 0, Toggle_text_alpha);
-		gr_set_color_fast(&text_color);
+		//static color text_color;
+		//gr_init_alphacolor(&text_color, 0, 0, 0, Toggle_text_alpha);
+		if ( Use_on_color ) {
+			gr_set_color_fast(&On_color);
+		}
+	} else if ( Use_off_color ) {
+		gr_set_color_fast(&Off_color);
 	}
 	renderString(position[0] + Auto_text_offsets[0], position[1] + Auto_text_offsets[1], XSTR("auto", 1463));
 	renderString(position[0] + Speed_text_offsets[0], position[1] + Speed_text_offsets[1], XSTR("speed", 1464));
@@ -5415,6 +5459,35 @@ void HudGaugeWeaponEnergy::initEnergyHeight(int h)
 	Wenergy_h = h;
 }
 
+void HudGaugeWeaponEnergy::initAlignments(int text_align, int armed_align)
+{
+	Text_alignment = text_align;
+	Armed_alignment = armed_align;
+}
+
+void HudGaugeWeaponEnergy::initArmedOffsets(int x, int y, int h, bool show)
+{
+	Armed_name_offsets[0] = x;
+	Armed_name_offsets[1] = y;
+	Show_armed = show;
+	Armed_name_h = h;
+}
+
+void HudGaugeWeaponEnergy::initAlwaysShowText(bool show_text)
+{
+	Always_show_text = show_text;
+}
+
+void HudGaugeWeaponEnergy::initMoveText(bool move_text)
+{
+	Moving_text = move_text;
+}
+
+void HudGaugeWeaponEnergy::initShowBallistics(bool show_ballistics)
+{
+	Show_ballistic = show_ballistics;
+}
+
 void HudGaugeWeaponEnergy::initBitmaps(char *fname)
 {
 	Energy_bar.first_frame = bm_load_animation(fname, &Energy_bar.num_frames);
@@ -5525,45 +5598,126 @@ void HudGaugeWeaponEnergy::render(float frametime)
 	else
 	{
 		float percent_left;
-		int	clip_h, w, h;
+		int ballistic_ammo = 0;
+		int max_ballistic_ammo = 0;
+		int	clip_h, w, h, i;
+		weapon_info *wip;
+		ship_weapon *sw;
+		char buf[40] = "";
 
-		if ( Energy_bar.first_frame == -1 )
-		{
+		if ( Energy_bar.first_frame == -1 ) {
 			return;
 		}
 
-		if ( Player_ship->weapons.num_primary_banks <= 0 )
-		{
+		if ( Player_ship->weapons.num_primary_banks <= 0 ) {
 			return;
 		}
 
-		// also leave if no energy can be stored for weapons - Goober5000
-		if (!ship_has_energy_weapons(Player_ship))
-			return;
+		sw = &Player_ship->weapons;
 
-		percent_left = Player_ship->weapon_energy/Ship_info[Player_ship->ship_info_index].max_weapon_reserve;
-		if ( percent_left > 1 )
-		{
-			percent_left = 1.0f;
+		// show ballistic ammunition in energy gauge if need be
+		if ( Show_ballistic && Ship_info[Player_ship->ship_info_index].flags & SIF_BALLISTIC_PRIMARIES ) {
+			if ( Player_ship->flags & SF_PRIMARY_LINKED ) {
+
+				// go through all ballistic primaries and add up their ammunition totals and max capacities
+				for ( i = 0; i < sw->num_primary_banks; i++ ) {
+
+					// skip all pure-energy weapons
+					if( ! ( Weapon_info[sw->primary_bank_weapons[i]].wi_flags2 & WIF2_BALLISTIC ) ) {
+						continue;
+					}
+
+					ballistic_ammo += sw->primary_bank_ammo[i]; 
+					max_ballistic_ammo += sw->primary_bank_start_ammo[i];
+				}
+			} else {
+				ballistic_ammo = sw->primary_bank_ammo[sw->current_primary_bank];
+				max_ballistic_ammo = sw->primary_bank_start_ammo[sw->current_primary_bank];
+			}
+
+			percent_left = i2fl(ballistic_ammo) / i2fl(max_ballistic_ammo);
+		} else {
+			// also leave if no energy can be stored for weapons - Goober5000
+			if (!ship_has_energy_weapons(Player_ship))
+				return;
+
+			percent_left = Player_ship->weapon_energy/Ship_info[Player_ship->ship_info_index].max_weapon_reserve;
+			if ( percent_left > 1 )
+			{
+				percent_left = 1.0f;
+			}
 		}
+
+		clip_h = fl2i( (1.0f - percent_left) * Wenergy_h + 0.5f );
 		
-		if ( percent_left <= 0.3 ) {
-			char buf[32];
+		if ( percent_left <= 0.3 || Show_ballistic || Always_show_text ) {
+			int delta_y = 0, delta_x = 0;
+
 			if ( percent_left < 0.1 ) {
 				gr_set_color_fast(&Color_bright_red);
+			} else {
+				setGaugeColor();
 			}
-			sprintf(buf,XSTR( "%d%%", 326), fl2i(percent_left*100+0.5f));
+
+			if ( Show_ballistic ) {
+				sprintf(buf, "%d", ballistic_ammo);
+			} else {
+				sprintf(buf,XSTR( "%d%%", 326), fl2i(percent_left*100+0.5f));
+			}
+
+			if ( Moving_text ) {
+				delta_y = clip_h;
+			}
+
 			hud_num_make_mono(buf);
-		//	gr_string(Weapon_energy_text_coords[gr_screen.res][0], Weapon_energy_text_coords[gr_screen.res][1], buf);
-			renderString(position[0] + Wenergy_text_offsets[0], position[1] + Wenergy_text_offsets[1], buf);
+
+			if ( Text_alignment ) {
+				gr_get_string_size(&w, &h, buf);
+				delta_x = -w;
+			}
+
+			renderString(position[0] + Wenergy_text_offsets[0] + delta_x, position[1] + Wenergy_text_offsets[1] + delta_y, buf);
 		}
 
 		setGaugeColor();
-		for ( x = 0;x < Player_ship->weapons.num_primary_banks; x++ )
+
+		// list currently armed primary banks if we have to
+		if ( Show_armed ) {
+			if ( Player_ship->flags & SF_PRIMARY_LINKED ) {
+				// show all primary banks
+				for ( i = 0; i < Player_ship->weapons.num_primary_banks; i++ ) {
+					wip = &Weapon_info[sw->primary_bank_weapons[i]];
+					strcpy_s(buf, (wip->alt_name[0]) ? wip->alt_name : wip->name);
+
+					if ( Armed_alignment ) {
+						gr_get_string_size(&w, &h, buf);
+					} else {
+						w = 0;
+					}
+					
+					renderString(position[0] + Armed_name_offsets[0] - w, position[1] + Armed_name_offsets[1] + Armed_name_h * i, buf);
+				}
+			} else {
+				// just show the current armed bank
+				i = Player_ship->weapons.current_primary_bank;
+				wip = &Weapon_info[sw->primary_bank_weapons[i]];
+				strcpy_s(buf, (wip->alt_name[0]) ? wip->alt_name : wip->name);
+
+				if ( Armed_alignment ) {
+					gr_get_string_size(&w, &h, buf);
+				} else {
+					w = 0;
+				}
+
+				renderString(position[0] + Armed_name_offsets[0] - w, position[1] + Armed_name_offsets[1], buf);
+			}
+		}
+
+		for ( i = 0; i < sw->num_primary_banks; i++ )
 		{
-			if ( !timestamp_elapsed(Weapon_flash_info.flash_duration[x]) )
+			if ( !timestamp_elapsed(Weapon_flash_info.flash_duration[i]) )
 			{
-				if ( Weapon_flash_info.is_bright & (1<<x) )
+				if ( Weapon_flash_info.is_bright & (1<<i) )
 				{
 					// hud_set_bright_color();
 					setGaugeColor(HUD_C_BRIGHT);
@@ -5571,8 +5725,6 @@ void HudGaugeWeaponEnergy::render(float frametime)
 				}
 			}
 		}
-
-		clip_h = fl2i( (1.0f - percent_left) * Wenergy_h + 0.5f );
 
 		bm_get_info(Energy_bar.first_frame+2,&w,&h);
 		
@@ -5842,7 +5994,7 @@ void HudGaugeWeapons::render(float frametime)
 		}
 
 		// indicate if this is linked or currently armed
-		if ( (sw->current_primary_bank == i) || (Player_ship->flags & SF_PRIMARY_LINKED) ) {
+		if ( ((sw->current_primary_bank == i) && !(Player_ship->flags & SF_PRIMARY_LINKED)) || ((Player_ship->flags & SF_PRIMARY_LINKED) && !(Weapon_info[sw->primary_bank_weapons[i]].wi_flags3 & WIF3_NOLINK))) {
 			renderPrintf(position[0] + Weapon_plink_offset_x, name_y, EG_NULL, "%c", Lcl_special_chars + 2);
 		}
 		
@@ -6354,4 +6506,697 @@ void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tp
 	} else {
 		gr_line(fl2i(x2),fl2i(y2-1),fl2i(x5),fl2i(y5-1));
 	}
+}
+
+HudGaugeWarheadCount::HudGaugeWarheadCount():
+HudGauge(HUD_OBJECT_WARHEAD_COUNT, HUD_WEAPONS_GAUGE, false, false, VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY, 255, 255, 255)
+{
+}
+
+void HudGaugeWarheadCount::initBitmap(char *fname)
+{
+	Warhead.first_frame = bm_load_animation(fname, &Warhead.num_frames);
+
+	if ( Warhead.first_frame < 0 ) {
+		Warning(LOCATION,"Cannot load hud ani: %s\n", fname);
+	}
+}
+
+void HudGaugeWarheadCount::initNameOffsets(int x, int y)
+{
+	Warhead_name_offsets[0] = x;
+	Warhead_name_offsets[1] = y;
+}
+
+void HudGaugeWarheadCount::initCountOffsets(int x, int y)
+{
+	Warhead_count_offsets[0] = x;
+	Warhead_count_offsets[1] = y;
+}
+
+void HudGaugeWarheadCount::initCountSizes(int w, int h)
+{
+	Warhead_count_size[0] = w;
+	Warhead_count_size[1] = h;
+}
+
+void HudGaugeWarheadCount::initMaxSymbols(int count)
+{
+	Max_symbols = count;
+}
+
+void HudGaugeWarheadCount::initMaxColumns(int count)
+{
+	Max_columns = count;
+}
+
+void HudGaugeWarheadCount::initTextAlign(int align)
+{
+	Text_align = align;
+}
+
+void HudGaugeWarheadCount::pageIn()
+{
+	bm_page_in_aabitmap(Warhead.first_frame, Warhead.num_frames);
+}
+
+void HudGaugeWarheadCount::render(float frametime)
+{
+	if(Player_obj->type == OBJ_OBSERVER) {
+		return;
+	}
+
+	Assert(Player_obj->type == OBJ_SHIP);
+	Assert(Player_obj->instance >= 0 && Player_obj->instance < MAX_SHIPS);
+
+	ship_weapon	*sw = &Ships[Player_obj->instance].weapons;
+
+	// don't bother displaying anything if we have no secondaries
+	if ( sw->num_secondary_banks <= 0 ) {
+		return;
+	}
+
+	int wep_num = sw->current_secondary_bank;
+	weapon_info *wip = &Weapon_info[sw->secondary_bank_weapons[wep_num]];
+	int ammo = sw->secondary_bank_ammo[wep_num];
+
+	// don't bother displaying anything if we have no ammo.
+	if ( ammo <= 0 ) {
+		return;
+	}
+
+	char weapon_name[NAME_LENGTH + 10];
+	strcpy_s(weapon_name, (wip->alt_name[0]) ? wip->alt_name : wip->name);
+	end_string_at_first_hash_symbol(weapon_name);
+
+	setGaugeColor();
+
+	// display the weapon name
+	if ( Text_align ) {
+		int w, h;
+
+		gr_get_string_size(&w, &h, weapon_name);
+		renderString(position[0] + Warhead_name_offsets[0] - w, position[1] + Warhead_name_offsets[1], weapon_name);
+	} else {
+		renderString(position[0] + Warhead_name_offsets[0], position[1] + Warhead_name_offsets[1], weapon_name);
+	}
+
+	setGaugeColor(HUD_C_BRIGHT);
+
+	// if ammo is greater than the icon display limit, just show a numeric
+	if ( ammo > Max_symbols ) {
+		char ammo_str[32];
+
+		sprintf(ammo_str, "%d", ammo);
+		hud_num_make_mono(ammo_str);
+
+		if ( Text_align ) {
+			int w, h;
+
+			gr_get_string_size(&w, &h, ammo_str);
+			renderString(position[0] + Warhead_count_offsets[0] - w, position[1] + Warhead_count_offsets[1], ammo_str);
+		} else {
+			renderString(position[0] + Warhead_count_offsets[0], position[1] + Warhead_count_offsets[1], ammo_str);
+		}
+
+		return;
+	}
+
+	int delta_x = 0, delta_y = 0;
+	if ( Text_align ) {
+		delta_x = -Warhead_count_size[0];
+	} else {
+		delta_x = Warhead_count_size[0];
+	}
+
+	int i, column;
+	for ( i = 0; i < ammo; i++ ) {
+		if ( Max_columns > 0 ) {
+			delta_y = Warhead_count_size[1] * (i / Max_columns);
+			column = i % Max_columns;
+		} else {
+			column = i;
+		}
+
+		renderBitmap(Warhead.first_frame, position[0] + Warhead_count_offsets[0] + column * delta_x, position[1] + Warhead_count_offsets[1] + delta_y);
+	}
+}
+
+HudGaugeWeaponList::HudGaugeWeaponList(int gauge_object):
+HudGauge(gauge_object, HUD_WEAPONS_GAUGE, false, false, VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY, 255, 255, 255)
+{
+
+}
+
+void HudGaugeWeaponList::initBitmaps(char *fname_first, char *fname_entry, char *fname_last)
+{
+	_background_first.first_frame = bm_load_animation(fname_first, &_background_first.num_frames);
+	if(_background_first.first_frame < 0) {
+		Warning(LOCATION,"Cannot load hud ani: %s\n", fname_first);
+	}
+
+	_background_entry.first_frame = bm_load_animation(fname_entry, &_background_entry.num_frames);
+	if(_background_entry.first_frame < 0) {
+		Warning(LOCATION,"Cannot load hud ani: %s\n", fname_entry);
+	}
+
+	_background_last.first_frame = bm_load_animation(fname_last, &_background_last.num_frames);
+	if(_background_last.first_frame < 0) {
+		Warning(LOCATION,"Cannot load hud ani: %s\n", fname_last);
+	}
+}
+
+void HudGaugeWeaponList::initBgFirstOffsetX(int x)
+{
+	_bg_first_offset_x = x;
+}
+
+void HudGaugeWeaponList::initBgEntryOffsetX(int x)
+{
+	_bg_entry_offset_x = x;
+}
+
+void HudGaugeWeaponList::initBgLastOffsetX(int x)
+{
+	_bg_last_offset_x = x;
+}
+
+void HudGaugeWeaponList::initBgLastOffsetY(int y)
+{
+	_bg_last_offset_y = y;
+}
+
+void HudGaugeWeaponList::initBgFirstHeight(int h)
+{
+	_background_first_h = h;
+}
+
+void HudGaugeWeaponList::initBgEntryHeight(int h)
+{
+	_background_entry_h = h;
+}
+
+void HudGaugeWeaponList::initHeaderText(char *text)
+{
+	strcpy_s(header_text, text);
+}
+
+void HudGaugeWeaponList::initHeaderOffsets(int x, int y)
+{
+	_header_offsets[0] = x;
+	_header_offsets[1] = y;
+}
+
+void HudGaugeWeaponList::initEntryStartY(int y)
+{
+	_entry_start_y = y;
+}
+
+void HudGaugeWeaponList::initEntryHeight(int h)
+{
+	_entry_h = h;
+}
+
+void HudGaugeWeaponList::pageIn()
+{
+	if ( _background_first.first_frame >= 0 ) {
+		bm_page_in_aabitmap(_background_first.first_frame, _background_first.num_frames);
+	}
+	
+	if ( _background_entry.first_frame >= 0 ) {
+		bm_page_in_aabitmap(_background_entry.first_frame, _background_entry.num_frames);
+	}
+
+	if ( _background_last.first_frame >= 0 ) {
+		bm_page_in_aabitmap(_background_last.first_frame, _background_last.num_frames);
+	}
+}
+
+void HudGaugeWeaponList::maybeFlashWeapon(int index)
+{
+	if ( index >= MAX_WEAPON_FLASH_LINES ) {
+		Int3();	// Get Alan
+		return;
+	}
+
+	// hud_set_default_color();
+	setGaugeColor();
+	if ( !timestamp_elapsed(Weapon_flash_info.flash_duration[index]) ) {
+		if ( Weapon_flash_info.is_bright & (1<<index) ) {
+			setGaugeColor(HUD_C_BRIGHT);
+			// hud_set_bright_color();
+		} else {
+			setGaugeColor(HUD_C_DIM);
+			// hud_set_dim_color();
+		}
+	}
+}
+
+void HudGaugeWeaponList::render(float frametime)
+{
+
+}
+
+HudGaugePrimaryWeapons::HudGaugePrimaryWeapons():
+HudGaugeWeaponList(HUD_OBJECT_PRIMARY_WEAPONS)
+{
+
+}
+
+void HudGaugePrimaryWeapons::initPrimaryLinkOffsetX(int x)
+{
+	_plink_offset_x = x;
+}
+
+void HudGaugePrimaryWeapons::initPrimaryNameOffsetX(int x)
+{
+	_pname_offset_x = x;
+}
+
+void HudGaugePrimaryWeapons::initPrimaryAmmoOffsetX(int x)
+{
+	_pammo_offset_x = x;
+}
+
+void HudGaugePrimaryWeapons::render(float frametime)
+{
+	ship_weapon	*sw;
+	int ship_is_ballistic;
+
+	int		num_primaries;		// np == num primary
+	char	name[NAME_LENGTH];	
+
+	if(Player_obj->type == OBJ_OBSERVER)
+		return;
+
+	Assert(Player_obj->type == OBJ_SHIP);
+	Assert(Player_obj->instance >= 0 && Player_obj->instance < MAX_SHIPS);
+
+	sw = &Ships[Player_obj->instance].weapons;
+	ship_is_ballistic = (Ship_info[Ships[Player_obj->instance].ship_info_index].flags & SIF_BALLISTIC_PRIMARIES);
+
+	num_primaries = sw->num_primary_banks;
+
+	setGaugeColor();
+
+	renderBitmap(_background_first.first_frame, position[0], position[1]);
+
+	// render the header of this gauge
+	renderString(position[0] + _header_offsets[0], position[1] + _header_offsets[1], EG_WEAPON_TITLE, header_text);
+
+	char ammo_str[32];
+	int i, w, h;
+	int bg_y_offset = _background_first_h;
+	int text_y_offset = _entry_start_y;
+
+	for ( i = 0; i < num_primaries; ++i ) {
+		setGaugeColor();
+
+		renderBitmap(_background_entry.first_frame, position[0], position[1] + bg_y_offset);
+
+		strcpy_s(name, (Weapon_info[sw->primary_bank_weapons[i]].alt_name[0]) ? Weapon_info[sw->primary_bank_weapons[i]].alt_name : Weapon_info[sw->primary_bank_weapons[i]].name);
+		
+		if (Lcl_gr) {
+			lcl_translate_wep_name(name);
+		}
+
+		if (HudGauge::maybeFlashSexp() == i ) {
+			setGaugeColor(HUD_C_BRIGHT);
+		} else {
+			maybeFlashWeapon(i);
+		}
+
+		// indicate if this is linked or currently armed
+		if ( (sw->current_primary_bank == i) || (Player_ship->flags & SF_PRIMARY_LINKED) ) {
+			renderPrintf(position[0] + _plink_offset_x, position[1] + text_y_offset, EG_NULL, "%c", Lcl_special_chars + 2);
+		}
+
+		// either render this primary's image or its name
+		if(Weapon_info[sw->primary_bank_weapons[0]].hud_image_index != -1) {
+			renderBitmap(Weapon_info[sw->primary_bank_weapons[i]].hud_image_index, position[0] + _pname_offset_x, text_y_offset);
+		} else {
+			renderPrintf(position[0] + _pname_offset_x, position[1] + text_y_offset, EG_WEAPON_P2, "%s", name);
+		}
+
+		// if this is a ballistic primary with ammo, render the ammo count
+		if (Weapon_info[sw->primary_bank_weapons[i]].wi_flags2 & WIF2_BALLISTIC) {
+			// print out the ammo right justified
+			sprintf(ammo_str, "%d", sw->primary_bank_ammo[i]);
+
+			// get rid of #
+			end_string_at_first_hash_symbol(ammo_str);
+
+			hud_num_make_mono(ammo_str);
+			gr_get_string_size(&w, &h, ammo_str);
+
+			renderString(position[0] + _pammo_offset_x - w, position[1] + text_y_offset, EG_NULL, ammo_str);
+		}
+
+		text_y_offset += _entry_h;
+		bg_y_offset += _background_entry_h;
+	}
+
+	if ( num_primaries == 0 ) {
+		renderBitmap(_background_entry.first_frame, position[0], position[1] + bg_y_offset);
+		renderString(position[0] + _pname_offset_x, position[1] + text_y_offset, EG_WEAPON_P1, XSTR( "<none>", 329));
+
+		bg_y_offset += _background_entry_h;
+	}
+
+	renderBitmap(_background_last.first_frame, position[0], position[1] + bg_y_offset + _bg_last_offset_y);
+}
+
+HudGaugeSecondaryWeapons::HudGaugeSecondaryWeapons():
+HudGaugeWeaponList(HUD_OBJECT_SECONDARY_WEAPONS)
+{
+
+}
+
+void HudGaugeSecondaryWeapons::initSecondaryAmmoOffsetX(int x)
+{
+	_sammo_offset_x = x;
+}
+
+void HudGaugeSecondaryWeapons::initSecondaryNameOffsetX(int x)
+{
+	_sname_offset_x = x;
+}
+
+void HudGaugeSecondaryWeapons::initSecondaryReloadOffsetX(int x)
+{
+	_sreload_offset_x = x;
+}
+
+void HudGaugeSecondaryWeapons::initSecondaryLinkedOffsetX(int x)
+{
+	_slinked_offset_x = x;
+}
+
+void HudGaugeSecondaryWeapons::initSecondaryUnlinkedOffsetX(int x)
+{
+	_sunlinked_offset_x = x;
+}
+
+void HudGaugeSecondaryWeapons::render(float frametime)
+{
+	ship_weapon	*sw;
+	int ship_is_ballistic;
+
+	int num_primaries, num_secondaries;
+
+	Assert(Player_obj->type == OBJ_SHIP);
+	Assert(Player_obj->instance >= 0 && Player_obj->instance < MAX_SHIPS);
+
+	sw = &Ships[Player_obj->instance].weapons;
+	ship_is_ballistic = (Ship_info[Ships[Player_obj->instance].ship_info_index].flags & SIF_BALLISTIC_PRIMARIES);
+
+	num_primaries = sw->num_primary_banks;
+	num_secondaries = sw->num_secondary_banks;
+
+	setGaugeColor();
+
+	renderBitmap(_background_first.first_frame, position[0], position[1]);
+
+	// render the header of this gauge
+	renderString(position[0] + _header_offsets[0], position[1] + _header_offsets[1], EG_WEAPON_TITLE, header_text);
+
+	weapon_info	*wip;
+	char weapon_name[NAME_LENGTH + 10];
+	char ammo_str[32];
+	int i, w, h;
+	int bg_y_offset = _background_first_h;
+	int text_y_offset = _entry_start_y;
+
+	for ( i = 0; i < num_secondaries; ++i ) {
+		setGaugeColor();
+		wip = &Weapon_info[sw->secondary_bank_weapons[i]];
+
+		renderBitmap(_background_entry.first_frame, position[0], position[1] + bg_y_offset);
+
+		maybeFlashWeapon(num_primaries+i);
+
+		strcpy_s(weapon_name, (wip->alt_name[0]) ? wip->alt_name : wip->name);
+		end_string_at_first_hash_symbol(weapon_name);
+
+		if ( sw->current_secondary_bank == i ) {
+			// show that this is the current secondary armed
+			renderPrintf(position[0] + _sunlinked_offset_x, position[1] + text_y_offset, EG_NULL, "%c", Lcl_special_chars + 2);
+
+			// indicate if this is linked
+			if ( Player_ship->flags & SF_SECONDARY_DUAL_FIRE ) {
+				renderPrintf(position[0] + _slinked_offset_x, position[1] + text_y_offset, EG_NULL, "%c", Lcl_special_chars + 2);				
+			}
+
+			// show secondary weapon's image or print its name
+			if(wip->hud_image_index != -1) {
+				renderBitmap(wip->hud_image_index, position[0] + _sname_offset_x, position[1] + text_y_offset);
+			} else {
+				renderString(position[0] + _sname_offset_x, position[1] + text_y_offset, i ? EG_WEAPON_S1 : EG_WEAPON_S2, weapon_name);
+			}
+
+			// show the cooldown time
+			if ( (sw->secondary_bank_ammo[i] > 0) && (sw->current_secondary_bank >= 0) ) {
+				int ms_till_fire = timestamp_until(sw->next_secondary_fire_stamp[sw->current_secondary_bank]);
+				if ( (ms_till_fire >= 500) && ((wip->fire_wait >= 1 ) || (ms_till_fire > wip->fire_wait*1000)) ) {
+					renderPrintf(position[0] + _sreload_offset_x, position[1] + text_y_offset, EG_NULL, "%d", fl2i(ms_till_fire/1000.0f +0.5f));					
+				}
+			}
+		} else {
+			renderString(position[0] + _sname_offset_x, position[1] + text_y_offset, i ? EG_WEAPON_S1 : EG_WEAPON_S2, weapon_name);		
+		}
+
+		int ammo = sw->secondary_bank_ammo[i];
+
+		// print out the ammo right justified
+		sprintf(ammo_str, "%d", ammo);
+		hud_num_make_mono(ammo_str);
+		gr_get_string_size(&w, &h, ammo_str);
+
+		renderString(position[0] + _sammo_offset_x - w, position[1] + text_y_offset, EG_NULL, ammo_str);
+
+		bg_y_offset += _background_entry_h;
+		text_y_offset += _entry_h;
+	}
+
+	if ( num_secondaries == 0 ) {
+		renderBitmap(_background_entry.first_frame, position[0], position[1] + bg_y_offset);
+		renderString(position[0] + _sname_offset_x, position[1] + text_y_offset, EG_WEAPON_S1, XSTR( "<none>", 329));
+
+		bg_y_offset += _background_entry_h;
+	}
+
+	// finish drawing the background
+	renderBitmap(_background_last.first_frame, position[0], position[1] + bg_y_offset + _bg_last_offset_y);
+}
+
+HudGaugeHardpoints::HudGaugeHardpoints():
+HudGauge(HUD_OBJECT_HARDPOINTS, HUD_WEAPONS_GAUGE, false, false, VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY, 255, 255, 255)
+{
+
+}
+
+void HudGaugeHardpoints::initSizes(int w, int h)
+{
+	_size[0] = w;
+	_size[1] = h;
+}
+
+void HudGaugeHardpoints::initLineWidth(float w)
+{
+	_line_width = w;
+}
+
+void HudGaugeHardpoints::initViewDir(int dir)
+{
+	_view_direction = dir;
+}
+
+void HudGaugeHardpoints::initDrawOptions(bool primary_models, bool secondary_models)
+{
+	draw_primary_models = primary_models;
+	draw_secondary_models = secondary_models;
+}
+
+void HudGaugeHardpoints::render(float frametime)
+{
+	int			sx, sy;
+	ship			*sp;
+	ship_info	*sip;
+	object *objp = Player_obj;
+
+	sp = &Ships[objp->instance];
+	sip = &Ship_info[sp->ship_info_index];
+
+	sx = position[0];
+	sy = position[1];
+
+	bool g3_yourself = !g3_in_frame();
+	angles top_view = {-PI_2,0.0f,0.0f};
+	angles front_view = {PI_2*2.0f,PI_2*2.0f,0.0f};
+	matrix	object_orient;
+
+	switch ( _view_direction ) {
+		case TOP:
+			vm_angles_2_matrix(&object_orient, &top_view);
+			break;
+		case FRONT:
+			vm_angles_2_matrix(&object_orient, &front_view);
+			break;
+	}
+
+	gr_screen.clip_width = _size[0];
+	gr_screen.clip_height = _size[1];
+
+	//Fire it up
+	if(g3_yourself)
+		g3_start_frame(1);
+	hud_save_restore_camera_data(1);
+	setClip(sx, sy, _size[0], _size[1]);
+	model_set_detail_level(1);
+
+	g3_set_view_matrix( &sip->closeup_pos, &vmd_identity_matrix, sip->closeup_zoom*1.5f);
+
+	if (!Cmdline_nohtl) {
+		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+		gr_set_view_matrix(&Eye_position, &Eye_matrix);
+	}
+
+	setGaugeColor();
+
+	//We're ready to show stuff
+	
+	int cull = gr_set_cull(0);
+	gr_stencil_clear();
+	gr_stencil_set(GR_STENCIL_WRITE);
+	int zbuffer = gr_zbuffer_set(GR_ZBUFF_NONE);
+	gr_set_color_buffer(0);
+
+	ship_model_start(objp);
+	model_render( sip->model_num, -1, &object_orient, &vmd_zero_vector, MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_TEXTURING | MR_NO_CULL);
+
+	gr_set_color_buffer(1);
+	gr_stencil_set(GR_STENCIL_READ);
+	gr_set_cull(cull);
+	gr_set_line_width(_line_width*2.0f);
+
+	model_set_alpha( gr_screen.current_color.alpha / 255.0f );
+	model_set_forced_texture(0);
+
+	model_render( 
+		sip->model_num, 
+		-1,
+		&object_orient, 
+		&vmd_zero_vector, 
+		MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_TEXTURING | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_NO_ZBUFFER | MR_NO_CULL | MR_ALL_XPARENT
+	);
+	ship_model_stop( objp );
+
+	gr_stencil_set(GR_STENCIL_NONE);
+	gr_zbuffer_set(zbuffer);
+	gr_set_line_width(1.0f);
+	
+	// draw weapon models
+	int i, k;
+	ship_weapon *swp = &sp->weapons;
+	vertex draw_point;
+	vec3d subobj_pos;
+	g3_start_instance_matrix(&vmd_zero_vector, &object_orient, true);
+
+	int render_flags = MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_TEXTURING | MR_NO_ZBUFFER;
+
+	setGaugeColor();
+	model_set_alpha( gr_screen.current_color.alpha / 255.0f );
+
+	//secondary weapons
+	int num_secondaries_rendered = 0;
+	vec3d secondary_weapon_pos;
+	w_bank* bank;
+
+	if ( draw_secondary_models ) {
+		for (i = 0; i < swp->num_secondary_banks; i++) {
+			if (Weapon_info[swp->secondary_bank_weapons[i]].external_model_num == -1 || !sip->draw_secondary_models[i])
+				continue;
+
+			bank = &(model_get(sip->model_num))->missile_banks[i];
+
+			if (Weapon_info[swp->secondary_bank_weapons[i]].wi_flags2 & WIF2_EXTERNAL_WEAPON_LNCH) {
+				for(k = 0; k < bank->num_slots; k++) {
+					model_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &bank->pnt[k], render_flags);
+				}
+			} else {
+				num_secondaries_rendered = 0;
+
+				for(k = 0; k < bank->num_slots; k++)
+				{
+					secondary_weapon_pos = bank->pnt[k];
+
+					if (num_secondaries_rendered >= sp->weapons.secondary_bank_ammo[i])
+						break;
+
+					if(sp->secondary_point_reload_pct[i][k] <= 0.0)
+						continue;
+
+					if ( swp->current_secondary_bank == i && ( swp->secondary_next_slot[i] == k || ( swp->secondary_next_slot[i]+1 == k && sp->flags & SF_SECONDARY_DUAL_FIRE ) ) ) {
+						gr_set_color_fast(&Color_bright_blue);
+					} else {
+						gr_set_color_fast(&Color_bright_white);
+						
+					}
+
+					num_secondaries_rendered++;
+
+					vm_vec_scale_add2(&secondary_weapon_pos, &vmd_z_vector, -(1.0f-sp->secondary_point_reload_pct[i][k]) * model_get(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num)->rad);
+
+					model_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &secondary_weapon_pos, render_flags);
+				}
+			}
+		}
+	}
+	g3_done_instance(true);
+	resetClip();
+	model_set_forced_texture(0);
+
+	setGaugeColor(HUD_C_BRIGHT);
+
+	//primary weapons
+	if ( draw_primary_models ) {
+		for ( i = 0; i < swp->num_primary_banks; i++ ) {
+			w_bank *bank = &model_get(sip->model_num)->gun_banks[i];
+
+			for ( k = 0; k < bank->num_slots; k++ ) {	
+				if ( ( Weapon_info[swp->primary_bank_weapons[i]].external_model_num == -1 || !sip->draw_primary_models[i] ) ) {
+					vm_vec_unrotate(&subobj_pos, &bank->pnt[k], &object_orient);
+					//vm_vec_sub(&subobj_pos, &Eye_position, &subobj_pos);
+					//g3_rotate_vertex(&draw_point, &bank->pnt[k]);
+
+					g3_rotate_vertex(&draw_point, &subobj_pos);
+					g3_project_vertex(&draw_point);
+
+					//resize(&width, &height);
+
+					//unsize(&xc, &yc);
+					//unsize(&draw_point.screen.xyw.x, &draw_point.screen.xyw.y);
+
+					renderCircle((int)draw_point.screen.xyw.x + position[0], (int)draw_point.screen.xyw.y + position[1], 10);
+					//renderCircle(xc, yc, 25);
+				} else {
+					polymodel* pm = model_get(Weapon_info[swp->primary_bank_weapons[i]].external_model_num);
+					pm->gun_submodel_rotation = sp->primary_rotate_ang[i];
+					model_render(Weapon_info[swp->primary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &bank->pnt[k], render_flags);
+					pm->gun_submodel_rotation = 0.0f;
+				}
+			}
+		}
+	}
+	
+	//We're done
+	if(!Cmdline_nohtl)
+	{
+		gr_end_view_matrix();
+		gr_end_proj_matrix();
+	}
+	if(g3_yourself)
+		g3_end_frame();
+
+	hud_save_restore_camera_data(0);
 }

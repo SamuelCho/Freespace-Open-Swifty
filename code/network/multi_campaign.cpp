@@ -61,7 +61,6 @@ int Multi_campaign_accept_flags[MAX_PLAYERS];
 // load a new campaign file or notify the standalone if we're not the server
 void multi_campaign_start(char *filename)
 {
-	int max_players;
 	char str[255];
 	
 	// set the netgame mode
@@ -97,8 +96,7 @@ void multi_campaign_start(char *filename)
 			std_multi_set_standalone_mission_name(str);
 		}
 
-		// maybe override the Netgame.respawn setting
-		max_players = mission_parse_get_multi_mission_info( Netgame.mission_name );				
+		// maybe override the Netgame.respawn setting			
 		Netgame.respawn = The_mission.num_respawns;
 		nprintf(("Network","MULTI CAMPAIGN : overriding respawn setting with mission max %d\n",The_mission.num_respawns));		
 
@@ -713,7 +711,7 @@ void multi_campaign_process_ingame_start( ubyte *data, header *hinfo )
 	case MC_JIP_INITIAL_PACKET:
 
 		// clear out the names of the missions
-		mission_campaign_close();						// should free all data structures which need to be freed
+		mission_campaign_clear();		// should free all data structures which need to be freed
 
 		// get the number of campaigns and their names.
 		GET_INT(Campaign.num_missions);

@@ -465,6 +465,10 @@ void techroom_ships_render(float frametime)
 	int z;
 	ship_info *sip = &Ship_info[Cur_entry_index];
 
+	if (sip->uses_team_colors) {
+		gr_set_team_color(sip->default_team_name, "<none>", 0, 0);
+	}
+
 	// get correct revolution rate
 	z = sip->flags;
 	if (z & SIF_BIG_SHIP) {
@@ -526,9 +530,15 @@ void techroom_ships_render(float frametime)
 	light_rotate_all();
 	// lighting for techroom
 
+	Glowpoint_use_depth_buffer = false;
+
 	model_clear_instance(Techroom_ship_modelnum);
 	model_set_detail_level(0);
 	model_render(Techroom_ship_modelnum, -1, &Techroom_ship_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER);
+
+	Glowpoint_use_depth_buffer = true;
+
+	batch_render_all();
 
 	if (!Cmdline_nohtl)
 	{
@@ -539,6 +549,7 @@ void techroom_ships_render(float frametime)
 	g3_end_frame();
 
 	gr_reset_clip();
+	gr_disable_team_color();
 }
 
 // select previous entry in current list

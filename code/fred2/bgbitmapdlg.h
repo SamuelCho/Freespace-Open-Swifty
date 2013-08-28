@@ -35,7 +35,9 @@ public:
 	void get_data_spinner(NM_UPDOWN* pUD, int id, int *var, int min, int max);
 	void get_data_int(int id, int *var, int min, int max);
 	void get_data_float(int id, float *var, float max, float min);
-
+	
+	afx_msg void OnClose();
+	
 	bg_bitmap_dlg(CWnd* pParent = NULL);   // standard constructor
 
 // Dialog Data
@@ -85,6 +87,9 @@ public:
 	int m_sky_flag_6;
 	CString m_skybox_model;
 	CString m_envmap;
+	int m_skybox_pitch;
+	int m_skybox_bank;
+	int m_skybox_heading;
 	float m_neb_near_multi;
 	float m_neb_far_multi;
 	//}}AFX_DATA
@@ -105,9 +110,10 @@ protected:
 	int get_swap_background();
 	void reinitialize_lists();
 
+	void OnOrientationChange();
+
 	// Generated message map functions
 	//{{AFX_MSG(bg_bitmap_dlg)
-	afx_msg void OnClose();
 	afx_msg void OnCancel();	
 	afx_msg void OnOK();	
 	afx_msg void OnSelchangeNebcolor();
@@ -143,6 +149,12 @@ protected:
 	afx_msg void OnSwapBackground();
 	afx_msg void OnBackgroundDropdownChange();
 	afx_msg void OnSkyboxBrowse();
+	afx_msg void OnDeltaposSkyboxPSpin(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnDeltaposSkyboxBSpin(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnDeltaposSkyboxHSpin(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnKillfocusSkyboxP();
+	afx_msg void OnKillfocusSkyboxB();
+	afx_msg void OnKillfocusSkyboxH();
 	afx_msg void OnEnvmapBrowse();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()

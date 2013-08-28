@@ -64,7 +64,7 @@ static int X, P_width;
 
 // Log_lines is used for scrollback display purposes.
 static log_text_seg *Log_lines[MAX_LOG_LINES];
-static int Log_line_timestamps[MAX_LOG_LINES];
+static fix Log_line_timestamps[MAX_LOG_LINES];
 
 log_entry log_entries[MAX_LOG_ENTRIES];	// static array because John says....
 int last_entry;
@@ -128,9 +128,9 @@ void mission_log_obsolete_entries(int type, char *pname)
 	int i;
 	log_entry *entry = NULL;
 
-	// before adding this entry, check to see if the entry type is a ship destroyed entry.
+	// before adding this entry, check to see if the entry type is a ship destroyed or destructed entry.
 	// If so, we can remove any subsystem destroyed entries from the log for this ship.  
-	if ( type == LOG_SHIP_DESTROYED ) {
+	if ( type == LOG_SHIP_DESTROYED || type == LOG_SELF_DESTRUCTED ) {
 		for (i = 0; i < last_entry; i++) {
 			entry = &log_entries[i];
 
@@ -225,7 +225,7 @@ void mission_log_add_entry(int type, char *pname, char *sname, int info_index)
 	// determine the contents of the flags member based on the type of entry we added.  We need to store things
 	// like team for the primary and (possibly) secondary object for this entry.
 	switch ( type ) {
-	int index, si;
+	int index;
 
 	case LOG_SHIP_DESTROYED:
 	case LOG_SHIP_ARRIVED:
@@ -312,9 +312,19 @@ void mission_log_add_entry(int type, char *pname, char *sname, int info_index)
 
 		// get the team value for this wing.  Departed or destroyed wings will pass the team
 		// value in info_index parameter.  For arriving wings, get the team value from the
-		// first ship in the list
+		// first ship in the list because the info_index contains the wave count
 		if ( type == LOG_WING_ARRIVED ) {
-			si = Wings[index].ship_index[0];
+			int i, si = -1;
+
+			// Goober5000 - get the team value from any ship in the list, because
+			// ships that arrive initially docked could be created in random order
+			for (i = 0; i < MAX_SHIPS_PER_WING; ++i) {
+				// get first valid ship
+				si = Wings[index].ship_index[i];
+				if (si >= 0) {
+					break;
+				}
+			}
 			Assert( si != -1 );
 			entry->primary_team = Ships[si].team;
 		} else {
@@ -649,7 +659,7 @@ void message_log_init_scrollback(int pw)
 			continue;
 
 		// track time of event (normal timestamp milliseconds format)
-		Log_line_timestamps[Num_log_lines] = (int) ( f2fl(entry->timestamp) * 1000.0f );
+		Log_line_timestamps[Num_log_lines] = entry->timestamp;
 
 		// Goober5000
 		if ((entry->type == LOG_GOAL_SATISFIED) || (entry->type == LOG_GOAL_FAILED))

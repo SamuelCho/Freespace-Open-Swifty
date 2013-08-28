@@ -67,7 +67,7 @@ int Lcl_english = 1;
 // the english version (in the code) to a foreign version (in the table).  Thus, if you
 // add a new string to the code, you must assign it a new index.  Use the number below for
 // that index and increase the number below by one.
-#define XSTR_SIZE	1574
+#define XSTR_SIZE	1636
 
 
 // struct to allow for strings.tbl-determined x offset
@@ -1139,7 +1139,6 @@ int lcl_ext_lookup(char *out, int id)
 //
 int lcl_ext_lookup_sub(char *text, char *out, int id)
 {
-	char *front;			// front of the line
 	char *p;					// current ptr
 	int len = strlen(text);
 	int count;	
@@ -1147,7 +1146,6 @@ int lcl_ext_lookup_sub(char *text, char *out, int id)
 	char *tok;
 	int found_new_string_id = 0;
 
-	front = text;
 	p = text;
 	count = 0;			
 	while(count < len){
@@ -1300,7 +1298,7 @@ void lcl_ext_setup_pointers()
 
 	// if we didn't find the language specified, error
 	if(found_start <= 0){
-		error_display(0, "Could not find specified langauge in tstrings.tbl!\n");
+		error_display(0, "Could not find specified language in tstrings.tbl!\n");
 		lcl_ext_close();
 		return;
 	}

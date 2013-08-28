@@ -110,10 +110,11 @@ static color Interp_outline_color;
 static int Interp_detail_level_locked = 0;
 static uint Interp_flags = 0;
 static uint Interp_tmap_flags = 0;
+bool Interp_desaturate = false;
 
 // If non-zero, then the subobject gets scaled by Interp_thrust_scale.
-static int Interp_thrust_scale_subobj = 0;
-static float Interp_thrust_scale = 0.1f;
+int Interp_thrust_scale_subobj = 0;
+float Interp_thrust_scale = 0.1f;
 static float Interp_thrust_scale_x = 0.0f;//added -bobboau
 static float Interp_thrust_scale_y = 0.0f;//added -bobboau
 
@@ -172,6 +173,7 @@ static int FULLCLOAK = -1;
 // current transformation texture
 int Interp_transform_texture = -1;
 int Interp_transparent_textures_only = 0;
+int Interp_no_flush = 0;
 
 // forward references
 int model_interp_sub(void *model_ptr, polymodel * pm, bsp_info *sm, int do_box_check);
@@ -1799,13 +1801,9 @@ void model_render_insignias(polymodel *pm, int detail_level)
 	int idx, s_idx;
 	vertex vecs[3];
 	vertex *vlist[3] = { &vecs[0], &vecs[1], &vecs[2] };
-	vec3d t1, t2, t3, x;
+	vec3d t1, t2, t3;
 	int i1, i2, i3;
 	int tmap_flags = TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT;
-
-	x.xyz.x=0;
-	x.xyz.y=0;
-	x.xyz.z=0;
 
 	// set the proper texture	
 	gr_set_bitmap(Interp_insignia_bitmap, GR_ALPHABLEND_NONE, GR_BITBLT_MODE_NORMAL, 0.65f);
@@ -2020,10 +2018,8 @@ void model_render(int model_num, int model_instance_num, matrix *orient, vec3d *
 		Interp_light = 1.0f;
 	}
 
-	int num_lights = 0;
-
 	if ( !(flags & MR_NO_LIGHTING ) )	{
-		num_lights = light_filter_push( objnum, pos, pm->rad );
+		light_filter_push( objnum, pos, pm->rad );
 	}
 
 	model_really_render(model_num, model_instance_num, orient, pos, flags, objnum);
@@ -2483,7 +2479,7 @@ void model_render_thrusters(polymodel *pm, int objnum, ship *shipp, matrix *orie
 	gr_zbuffer_set(zbuff_save);
 }
 
-void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d *pos)
+void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d *pos, bool use_depth_buffer = true)
 {
 	int i, j;
 
@@ -2491,6 +2487,9 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 
 	for (i = 0; i < pm->n_glow_point_banks; i++ ) {
 		glow_point_bank *bank = &pm->glow_point_banks[i];
+
+		if (pm->submodel[bank->submodel_parent].blown_off)
+			continue;
 
 		if (bank->is_on) {
 			if ( (shipp != NULL) && !(shipp->glow_point_bank_active[i]) )
@@ -2508,42 +2507,36 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 
 				if (flick == 1) {
 					glow_point *gpt = &bank->points[j];
-					vec3d pnt = gpt->pnt;
-					vec3d norm = gpt->norm;
-				
-					if (bank->submodel_parent > 0) { //this is where it rotates for the submodel parent-Bobboau
-						if (pm->submodel[bank->submodel_parent].blown_off)
-							continue;
+                    vec3d loc_offset = gpt->pnt;
+                    vec3d loc_norm = gpt->norm;
+                    vec3d world_pnt;
+                    vec3d world_norm;
+                    vec3d tempv;
+                    vec3d submodel_static_offset; // The associated submodel's static offset in the ship's frame of reference
+                    bool submodel_rotation = false;
 
-						angles angs = pm->submodel[bank->submodel_parent].angs;
-						angs.b = PI2 - angs.b;
-						angs.p = PI2 - angs.p;
-						angs.h = PI2 - angs.h;
+					if ( bank->submodel_parent > 0 && pm->submodel[bank->submodel_parent].can_move && (gameseq_get_state_idx(GS_STATE_LAB) == -1) && shipp != NULL ) {
+						model_find_submodel_offset(&submodel_static_offset, Ship_info[shipp->ship_info_index].model_num, bank->submodel_parent);
 
-						// Compute final submodel orientation by using the orientation
-						// matrix and the rotation angles.
-						// By using this kind of computation, the rotational angles can
-						// always be computed relative to the submodel itself, instead
-						// of relative to the parent - KeldorKatarn
-						matrix rotation_matrix = pm->submodel[bank->submodel_parent].orientation;
-						vm_rotate_matrix_by_angles(&rotation_matrix, &angs);
-
-						matrix inv_orientation;
-						vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[bank->submodel_parent].orientation);
-
-						matrix submodel_matrix;
-						vm_matrix_x_matrix(&submodel_matrix, &rotation_matrix, &inv_orientation);
-
-						vec3d offset = pm->submodel[bank->submodel_parent].offset;
-						vm_vec_sub(&pnt, &pnt, &offset);
-						vec3d p = pnt;
-						vec3d n = norm;
-						vm_vec_rotate(&pnt, &p, &submodel_matrix);
-						vm_vec_rotate(&norm, &n, &submodel_matrix);
-						vm_vec_add2(&pnt, &offset);
+						submodel_rotation = true;
 					}
 
-					vec3d tempv;
+					if ( submodel_rotation ) {
+						vm_vec_sub(&loc_offset, &gpt->pnt, &submodel_static_offset);
+
+						tempv = loc_offset;
+						find_submodel_instance_point_normal(&loc_offset, &loc_norm, &Objects[shipp->objnum], bank->submodel_parent, &tempv, &loc_norm);
+					}
+
+					vm_vec_unrotate(&world_pnt, &loc_offset, orient);
+					vm_vec_add2(&world_pnt, pos);
+
+					vm_vec_unrotate(&world_norm, &loc_norm, orient);
+					
+					if ( (shipp != NULL) && (shipp->flags & (SF_ARRIVING | SF_DEPART_WARP) ) && (shipp->warpin_effect) && Ship_info[shipp->ship_info_index].warpin_type != WT_HYPERSPACE) {
+						if (g3_point_behind_user_plane(&world_pnt))
+							continue;
+					}
 
 					switch (bank->type)
 					{
@@ -2551,13 +2544,13 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 						{
 							float d;
 
-							if ( IS_VEC_NULL(&norm) ) {
+							if ( IS_VEC_NULL(&world_norm) ) {
 								d = 1.0f;	//if given a nul vector then always show it
 							} else {
-								vm_vec_sub(&tempv,&View_position,&pnt);
+								vm_vec_sub(&tempv,&View_position,&world_pnt);
 								vm_vec_normalize(&tempv);
 
-								d = vm_vec_dot(&tempv,&norm);
+								d = vm_vec_dot(&tempv,&world_norm);
 								d -= 0.25;	
 							}
 					
@@ -2573,10 +2566,10 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 
 								// fade them in the nebula as well
 								if (The_mission.flags & MISSION_FLAG_FULLNEB) {
-									vec3d npnt;
-									vm_vec_add(&npnt, &pnt, pos);
+									//vec3d npnt;
+									//vm_vec_add(&npnt, &loc_offset, pos);
 
-									d *= (1.0f - neb2_get_fog_intensity(&npnt));
+									d *= (1.0f - neb2_get_fog_intensity(&world_pnt));
 									w *= 1.5;	//make it bigger in a nebula
 								}
 				
@@ -2585,13 +2578,24 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 									gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
 	
 								if (!Cmdline_nohtl) {
-									g3_transfer_vertex(&p, &pnt);
+									g3_transfer_vertex(&p, &world_pnt);
 								} else {
-									g3_rotate_vertex(&p, &pnt);
+									g3_rotate_vertex(&p, &world_pnt);
 								}
+ 
+								p.r = p.g = p.b = p.a = (ubyte)(255.0f * d);
+								int gpflags = TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT;
+								if (use_depth_buffer)
+									gpflags |= TMAP_FLAG_SOFT_QUAD;
 
-								gr_set_bitmap( bank->glow_bitmap, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, d );
-								g3_draw_bitmap(&p, 0, (w * 0.5f), TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT, w);
+								batch_add_bitmap(
+									bank->glow_bitmap,
+									gpflags,  
+									&p,
+									0,
+									(w * 0.5f),
+									d
+								);
 							} //d>0.0f
 
 							break;
@@ -2602,16 +2606,16 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 							vertex verts[4];
 							vec3d fvec, top1, bottom1, top2, bottom2, start, end;
 
-							vm_vec_add2(&norm, &pnt);
+							vm_vec_add2(&loc_norm, &loc_offset);
 
-							vm_vec_rotate(&start, &pnt, orient);
-							vm_vec_rotate(&end, &norm, orient);
+							vm_vec_rotate(&start, &loc_offset, orient);
+							vm_vec_rotate(&end, &loc_norm, orient);
 							vm_vec_sub(&fvec, &end, &start);
 
 							vm_vec_normalize(&fvec);
 
-							moldel_calc_facing_pts(&top1, &bottom1, &fvec, &pnt, gpt->radius, 1.0f, &View_position);
-							moldel_calc_facing_pts(&top2, &bottom2, &fvec, &norm, gpt->radius, 1.0f, &View_position);
+							moldel_calc_facing_pts(&top1, &bottom1, &fvec, &loc_offset, gpt->radius, 1.0f, &View_position);
+							moldel_calc_facing_pts(&top2, &bottom2, &fvec, &loc_norm, gpt->radius, 1.0f, &View_position);
 
 							int idx = 0;
 
@@ -2643,7 +2647,7 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 							verts[3].texture_position.u = 0.0f;
 							verts[3].texture_position.v = 1.0f;
 
-							vm_vec_sub(&tempv,&View_position,&pnt);
+							vm_vec_sub(&tempv,&View_position,&loc_offset);
 							vm_vec_normalize(&tempv);
 
 							if (The_mission.flags & MISSION_FLAG_FULLNEB) {
@@ -2749,6 +2753,10 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 
 	if ( Interp_flags & MR_ANIMATED_SHADER )
 		Interp_tmap_flags |= TMAP_ANIMATED_SHADER;
+
+	if ( Interp_desaturate ) {
+		Interp_tmap_flags |= TMAP_FLAG_DESATURATE;
+	}
 
 	save_gr_zbuffering_mode = gr_zbuffering_mode;
 	zbuf_mode = gr_zbuffering_mode;
@@ -2913,7 +2921,7 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 
 	if (is_outlines_only_htl) {
 		gr_set_fill_mode( GR_FILL_MODE_WIRE );
-
+		gr_set_color_fast( &Interp_outline_color );
 		// lines shouldn't be rendered with textures or special RGB colors (assuming preset colors)
 		Interp_flags |= MR_NO_TEXTURING;
 		Interp_tmap_flags &= ~TMAP_FLAG_TEXTURED;
@@ -3097,8 +3105,12 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	}
 	transparent_submodels.clear();
 
-	if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-		gr_set_buffer(-1);
+	if ( !Interp_no_flush ) {
+		gr_flush_data_states();
+
+		if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
+			gr_set_buffer(-1);
+		}
 	}
 
 	if (is_outlines_only_htl) {
@@ -3142,11 +3154,6 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 		model_render_shields(pm);
 	}	
 
-	// start rendering glow points -Bobboau
-	if ( (pm->n_glow_point_banks) && !is_outlines_only && !is_outlines_only_htl && !Glowpoint_override ) {
-		model_render_glow_points(pm, shipp, orient, pos);
-	}
-
 	if ( Interp_flags & MR_SHOW_PATHS ){
 		if (Cmdline_nohtl) model_draw_paths(model_num);
 		else model_draw_paths_htl(model_num);
@@ -3162,6 +3169,11 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	}
 
 	g3_done_instance(use_api);
+
+	// start rendering glow points -Bobboau
+	if ( (pm->n_glow_point_banks) && !is_outlines_only && !is_outlines_only_htl && !Glowpoint_override ) {
+		model_render_glow_points(pm, shipp, orient, pos, Glowpoint_use_depth_buffer);
+	}
 
 	// Draw the thruster glow
 	if ( !is_outlines_only && !is_outlines_only_htl ) {
@@ -3232,6 +3244,26 @@ void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * po
 
 	//set to true since D3d and OGL need the api matrices set
 	g3_start_instance_matrix(pos, orient, true);
+	bool set_autocen = false;
+	vec3d auto_back = ZERO_VECTOR;
+	if (Interp_flags & MR_AUTOCENTER) {
+		// standard autocenter using data in model
+		if (pm->flags & PM_FLAG_AUTOCEN) {
+			auto_back = pm->autocenter;
+			vm_vec_scale(&auto_back, -1.0f);
+			set_autocen = true;
+		}
+		// fake autocenter if we are a missile and don't already have autocen info
+		else if (Interp_flags & MR_IS_MISSILE) {
+            auto_back.xyz.x = -( (pm->submodel[pm->detail[Interp_detail_level]].max.xyz.x + pm->submodel[pm->detail[Interp_detail_level]].min.xyz.x) / 2.0f );
+            auto_back.xyz.y = -( (pm->submodel[pm->detail[Interp_detail_level]].max.xyz.y + pm->submodel[pm->detail[Interp_detail_level]].min.xyz.y) / 2.0f );
+			auto_back.xyz.z = -( (pm->submodel[pm->detail[Interp_detail_level]].max.xyz.z + pm->submodel[pm->detail[Interp_detail_level]].min.xyz.z) / 2.0f );
+			set_autocen = true;
+		}
+
+		if (set_autocen)
+			g3_start_instance_matrix(&auto_back, NULL, true);
+	}
 
 	if (is_outlines_only_htl) {
 		gr_set_fill_mode( GR_FILL_MODE_WIRE );
@@ -3353,13 +3385,16 @@ void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * po
 	if ( !(Interp_flags & MR_NO_LIGHTING ) )	{
 		light_filter_pop();	
 	}
-
+	if (set_autocen)
+		g3_done_instance(true);
 	g3_done_instance(true);
 
 	// turn off fog after each model renders, RT This fixes HUD being fogged when debris is in target box
 	if(The_mission.flags & MISSION_FLAG_FULLNEB){
 		gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
 	}
+
+	gr_flush_data_states();
 }
 
 // Fills in an array with points from a model.
@@ -3463,6 +3498,39 @@ void submodel_get_two_random_points(int model_num, int submodel_num, vec3d *v1, 
 	}
 	if(n2 != NULL){
 		*n2 = *Interp_norms[vn2];
+	}
+}
+
+void submodel_get_two_random_points_better(int model_num, int submodel_num, vec3d *v1, vec3d *v2)
+{
+	polymodel *pm = model_get(model_num);
+
+	if (pm != NULL) {
+		if ( submodel_num < 0 )	{
+			submodel_num = pm->detail[0];
+		}
+
+		bsp_collision_tree *tree = model_get_bsp_collision_tree(pm->submodel[submodel_num].collision_tree_index);
+
+		int nv = tree->n_verts;
+
+		// this is not only because of the immediate div-0 error but also because of the less immediate expectation for at least one point (preferably two) to be found
+		if (nv <= 0) {
+			Error(LOCATION, "Model %d ('%s') must have at least one point from submodel_get_points_internal!", model_num, (pm == NULL) ? "<null model?!?>" : pm->filename);
+
+			// in case people ignore the error...
+			vm_vec_zero(v1);
+			vm_vec_zero(v2);
+
+			return;
+		}
+
+		Assert(nv > 0);	// Goober5000 - to avoid div-0 error
+		int vn1 = (myrand()>>5) % nv;
+		int vn2 = (myrand()>>5) % nv;
+
+		*v1 = tree->point_list[vn1];
+		*v2 = tree->point_list[vn2];
 	}
 }
 
@@ -3868,14 +3936,11 @@ void parse_defpoint(int off, ubyte *bsp_data)
 int check_values(vec3d *N)
 {
 	// Values equal to -1.#IND0
-	if((N->xyz.x * N->xyz.x) < 0 ||
-	   (N->xyz.y * N->xyz.y) < 0 ||
-	   (N->xyz.z * N->xyz.z) < 0 ||
-	   !is_valid_vec(N))
+	if(!is_valid_vec(N))
 	{
-		N->xyz.x = 1;
-		N->xyz.y = 0;
-		N->xyz.z = 0;
+		N->xyz.x = 1.0f;
+		N->xyz.y = 0.0f;
+		N->xyz.z = 0.0f;
 		return 1;
 	}
 
@@ -4732,6 +4797,10 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		forced_blend_filter = GR_ALPHABLEND_FILTER;
 	}
 
+	if (!Interp_thrust_scale_subobj) {
+		gr_push_scale_matrix(&scale);
+	}
+
 	size_t buffer_size = buffer->tex_buf.size();
 
 	for (size_t i = 0; i < buffer_size; i++) {
@@ -4748,10 +4817,15 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		}
 		else if ( !no_texturing ) {
 			// pick the texture, animating it if necessary
-			if ( (Interp_new_replacement_textures != NULL) && (Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
+			if ( (Interp_new_replacement_textures != NULL) && (Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE] == REPLACE_WITH_INVISIBLE) ) {
+				// invisible textures aren't rendered, but we still have to skip assigning the underlying model texture
+				texture = -1;
+			} else if ( (Interp_new_replacement_textures != NULL) && (Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
+				// an underlying texture is replaced with a real new texture
 				tex_replace[TM_BASE_TYPE] = texture_info(Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE]);
 				texture = model_interp_get_texture(&tex_replace[TM_BASE_TYPE], Interp_base_frametime);
 			} else {
+				// we just use the underlying texture
 				texture = model_interp_get_texture(&tmap->textures[TM_BASE_TYPE], Interp_base_frametime);
 			}
 
@@ -4810,6 +4884,8 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 				HEIGHTMAP = model_interp_get_texture(height_map, Interp_base_frametime);
 				MISCMAP = model_interp_get_texture(misc_map, Interp_base_frametime);
 			}
+		} else {
+			alpha = forced_alpha;
 		}
 
 		if ( (texture == -1) && !no_texturing ) {

@@ -409,7 +409,7 @@ void playercontrol_read_stick(int *axis, float frame_time)
 void read_keyboard_controls( control_info * ci, float frame_time, physics_info *pi )
 {
 	float kh=0.0f, scaled, newspeed, delta, oldspeed;
-	int axis[NUM_JOY_AXIS_ACTIONS], ignore_pitch, slew_active=1;
+	int axis[NUM_JOY_AXIS_ACTIONS], slew_active=1;
 	static int afterburner_last = 0;
 	static float analog_throttle_last = 9e9f;
 	static int override_analog_throttle = 0; 
@@ -627,15 +627,12 @@ void read_keyboard_controls( control_info * ci, float frame_time, physics_info *
 			axis[0] = axis[1] = axis[2] = axis[3] = axis[4] = 0;
 		}
 
-		ignore_pitch = FALSE;
-
 		if (Axis_map_to[JOY_HEADING_AXIS] >= 0) {
 			// check the heading on the x axis
 			if ( check_control(BANK_WHEN_PRESSED) ) {
 				delta = f2fl( axis[JOY_HEADING_AXIS] );
 				if ( (delta > 0.05f) || (delta < -0.05f) ) {
 					ci->bank -= delta;
-					ignore_pitch = TRUE;
 				}
 			} else {
 				ci->heading += f2fl( axis[JOY_HEADING_AXIS] );
@@ -1168,6 +1165,7 @@ void player_restore_target_and_weapon_link_prefs()
 {
 	ship_info *player_sip;
 	player_sip = &Ship_info[Player_ship->ship_info_index];
+	polymodel *pm = model_get(player_sip->model_num);
 
 	//	Don't restores the save flags in training, as we must ensure certain things are off, such as speed matching.
 	if ( !(The_mission.game_type & MISSION_TYPE_TRAINING )) {
@@ -1180,7 +1178,7 @@ void player_restore_target_and_weapon_link_prefs()
 		}
 	}
 
-	if ( Player->flags & PLAYER_FLAGS_LINK_SECONDARY ) {
+	if ( Player->flags & PLAYER_FLAGS_LINK_SECONDARY && (pm->n_missiles > 0 && pm->missile_banks[0].num_slots > 1) ) {
 		Player_ship->flags |= SF_SECONDARY_DUAL_FIRE;
 	}
 }
@@ -1245,6 +1243,9 @@ void player_level_init()
 	Player->low_ammo_complaint_count = 0;	// number of complaints about low ammo received in this mission
 	Player->allow_ammo_timestamp = 1;		// timestamp until next 'Ammo low' message can be played
 
+	Player->praise_self_count = 0;			// number of boasts about kills received in this mission
+	Player->praise_self_timestamp = 1;		// timestamp marking time until next boast is allowed
+
 	Player->request_repair_timestamp = 1;	// timestamp until next 'requesting repair sir' message can be played
 
 	Player->repair_sound_loop = -1;
@@ -1277,7 +1278,6 @@ void player_init()
 {
 	Player_num = 0;
 	Player = &Players[Player_num];
-	Player->num_campaigns = 0;
 	Player->flags |= PLAYER_FLAGS_STRUCTURE_IN_USE;
 	Player->failures_this_session = 0;
 	Player->show_skip_popup = (ubyte) 1;
@@ -1346,9 +1346,6 @@ void player_stop_cargo_scan_sound()
 	}
 }
 
-
-#define PLAYER_ALLOW_PRAISE_INTERVAL	60000		// minimum time between praises
-
 /**
  * @brief See if there is a praise message to deliver to the player.  We want to delay the praise messages
  * a bit, to make them more realistic
@@ -1376,7 +1373,7 @@ int player_process_pending_praise()
 				else {
 					message_send_builtin_to_player(MESSAGE_PRAISE, &Ships[ship_index], MESSAGE_PRIORITY_HIGH, MESSAGE_TIME_SOON, 0, 0, -1, -1);
 				}
-				Player->allow_praise_timestamp = timestamp(PLAYER_ALLOW_PRAISE_INTERVAL*(Game_skill_level+1) );
+				Player->allow_praise_timestamp = timestamp(Builtin_messages[MESSAGE_PRAISE].min_delay * (Game_skill_level+1) );
 				Player->allow_scream_timestamp = timestamp(20000);		// prevent death scream following praise
 				Player->praise_count++;
 				return 1;
@@ -1454,7 +1451,7 @@ int player_inspect_cargo(float frametime, char *outstr)
 				sprintf(outstr,XSTR("cargo: %s", 84), cargo_name );
 			}
 		} else {
-			sprintf(outstr, XSTR( "Scanned", 85) );
+			strcpy(outstr, XSTR( "Scanned", 85) );
 		}
 
 		// always bash cargo_inspect_time to 0 since AI ships can reveal cargo that we
@@ -1472,9 +1469,9 @@ int player_inspect_cargo(float frametime, char *outstr)
 		dot = vm_vec_dot(&vec_to_cargo, &Player_obj->orient.vec.fvec);
 		if ( dot < CARGO_MIN_DOT_TO_REVEAL ) {
 			if ( !(cargo_sp->flags & SF_SCANNABLE) )
-				sprintf(outstr,XSTR( "cargo: <unknown>", 86));
+				strcpy(outstr,XSTR( "cargo: <unknown>", 86));
 			else
-				sprintf(outstr,XSTR( "not scanned", 87));
+				strcpy(outstr,XSTR( "not scanned", 87));
 			hud_targetbox_end_flash(TBOX_FLASH_CARGO);
 			Player->cargo_inspect_time = 0;
 			return 1;
@@ -1486,9 +1483,9 @@ int player_inspect_cargo(float frametime, char *outstr)
 		}
 
 		if ( !(cargo_sp->flags & SF_SCANNABLE) )
-			sprintf(outstr,XSTR( "cargo: inspecting", 88));
+			strcpy(outstr,XSTR( "cargo: inspecting", 88));
 		else
-			sprintf(outstr,XSTR( "scanning", 89));
+			strcpy(outstr,XSTR( "scanning", 89));
 
 		if ( Player->cargo_inspect_time > cargo_sip->scan_time ) {
 			ship_do_cargo_revealed( cargo_sp );
@@ -1497,9 +1494,9 @@ int player_inspect_cargo(float frametime, char *outstr)
 		}
 	} else {
 		if ( !(cargo_sp->flags & SF_SCANNABLE) )
-			sprintf(outstr,XSTR( "cargo: <unknown>", 86));
+			strcpy(outstr,XSTR( "cargo: <unknown>", 86));
 		else
-			sprintf(outstr,XSTR( "not scanned", 87));
+			strcpy(outstr,XSTR( "not scanned", 87));
 	}
 
 	return 1;
@@ -1551,7 +1548,7 @@ int player_inspect_cap_subsys_cargo(float frametime, char *outstr)
 				sprintf(outstr,XSTR("cargo: %s", 84), cargo_name );
 			}
 		} else {
-			sprintf(outstr, XSTR( "Scanned", 85) );
+			strcpy(outstr, XSTR( "Scanned", 85) );
 		}
 	
 		// always bash cargo_inspect_time to 0 since AI ships can reveal cargo that we
@@ -1587,9 +1584,9 @@ int player_inspect_cap_subsys_cargo(float frametime, char *outstr)
 
 		if ( (dot < CARGO_MIN_DOT_TO_REVEAL) || (!subsys_in_view) ) {
 			if ( !(cargo_sp->flags & SF_SCANNABLE) )
-				sprintf(outstr,XSTR( "cargo: <unknown>", 86));
+				strcpy(outstr,XSTR( "cargo: <unknown>", 86));
 			else
-				sprintf(outstr,XSTR( "not scanned", 87));
+				strcpy(outstr,XSTR( "not scanned", 87));
 			hud_targetbox_end_flash(TBOX_FLASH_CARGO);
 			Player->cargo_inspect_time = 0;
 			return 1;
@@ -1601,9 +1598,9 @@ int player_inspect_cap_subsys_cargo(float frametime, char *outstr)
 		}
 
 		if ( !(cargo_sp->flags & SF_SCANNABLE) )
-			sprintf(outstr,XSTR( "cargo: inspecting", 88));
+			strcpy(outstr,XSTR( "cargo: inspecting", 88));
 		else
-			sprintf(outstr,XSTR( "scanning", 89));
+			strcpy(outstr,XSTR( "scanning", 89));
 
 		if ( Player->cargo_inspect_time > cargo_sip->scan_time ) {
 			ship_do_cap_subsys_cargo_revealed( cargo_sp, subsys, 0);
@@ -1612,9 +1609,9 @@ int player_inspect_cap_subsys_cargo(float frametime, char *outstr)
 		}
 	} else {
 		if ( !(cargo_sp->flags & SF_SCANNABLE) )
-			sprintf(outstr,XSTR( "cargo: <unknown>", 86));
+			strcpy(outstr,XSTR( "cargo: <unknown>", 86));
 		else
-			sprintf(outstr,XSTR( "not scanned", 87));
+			strcpy(outstr,XSTR( "not scanned", 87));
 	}
 
 	return 1;

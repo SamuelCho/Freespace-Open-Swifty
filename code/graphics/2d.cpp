@@ -71,6 +71,12 @@ int gr_zbuffering = 0;
 int gr_zbuffering_mode = 0;
 int gr_global_zbuffering = 0;
 
+// stencil buffer stuff
+int gr_stencil_mode = 0;
+
+// alpha mask stuff
+int gr_alpha_test = 0;
+
 // Default clipping distances
 const float Default_min_draw_distance = 1.0f;
 const float Default_max_draw_distance = 1e10;
@@ -86,6 +92,8 @@ static float Gr_unsize_X = 1.0f, Gr_unsize_Y = 1.0f;
 float Gr_save_resize_X = 1.0f, Gr_save_resize_Y = 1.0f;
 float Gr_save_unsize_X = 1.0f, Gr_save_unsize_Y = 1.0f;
 
+bool Save_custom_screen_size;
+
 void gr_set_screen_scale(int w, int h)
 {
 	Gr_resize_X = (float)gr_screen.max_w / (float)w;
@@ -93,6 +101,10 @@ void gr_set_screen_scale(int w, int h)
 
 	Gr_unsize_X = (float)w / (float)gr_screen.max_w;
 	Gr_unsize_Y = (float)h / (float)gr_screen.max_h;
+
+	Save_custom_screen_size = gr_screen.custom_size;
+
+	gr_screen.custom_size = true;
 }
 
 void gr_set_screen_scale(int w, int h, int max_w, int max_h)
@@ -102,6 +114,10 @@ void gr_set_screen_scale(int w, int h, int max_w, int max_h)
 
 	Gr_unsize_X = (float)w / (float)max_w;
 	Gr_unsize_Y = (float)h / (float)max_h;
+
+	Save_custom_screen_size = gr_screen.custom_size;
+
+	gr_screen.custom_size = true;
 }
 
 void gr_reset_screen_scale()
@@ -111,6 +127,8 @@ void gr_reset_screen_scale()
 
 	Gr_unsize_X = Gr_save_unsize_X;
 	Gr_unsize_Y = Gr_save_unsize_Y;
+
+	gr_screen.custom_size = Save_custom_screen_size;
 }
 
 /**
@@ -259,7 +277,7 @@ DCF(gr,"Changes graphics mode")
 		dc_printf( "The options can be:\n" );
 		dc_printf( "Macros:  A=software win32 window (obsolete)\n" );
 		dc_printf( "         B=software directdraw fullscreen (obsolete)\n" );
-		dc_printf( "         G=Glide\n" );
+		dc_printf( "         G=Glide (obsolete)\n" );
 		dc_printf( "         O=OpenGL\n" );
 		Dc_status = 0;	// don't print status if help is printed.  Too messy.
 	}
@@ -377,6 +395,9 @@ void gr_screen_resize(int width, int height)
 		gr_unsize_screen_pos( &gr_screen.clip_width_unscaled, &gr_screen.clip_height_unscaled );
 	}
 
+	gr_screen.save_max_w_unscaled = gr_screen.max_w_unscaled;
+	gr_screen.save_max_h_unscaled = gr_screen.max_h_unscaled;
+
 	if (gr_screen.mode == GR_OPENGL) {
 		extern void opengl_setup_viewport();
 		opengl_setup_viewport();
@@ -446,6 +467,9 @@ static bool gr_init_sub(int mode, int width, int height, int depth)
 		gr_unsize_screen_pos( &gr_screen.clip_right_unscaled, &gr_screen.clip_bottom_unscaled );
 		gr_unsize_screen_pos( &gr_screen.clip_width_unscaled, &gr_screen.clip_height_unscaled );
 	}
+
+	gr_screen.save_max_w_unscaled = gr_screen.max_w_unscaled;
+	gr_screen.save_max_h_unscaled = gr_screen.max_h_unscaled;
 
 #ifdef WIN32
 	// FRED doesn't need this
@@ -1385,7 +1409,10 @@ void poly_list::make_index_buffer(SCP_vector<int> &vertex_list)
 	// using vm_malloc() here rather than 'new' so we get the extra out-of-memory check
 	nverts_good = (ubyte *) vm_malloc(n_verts);
 
-	Assert( nverts_good != NULL );
+    Assert( nverts_good != NULL );
+	if ( nverts_good == NULL )
+		return;
+    
 	memset( nverts_good, 0, n_verts );
 
 	vertex_list.reserve(n_verts);
@@ -1457,6 +1484,28 @@ poly_list& poly_list::operator = (poly_list &other_list)
 	n_verts = other_list.n_verts;
 
 	return *this;
+}
+
+void gr_shield_icon(coord2d coords[6], bool resize)
+{
+	if (gr_screen.mode == GR_STUB) {
+		return;
+	}
+
+	if (resize) {
+		gr_resize_screen_pos(&coords[0].x, &coords[0].y);
+		gr_resize_screen_pos(&coords[1].x, &coords[1].y);
+		gr_resize_screen_pos(&coords[2].x, &coords[2].y);
+		gr_resize_screen_pos(&coords[3].x, &coords[3].y);
+		gr_resize_screen_pos(&coords[4].x, &coords[4].y);
+		gr_resize_screen_pos(&coords[5].x, &coords[5].y);
+	}
+
+	g3_draw_2d_shield_icon(coords,
+		gr_screen.current_color.red,
+		gr_screen.current_color.green,
+		gr_screen.current_color.blue,
+		gr_screen.current_color.alpha);
 }
 
 void gr_rect(int x, int y, int w, int h, bool resize)

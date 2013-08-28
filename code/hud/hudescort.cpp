@@ -171,6 +171,11 @@ void HudGaugeEscort::initEntryStaggerWidth(int w)
 	entry_stagger_w = w;
 }
 
+void HudGaugeEscort::initBottomBgOffset(int offset)
+{
+	bottom_bg_offset = offset;
+}
+
 void HudGaugeEscort::initShipNameOffsets(int x, int y)
 {
 	ship_name_offsets[0] = x;
@@ -187,6 +192,11 @@ void HudGaugeEscort::initShipStatusOffsets(int x, int y)
 {
 	ship_status_offsets[0] = x;
 	ship_status_offsets[1] = y;
+}
+
+void HudGaugeEscort::initShipNameMaxWidth(int w)
+{
+	ship_name_max_width = w;
 }
 
 void HudGaugeEscort::initBitmaps(char *fname_top, char *fname_middle, char *fname_bottom)
@@ -320,7 +330,7 @@ void HudGaugeEscort::render(float frametime)
 	Num_escort_ships++;
 
 	//Show the last escort entry
-	renderBitmap(Escort_gauges[2].first_frame, x, y);
+	renderBitmap(Escort_gauges[2].first_frame, x, y + bottom_bg_offset);
 	renderIcon(x, y, i);
 }
 
@@ -358,7 +368,7 @@ void HudGaugeEscort::renderIcon(int x, int y, int index)
 
 	// print out ship name
 	strcpy_s(buf, sp->ship_name);
-	gr_force_fit_string(buf, 255, 100);	
+	gr_force_fit_string(buf, 255, ship_name_max_width);	
     end_string_at_first_hash_symbol(buf);
 	
 	renderString( x + ship_name_offsets[0], y + ship_name_offsets[1], EG_ESCORT1 + index, buf);	
@@ -388,7 +398,6 @@ void HudGaugeEscort::renderIconDogfight(int x, int y, int index)
 	char			buf[255];	
 	int			np_index;
 	object		*objp;
-	ship_info	*sip;
 
 	int stat_shift = 40;
 
@@ -411,7 +420,7 @@ void HudGaugeEscort::renderIconDogfight(int x, int y, int index)
 	if((Net_players[np_index].m_player->objnum >= 0) && (Net_players[np_index].m_player->objnum < MAX_OBJECTS) && (Objects[Net_players[np_index].m_player->objnum].type == OBJ_SHIP)){
 		objp = &Objects[Net_players[np_index].m_player->objnum];
 		if((objp->instance >= 0) && (objp->instance < MAX_SHIPS) && (Ships[objp->instance].ship_info_index >= 0) && (Ships[objp->instance].ship_info_index < MAX_SHIPS)){
-			sip = &Ship_info[Ships[objp->instance].ship_info_index];
+			//
 		} else {
 			return;
 		}
@@ -465,12 +474,15 @@ void hud_escort_init()
 // ----------------------------------------------------------------------
 // hud_escort_clear_all()
 //
-void hud_escort_clear_all()
+void hud_escort_clear_all(bool clear_flags)
 {
 	int i;
 
 	Num_escort_ships = 0;
 	for ( i = 0; i < Max_escort_ships; i++ ) {
+		if(clear_flags && (Escort_ships[i].objnum >= 0) && (Objects[Escort_ships[i].objnum].type == OBJ_SHIP) && (Objects[Escort_ships[i].objnum].instance >= 0)){
+			Ships[Objects[Escort_ships[i].objnum].instance].flags &= ~SF_ESCORT;
+		}
 		Escort_ships[i].obj_signature = -99;
 		Escort_ships[i].np_id = -1;
 		shield_info_reset(&Escort_ships[i].hit_info);
@@ -946,11 +958,16 @@ void hud_remove_ship_from_escort(int objnum)
 	}	
 }
 
-// Called whenever a ship is hit to determine if that ship is in the escort list.  If it
-// is, then start timers to flash the name hull/shield icon for that ship.
+/**
+ * Called whenever a ship is hit to determine if that ship is in the escort list.  If it
+ * is, then start timers to flash the name hull/shield icon for that ship.
+ *
+ * @param objp      The object hit
+ * @param quadrant  Shield quadrant on the object that was hit, alternatively -1 if no shield
+ */
 void hud_escort_ship_hit(object *objp, int quadrant)
 {
-	int					num, i;
+	int num, i;
 	shield_hit_info	*shi;
 
 	// no ships on the escort list in multiplayer dogfight
@@ -961,9 +978,12 @@ void hud_escort_ship_hit(object *objp, int quadrant)
 	for ( i = 0; i < Num_escort_ships; i++ ) {
 		if ( Escort_ships[i].objnum == OBJ_INDEX(objp) ) {
 			shi = &Escort_ships[i].hit_info;
-			num = Quadrant_xlate[quadrant];
+			
 			hud_gauge_popup_start(HUD_ESCORT_VIEW);
 			if ( quadrant >= 0 ) {
+				// If no shields present on the hit object, quadrant is negative one
+				// otherwise, use the quadrant value as an index into the array
+				num = Quadrant_xlate[quadrant];
 				shi->shield_hit_timers[num] = timestamp(SHIELD_HIT_DURATION);
 			} else {
 				shi->shield_hit_timers[HULL_HIT_OFFSET] = timestamp(SHIELD_HIT_DURATION);

@@ -9,6 +9,22 @@
 #include <string>
 #include <queue>
 
+#if defined __GNUC__
+#define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
+#if GCC_VERSION >= 40300
+#include <tr1/unordered_map>
+#define SCP_hash_map std::tr1::unordered_map
+#elif GCC_VERSION < 40300 || __clang__
+#include <ext/hash_map>
+#define SCP_hash_map __gnu_cxx::hash_map
+#endif // GCC_VERSION || __clang__
+#endif // __GNUC__
+
+#if ! defined __GNUC__
+#include <hash_map>
+#define SCP_hash_map stdext::hash_map
+#endif // ! defined __GNUC__
+
 #if defined(_MSC_VER) && _MSC_VER >= 1400 || !defined(_MSC_VER)
 
 #define DESTROY( type, p ) (p)->~type( )
@@ -119,9 +135,7 @@ bool operator!=(const SCP_vm_allocator<T1>&, const SCP_vm_allocator<T2>&) throw(
 	return false;
 }
 
-
 #else
-
 #define SCP_string std::string
 #define SCP_stringstream std::stringstream
 #define SCP_map std::map

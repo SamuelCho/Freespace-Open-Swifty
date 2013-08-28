@@ -126,6 +126,15 @@ extern char	*Object_type_names[MAX_OBJECT_TYPES];
 #define OF_TEMP_MARKED		(1<<30)	// Temporarily marked (Fred).
 #define OF_HIDDEN			(1<<31)	// Object is hidden (not shown) and can't be manipulated
 
+typedef struct obj_flag_name {
+	int flag;
+	char flag_name[TOKEN_LENGTH];
+	int flag_list;
+} obj_flag_name;
+
+#define MAX_OBJECT_FLAG_NAMES			9
+extern obj_flag_name Object_flag_names[];
+
 struct dock_instance;
 
 typedef struct object {
@@ -170,6 +179,17 @@ typedef struct object_orient_pos {
 	vec3d pos;
 	matrix orient;
 } object_orient_pos;
+
+#ifdef OBJECT_CHECK
+typedef struct checkobject
+{
+	int	type;
+	int	signature;
+	uint	flags;
+	int	parent_sig;
+	int	parent_type;
+} checkobject;
+#endif
 
 /*
  *		VARIABLES

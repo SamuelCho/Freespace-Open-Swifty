@@ -34,6 +34,7 @@
 #include "network/multimsgs.h"
 #include "network/multiteamselect.h"
 #include "network/multiui.h"
+#include "network/multiutil.h"
 #include "missionui/chatbox.h"
 #include "network/multi_pmsg.h"
 #include "parse/parselo.h"
@@ -46,6 +47,7 @@
 #define IS_LIST_PRIMARY(x)			(Weapon_info[x].subtype != WP_MISSILE)
 #define IS_LIST_SECONDARY(x)		(Weapon_info[x].subtype == WP_MISSILE)
 
+extern int Multi_ping_timestamp;
 
 //////////////////////////////////////////////////////////////////
 // Game-wide globals
@@ -835,7 +837,7 @@ void wl_render_overhead_view(float frametime)
 
 			if(!Cmdline_ship_choice_3d)
 			{
-				rot_angles.p = -(3.14159f * 0.5f);
+				rot_angles.p = -(PI_2);
 				rot_angles.b = 0.0f;
 				rot_angles.h = 0.0f;
 				vm_angles_2_matrix(&object_orient, &rot_angles);
@@ -885,8 +887,14 @@ void wl_render_overhead_view(float frametime)
 			light_add_directional(&light_dir, 0.65f, 1.0f, 1.0f, 1.0f);
 			light_rotate_all();
 
+            Glowpoint_use_depth_buffer = false;
+            
 			model_clear_instance(wl_ship->model_num);
 			model_render(wl_ship->model_num, -1, &object_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1);
+
+            Glowpoint_use_depth_buffer = true;
+            
+			batch_render_all();
 
 			//NOW render the lines for weapons
 			gr_reset_clip();
@@ -1242,6 +1250,8 @@ void wl_load_icons(int weapon_class)
 			icon->icon_bmaps[i] = first_frame+i;
 		}
 	}
+
+	multi_send_anti_timeout_ping();
 
 	if ( first_frame == -1 && icon->model_index == -1)
 	{
@@ -3525,7 +3535,7 @@ int wl_swap_slot_slot(int from_bank, int to_bank, int ship_slot, int *sound, net
 					lcl_translate_wep_name(display_name);
 				}
 
-				sprintf(txt, XSTR("This bank is unable to carry %s weaponry", -1), display_name);
+				sprintf(txt, XSTR("This bank is unable to carry %s weaponry", 1628), display_name);
 
 				if ( !(Game_mode & GM_MULTIPLAYER) || (Netgame.host == pl) ) {
 					popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, txt);
@@ -3689,7 +3699,7 @@ int wl_grab_from_list(int from_list, int to_bank, int ship_slot, int *sound, net
 				lcl_translate_wep_name(display_name);
 			}
 
-			sprintf(txt, XSTR("This bank is unable to carry %s weaponry", -1), display_name);
+			sprintf(txt, XSTR("This bank is unable to carry %s weaponry", 1628), display_name);
 
 			if ( !(Game_mode & GM_MULTIPLAYER) || (Netgame.host == pl) ) {
 				popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, txt);
@@ -3775,7 +3785,7 @@ int wl_swap_list_slot(int from_list, int to_bank, int ship_slot, int *sound, net
 				lcl_translate_wep_name(display_name);
 			}
 
-			sprintf(txt, XSTR("This bank is unable to carry %s weaponry", -1), display_name);
+			sprintf(txt, XSTR("This bank is unable to carry %s weaponry", 1628), display_name);
 
 			if ( !(Game_mode & GM_MULTIPLAYER) || (Netgame.host == pl) ) {
 				popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, txt);
@@ -4022,7 +4032,7 @@ void wl_apply_current_loadout_to_all_ships_in_current_wing()
 				|| ((wip->wi_flags2 & WIF2_BALLISTIC) && !(sip->flags & SIF_BALLISTIC_PRIMARIES)))
 			{
 				SCP_string temp;
-				sprintf(temp, XSTR("%s is unable to carry %s weaponry", -1), ship_name, wep_display_name);
+				sprintf(temp, XSTR("%s is unable to carry %s weaponry", 1629), ship_name, wep_display_name);
 				error_messages.push_back(temp);
 
 				error_flag = true;
@@ -4036,9 +4046,9 @@ void wl_apply_current_loadout_to_all_ships_in_current_wing()
 				{
 					SCP_string temp;
 					if (cur_bank < MAX_SHIP_PRIMARY_BANKS)
-						sprintf(temp, XSTR("%s is unable to carry %s weaponry in primary bank %d", -1), ship_name, wep_display_name, cur_bank+1);
+						sprintf(temp, XSTR("%s is unable to carry %s weaponry in primary bank %d", 1630), ship_name, wep_display_name, cur_bank+1);
 					else
-						sprintf(temp, XSTR("%s is unable to carry %s weaponry in secondary bank %d", -1), ship_name, wep_display_name, cur_bank+1-MAX_SHIP_PRIMARY_BANKS);
+						sprintf(temp, XSTR("%s is unable to carry %s weaponry in secondary bank %d", 1631), ship_name, wep_display_name, cur_bank+1-MAX_SHIP_PRIMARY_BANKS);
 					error_messages.push_back(temp);
 
 					error_flag = true;
@@ -4053,7 +4063,7 @@ void wl_apply_current_loadout_to_all_ships_in_current_wing()
 			if ((result == 0) || (result == 2))
 			{
 				SCP_string temp;
-				sprintf(temp, XSTR("Insufficient %s available to arm %s", -1), (Weapon_info[weapon_type_to_add].alt_name[0]) ? Weapon_info[weapon_type_to_add].alt_name : Weapon_info[weapon_type_to_add].name, ship_name);
+				sprintf(temp, XSTR("Insufficient %s available to arm %s", 1632), (Weapon_info[weapon_type_to_add].alt_name[0]) ? Weapon_info[weapon_type_to_add].alt_name : Weapon_info[weapon_type_to_add].name, ship_name);
 				error_messages.push_back(temp);
 
 				error_flag = true;

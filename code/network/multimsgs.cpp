@@ -1499,6 +1499,11 @@ void send_accept_packet(int new_player_num, int code, int ingame_join_team)
 	}
 
 	// add the current skill level setting on the host
+	// sanity check - reset skill level to default before sending if out of range
+	if (Game_skill_level < 0 || Game_skill_level >= NUM_SKILL_LEVELS) {
+		Warning(LOCATION, "Trying to send packet containing invalid skill level %i! Valid range 0 to %i. Resetting to default.", Game_skill_level, NUM_SKILL_LEVELS);
+		Game_skill_level = game_get_default_skill_level();  
+	}
 	ADD_INT(Game_skill_level);
 
 	// add this guys player num 
@@ -1595,6 +1600,10 @@ void process_accept_packet(ubyte* data, header* hinfo)
 
 	// get the skill level setting
 	GET_INT(Game_skill_level);
+	if (Game_skill_level < 0 || Game_skill_level >= NUM_SKILL_LEVELS) {
+		Warning(LOCATION, "Received packet containing invalid skill level %i! Valid range 0 to %i.  Resetting to default.", Game_skill_level, NUM_SKILL_LEVELS);
+		Game_skill_level = game_get_default_skill_level();  
+	}
 
 	// get my netplayer number
 	GET_INT(my_player_num);
@@ -2060,7 +2069,7 @@ void send_netgame_update_packet(net_player *pl)
 // process information about the netgame sent from the server/host
 void process_netgame_update_packet( ubyte *data, header *hinfo )
 {
-	int offset,old_flags;	
+	int offset;	
 	int ng_state;
 		
 	Assert(!(Game_mode & GM_STANDALONE_SERVER));
@@ -2078,7 +2087,6 @@ void process_netgame_update_packet( ubyte *data, header *hinfo )
 	GET_UINT(Netgame.respawn);		
 	
 	// be sure not to blast the quitting flag because of the "one frame extra" problem
-	old_flags = Netgame.flags;	
 	GET_INT(Netgame.flags);	
 	GET_INT(Netgame.type_flags);
 	GET_INT(Netgame.version_info);
@@ -2812,7 +2820,7 @@ void process_ship_depart_packet( ubyte *data, header *hinfo )
 				ship_actually_depart(objp->instance, s_method); 
 			}
 			else {
-				nprintf(("network", "Can not proces ship depart packed. Object with net signature %d is not a ship!\n", signature ));	
+				nprintf(("network", "Can not process ship depart packed. Object with net signature %d is not a ship!\n", signature ));	
 				return;
 			}
 			break;
@@ -3328,7 +3336,9 @@ void process_turret_fired_packet( ubyte *data, header *hinfo )
 		multi_set_network_signature( wnet_signature, MULTI_SIG_NON_PERMANENT );
 	}
 
-	weapon_objnum = weapon_create( &pos, &orient, wid, OBJ_INDEX(objp), -1, 1);
+	weapon_objnum = weapon_create( &pos, &orient, wid, OBJ_INDEX(objp), -1, 1, 0, 0.0f, ssp);
+	wid = Weapons[Objects[weapon_objnum].instance].weapon_info_index;
+
 	if (weapon_objnum != -1) {
 		if ( Weapon_info[wid].launch_snd != -1 ) {
 			snd_play_3d( &Snds[Weapon_info[wid].launch_snd], &pos, &View_position );
@@ -3790,7 +3800,6 @@ void send_ingame_nak(int state, net_player *p)
 void process_ingame_nak(ubyte *data, header *hinfo)
 {
 	int offset,state,pid;	
-	net_player *pl;
 
 	offset = HEADER_LENGTH;
 	GET_INT(state);	
@@ -3800,7 +3809,6 @@ void process_ingame_nak(ubyte *data, header *hinfo)
 	if(pid < 0){
 		return;
 	}
-	pl = &Net_players[pid];
 	
 	switch(state){
 	case ACK_FILE_ACCEPTED :
@@ -4350,7 +4358,7 @@ void process_player_order_packet(ubyte *data, header *hinfo)
 
 	// if this player is not allowed to do messaging, quit here
 	if( !multi_can_message(&Net_players[player_num]) ){
-		nprintf(("Network","Recieved player order packet from player not allowed to give orders!!\n"));
+		nprintf(("Network","Received player order packet from player not allowed to give orders!!\n"));
 		return;
 	}
 
@@ -4528,6 +4536,12 @@ void process_subsystem_destroyed_packet( ubyte *data, header *hinfo )
 
 		// call to get the pointer to the subsystem we should be working on
 		subsysp = ship_get_indexed_subsys( shipp, (int)uindex );
+		if (subsysp == NULL) {
+			nprintf(("Network", "Could not find subsys %d for ship %s to process as being destroyed\n", (int)uindex, shipp->ship_name ));
+			PACKET_SET_SIZE();
+			return;
+		}
+
 		vm_vec_unrotate( &world_hit_pos, &local_hit_pos, &objp->orient );
 		vm_vec_add2( &world_hit_pos, &objp->pos );
 
@@ -6399,19 +6413,13 @@ void send_player_stats_block_packet(net_player *pl, int stats_code, net_player *
 	switch(stats_code){
 	case STATS_ALLTIME:	
 		// alltime kills
-#ifdef INF_BUILD
+
 		idx = 0; 
 		while(idx<MAX_SHIP_CLASSES)
 		{
 			send_player_stats_block_packet(pl, STATS_ALLTIME_KILLS, target, (short)idx);
 			idx += MAX_SHIPS_PER_PACKET; 
 		}
-#else
-		for(idx=0;idx<MAX_SHIP_CLASSES;idx++){
-			u_tmp = (ushort)sc->kills[idx];
-			ADD_USHORT(u_tmp);
-		}
-#endif
 
 		// medal information
 		for(idx=0;idx<MAX_MEDALS;idx++){
@@ -6440,19 +6448,13 @@ void send_player_stats_block_packet(net_player *pl, int stats_code, net_player *
 
 	case STATS_MISSION:	
 		// mission OKkills	
-#ifdef INF_BUILD
+
 		idx = 0; 
 		while(idx<MAX_SHIP_CLASSES)
 		{
 			send_player_stats_block_packet(pl, STATS_MISSION_CLASS_KILLS, target, (short)idx);
 			idx += MAX_SHIPS_PER_PACKET; 
 		}
-#else		
-		for(idx=0;idx<MAX_SHIP_CLASSES;idx++){
-			u_tmp = (ushort)sc->m_okKills[idx];
-			ADD_USHORT(u_tmp);			
-		}
-#endif
 	
 		ADD_INT(sc->m_score);
 		ADD_INT(sc->m_assists);
@@ -6485,12 +6487,11 @@ void send_player_stats_block_packet(net_player *pl, int stats_code, net_player *
 		ADD_INT(sc->m_assists);
 		break;
 	
-#ifdef INF_BUILD		
 	case STATS_MISSION_CLASS_KILLS:
 		ADD_SHORT(offset);
 		for (idx=offset; idx<MAX_SHIP_CLASSES && idx<offset+MAX_SHIPS_PER_PACKET; idx++)
 		{
-			ADD_USHORT((ushort)sc->m_okKills[idx]);			
+			ADD_INT(sc->m_okKills[idx]);			
 		}
 		break;
 		
@@ -6498,10 +6499,9 @@ void send_player_stats_block_packet(net_player *pl, int stats_code, net_player *
 		ADD_SHORT(offset);
 		for (idx=offset; idx<MAX_SHIP_CLASSES && idx<offset+MAX_SHIPS_PER_PACKET; idx++)
 		{
-			ADD_USHORT((ushort)sc->kills[idx]);			
+			ADD_INT(sc->kills[idx]);			
 		}
 		break;
-#endif
 	}
 
 	Assert(packet_size < MAX_PACKET_SIZE);
@@ -6551,16 +6551,14 @@ void process_player_stats_block_packet(ubyte *data, header *hinfo)
 	// get the stats code
 	GET_DATA(val);	
 	switch(val){
-
-#ifdef INF_BUILD
 	short si_offset;
 
 	case STATS_ALLTIME_KILLS:
 		GET_SHORT(si_offset);
 		for (idx = si_offset; idx<MAX_SHIP_CLASSES && idx<si_offset+MAX_SHIPS_PER_PACKET; idx++) 
 		{
-			GET_USHORT(u_tmp);
-			sc->kills[idx] = u_tmp;
+			GET_INT(i_tmp);
+			sc->kills[idx] = i_tmp;
 		}
 		break;
 
@@ -6568,22 +6566,13 @@ void process_player_stats_block_packet(ubyte *data, header *hinfo)
 		GET_SHORT(si_offset);
 		for (idx = si_offset; idx<MAX_SHIP_CLASSES && idx<si_offset+MAX_SHIPS_PER_PACKET; idx++) 
 		{
-			GET_USHORT(u_tmp);
-			sc->m_okKills[idx] = u_tmp;
+			GET_INT(i_tmp);
+			sc->m_okKills[idx] = i_tmp;
 		}
 		break;
-#endif
 
 	case STATS_ALLTIME:
 		ml_string("Received STATS_ALLTIME\n");
-
-#ifndef INF_BUILD
-		// kills - alltime
-		for (idx=0; idx<MAX_SHIP_CLASSES; idx++) {
-			GET_USHORT(u_tmp);
-			sc->kills[idx] = u_tmp;
-		}
-#endif
 
 		// read in the stats
 		for (idx=0; idx<MAX_MEDALS; idx++) {
@@ -6613,14 +6602,6 @@ void process_player_stats_block_packet(ubyte *data, header *hinfo)
 	case STATS_MISSION:
 		ml_string("Received STATS_MISSION\n");
 
-#ifndef INF_BUILD
-		// kills - mission OK			
-		for (idx=0; idx<MAX_SHIP_CLASSES; idx++) {
-			GET_USHORT(u_tmp);
-			sc->m_okKills[idx] = u_tmp;			
-		}
-#endif
-		
 		GET_INT(sc->m_score);
 		GET_INT(sc->m_assists);
 		GET_INT(sc->m_kill_count);
@@ -8380,7 +8361,8 @@ void process_flak_fired_packet(ubyte *data, header *hinfo)
 	ship_get_global_turret_info(objp, ssp->system_info, &pos, &dir);
 
 	// create the weapon object	
-	weapon_objnum = weapon_create( &pos, &orient, wid, OBJ_INDEX(objp), -1, 1);
+	weapon_objnum = weapon_create( &pos, &orient, wid, OBJ_INDEX(objp), -1, 1, 0, 0.0f, ssp);
+	wid = Weapons[Objects[weapon_objnum].instance].weapon_info_index;
 	if (weapon_objnum != -1) {
 		if ( Weapon_info[wid].launch_snd != -1 ) {
 			snd_play_3d( &Snds[Weapon_info[wid].launch_snd], &pos, &View_position );

@@ -81,6 +81,8 @@
 extern int ascii_table[];
 extern int shifted_ascii_table[];
 
+extern int Multi_ping_timestamp;
+
 // network object management
 ushort Next_ship_signature;										// next permanent network signature to assign to an object
 ushort Next_asteroid_signature;									// next signature for an asteroid
@@ -709,7 +711,6 @@ void multi_assign_player_ship( int net_player, object *objp,int ship_class )
 	// works properly.
 	Net_players[net_player].p_info.p_objp = mission_parse_get_arrival_ship( shipp->ship_name );
 	Assert( Net_players[net_player].p_info.p_objp != NULL );		// get allender -- ship should be on list
-	Net_players[net_player].p_info.p_objp->ship_class = ship_class;		// be sure this gets set so respawns work
 
 	// game server and this client need to initialize this information so object updating
 	// works properly.
@@ -782,11 +783,11 @@ int multi_create_player( int net_player_num, player *pl, char* name, net_addr* a
 	}
 
 	// blast the old player data
-	memset(pl,0,sizeof(player));
+	pl->reset();
 
 	// set up the net_player structure
-	stuff_netplayer_info( &Net_players[net_player_num], addr, player_ship_class, pl );
-	Net_players[net_player_num].s_info.num_last_buttons = 0;
+	stuff_netplayer_info( &Net_players[net_player_num], addr, player_ship_class, pl );	Net_players[net_player_num].s_info.num_last_buttons = 0;
+
 	// Net_players[net_player_num].respawn_count = 0;
 	Net_players[net_player_num].last_heard_time = timer_get_fixed_seconds();
 	Net_players[net_player_num].reliable_socket = INVALID_SOCKET;
@@ -4174,5 +4175,17 @@ void send_debrief_event() {
 		gameseq_post_event(GS_EVENT_DEBRIEF);
 	}
 }
+
+// sends out a ping if we are multi so that psnet2 doesn't kill us off for a long load
+void multi_send_anti_timeout_ping()
+{
+	if (Game_mode & GM_MULTIPLAYER) {
+		if ( (Multi_ping_timestamp == -1) || (Multi_ping_timestamp <= timer_get_milliseconds()) ) {
+			multi_ping_send_all();
+			Multi_ping_timestamp = timer_get_milliseconds() + 10000; // timeout is 10 seconds between pings
+		}
+	}
+}
+
 
 #pragma optimize("", on)

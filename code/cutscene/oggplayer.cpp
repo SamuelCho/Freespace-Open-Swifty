@@ -50,6 +50,7 @@ static GLint gl_screenYH = 0;
 static GLint gl_screenXW = 0;
 static GLfloat gl_screenU = 0;
 static GLfloat gl_screenV = 0;
+static GLfloat glVertices[4][4] = {{0}};
 
 // video externs from API graphics functions
 extern void opengl_tcache_get_adjusted_texture_size(int w_in, int h_in, int *w_out, int *h_out);
@@ -495,7 +496,7 @@ static void OGG_video_init(theora_info *tinfo)
 		}
 
 		// set our color so that we can make sure that it's correct
-		glColor3f(1.0f, 1.0f, 1.0f);
+		GL_state.Color(255, 255, 255, 255);
 	}
 
 	if(!use_shaders) {
@@ -535,6 +536,35 @@ static void OGG_video_init(theora_info *tinfo)
 			vglUniform1iARB( vglGetUniformLocationARB(shader_id, "utex"), 1 );
 			vglUniform1iARB( vglGetUniformLocationARB(shader_id, "vtex"), 2 );
 		}
+
+		glVertices[0][0] = (GLfloat)g_screenX;
+		glVertices[0][1] = (GLfloat)g_screenY;
+		glVertices[0][2] = 0.0f;
+		glVertices[0][3] = 0.0f;
+
+		glVertices[1][0] = (GLfloat)g_screenX;
+		glVertices[1][1] = (GLfloat)gl_screenYH;
+		glVertices[1][2] = 0.0f;
+		glVertices[1][3] = gl_screenV;
+
+		glVertices[2][0] = (GLfloat)gl_screenXW;
+		glVertices[2][1] = (GLfloat)g_screenY;
+		glVertices[2][2] = gl_screenU;
+		glVertices[2][3] = 0.0f;
+
+		glVertices[3][0] = (GLfloat)gl_screenXW;
+		glVertices[3][1] = (GLfloat)gl_screenYH;
+		glVertices[3][2] = gl_screenU;
+		glVertices[3][3] = gl_screenV;
+
+		GL_state.Array.BindArrayBuffer(0);
+
+		GL_state.Array.EnableClientVertex();
+		GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(glVertices[0]), glVertices);
+
+		GL_state.Array.SetActiveClientUnit(0);
+		GL_state.Array.EnableClientTexture();
+		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(glVertices[0]), &(glVertices[0][2]));
 	}
 	if(!use_shaders && tinfo->frame_height > 450) {
 		mprintf(("VIDEO: No shader support and hd video is beeing played this can get choppy."));
@@ -549,6 +579,9 @@ static void OGG_video_close()
 	}
 
 	if (gr_screen.mode == GR_OPENGL) {
+		GL_state.Array.DisableClientVertex();
+		GL_state.Array.DisableClientTexture();
+
 		if (scale_video) {
 			glMatrixMode(GL_MODELVIEW);
 			glPopMatrix();
@@ -680,19 +713,8 @@ static void OGG_video_draw(theora_state *tstate)
 		} else {
 			glTexSubImage2D(GL_state.Texture.GetTarget(), 0, 0, 0, g_screenWidth, g_screenHeight, GL_BGR, GL_UNSIGNED_BYTE, pixelbuf);
 		}
-		glBegin(GL_QUADS);
-			glTexCoord2f(0, 0);
-				glVertex2i(g_screenX, g_screenY);
 
-			glTexCoord2f(0, gl_screenV);
-				glVertex2i(g_screenX, gl_screenYH);
-
-			glTexCoord2f(gl_screenU, gl_screenV);
-				glVertex2i(gl_screenXW, gl_screenYH);
-
-			glTexCoord2f(gl_screenU, 0);
-				glVertex2i(gl_screenXW, g_screenY);
-		glEnd();
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	}
 	Mouse_hidden = 1;
 	gr_flip();

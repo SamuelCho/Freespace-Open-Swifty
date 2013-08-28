@@ -178,7 +178,11 @@ void hud_targetbox_truncate_subsys_name(char *outstr)
 }
 
 HudGaugeTargetBox::HudGaugeTargetBox():
-HudGauge(HUD_OBJECT_TARGET_MONITOR, HUD_TARGET_MONITOR, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY), 255, 255, 255)
+	HudGauge(HUD_OBJECT_TARGET_MONITOR, HUD_TARGET_MONITOR, false, false, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY), 255, 255, 255), 
+	Monitor_mask(-1),
+	Use_subsys_name_offsets(false), 
+	Use_subsys_integrity_offsets(false),
+	Use_disabled_status_offsets(false)
 {
 }
 
@@ -259,7 +263,33 @@ void HudGaugeTargetBox::initCargoScanSize(int w, int h)
 	Cargo_scan_h = h;
 }
 
-void HudGaugeTargetBox::initBitmaps(char *fname_monitor, char *fname_integrity, char *fname_static)
+void HudGaugeTargetBox::initSubsysNameOffsets(int x, int y, bool activate)
+{
+	Subsys_name_offsets[0] = x;
+	Subsys_name_offsets[1] = y;
+	Use_subsys_name_offsets = activate;
+}
+
+void HudGaugeTargetBox::initSubsysIntegrityOffsets(int x, int y, bool activate)
+{
+	Subsys_integrity_offsets[0] = x;
+	Subsys_integrity_offsets[1] = y;
+	Use_subsys_integrity_offsets = activate;
+}
+
+void HudGaugeTargetBox::initDisabledStatusOffsets(int x, int y, bool activate)
+{
+	Disabled_status_offsets[0] = x;
+	Disabled_status_offsets[1] = y;
+	Use_disabled_status_offsets = activate;
+}
+
+void HudGaugeTargetBox::initDesaturate(bool desaturate)
+{
+	Desaturated = desaturate;
+}
+
+void HudGaugeTargetBox::initBitmaps(char *fname_monitor, char *fname_monitor_mask, char *fname_integrity, char *fname_static)
 {
 	Monitor_frame.first_frame = bm_load_animation(fname_monitor, &Monitor_frame.num_frames);
 	if ( Monitor_frame.first_frame < 0 ) {
@@ -269,6 +299,14 @@ void HudGaugeTargetBox::initBitmaps(char *fname_monitor, char *fname_integrity, 
 	Integrity_bar.first_frame = bm_load_animation(fname_integrity, &Integrity_bar.num_frames);
 	if ( Integrity_bar.first_frame < 0 ) {
 		Warning(LOCATION,"Cannot load hud ani: %s\n", fname_integrity);
+	}
+
+	if ( strlen(fname_monitor_mask) > 0 ) {
+		Monitor_mask = bm_load_animation(fname_monitor_mask);
+
+		if ( Monitor_mask < 0 ) {
+			Warning(LOCATION, "Cannot load bitmap hud mask: %s\n", fname_monitor_mask);
+		}
 	}
 
 	strcpy_s(static_fname, fname_static);
@@ -307,6 +345,20 @@ void HudGaugeTargetBox::render(float frametime)
 
 	// blit the background frame
 	renderBitmap(Monitor_frame.first_frame, position[0], position[1]);
+
+	if ( Monitor_mask >= 0 ) {
+		// render the alpha mask
+		gr_alpha_mask_set(1, 0.5f);
+		gr_stencil_clear();
+		gr_stencil_set(GR_STENCIL_WRITE);
+		gr_set_color_buffer(0);
+
+		renderBitmapColor(Monitor_mask, position[0], position[1]);
+
+		gr_set_color_buffer(1);
+		gr_stencil_set(GR_STENCIL_NONE);
+		gr_alpha_mask_set(0, 1.0f);
+	}
 
 	switch ( target_objp->type ) {
 		case OBJ_SHIP:
@@ -367,7 +419,6 @@ void HudGaugeTargetBox::renderTargetForeground()
  */
 void HudGaugeTargetBox::renderTargetIntegrity(int disabled,int force_obj_num)
 {
-	object	*objp;
 	int		clip_h,w,h;
 	char		buf[16];
 
@@ -379,28 +430,24 @@ void HudGaugeTargetBox::renderTargetIntegrity(int disabled,int force_obj_num)
 		return;
 	}
 
-	if(force_obj_num == -1){
+	if(force_obj_num == -1)
 		Assert(Player_ai->target_objnum >= 0 );
-		objp = &Objects[Player_ai->target_objnum];
-	} else {
-		objp = &Objects[force_obj_num];
-	}
 
 	clip_h = fl2i( (1 - Pl_target_integrity) * integrity_bar_h );
 
 	// print out status of ship
 	switch(Current_ts) {
 		case TS_DIS:
-			sprintf(buf,XSTR( "dis", 344));
+			strcpy_s(buf,XSTR( "dis", 344));
 			break;
 		case TS_OK:
-			sprintf(buf,XSTR( "ok", 345));
+			strcpy_s(buf,XSTR( "ok", 345));
 			break;
 		case TS_DMG:
-			sprintf(buf,XSTR( "dmg", 346));
+			strcpy_s(buf,XSTR( "dmg", 346));
 			break;
 		case TS_CRT:
-			sprintf(buf,XSTR( "crt", 347));
+			strcpy_s(buf,XSTR( "crt", 347));
 			break;
 	}
 
@@ -450,6 +497,7 @@ void HudGaugeTargetBox::renderTargetSetup(vec3d *camera_eye, matrix *camera_orie
 
 }
 
+extern bool Interp_desaturate;
 void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 {
 	vec3d		obj_pos = ZERO_VECTOR;
@@ -492,9 +540,13 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 				break;
 			case 1:
 				if (ship_is_tagged(target_objp))
-					model_set_outline_color_fast(iff_get_color(IFF_COLOR_TAGGED, true));
+					model_set_outline_color_fast(iff_get_color(IFF_COLOR_TAGGED, 1));
 				else
-					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, true, target_objp));
+					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, 1, target_objp));
+
+				if (Ship_info[Ships[target_objp->instance].ship_info_index].uses_team_colors) {
+					gr_set_team_color(Ships[target_objp->instance].team_name, Ships[target_objp->instance].secondary_team_name, Ships[target_objp->instance].team_change_timestamp, Ships[target_objp->instance].team_change_time);
+				}
 
 				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
 				flags |= MR_NO_POLYS | MR_NO_LIGHTING;
@@ -504,9 +556,9 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 				break;
 			case 3:
 				if (ship_is_tagged(target_objp))
-					model_set_outline_color_fast(iff_get_color(IFF_COLOR_TAGGED, true));
+					model_set_outline_color_fast(iff_get_color(IFF_COLOR_TAGGED, 1));
 				else
-					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, true, target_objp));
+					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, 1, target_objp));
 
 				flags |= MR_NO_LIGHTING | MR_NO_TEXTURING;
 
@@ -523,13 +575,36 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 			opengl_shader_set_animated_effect(Targetbox_shader_effect);
 		}
 
+		if ( Monitor_mask >= 0 ) {
+			gr_stencil_set(GR_STENCIL_READ);
+		}
+		Interp_desaturate = Desaturated;
+
+		if (!Glowpoint_override)
+			Glowpoint_override = true;
+
+		// set glowmap flag here since model_render (etc) require an objnum to handle glowmaps
+		// if we did pass the objnum, we'd also have thrusters drawn in the targetbox
+		if (target_shipp->flags2 & SF2_GLOWMAPS_DISABLED) {
+			flags |= MR_NO_GLOWMAPS;
+		}
+
 		// maybe render a special hud-target-only model
 		if(target_sip->model_num_hud >= 0){
 			model_render( target_sip->model_num_hud, -1, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING);
 		} else {
 			model_render( target_sip->model_num, -1, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1, target_shipp->ship_replacement_textures);
 		}
+
+		Interp_desaturate = false;
+		Glowpoint_override = false;
+
 		ship_model_stop( target_objp );
+		gr_disable_team_color();
+
+		if ( Monitor_mask >= 0 ) {
+			gr_stencil_set(GR_STENCIL_NONE);
+		}
 
 		sx = 0;
 		sy = 0;
@@ -581,13 +656,10 @@ void HudGaugeTargetBox::renderTargetDebris(object *target_objp)
 	matrix	camera_orient = IDENTITY_MATRIX;
 	debris	*debrisp;
 	vec3d	orient_vec, up_vector;
-	int		target_team;
 	float		factor;	
 	int flags=0;
 
 	debrisp = &Debris[target_objp->instance];
-
-	target_team = obj_team(target_objp);
 
 	if ( Detail.targetview_model )	{
 		// take the forward orientation to be the vector from the player to the current target
@@ -635,8 +707,21 @@ void HudGaugeTargetBox::renderTargetDebris(object *target_objp)
 			opengl_shader_set_animated_effect(Targetbox_shader_effect);
 		}
 
+		if ( Monitor_mask >= 0 ) {
+			gr_stencil_set(GR_STENCIL_READ);
+		}
+
+		Interp_desaturate = Desaturated;
+
 		// This calls the colour that doesn't get reset
 		submodel_render( debrisp->model_num, debrisp->submodel_num, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_NO_FOGGING );
+
+		Interp_desaturate = false;
+
+		if ( Monitor_mask >= 0 ) {
+			gr_stencil_set(GR_STENCIL_NONE);
+		}
+
 		renderTargetClose();
 	}
 	renderTargetForeground();
@@ -761,7 +846,20 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 			opengl_shader_set_animated_effect(Targetbox_shader_effect);
 		}
 
+		if ( Monitor_mask >= 0 ) {
+			gr_stencil_set(GR_STENCIL_READ);
+		}
+
+		Interp_desaturate = Desaturated;
+
 		model_render( viewed_model_num, -1, &viewed_obj->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_IS_MISSILE | MR_NO_FOGGING, -1, -1, replacement_textures);
+
+		Interp_desaturate = false;
+
+		if ( Monitor_mask >= 0 ) {
+			gr_stencil_set(GR_STENCIL_NONE);
+		}
+
 		renderTargetClose();
 	}
 	renderTargetForeground(); 
@@ -787,7 +885,7 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 		if ( speed > 0 ) {
 			sprintf(outstr, NOX("impact: %.1f sec"), dist/speed);
 		} else {
-			sprintf(outstr, XSTR( "unknown", 349));
+			strcpy_s(outstr, XSTR( "unknown", 349));
 		}
 
 		renderString(position[0] + Class_offsets[0], position[1] + Class_offsets[1], EG_TBOX_CLASS, outstr);		
@@ -804,14 +902,11 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 	matrix		camera_orient = IDENTITY_MATRIX;
 	asteroid		*asteroidp;
 	vec3d		orient_vec, up_vector;
-	int			target_team;
 	float			time_to_impact, factor;	
 	int			pof;
 
 	int flags=0;									//draw flags for wireframe
 	asteroidp = &Asteroids[target_objp->instance];
-
-	target_team = obj_team(target_objp);
 
 	pof = asteroidp->asteroid_subtype;
 	
@@ -869,7 +964,20 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 			opengl_shader_set_animated_effect(Targetbox_shader_effect);
 		}
 
+		if ( Monitor_mask >= 0 ) {
+			gr_stencil_set(GR_STENCIL_READ);
+		}
+
+		Interp_desaturate = Desaturated;
+
 		model_render(Asteroid_info[asteroidp->asteroid_type].model_num[pof], -1, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_NO_FOGGING );
+
+		Interp_desaturate = false;
+
+		if ( Monitor_mask >= 0 ) {
+			gr_stencil_set(GR_STENCIL_NONE);
+		}
+
 		renderTargetClose();
 	}
 	renderTargetForeground();
@@ -938,7 +1046,17 @@ void HudGaugeTargetBox::renderTargetJumpNode(object *target_objp)
 			vm_vec_copy_scale(&obj_pos,&orient_vec,factor);
 
 			renderTargetSetup(&camera_eye, &camera_orient, 0.5f);
+
+			if ( Monitor_mask >= 0 ) {
+				gr_stencil_set(GR_STENCIL_READ);
+			}
+
 			jnp->Render( &obj_pos );
+
+			if ( Monitor_mask >= 0 ) {
+				gr_stencil_set(GR_STENCIL_NONE);
+			}
+
 			renderTargetClose();
 		}
 
@@ -1155,7 +1273,7 @@ void HudGaugeExtraTargetData::render(float frametime)
 		}
 
 		if ( has_orders ) {
-			sprintf(outstr, XSTR( "time to: ", 338));
+			strcpy_s(outstr, XSTR( "time to: ", 338));
 			if ( ship_return_time_to_goal(tmpbuf, target_shipp) ) {
 				strcat_s(outstr, tmpbuf);
 				
@@ -1184,7 +1302,7 @@ void HudGaugeExtraTargetData::render(float frametime)
 		// docked to multiple objects
 		else
 		{
-			sprintf(outstr, XSTR("Docked: %d objects", -1), dock_count);
+			sprintf(outstr, XSTR("Docked: %d objects", 1623), dock_count);
 		}
 
 		gr_force_fit_string(outstr, 255, 173);
@@ -1299,7 +1417,6 @@ void get_turret_subsys_name(ship_weapon *swp, char *outstr)
 void HudGaugeTargetBox::renderTargetShipInfo(object *target_objp)
 {
 	ship			*target_shipp;
-	ship_info	*target_sip;
 	int			w, h, screen_integrity = 1;
 	char			outstr[NAME_LENGTH];
 	char			outstr_name[NAME_LENGTH*2+3];
@@ -1309,7 +1426,6 @@ void HudGaugeTargetBox::renderTargetShipInfo(object *target_objp)
 	Assert(target_objp);	// Goober5000
 	Assert(target_objp->type == OBJ_SHIP);
 	target_shipp = &Ships[target_objp->instance];
-	target_sip = &Ship_info[target_shipp->ship_info_index];
 
 	// set up colors
 	if ( HudGauge::maybeFlashSexp() == 1 ) {
@@ -1411,16 +1527,38 @@ void HudGaugeTargetBox::renderTargetShipInfo(object *target_objp)
 			p_line = strpbrk(p_line+1,linebreak);
 		}
 
+		int subsys_name_pos_x;
+		int subsys_name_pos_y;
+
+		if ( Use_subsys_name_offsets ) {
+			subsys_name_pos_x = position[0] + Subsys_name_offsets[0];
+			subsys_name_pos_y = position[1] + Subsys_name_offsets[1];
+		} else {
+			subsys_name_pos_x = position[0] + Viewport_offsets[0] + 2;
+			subsys_name_pos_y = position[1] + Viewport_offsets[1] + Viewport_h;
+		}
+
 		if (n_linebreaks) {
 			p_line = strtok(outstr,linebreak);
 			while (p_line != NULL) {
-				gr_printf(position[0] + Viewport_offsets[0]+2, position[1] + Viewport_offsets[1]+Viewport_h-h-(10*n_linebreaks), p_line);
+				renderPrintf(subsys_name_pos_x, subsys_name_pos_y-h-(10*n_linebreaks), p_line);
 				p_line = strtok(NULL,linebreak);
 				n_linebreaks--;
 			}
 		} else {
 			hud_targetbox_truncate_subsys_name(outstr);
-			renderPrintf(position[0] + Viewport_offsets[0]+2, position[1] + Viewport_offsets[1]+Viewport_h-h, outstr);
+			renderPrintf(subsys_name_pos_x, subsys_name_pos_y-h, outstr);
+		}
+
+		int subsys_integrity_pos_x;
+		int subsys_integrity_pos_y;
+
+		if ( Use_subsys_integrity_offsets ) {
+			subsys_integrity_pos_x = position[0] + Subsys_integrity_offsets[0];
+			subsys_integrity_pos_y = position[1] + Subsys_integrity_offsets[1];
+		} else {
+			subsys_integrity_pos_x = position[0] + Viewport_offsets[0] + Viewport_w - 1;
+			subsys_integrity_pos_y = position[1] + Viewport_offsets[1] + Viewport_h;
 		}
 
 		// AL 23-3-98: Fighter bays are a special case.  Player cannot destroy them, so don't
@@ -1431,7 +1569,7 @@ void HudGaugeTargetBox::renderTargetShipInfo(object *target_objp)
 		{
 			sprintf(outstr,XSTR( "%d%%", 341),screen_integrity);
 			gr_get_string_size(&w,&h,outstr);
-			renderPrintf(position[0] + Viewport_offsets[0] + Viewport_w - w - 1, position[1] + Viewport_offsets[1] + Viewport_h - h, "%s", outstr);
+			renderPrintf(subsys_integrity_pos_x - w, subsys_integrity_pos_y - h, "%s", outstr);
 		}
 
 		setGaugeColor();
@@ -1440,12 +1578,24 @@ void HudGaugeTargetBox::renderTargetShipInfo(object *target_objp)
 	// print out 'disabled' on the monitor if the target is disabled
 	if ( (target_shipp->flags & SF_DISABLED) || (ship_subsys_disrupted(target_shipp, SUBSYSTEM_ENGINE)) ) {
 		if ( target_shipp->flags & SF_DISABLED ) {
-			sprintf(outstr, XSTR( "DISABLED", 342));
+			strcpy_s(outstr, XSTR( "DISABLED", 342));
 		} else {
-			sprintf(outstr, XSTR( "DISRUPTED", 343));
+			strcpy_s(outstr, XSTR( "DISRUPTED", 343));
 		}
 		gr_get_string_size(&w,&h,outstr);
-		renderPrintf(position[0] + Viewport_offsets[0] + Viewport_w/2 - w/2 - 1, position[1] + Viewport_offsets[1] + Viewport_h - 2*h, "%s", outstr);
+
+		int disabled_status_pos_x;
+		int disabled_status_pos_y;
+
+		if ( Use_disabled_status_offsets ) {
+			disabled_status_pos_x = position[0] + Disabled_status_offsets[0];
+			disabled_status_pos_y = position[1] + Disabled_status_offsets[1];
+		} else {
+			disabled_status_pos_x = position[0] + Viewport_offsets[0] + Viewport_w/2 - w/2 - 1;
+			disabled_status_pos_y = position[1] + Viewport_offsets[1] + Viewport_h - 2*h;
+		}
+
+		renderPrintf(disabled_status_pos_x, disabled_status_pos_y, "%s", outstr);
 	}
 }
 

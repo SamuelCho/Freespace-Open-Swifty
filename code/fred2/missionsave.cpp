@@ -46,6 +46,7 @@
 #include "globalincs/version.h"
 #include "sound/sound.h"
 #include "sound/ds.h"
+#include "math/vecmat.h"
 
 
 void CFred_mission_save::convert_special_tags_to_retail(char *text, int max_len)
@@ -329,7 +330,7 @@ int CFred_mission_save::save_mission_info()
 #endif		
 
 	if ( optional_string_fred("+Game Type Flags:")){
-		parse_comments(2);
+		parse_comments(1);
 	} else {
 		fout("\n+Game Type Flags:");
 	}	
@@ -337,7 +338,7 @@ int CFred_mission_save::save_mission_info()
 	fout(" %d", The_mission.game_type);
 
 	if (optional_string_fred("+Flags:")){
-		parse_comments(2);
+		parse_comments(1);
 	} else {
 		fout("\n+Flags:");
 	}
@@ -419,7 +420,7 @@ int CFred_mission_save::save_mission_info()
 	}
 
 	if ( optional_string_fred("+Disallow Support:")){
-		parse_comments(2);
+		parse_comments(1);
 	} else {
 		fout("\n+Disallow Support:");
 	}
@@ -430,14 +431,14 @@ int CFred_mission_save::save_mission_info()
 	if (Format_fs2_open != FSO_FORMAT_RETAIL)
 	{
 		if ( optional_string_fred("+Hull Repair Ceiling:")) {
-			parse_comments(2);
+			parse_comments(1);
 		} else {
 			fout("\n+Hull Repair Ceiling:");
 		}
 		fout(" %f", The_mission.support_ships.max_hull_repair_val);
 
 		if ( optional_string_fred("+Subsystem Repair Ceiling:")) {
-			parse_comments(2);
+			parse_comments(1);
 		} else {
 			fout("\n+Subsystem Repair Ceiling:");
 		}
@@ -572,6 +573,21 @@ int CFred_mission_save::save_mission_info()
 		bypass_comment(";;FSO 3.6.0;; $Skybox Model:");
 	}
 
+	// orientation?
+	if ((strlen(The_mission.skybox_model) > 0) && !vm_matrix_same(&vmd_identity_matrix, &The_mission.skybox_orientation)) {
+		if (optional_string_fred("+Skybox Orientation:")) {
+			parse_comments(1);
+			save_matrix(The_mission.skybox_orientation);
+		} else {
+			fso_comment_push(";;FSO 3.6.14;;");
+			fout_version("\n+Skybox Orientation:");
+			save_matrix(The_mission.skybox_orientation);
+			fso_comment_pop();
+		}
+	} else {
+		bypass_comment(";;FSO 3.6.14;; +Skybox Orientation:");
+	}
+
 	// are skybox flags in use?
 	if (The_mission.skybox_flags != DEFAULT_NMODEL_FLAGS) {
 		//char out_str[4096];
@@ -583,8 +599,7 @@ int CFred_mission_save::save_mission_info()
 			fout_version("\n+Skybox Flags: %d", The_mission.skybox_flags);
 			fso_comment_pop();
 		}
-	}
-	else {
+	} else {
 		bypass_comment(";;FSO 3.6.11;; +Skybox Flags:");
 	}
 
@@ -716,7 +731,10 @@ int CFred_mission_save::save_cutscenes()
 							break; 
 						case MOVIE_PRE_DEBRIEF:
 							strcpy_s(type, "$Debriefing Cutscene:");  
-							break; 
+							break;
+						case MOVIE_END_CAMPAIGN:
+							strcpy_s(type, "$Campaign End Cutscene:");
+							break;
 						default: 
 							Int3(); 
 							continue; 
@@ -1399,6 +1417,12 @@ int CFred_mission_save::save_objects()
 		required_string_fred("$Team:");
 		parse_comments();
 		fout(" %s", Iff_info[shipp->team].iff_name);
+
+		if (Ship_info[shipp->ship_info_index].uses_team_colors) {
+			required_string_fred("$Team Color Setting:");
+			parse_comments();
+			fout(" %s", shipp->team_name.c_str());
+		}
 
 		required_string_fred("$Location:");
 		parse_comments();
@@ -3273,7 +3297,7 @@ void CFred_mission_save::save_ai_goals(ai_goal *goalp, int ship)
 int CFred_mission_save::save_events()
 {
 	SCP_string sexp_out;
-	int i;
+	int i, j, add_flag;
 
 	fred_parse_flag = 0;
 	required_string_fred("#Events");
@@ -3303,7 +3327,13 @@ int CFred_mission_save::save_events()
 			fout("\n+Repeat Count:");
 		}
 
-		fout(" %d", Mission_events[i].repeat_count);
+		// if we have a trigger count but no repeat count, we want the event to loop until it has triggered enough times
+		if ( Mission_events[i].repeat_count == 1 && Mission_events[i].trigger_count != 1) {
+			fout(" -1"); 
+		}
+		else {
+			fout(" %d", Mission_events[i].repeat_count);
+		}
 
 		if (Format_fs2_open != FSO_FORMAT_RETAIL && Mission_events[i].trigger_count != 1 ) {
 			if ( optional_string_fred("+Trigger Count:", "$Formula:")){
@@ -3374,6 +3404,24 @@ int CFred_mission_save::save_events()
 				fout("\n+Team:");
 			} 
 			fout(" %d", Mission_events[i].team);
+		}
+
+		if (Format_fs2_open != FSO_FORMAT_RETAIL && Mission_events[i].mission_log_flags != 0 ) {
+			if ( optional_string_fred("+Event Log Flags: (", "$Formula:")){
+				parse_comments();
+			} else {
+				fso_comment_push(";;FSO 3.6.11;;");
+				fout_version("\n+Event Log Flags: (");
+				fso_comment_pop(); 
+			}
+
+			for (j = 0; j < MAX_MISSION_EVENT_LOG_FLAGS ; j++) {
+				add_flag = 1 << j; 
+				if (Mission_events[i].mission_log_flags & add_flag ) {
+					fout(" \"%s\"", Mission_event_log_flags[j]);
+				}
+			}
+			fout(" )"); 
 		}
 
 		fso_comment_pop();
@@ -3818,9 +3866,13 @@ void CFred_mission_save::save_turret_info(ship_subsys *ptr, int ship)
 			fout("\n+Primary Banks:");
 
 		fout(" ( ");
-		for (i=0; i<wp->num_primary_banks; i++)
-			fout("\"%s\" ", Weapon_info[wp->primary_bank_weapons[i]].name);
-
+		for (i=0; i<wp->num_primary_banks; i++) {
+			if (wp->primary_bank_weapons[i] != -1) { // Just in case someone has set a weapon bank to empty
+				fout("\"%s\" ", Weapon_info[wp->primary_bank_weapons[i]].name);
+			} else {
+				fout("\"\" ");
+			}
+		}
 		fout(")");
 	}
 
@@ -3837,9 +3889,13 @@ void CFred_mission_save::save_turret_info(ship_subsys *ptr, int ship)
 			fout("\n+Secondary Banks:");
 
 		fout(" ( ");
-		for (i=0; i<wp->num_secondary_banks; i++)
-			fout("\"%s\" ", Weapon_info[wp->secondary_bank_weapons[i]].name);
-
+		for (i=0; i<wp->num_secondary_banks; i++) {
+			if (wp->secondary_bank_weapons[i] != -1) {
+				fout("\"%s\" ", Weapon_info[wp->secondary_bank_weapons[i]].name);
+			} else {
+				fout("\"\" ");
+			}
+		}
 		fout(")");
 	}
 
@@ -3961,12 +4017,12 @@ int CFred_mission_save::save_campaign_file(char *pathname)
 			else
 				fout("\n+Main Hall:");
 
-			fout(" %d", Campaign.missions[m].main_hall);
+			fout(" %s", Campaign.missions[m].main_hall.c_str());
 		}
 		else
 		{
 			// save Bastion flag properly
-			fout(" %d", Campaign.missions[m].flags | ((Campaign.missions[m].main_hall > 0) ? CMISSION_FLAG_BASTION : 0));
+			fout(" %d", Campaign.missions[m].flags | ((Campaign.missions[m].main_hall != "") ? CMISSION_FLAG_BASTION : 0));
 		}
 
 		if ( Campaign.missions[m].debrief_persona_index > 0 ) {

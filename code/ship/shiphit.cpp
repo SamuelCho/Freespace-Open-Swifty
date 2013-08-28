@@ -103,7 +103,7 @@ bool is_subsys_destroyed(ship *shipp, int submodel)
 // do_subobj_destroyed_stuff is called when a subobject for a ship is killed.  Separated out
 // to separate function on 10/15/97 by MWA for easy multiplayer access.  It does all of the
 // cool things like blowing off the model (if applicable, writing the logs, etc)
-void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos )
+void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos, bool no_explosion )
 {
 	ship_info *sip;
 	object *ship_obj;
@@ -121,7 +121,7 @@ void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos
 	// create fireballs when subsys destroy for large ships.
 	object* objp = &Objects[ship_p->objnum];
 
-	if (!(subsys->flags & SSF_VANISHED)) {
+	if (!(subsys->flags & SSF_VANISHED) && !no_explosion) {
 		if (objp->radius > 100.0f) {
 			// number of fireballs determined by radius of subsys
 			int num_fireballs;
@@ -230,7 +230,9 @@ void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos
 		mission_log_add_entry(LOG_SHIP_SUBSYS_DESTROYED, ship_p->ship_name, psub->subobj_name, log_index );
 		if ( ship_obj == Player_obj )
 		{
-			snd_play( &Snds[SND_SUBSYS_DIE_1], 0.0f );
+			if (!no_explosion) {
+				snd_play( &Snds[SND_SUBSYS_DIE_1], 0.0f );
+			}
 			if (strlen(psub->alt_dmg_sub_name))
 				HUD_printf(XSTR( "Your %s subsystem has been destroyed", 499), psub->alt_dmg_sub_name);
 			else {
@@ -264,7 +266,7 @@ void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos
 	}
 
 	if ( psub->subobj_num > -1 )	{
-		shipfx_blow_off_subsystem(ship_obj,ship_p,subsys,&g_subobj_pos);
+		shipfx_blow_off_subsystem(ship_obj,ship_p,subsys,&g_subobj_pos,no_explosion);
 		subsys->submodel_info_1.blown_off = 1;
 	}
 
@@ -272,7 +274,7 @@ void do_subobj_destroyed_stuff( ship *ship_p, ship_subsys *subsys, vec3d* hitpos
 		subsys->submodel_info_2.blown_off = 1;
 	}
 
-	if (notify) {
+	if (notify && !no_explosion) {
 		// play sound effect when subsys gets blown up
 		int sound_index=-1;
 		if ( Ship_info[ship_p->ship_info_index].flags & SIF_HUGE_SHIP ) {
@@ -679,7 +681,7 @@ float do_subobj_hit_stuff(object *ship_obj, object *other_obj, vec3d *hitpos, in
 		{
 			//	Decrease damage to subsystems to player ships.
 			if (ship_obj->flags & OF_PLAYER_SHIP){
-				ss_dif_scale *= The_mission.ai_profile->subsys_damage_scale[Game_skill_level];
+				ss_dif_scale = The_mission.ai_profile->subsys_damage_scale[Game_skill_level];
 			}
 		
 			// Goober5000 - subsys guardian
@@ -1755,7 +1757,11 @@ void ship_apply_whack(vec3d *force, vec3d *hit_pos, object *objp)
 		// Goober5000 - this code attempts to account properly for whacking a docked object as one mass.
 		// It isn't perfect, because physics doesn't completely account for it (particularly because it
 		// still uses the moment of inertia for the whacked object, not for all objects).  Commenting
-		// the bracketed code restores Volition's code, but it doesn't calculate the correct torque.
+		// out the contents of the block restores the Volition behavior, but it doesn't calculate the
+		// correct torque.
+		// Addendum: this block is now not executed for docked fighters or bombers because the whack
+		// looks like the fighter is doing evasive maneuvers
+		if ((objp->type != OBJ_SHIP) || !(Ship_info[Ships[objp->instance].ship_info_index].flags & (SIF_FIGHTER | SIF_BOMBER)))
 		{
 			vec3d world_hit_pos, world_center_pos;
 
@@ -1924,8 +1930,7 @@ static void ship_do_damage(object *ship_obj, object *other_obj, vec3d *hitpos, f
 	int other_obj_is_asteroid;
 	int other_obj_is_debris;
 	int other_obj_is_ship;
-	float shp_diff_dmg_scale = 1.0f;	// Nuke: we will multiply difficulty related damage factors against this, so they can be passed to armor type GetDamage calls.
-	float sub_diff_dmg_scale = 1.0f;	// Nuke
+	float difficulty_scale_factor = 1.0f;
 
 	Assert(ship_obj);	// Goober5000
 	Assert(hitpos);		// Goober5000
@@ -1983,8 +1988,7 @@ static void ship_do_damage(object *ship_obj, object *other_obj, vec3d *hitpos, f
 			// Do a little "skill" balancing for the player in single player and coop multiplayer
 			if (ship_obj->flags & OF_PLAYER_SHIP)	{
 				// Nuke - store it in a couple factor and we will apply it where needed
-				shp_diff_dmg_scale *= The_mission.ai_profile->player_damage_scale[Game_skill_level];
-				sub_diff_dmg_scale *= The_mission.ai_profile->player_damage_scale[Game_skill_level];
+				difficulty_scale_factor *= The_mission.ai_profile->player_damage_scale[Game_skill_level];
 			}		
 		}
 	}
@@ -2005,7 +2009,7 @@ static void ship_do_damage(object *ship_obj, object *other_obj, vec3d *hitpos, f
 			Assert((beam_get_weapon_info_index(other_obj) >= 0) && (beam_get_weapon_info_index(other_obj) < Num_weapon_types));
 			if (((Weapon_info[beam_get_weapon_info_index(other_obj)].subtype != WP_LASER) || special_check) && (Player_obj != NULL) && (ship_obj == Player_obj))
 			{
-				ship_hit_pain(damage * shp_diff_dmg_scale);
+				ship_hit_pain(damage * difficulty_scale_factor);
 			}	
 		}
 		if (other_obj->type == OBJ_WEAPON)
@@ -2013,7 +2017,7 @@ static void ship_do_damage(object *ship_obj, object *other_obj, vec3d *hitpos, f
 			Assert((Weapons[other_obj->instance].weapon_info_index > -1) && (Weapons[other_obj->instance].weapon_info_index < Num_weapon_types));
 			if (((Weapon_info[Weapons[other_obj->instance].weapon_info_index].subtype != WP_LASER) || special_check) && (Player_obj != NULL) && (ship_obj == Player_obj))
 			{
-				ship_hit_pain(damage * shp_diff_dmg_scale);
+				ship_hit_pain(damage * difficulty_scale_factor);
 			}
 		}
 	}	// read violation sanity check
@@ -2026,7 +2030,7 @@ static void ship_do_damage(object *ship_obj, object *other_obj, vec3d *hitpos, f
 
 	//	if ship is already dying, shorten deathroll.
 	if (shipp->flags & SF_DYING) {
-		shiphit_hit_after_death(ship_obj, (damage * shp_diff_dmg_scale));
+		shiphit_hit_after_death(ship_obj, (damage * difficulty_scale_factor));
 		return;
 	}
 	
@@ -2072,22 +2076,22 @@ static void ship_do_damage(object *ship_obj, object *other_obj, vec3d *hitpos, f
 				piercing_pct = Armor_types[shipp->shield_armor_type_idx].GetShieldPiercePCT(dmg_type_idx);
 			}
 			
-			float pre_shield = damage; // Nuke: dont use the difficulty scaling in here, since its also appled in Armor_type.GetDamage. dont want it to apply twice
-			float pre_shield_ss = (subsystem_damage * sub_diff_dmg_scale); // Nuke - same here
+			float pre_shield = damage; // Nuke: don't use the difficulty scaling in here, since its also applied in Armor_type.GetDamage. Don't want it to apply twice
+			float pre_shield_ss = subsystem_damage; // Nuke - same here
 
 			if (piercing_pct > 0.0f) {
 				damage = pre_shield * (1.0f - piercing_pct);
 			}
 
 			// Nuke: apply pre_shield difficulty scaling here, since it was meant to be applied through damage
-			pre_shield *= shp_diff_dmg_scale;
+			pre_shield *= difficulty_scale_factor;
 
 			if(shipp->shield_armor_type_idx != -1)
 			{
 				// Nuke: this call will decide when to use the damage factor, but it will get used, unless the modder is dumb (like setting +Difficulty Scale Type: to 'manual' and not manually applying it in their calculations)
-				damage = Armor_types[shipp->shield_armor_type_idx].GetDamage(damage, dmg_type_idx, shp_diff_dmg_scale);
+				damage = Armor_types[shipp->shield_armor_type_idx].GetDamage(damage, dmg_type_idx, difficulty_scale_factor);
 			} else { // Nuke: if that didn't get called, difficulty would not be applied to damage so apply it here
-				damage *= shp_diff_dmg_scale;
+				damage *= difficulty_scale_factor;
 			}
 
 			damage = apply_damage_to_shield(ship_obj, quadrant, damage);
@@ -2116,7 +2120,7 @@ static void ship_do_damage(object *ship_obj, object *other_obj, vec3d *hitpos, f
 	if ( (damage > 0.0f) || (subsystem_damage > 0.0f) )	{
 		int	weapon_info_index;
 		int armor_flags = 0;		
-		float pre_subsys = (subsystem_damage * sub_diff_dmg_scale); // Nuke: should be the last time we need to do this in this function
+		float pre_subsys = subsystem_damage; // Nuke: should be the last time we need to do this in this function
 		bool apply_hull_armor = true;
 		bool apply_diff_scale = true;
 
@@ -2153,13 +2157,13 @@ static void ship_do_damage(object *ship_obj, object *other_obj, vec3d *hitpos, f
 			
 			if(shipp->armor_type_idx != -1)
 			{
-				damage = Armor_types[shipp->armor_type_idx].GetDamage(damage, dmg_type_idx, shp_diff_dmg_scale);
+				damage = Armor_types[shipp->armor_type_idx].GetDamage(damage, dmg_type_idx, difficulty_scale_factor);
 				apply_diff_scale = false;
 			}
 		}
 		// Nuke: this is done incase difficulty scaling is not applied into damage by getDamage() above
 		if (apply_diff_scale) {
-			damage *= shp_diff_dmg_scale; // Nuke: we can finally stop doing this now
+			damage *= difficulty_scale_factor; // Nuke: we can finally stop doing this now
 		}
 
 		// continue with damage?

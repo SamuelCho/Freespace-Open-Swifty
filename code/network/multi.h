@@ -61,11 +61,8 @@ struct player;
 // version 47 - 11/11/2003 (FS2OpenPXO, FS2 Open Changes - FS2Open 3.6)
 // revert  46 - 9/7/2006 (the 47 bump wasn't needed, reverting to retail version for compatibility reasons)
 // STANDALONE_ONLY
-#ifdef INF_BUILD
+
 #define MULTI_FS_SERVER_VERSION							147
-#else 
-#define MULTI_FS_SERVER_VERSION							47
-#endif
 
 #define MULTI_FS_SERVER_COMPATIBLE_VERSION			MULTI_FS_SERVER_VERSION
 
@@ -99,18 +96,16 @@ struct player;
 #define IPX_PORT_LENGTH						2				// length of the port field for an IPX address
 
 // netgame defines
-// #define RESPAWN_ANARCHY						(0xffffffff)// respawn setting for an "anarchy" style game
-#define MP_SINGLE_MISSION								0				// not playing a campaign - single mission
+#define MP_SINGLE_MISSION					0				// not playing a campaign - single mission
 #define MP_CAMPAIGN							1				// playing a campaign
 
 // respawn defines
-#define RESPAWN_INVUL_TIMESTAMP			5000			// how long a player is invulnerable after he respawns
+#define RESPAWN_INVUL_TIMESTAMP				5000			// how long a player is invulnerable after he respawns
 #define MAX_RESPAWN_POINTS					25				// the max # of respawn points we'll keep track of for any mission
 
 // player information defines
 #define BUTTON_INFO_SAVE_COUNT			30				// how many buttons infos we keep track of for sending critical keypresses to the server
 #define MAX_PINGS								10				// how many pings we keep track of for averaging player pings
-#define OBJECT_UDPATE_DIFF_TOLERANCE	40000			// how big of a difference in sequence numbers (control_info and object_updates) before we reset
 
 // reliable connect wait
 #define MULTI_RELIABLE_CONNECT_WAIT		15
@@ -350,7 +345,7 @@ extern int Om_tracker_flag;
 #define AI_UPDATE_UNDOCK			0x2		// server tells clients which ships have undocked
 #define AI_UPDATE_ORDERS			0x3		// server tells clients about new AI order for the ship
 
-// requests to the standalong
+// requests to the standalone
 #define MISSION_LIST_REQUEST		0x1		// ask for list of missions
 #define CAMPAIGN_LIST_REQUEST		0x2		// ask for list of campaigns
 
@@ -378,7 +373,7 @@ extern int Om_tracker_flag;
 #define STATS_MISSION_CLASS_KILLS	4			// kills for the mission, for one player
 #define STATS_ALLTIME_KILLS			5			// alltime kills, for one player
 
-#define MAX_SHIPS_PER_PACKET		130			// Number of ships in a STATS_MISSION_KILLS or STATS_ALLTIME_KILLS packet
+#define MAX_SHIPS_PER_PACKET		64			// Number of ships in a STATS_MISSION_KILLS or STATS_ALLTIME_KILLS packet
 
 // ----------------------------------------------------------------------------------------
 
@@ -571,7 +566,6 @@ typedef struct server_item {
 
 // sent to the server on a join request with various data
 #define JOIN_FLAG_AS_OBSERVER			(1<<0)	// wants to join as an aboserver
-#define JOIN_FLAG_HAS_CD				(1<<1)	// currently has a CD in the drive
 #define JOIN_FLAG_HAXOR					(1<<2)	// if the player has hacked data
 
 typedef struct join_request {

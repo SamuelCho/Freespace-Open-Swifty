@@ -307,7 +307,7 @@ texture_target(-1), canvas_w(-1), canvas_h(-1), target_w(-1), target_h(-1)
 	texture_target_fname[0] = '\0';
 
 	custom_name[0] = '\0';
-	custom_text.clear();
+	custom_text = "";
 	custom_frame.first_frame = -1;
 	custom_frame.num_frames = 0;
 	custom_frame_offset = 0;
@@ -341,8 +341,8 @@ canvas_w(-1), canvas_h(-1), target_w(-1), target_h(-1)
 	texture_target_fname[0] = '\0';
 
 	custom_name[0] = '\0';
-	custom_text.clear();
-	default_text.clear();
+	custom_text = "";
+	default_text = "";
 	custom_frame.first_frame = -1;
 	custom_frame.num_frames = 0;
 	custom_frame_offset = 0;
@@ -382,8 +382,8 @@ disabled_views(VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY), cus
 		custom_text = _custom_text;
 		default_text = _custom_text;
 	} else {
-		custom_text.clear();
-		default_text.clear();
+		custom_text = "";
+		default_text = "";
 	}
 
 	custom_frame.first_frame = -1;
@@ -449,6 +449,10 @@ void HudGauge::updateCustomGaugeCoords(int _x, int _y)
 void HudGauge::updateCustomGaugeFrame(int frame_offset)
 {
 	if(!custom_gauge) {
+		return;
+	}
+	
+	if (frame_offset < 0 ||frame_offset > custom_frame.num_frames) {
 		return;
 	}
 
@@ -783,15 +787,45 @@ void HudGauge::renderPrintf(int x, int y, int gauge_id, char* format, ...)
 	renderString(x, y, gauge_id, tmp);
 }
 
-void HudGauge::renderBitmap(int x, int y)
+void HudGauge::renderBitmapColor(int frame, int x, int y)
 {
-	int jx = x, jy = y, nx = 0, ny = 0;
+	int nx = 0, ny = 0;
 
 	if( !emp_should_blit_gauge() ) {
 		return;
 	}
 
-	emp_hud_jitter(&jx, &jy);
+	emp_hud_jitter(&x, &y);
+
+	if ( gr_screen.rendering_to_texture != -1 ) {
+		gr_set_screen_scale(canvas_w, canvas_h, target_w, target_h);
+	} else {
+		if ( reticle_follow ) {
+			nx = HUD_nose_x;
+			ny = HUD_nose_y;
+
+			gr_resize_screen_pos(&nx, &ny);
+			gr_set_screen_scale(base_w, base_h);
+			gr_unsize_screen_pos(&nx, &ny);
+		} else {
+			gr_set_screen_scale(base_w, base_h);
+		}
+	}
+
+	gr_set_bitmap(frame);
+	gr_bitmap(x + nx, y + ny);
+	gr_reset_screen_scale();
+}
+
+void HudGauge::renderBitmap(int x, int y)
+{
+	int nx = 0, ny = 0;
+
+	if( !emp_should_blit_gauge() ) {
+		return;
+	}
+
+	emp_hud_jitter(&x, &y);
 
 	if ( gr_screen.rendering_to_texture != -1 ) {
 		gr_set_screen_scale(canvas_w, canvas_h, target_w, target_h);
@@ -808,7 +842,8 @@ void HudGauge::renderBitmap(int x, int y)
 		}
 	}
 	
-	gr_aabitmap(jx + nx, jy + ny);
+	gr_aabitmap(x + nx, y + ny);
+
 	gr_reset_screen_scale();
 }
 
@@ -820,13 +855,13 @@ void HudGauge::renderBitmap(int frame, int x, int y)
 
 void HudGauge::renderBitmapEx(int frame, int x, int y, int w, int h, int sx, int sy)
 {
-	int jx = x, jy = y, nx = 0, ny = 0; 
+	int nx = 0, ny = 0; 
 	
 	if( !emp_should_blit_gauge() ) { 
 		return;
 	}
 
-	emp_hud_jitter(&jx, &jy); 
+	emp_hud_jitter(&x, &y); 
 
 	gr_set_bitmap(frame);
 
@@ -845,7 +880,8 @@ void HudGauge::renderBitmapEx(int frame, int x, int y, int w, int h, int sx, int
 		}
 	}
 
-	gr_aabitmap_ex(jx + nx, jy + ny, w, h, sx, sy);
+	gr_aabitmap_ex(x + nx, y + ny, w, h, sx, sy);
+
 	gr_reset_screen_scale();
 }
 
@@ -952,7 +988,14 @@ void HudGauge::setClip(int x, int y, int w, int h)
 		hx = display_offset_x;
 		hy = display_offset_y;
 
-		gr_set_clip(hx+x, hy+y, w, h, false);
+		gr_resize_screen_pos(&x, &y);
+
+		hx += x;
+		hy += y;
+
+		gr_unsize_screen_pos(&hx, &hy);
+
+		gr_set_clip(hx, hy, w, h);
 	} else {
 		if ( reticle_follow ) {
 			hx += HUD_nose_x;
@@ -982,8 +1025,12 @@ void HudGauge::resetClip()
 		hx = display_offset_x;
 		hy = display_offset_y;
 
-		w = target_w;
-		h = target_h;
+		gr_unsize_screen_pos(&hx, &hy);
+
+		w = canvas_w;
+		h = canvas_h;
+
+		gr_set_clip(hx, hy, w, h);
 	} else {
 		hx = fl2i(HUD_offset_x);
 		hy = fl2i(HUD_offset_y);
@@ -993,10 +1040,10 @@ void HudGauge::resetClip()
 
 		w = gr_screen.max_w;
 		h = gr_screen.max_h;
-	}
 
-	// clip the screen based on the actual resolution
-	gr_set_clip(hx, hy, w, h, false);
+		// clip the screen based on the actual resolution
+		gr_set_clip(hx, hy, w, h, false);
+	}
 
 	gr_reset_screen_scale();
 }
@@ -1042,6 +1089,8 @@ void HudGauge::initialize()
 {
 	//Reset text to default
 	custom_text = default_text;
+
+	custom_frame_offset = 0;
 
 	sexp_lock_color = false;
 }
@@ -1092,6 +1141,9 @@ void HudGauge::initCockpitTarget(char* display_name, int _target_x, int _target_
 		return;
 	}
 
+	target_x = _target_x;
+	target_y = _target_y;
+
 	strcpy_s(texture_target_fname, display_name);
 	target_w = _target_w;
 	target_h = _target_h;
@@ -1135,8 +1187,8 @@ void HudGauge::setCockpitTarget(cockpit_display *display)
 	}
 
 	texture_target = display->target;
-	display_offset_x = display->offset[0];
-	display_offset_y = display->offset[1];
+	display_offset_x = display->offset[0] + target_x;
+	display_offset_y = display->offset[1] + target_y;
 }
 
 void HudGauge::resetCockpitTarget()
@@ -1608,7 +1660,7 @@ void hud_render_preprocess(float frametime)
 	// process asteroid brackets if necessary
 	hud_show_asteroid_brackets();
 
-	// process targetting data around the current target
+	// process targeting data around the current target
 	hud_show_targeting_gauges(frametime);
 
 	// process brackets and distance to remote detonate missile
@@ -1927,6 +1979,11 @@ void HudGaugeDamage::initSubsysIntegValueOffsetX(int x)
 	subsys_integ_val_offset_x = x;
 }
 
+void HudGaugeDamage::initBottomBgOffset(int offset)
+{
+	bottom_bg_offset = offset;
+}
+
 void HudGaugeDamage::initLineHeight(int h)
 {
 	line_h = h;
@@ -1971,7 +2028,6 @@ void HudGaugeDamage::render(float frametime)
 {
 	model_subsystem	*psub;
 	ship_subsys			*pss;
-	ship_info			*sip;
 	int					sx, sy, bx, by, w, h, screen_integrity, num, best_str, best_index;
 	float					strength, shield, integrity;
 	char					buf[128];
@@ -1989,7 +2045,6 @@ void HudGaugeDamage::render(float frametime)
 		return;
 	}
 		
-	sip = &Ship_info[Player_ship->ship_info_index];
 	hud_get_target_strength(Player_obj, &shield, &integrity);
 	screen_integrity = fl2i(integrity*100);
 
@@ -2142,7 +2197,7 @@ void HudGaugeDamage::render(float frametime)
 	}
 
 	setGaugeColor();
-	renderBitmap(damage_bottom.first_frame, bx, by);		
+	renderBitmap(damage_bottom.first_frame, bx, by + bottom_bg_offset);		
 }
 
 /** 
@@ -2817,9 +2872,9 @@ void HudGaugeSupport::render(float frametime)
 			}
 
 			if (repairing)
-				sprintf(outstr, XSTR("repairing", 227));
+				strcpy_s(outstr, XSTR("repairing", 227));
 			else
-				sprintf(outstr, XSTR("rearming", 228));
+				strcpy_s(outstr, XSTR("rearming", 228));
 		}
 		else
 		{
@@ -2841,17 +2896,17 @@ void HudGaugeSupport::render(float frametime)
 		renderStringAlignCenter(position[0], position[1] + text_val_offset_y, w, outstr);
 	}
 	else if (Player_ai->ai_flags & AIF_REPAIR_OBSTRUCTED) {
-		sprintf(outstr, XSTR( "obstructed", 229));
+		strcpy_s(outstr, XSTR( "obstructed", 229));
 		renderStringAlignCenter(position[0], position[1] + text_val_offset_y, w, outstr);
 	} else {
 		if ( Hud_support_objnum == -1 ) {
 			if (The_mission.support_ships.arrival_location == ARRIVE_FROM_DOCK_BAY)
 			{
-				sprintf(outstr, XSTR( "exiting hangar", -1));
+				strcpy_s(outstr, XSTR( "exiting hangar", 1622));
 			}
 			else
 			{
-				sprintf(outstr, XSTR( "warping in", 230));
+				strcpy_s(outstr, XSTR( "warping in", 230));
 			}
 			renderStringAlignCenter(position[0], position[1] + text_val_offset_y, w, outstr);
 		} else {
@@ -2860,11 +2915,11 @@ void HudGaugeSupport::render(float frametime)
 			// Display "busy" when support ship isn't actually enroute to me
 			aip = &Ai_info[Ships[Objects[Hud_support_objnum].instance].ai_index];
 			if ( aip->goal_objnum != OBJ_INDEX(Player_obj) ) {
-				sprintf(outstr, XSTR( "busy", 231));
+				strcpy_s(outstr, XSTR( "busy", 231));
 				show_time = 0;
 
 			} else {
-				sprintf(outstr, XSTR( "dock in:", 232));
+				strcpy_s(outstr, XSTR( "dock in:", 232));
 				show_time = 1;
 			}		
 
@@ -3366,7 +3421,7 @@ void HudGaugeObjectiveNotify::renderRedAlert()
 {
 	int w, h;
 
-	if ( !red_alert_check_status() ) {
+	if ( !red_alert_in_progress() ) {
 		return;
 	}
 
@@ -3385,7 +3440,7 @@ void HudGaugeObjectiveNotify::renderRedAlert()
 	// Blit the background
 	gr_set_color_fast(&Color_red);		// Color box red, because it's an emergency
 
-	GR_AABITMAP(Objective_display_gauge.first_frame, position[0], position[1]);	
+	renderBitmap(Objective_display_gauge.first_frame, position[0], position[1]);
 
 	startFlashNotify();
 	if(maybeFlashNotify()) {
@@ -3557,7 +3612,7 @@ void HUD_set_offsets(object *viewer_obj, int wiggedy_wack, matrix *eye_orient)
 		HUD_offset_y = 0.0f;
 	}
 
-	if ( Viewer_mode & VM_TOPDOWN ) {
+	if ( Viewer_mode & ( VM_TOPDOWN | VM_CHASE ) ) {
 		HUD_nose_x = 0;
 		HUD_nose_y = 0;
 	} else {
@@ -3771,11 +3826,8 @@ void HudGaugeVoiceStatus::render(float frametime)
 	if(!(Game_mode & GM_MULTIPLAYER)){
 		return;
 	}
-
-	char play_callsign[CALLSIGN_LEN+5];
 	
 	// if we are currently playing a rtvoice sound stream from another player back
-	memset(play_callsign,0,CALLSIGN_LEN+5);
 	switch(multi_voice_status()){
 	// the player has been denied the voice token
 	case MULTI_VOICE_STATUS_DENIED:
@@ -3825,7 +3877,7 @@ void HudGaugePing::render(float frametime)
 		if((Netgame.server != NULL) && (Netgame.server->s_info.ping.ping_avg > 0)){
 			// Get the string
 			if(Netgame.server->s_info.ping.ping_avg >= 1000){
-				sprintf(ping_str,XSTR("> 1 sec",628));
+				strcpy_s(ping_str,XSTR("> 1 sec",628));
 			} else {
 				sprintf(ping_str,XSTR("%d ms",629),Netgame.server->s_info.ping.ping_avg);
 			}
@@ -3854,4 +3906,64 @@ void HudGaugeSupernova::render(float frametime)
 
 	gr_set_color_fast(&Color_bright_red);
 	renderPrintf(position[0], position[1], "Supernova Warning: %.2f s", time_left);
+}
+
+HudGaugeFlightPath::HudGaugeFlightPath():
+HudGauge(HUD_OBJECT_FLIGHT_PATH, HUD_CENTER_RETICLE, false, false, VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY, 255, 255, 255)
+{
+}
+
+void HudGaugeFlightPath::initBitmap(char *fname)
+{
+	Marker.first_frame = bm_load_animation(fname, &Marker.num_frames);
+
+	if ( Marker.first_frame < 0 ) {
+		Warning(LOCATION,"Cannot load hud ani: %s\n", fname);
+	}
+}
+
+void HudGaugeFlightPath::initHalfSize(int w, int h)
+{
+	Marker_half[0] = w;
+	Marker_half[1] = h;
+}
+
+void HudGaugeFlightPath::render(float frametime)
+{
+	object *obj;
+	vec3d p0,v;
+	vertex v0;
+	int sx, sy;
+
+	bool in_frame = g3_in_frame() > 0;
+	if(!in_frame) {
+		g3_start_frame(0);
+	}
+
+	obj = Player_obj;
+
+	vm_vec_scale_add( &v, &obj->phys_info.vel, &obj->orient.vec.fvec, 1.0f );
+	vm_vec_normalize( &v );
+			
+	vm_vec_scale_add( &p0, &obj->pos, &v, 1000000.0f );
+
+	g3_rotate_vertex( &v0, &p0 );
+
+	if (v0.codes == 0) { // on screen
+		g3_project_vertex(&v0);
+
+		if (!(v0.flags & PF_OVERFLOW)) {
+			if ( Marker.first_frame >= 0 ) {
+				sx = fl2i(v0.screen.xyw.x);
+				sy = fl2i(v0.screen.xyw.y);
+
+				unsize(&sx, &sy);
+				renderBitmap(Marker.first_frame, sx - Marker_half[0], sy - Marker_half[1]);
+			}
+		}
+	}
+	
+	if(!in_frame) {
+		g3_end_frame();
+	}
 }

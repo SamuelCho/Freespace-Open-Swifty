@@ -66,12 +66,13 @@ void *g_vBuffers = NULL;
 void *g_vBackBuf1, *g_vBackBuf2;
 ushort *pixelbuf = NULL;
 static GLuint GLtex = 0;
-static GLint gl_screenYH = 0;
-static GLint gl_screenXW = 0;
+static GLfloat gl_screenYH = 0;
+static GLfloat gl_screenXW = 0;
 static GLfloat gl_screenU = 0;
 static GLfloat gl_screenV = 0;
+static GLfloat glVertices[4][4] = {{0}};
 static int g_screenWidth, g_screenHeight;
-static int g_screenX, g_screenY;
+static float g_screenX, g_screenY;
 static int g_truecolor = 0;
 static ubyte g_palette[768];
 static ubyte *g_pCurMap = NULL;
@@ -304,7 +305,7 @@ void mve_audio_play()
 // call this in shutdown to stop and close audio
 static void mve_audio_stop()
 {
-	if (!audiobuf_created) {
+	if (!audiobuf_created || mas == NULL) {
 		return;
 	}
 
@@ -478,12 +479,12 @@ int mve_video_createbuf(ubyte minor, ubyte *data)
 		}
 
 		if (mve_scale_video) {
-			g_screenX = ((fl2i(gr_screen.max_w / scale_by + 0.5f) - g_width) / 2);
-			g_screenY = ((fl2i(gr_screen.max_h / scale_by + 0.5f) - g_height) / 2);
+			g_screenX = ((ceil((gr_screen.max_w / scale_by) - 0.5f) - g_width) / 2);
+			g_screenY = ((ceil((gr_screen.max_h / scale_by) - 0.5f) - g_height) / 2);
 		} else {
 			// centers on 1024x768, fills on 640x480
-			g_screenX = ((gr_screen.max_w - g_width) / 2);
-			g_screenY = ((gr_screen.max_h - g_height) / 2);
+			g_screenX = ((float)(gr_screen.max_w - g_width) / 2.0f);
+			g_screenY = ((float)(gr_screen.max_h - g_height) / 2.0f);
 		}
 
 		// set additional values for screen width/height and UV coords
@@ -494,6 +495,35 @@ int mve_video_createbuf(ubyte minor, ubyte *data)
 			gl_screenU = i2fl(g_width) / i2fl(wp2);
 			gl_screenV = i2fl(g_height) / i2fl(hp2);
 		}
+
+		glVertices[0][0] = g_screenX;
+		glVertices[0][1] = g_screenY;
+		glVertices[0][2] = 0;
+		glVertices[0][3] = 0;
+
+		glVertices[1][0] = g_screenX;
+		glVertices[1][1] = gl_screenYH;
+		glVertices[1][2] = 0;
+		glVertices[1][3] = gl_screenV;
+
+		glVertices[2][0] = gl_screenXW;
+		glVertices[2][1] = g_screenY;
+		glVertices[2][2] = gl_screenU;
+		glVertices[2][3] = 0;
+
+		glVertices[3][0] = gl_screenXW;
+		glVertices[3][1] = gl_screenYH;
+		glVertices[3][2] = gl_screenU;
+		glVertices[3][3] = gl_screenV;
+
+		GL_state.Array.BindArrayBuffer(0);
+
+		GL_state.Array.EnableClientVertex();
+		GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(glVertices[0]), glVertices);
+
+		GL_state.Array.SetActiveClientUnit(0);
+		GL_state.Array.EnableClientTexture();
+		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(glVertices[0]), &(glVertices[0][2]));
 	}
 
 	return 1;
@@ -579,24 +609,12 @@ void mve_video_display()
 	if (gr_screen.mode == GR_OPENGL) {
 		glTexSubImage2D(GL_state.Texture.GetTarget(), 0, 0, 0, g_width, g_height, GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV, pixelbuf);
 
-		glBegin(GL_QUADS);
-			glTexCoord2f(0, 0);
-				glVertex2i(g_screenX, g_screenY);
-
-			glTexCoord2f(0, gl_screenV);
-				glVertex2i(g_screenX, gl_screenYH);
-
-			glTexCoord2f(gl_screenU, gl_screenV);
-				glVertex2i(gl_screenXW, gl_screenYH);
-
-			glTexCoord2f(gl_screenU, 0);
-				glVertex2i(gl_screenXW, g_screenY);
-		glEnd();
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	} else {
 		// DDOI - This is probably really fricking slow
 		int bitmap = bm_create (16, g_screenWidth, g_screenHeight, pixelbuf, 0);
 		gr_set_bitmap (bitmap);
-		gr_bitmap (g_screenX, g_screenY, true);
+		gr_bitmap ((int)g_screenX, (int)g_screenY, true);
 		bm_release (bitmap);
 	}
 
@@ -682,7 +700,7 @@ int mve_video_init(ubyte *data)
 		glTexImage2D(GL_state.Texture.GetTarget(), 0, GL_RGB5_A1, wp2, hp2, 0, GL_BGRA_EXT, GL_UNSIGNED_SHORT_1_5_5_5_REV, NULL);
 
 		// set our color so that we can make sure that it's correct
-		glColor3f(1.0f, 1.0f, 1.0f);
+		GL_state.Color(255, 255, 255, 255);
 	}
 
 	memset(g_palette, 0, 768);
@@ -779,6 +797,9 @@ void mve_play(MVESTREAM *mve)
 void mve_shutdown()
 {
 	if (gr_screen.mode == GR_OPENGL) {
+		GL_state.Array.DisableClientVertex();
+		GL_state.Array.DisableClientTexture();
+
 		if (mve_scale_video) {
 			glMatrixMode(GL_MODELVIEW);
 			glPopMatrix();

@@ -270,8 +270,7 @@ typedef struct icon_move_info
 	float				last_dist;
 } icon_move_info;
 
-#define MAX_MOVE_ICONS	10
-icon_move_info	Icon_movers[MAX_MOVE_ICONS];
+icon_move_info	Icon_movers[MAX_BRIEF_ICONS];
 icon_move_info	Icon_move_list;	// head of linked list
 
 // fading out icons
@@ -438,7 +437,7 @@ void brief_move_icon_reset()
 	int i;
 
 	list_init(&Icon_move_list);
-	for ( i = 0; i < MAX_MOVE_ICONS; i++ )
+	for ( i = 0; i < MAX_BRIEF_ICONS; i++ )
 		Icon_movers[i].used = 0;
 }
 
@@ -774,18 +773,19 @@ void brief_render_fade_outs(float frametime)
 			}
 
 			bm_get_info( fi->fade_anim.first_frame, &w, &h, NULL);
+			float screenX = tv.screen.xyw.x;
+			float screenY = tv.screen.xyw.y;
+			gr_unsize_screen_posf( &screenX, &screenY );
 
-			gr_resize_screen_pos( &w, &h );
-
-			bxf = tv.screen.xyw.x - w / 2.0f + 0.5f;
-			byf = tv.screen.xyw.y - h / 2.0f + 0.5f;
+			bxf = screenX - w / 2.0f + 0.5f;
+			byf = screenY - h / 2.0f + 0.5f;
 			bx = fl2i(bxf);
 			by = fl2i(byf);
 
 			if ( fi->fade_anim.first_frame >= 0 ) {
 				fi->fade_anim.sx = bx;
 				fi->fade_anim.sy = by;
-				hud_anim_render(&fi->fade_anim, frametime, 1, 0, 0, 0, false);
+				hud_anim_render(&fi->fade_anim, frametime, 1, 0, 0, 0, true);
 			}
 		}
 	}
@@ -1193,7 +1193,7 @@ void brief_blit_stage_num(int stage_num, int stage_max)
  */
 void brief_render_line(int line_num, int x, int y, int instance)
 {
-	Assert( 0<=instance && instance < (sizeof(Colored_stream)/sizeof(*Colored_stream)) );
+	Assert( 0<=instance && instance < (int)(sizeof(Colored_stream)/sizeof(*Colored_stream)) );
 
 	SCP_vector<colored_char> *src = &Colored_stream[instance].at(line_num);
 
@@ -1235,7 +1235,7 @@ void brief_render_line(int line_num, int x, int y, int instance)
 			//when the current color changes, the accumulated character sequence is drawn.
 			if (current_char.color != last_color){
 				//add a 0 terminal character to make line a valid C string
-				Assert(char_seq_pos<sizeof(char_seq));
+				Assert(char_seq_pos < (int)sizeof(char_seq));
 				char_seq[char_seq_pos] = 0;         
 				{	// Draw coloured text, and increment cariage position
 					int w=0,h=0;
@@ -1248,12 +1248,12 @@ void brief_render_line(int line_num, int x, int y, int instance)
 				char_seq_pos = 0;
 				last_color = current_char.color;
 			}
-			Assert(char_seq_pos<sizeof(char_seq));
+			Assert(char_seq_pos < (int)sizeof(char_seq));
 			char_seq[char_seq_pos++] = current_char.letter;		
 		}
 		// Draw the final chunk of acumulated characters
 		// Add a 0 terminal character to make line a valid C string
-		Assert(char_seq_pos<sizeof(char_seq));
+		Assert(char_seq_pos < (int)sizeof(char_seq));
 		char_seq[char_seq_pos] = 0;
         {	// Draw coloured text, and increment cariage position
 			int w=0,h=0;
@@ -1267,10 +1267,10 @@ void brief_render_line(int line_num, int x, int y, int instance)
 	{	// PART2: Draw leading bright white characters
 		char_seq_pos = 0;
 		for( int current_pos = truncate_len; current_pos<truncate_len + bright_len; current_pos++){		
-			Assert(char_seq_pos<sizeof(char_seq));
+			Assert(char_seq_pos < (int)sizeof(char_seq));
 			char_seq[char_seq_pos++] = src->at(current_pos).letter;
 		}
-		Assert(char_seq_pos<sizeof(char_seq));
+		Assert(char_seq_pos < (int)sizeof(char_seq));
 		char_seq[char_seq_pos] = 0;
 		gr_set_color_fast(&Color_bright_white);
 		gr_string(x + offset, y, char_seq);    
@@ -1340,7 +1340,6 @@ int brief_render_text(int line_offset, int x, int y, int h, float frametime, int
 void brief_render_elements(vec3d *pos, grid* gridp)
 {
 	vec3d	gpos;	//	Location of point on grid.
-	float		dxz;
 	plane		tplane;
 	vec3d	*gv;
 	
@@ -1353,8 +1352,6 @@ void brief_render_elements(vec3d *pos, grid* gridp)
 	tplane.D = gridp->planeD;
 
 	compute_point_on_plane(&gpos, &tplane, pos);
-
-	dxz = vm_vec_dist(pos, &gpos)/8.0f;
 
 	gv = &gridp->gmatrix.vec.uvec;
 	if (gv->xyz.x * pos->xyz.x + gv->xyz.y * pos->xyz.y + gv->xyz.z * pos->xyz.z < -gridp->planeD)
@@ -1531,13 +1528,7 @@ void brief_set_text_color(int color_index)
  */
 bool is_a_word_separator(char character)
 {
-	return character<=33					//  2 characters including (space) and !
-		|| (35<=character && character<=38)	//  4 characters #$%&
-		|| (42<=character && character<=44)	//  3 characters *+,
-		|| (character == 47)				//  1 character  /
-		|| (59<=character && character<=64)	//  6 characters ;<=>?@
-		|| (91<=character && character<=95)	//  5 characters [\]^_
-		|| (123<=character);				//  5 characters {|}~
+	return character <= 32;					//  all control characters including space, newline, and tab
 }
 
 /**
@@ -1555,7 +1546,7 @@ bool is_a_word_separator(char character)
 int brief_text_colorize(char *src, int instance)
 {
 	Assert(src);
-	Assert((0 <= instance) && (instance < (sizeof(Colored_stream) / sizeof(*Colored_stream))));
+	Assert((0 <= instance) && (instance < (int)(sizeof(Colored_stream) / sizeof(*Colored_stream))));
 
 	// manage different default colors (don't use a SCP_ stack because eh)
 	const int HIGHEST_COLOR_STACK_INDEX = 9;
@@ -1683,12 +1674,12 @@ int brief_get_free_move_icon()
 {
 	int i;
 
-	for ( i = 0; i < MAX_MOVE_ICONS; i++ ) {
+	for ( i = 0; i < MAX_BRIEF_ICONS; i++ ) {
 		if ( Icon_movers[i].used == 0 )
 			break;
 	}
 	
-	if ( i == MAX_MOVE_ICONS ) 
+	if ( i == MAX_BRIEF_ICONS ) 
 		return -1;
 
 	Icon_movers[i].used = 1;
@@ -1725,7 +1716,7 @@ int brief_set_move_list(int new_stage, int current_stage, float time)
 
 					k = brief_get_free_move_icon();				
 					if ( k == -1 ) {
-						Int3();	// should never happen, get Alan
+						Warning(LOCATION, "Too many briefing icons are moving simultaneously!");
 						return 0;
 					}
 					imi = &Icon_movers[k];

@@ -28,7 +28,7 @@
 #include "network/multimsgs.h"
 #include "network/multiutil.h"
 #include "weapon/weapon.h"
-
+#include "cmdline/cmdline.h"
 
 #define MAX_LIFE									10.0f
 #define MIN_RADIUS_FOR_PERSISTANT_DEBRIS	50		// ship radius at which debris from it becomes persistant
@@ -163,7 +163,9 @@ void debris_render(object * obj)
 	Assert(db->flags & DEBRIS_USED);
 
 	texture_info *tbase = NULL;
-
+	
+	model_clear_instance( db->model_num );
+	
 	// Swap in a different texture depending on the species
 	if (db->species >= 0)
 	{
@@ -176,8 +178,6 @@ void debris_render(object * obj)
 			tbase->SetTexture(Species_info[db->species].debris_texture.bitmap_id);
 		}
 	}
-
-	model_clear_instance( db->model_num );
 
 	// Only render electrical arcs if within 500m of the eye (for a 10m piece)
 	if ( vm_vec_dist_quick( &obj->pos, &Eye_position ) < obj->radius*50.0f )	{
@@ -324,8 +324,14 @@ void debris_process_post(object * obj, float frame_time)
 			int n, n_arcs = ((rand()>>5) % 3)+1;		// Create 1-3 sparks
 
 			vec3d v1, v2, v3, v4;
-			submodel_get_two_random_points( db->model_num, db->submodel_num, &v1, &v2 );
-			submodel_get_two_random_points( db->model_num, db->submodel_num, &v3, &v4 );
+
+			if ( Cmdline_old_collision_sys ) {
+				submodel_get_two_random_points( db->model_num, db->submodel_num, &v1, &v2 );
+				submodel_get_two_random_points( db->model_num, db->submodel_num, &v3, &v4 );
+			} else {
+				submodel_get_two_random_points_better( db->model_num, db->submodel_num, &v1, &v2 );
+				submodel_get_two_random_points_better( db->model_num, db->submodel_num, &v3, &v4 );
+			}
 
 			n = 0;
 
@@ -400,7 +406,13 @@ void debris_process_post(object * obj, float frame_time)
 				int mr = myrand();
 				if ( mr < RAND_MAX/5 )	{
 					vec3d v1, v2;
-					submodel_get_two_random_points( db->model_num, db->submodel_num, &v1, &v2 );
+
+					if ( Cmdline_old_collision_sys ) {
+						submodel_get_two_random_points( db->model_num, db->submodel_num, &v1, &v2 );
+					} else {
+						submodel_get_two_random_points_better( db->model_num, db->submodel_num, &v1, &v2 );
+					}
+					
 					db->arc_pts[i][mr % 2] = v1;
 				}
 			}

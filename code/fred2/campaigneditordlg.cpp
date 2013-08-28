@@ -218,7 +218,7 @@ void campaign_editor::initialize( int init_files )
 	m_num_players.Format("%d", Campaign.num_players);
 
 	if (Campaign.desc) {
-		m_desc = convert_multiline_string(Campaign.desc);
+		convert_multiline_string(m_desc, Campaign.desc);
 	} else {
 		m_desc = _T("");
 	}
@@ -259,7 +259,7 @@ void campaign_editor::mission_selected(int num)
 		bc_dialog->SetWindowText(Campaign.missions[num].briefing_cutscene);
 
 	// new main hall stuff
-	sprintf(mainhalltext, "%d", Campaign.missions[num].main_hall);
+	sprintf(mainhalltext, "%s", const_cast<char*>(Campaign.missions[num].main_hall.c_str()));
 	bc_hall->SetWindowText(CString(mainhalltext));
 
 	// new debriefing persona stuff
@@ -334,11 +334,13 @@ void campaign_editor::load_tree(int save_first)
 	if (Cur_campaign_mission < 0) {
 		GetDlgItem(IDC_SEXP_TREE)->EnableWindow(FALSE);
 		GetDlgItem(IDC_BRIEFING_CUTSCENE)->EnableWindow(FALSE);
+		GetDlgItem(IDC_MAIN_HALL)->EnableWindow(FALSE);
 		return;
 	}
 
 	GetDlgItem(IDC_SEXP_TREE)->EnableWindow(TRUE);
 	GetDlgItem(IDC_BRIEFING_CUTSCENE)->EnableWindow(TRUE);
+	GetDlgItem(IDC_MAIN_HALL)->EnableWindow(TRUE);
 
 	GetDlgItem(IDC_MISSISON_LOOP_DESC)->EnableWindow(FALSE);	
 	GetDlgItem(IDC_LOOP_BRIEF_ANIM)->EnableWindow(FALSE);
@@ -707,21 +709,21 @@ void campaign_editor::update_loop_desc_window()
 
 	// set new text
 	if ((Cur_campaign_link >= 0) && Links[Cur_campaign_link].mission_branch_txt && enable_branch_desc_window) {
-		m_branch_desc = convert_multiline_string(Links[Cur_campaign_link].mission_branch_txt);		
+		convert_multiline_string(m_branch_desc, Links[Cur_campaign_link].mission_branch_txt);		
 	} else {
 		m_branch_desc = _T("");
 	}
 
 	// set new text
 	if ((Cur_campaign_link >= 0) && Links[Cur_campaign_link].mission_branch_brief_anim && enable_branch_desc_window) {
-		m_branch_brief_anim = convert_multiline_string(Links[Cur_campaign_link].mission_branch_brief_anim);		
+		convert_multiline_string(m_branch_brief_anim, Links[Cur_campaign_link].mission_branch_brief_anim);		
 	} else {
 		m_branch_brief_anim = _T("");
 	}
 
 	// set new text
 	if ((Cur_campaign_link >= 0) && Links[Cur_campaign_link].mission_branch_brief_sound && enable_branch_desc_window) {
-		m_branch_brief_sound = convert_multiline_string(Links[Cur_campaign_link].mission_branch_brief_sound);
+		convert_multiline_string(m_branch_brief_sound, Links[Cur_campaign_link].mission_branch_brief_sound);
 	} else {
 		m_branch_brief_sound = _T("");
 	}
@@ -855,19 +857,12 @@ void campaign_editor::OnBrowseLoopSound()
 void campaign_editor::OnChangeMainHall() 
 {
 	CString str;
-	int hall;
-
 	UpdateData(TRUE);
 
 	if (Cur_campaign_mission >= 0)
 	{
 		GetDlgItem(IDC_MAIN_HALL)->GetWindowText(str);
-		hall = atoi(str);
-
-		if (hall > 255) hall = 255;
-		if (hall < 0) hall = 0;
-
-		Campaign.missions[Cur_campaign_mission].main_hall = (ubyte) hall;
+		Campaign.missions[Cur_campaign_mission].main_hall = SCP_string((LPCTSTR)(str));
 	}
 }
 

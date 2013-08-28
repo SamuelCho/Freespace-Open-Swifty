@@ -159,12 +159,29 @@ typedef struct vertex {
 	ubyte		pad[2];				// pad structure to be 4 byte aligned.
 } vertex;
 
+typedef struct effect_vertex {
+	vec3d position;
+	uv_pair tex_coord;
+	float radius;
+	ubyte r, g, b, a;
+} effect_vertex;
+
 //def_list
 typedef struct flag_def_list {
 	char *name;
 	int def;
 	ubyte var;
 } def_list;
+
+// weapon count list (mainly for pilot files)
+typedef struct wep_t {
+	int index;
+	int count;
+} wep_t;
+
+typedef struct coord2d {
+	int x,y;
+} coord2d;
 
 //This are defined in MainWin.c
 extern void _cdecl WinAssert(char * text,char *filename, int line);

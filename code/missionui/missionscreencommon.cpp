@@ -99,6 +99,7 @@ extern void ss_reset_team_pointers();
 extern void wl_set_team_pointers(int team);
 extern void wl_reset_team_pointers();
 extern int anim_timer_start;
+extern void ss_reset_selected_ship();
 
 //////////////////////////////////////////////////////////////////
 // UI 
@@ -500,12 +501,14 @@ void common_select_init()
 	// restore loadout from Player_loadout if this is the same mission as the one previously played
 	if ( !(Game_mode & GM_MULTIPLAYER) ) {
 		if ( !stricmp(Player_loadout.filename, Game_current_mission_filename) ) {
-			wss_restore_loadout();
+			wss_maybe_restore_loadout();
 			ss_synch_interface();
 			wl_synch_interface();
 		}
 	}
 	
+	ss_reset_selected_ship();
+
 	Drop_icon_mflag = 0;
 	Drop_on_wing_mflag = 0;
 
@@ -1020,7 +1023,7 @@ void wss_save_loadout()
 }
 
 // restore ship/weapons loadout from the Player_loadout struct
-void wss_restore_loadout()
+void wss_maybe_restore_loadout()
 {
 	int i,j;
 	wss_unit	*slot;
@@ -1032,25 +1035,102 @@ void wss_restore_loadout()
 		return;
 	}
 
+	// first we generate a pool of ships and weapons used the last time this mission was played. We also generate a pool of what is 
+	// available in this mission.
+	int	last_loadout_ships[MAX_SHIP_CLASSES];
+	int	this_loadout_ships[MAX_SHIP_CLASSES];
+
+	int	last_loadout_weapons[MAX_WEAPON_TYPES];
+	int	this_loadout_weapons[MAX_WEAPON_TYPES];
+
+	// zero all pools
+	for (i = 0; i < MAX_SHIP_CLASSES; i++) {
+		last_loadout_ships[i] = 0; 
+		this_loadout_ships[i] = 0; 
+	}
+	for (i = 0; i < MAX_WEAPON_TYPES; i++) {
+		last_loadout_weapons[i] = 0; 
+		this_loadout_weapons[i] = 0; 
+	}
+
+	// record the ship classes / weapons used last time
+	for ( i = 0; i < MAX_WSS_SLOTS; i++ ) {
+		slot = &Player_loadout.unit_data[i];
+		if ((slot->ship_class >= 0) && (slot->ship_class < MAX_SHIP_CLASSES)) {
+			++last_loadout_ships[slot->ship_class];
+
+			for ( j = 0; j < MAX_SHIP_WEAPONS; j++ ) {
+				if ((slot->wep[j] >= 0) && (slot->wep[j] < MAX_WEAPON_TYPES)) {
+					last_loadout_weapons[slot->wep[j]] += slot->wep_count[j]; 
+				}
+			}
+		}
+	}
+
+	// record the ships classes / weapons used by the player and wingmen. We don't include the amount in the pools yet
+	for ( i = 0; i < MAX_WSS_SLOTS; i++ ) {
+		if ((Wss_slots[i].ship_class >= 0) && (Wss_slots[i].ship_class < MAX_SHIP_CLASSES)) {
+			++this_loadout_ships[Wss_slots[i].ship_class];
+
+			for ( j = 0; j < MAX_SHIP_WEAPONS; j++ ) {
+				if ((Wss_slots[i].wep[j] >= 0) && (Wss_slots[i].wep[j] < MAX_WEAPON_TYPES)) {
+					this_loadout_weapons[Wss_slots[i].wep[j]] += Wss_slots[i].wep_count[j];
+				}
+			}
+		}
+	}
+
+	// now compare the two, adding in what was left in the pools. If there are less of a ship or weapon class in the mission now
+	// than there were last time, we can't restore and must abort.
+	for (i = 0; i < MAX_SHIP_CLASSES; i++) {
+		if (Ss_pool[i] >= 1) {
+			this_loadout_ships[i] += Ss_pool[i];
+		}
+		if ( this_loadout_ships[i] < last_loadout_ships[i]) {
+			return; 
+		}
+	}
+	
+	for (i = 0; i < MAX_WEAPON_TYPES; i++) {
+		if (Wl_pool[i] >= 1) {
+			this_loadout_weapons[i] += Wl_pool[i];
+		}
+		if ( this_loadout_weapons[i] < last_loadout_weapons[i]) {
+			return; 
+		}
+	}
+
+	// go through the slots and restore the previous runthrough's loadout. Also remove that ship from total of ships in this mission
+	for ( i = 0; i < MAX_WSS_SLOTS; i++ ) {
+		slot = &Player_loadout.unit_data[i];
+
+		if ((slot->ship_class >= 0) && (slot->ship_class < MAX_SHIP_CLASSES)) {
+			--this_loadout_ships[slot->ship_class];
+			Assertion((this_loadout_ships[slot->ship_class] >= 0), "Attempting to restore the previous missions loadout has resulted in an invalid number of ships available");
+
+		}
+		// restore the ship class for each slot
+		Wss_slots[i].ship_class = slot->ship_class;
+
+		for ( j = 0; j < MAX_SHIP_WEAPONS; j++ ) {
+			if ((slot->wep[j] >= 0) && (slot->wep[j] < MAX_WEAPON_TYPES)) {
+				this_loadout_weapons[slot->wep[j]] -= slot->wep_count[j];
+				Assertion((this_loadout_weapons[slot->wep[j]] >= 0), "Attempting to restore the previous missions loadout has resulted in an invalid number of weapons available");
+			}
+
+			Wss_slots[i].wep[j]= slot->wep[j];
+			Wss_slots[i].wep_count[j] = slot->wep_count[j];
+		}
+	}	
+
 	// restore the ship pool
 	for ( i = 0; i < MAX_SHIP_CLASSES; i++ ) {
-		Ss_pool[i] = Player_loadout.ship_pool[i]; 
+		Ss_pool[i] = this_loadout_ships[i]; 
 	}
 
 	// restore the weapons pool
 	for ( i = 0; i < MAX_WEAPON_TYPES; i++ ) {
-		Wl_pool[i] = Player_loadout.weapon_pool[i]; 
-	}
-
-	// restore the ship class / weapons for each slot
-	for ( i = 0; i < MAX_WSS_SLOTS; i++ ) {
-		slot = &Player_loadout.unit_data[i];
-		Wss_slots[i].ship_class = slot->ship_class;
-
-		for ( j = 0; j < MAX_SHIP_WEAPONS; j++ ) {
-			Wss_slots[i].wep[j]= slot->wep[j];
-			Wss_slots[i].wep_count[j] = slot->wep_count[j];
-		}
+		Wl_pool[i] = this_loadout_weapons[i]; 
 	}
 }
 
@@ -1084,13 +1164,13 @@ void wss_direct_restore_loadout()
 			p_object *p_objp;
 			j=0;
 			for ( p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp) ) {
-				// niffiwan: don't overrun the array
-				if (j >= MAX_WING_SLOTS) {
-					Warning(LOCATION, "Starting Wing '%s' has more than 'MAX_WING_SLOTS' ships\n", Starting_wing_names[i]);
-					break;
-				}
-				slot = &Player_loadout.unit_data[valid_wing_index*MAX_WING_SLOTS+j];
 				if ( p_objp->wingnum == WING_INDEX(wp) ) {
+					// niffiwan: don't overrun the array
+					if (j >= MAX_WING_SLOTS) {
+						Warning(LOCATION, "Starting Wing '%s' has more than 'MAX_WING_SLOTS' ships\n", Starting_wing_names[i]);
+						break;
+					}
+					slot = &Player_loadout.unit_data[valid_wing_index*MAX_WING_SLOTS+j];
 					p_objp->ship_class = slot->ship_class;
 					wl_update_parse_object_weapons(p_objp, slot);
 					j++;
@@ -1495,14 +1575,17 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 		light_rotate_all();
 	}
 
+	Glowpoint_override = true;
 	model_clear_instance(model_id);
 	model_render(model_id, -1, &object_orient, &vmd_zero_vector, flags, -1, -1);
+	Glowpoint_override = false;
 
 	if (!Cmdline_nohtl) 
 	{
 		gr_end_view_matrix();
 		gr_end_proj_matrix();
 	}
+
 
 	g3_end_frame();
 	gr_reset_clip();
@@ -1601,7 +1684,8 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		}
 		g3_done_instance(true);
 
-		gr_zbuffer_set(GR_ZBUFF_NONE); // Turn of Depthbuffer so we dont get gridlines over the ship or a disappearing scanline 
+		gr_zbuffer_set(GR_ZBUFF_NONE); // Turn off Depthbuffer so we don't get gridlines over the ship or a disappearing scanline 
+		Glowpoint_use_depth_buffer = false; // Since we don't have one
 		if (time >= 0.5f) { // Phase 1 onward draw the grid
 			int i;
 			start.xyz.y = -offset;
@@ -1669,7 +1753,11 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 			}
 		}
 
-		gr_zbuffer_set(GR_ZBUFF_FULL); // Turn of depthbuffer again
+		gr_zbuffer_set(GR_ZBUFF_FULL); // Turn off depthbuffer again
+
+		batch_render_all();
+		Glowpoint_use_depth_buffer = true; // Back to normal
+
 		gr_end_view_matrix();
 		gr_end_proj_matrix();
 		g3_end_frame();
@@ -1693,10 +1781,6 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		vm_rotate_matrix_by_angles(&model_orient, &rot_angles);
 
 		gr_set_clip(x1, y1, x2, y2, resize);
-		vec3d normal;
-		normal.xyz.x = 0.0f;
-		normal.xyz.y = 1.0f;
-		normal.xyz.z = 0.0f;
 		g3_start_frame(1);
 
 		// render the wodel
@@ -1730,6 +1814,8 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		} else {
 			model_render(model_id, -1, &model_orient, &vmd_zero_vector, flags);
 		}
+
+		batch_render_all();
 
 		gr_end_view_matrix();
 		gr_end_proj_matrix();

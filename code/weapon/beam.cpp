@@ -34,7 +34,7 @@
 #include "parse/parselo.h"
 #include "iff_defs/iff_defs.h"
 #include "globalincs/globals.h"
-
+#include "cmdline/cmdline.h"
 
 
 extern int Cmdline_nohtl;
@@ -2026,7 +2026,11 @@ void beam_get_binfo(beam *b, float accuracy, int num_shots)
 			vm_vec_zero(&b->binfo.dir_b);
 		} else {
 			// get random model points, this is useful for big ships, because we never miss when shooting at them
-			submodel_get_two_random_points(model_num, 0, &b->binfo.dir_a, &b->binfo.dir_b);
+			if ( Cmdline_old_collision_sys ) {
+				submodel_get_two_random_points(model_num, 0, &b->binfo.dir_a, &b->binfo.dir_b);
+			} else {
+				submodel_get_two_random_points_better(model_num, 0, &b->binfo.dir_a, &b->binfo.dir_b);
+			}
 		}
 		break;
 
@@ -2799,7 +2803,6 @@ void beam_handle_collisions(beam *b)
 	int idx, s_idx;
 	beam_collision r_coll[MAX_FRAME_COLLISIONS];
 	int r_coll_count = 0;
-	beam_weapon_info *bwi;
 	weapon_info *wi;
 	float widest;	
 
@@ -2813,7 +2816,6 @@ void beam_handle_collisions(beam *b)
 		Int3();
 		return;
 	}
-	bwi = &Weapon_info[b->weapon_info_index].b_info;
 	wi = &Weapon_info[b->weapon_info_index];
 
 	// get the widest part of the beam

@@ -54,20 +54,12 @@ object obj_create_list;
 object *Player_obj = NULL;
 object *Viewer_obj = NULL;
 
-
+extern int Cmdline_old_collision_sys;
 
 //Data for objects
 object Objects[MAX_OBJECTS];
 
 #ifdef OBJECT_CHECK 
-typedef struct checkobject
-{
-	int	type;
-	int	signature;
-	uint	flags;
-	int	parent_sig;
-	int	parent_type;
-} checkobject;
 checkobject CheckObjects[MAX_OBJECTS];
 #endif
 
@@ -98,6 +90,18 @@ char *Object_type_names[MAX_OBJECT_TYPES] = {
 	"Jump Node",
 	"Beam",
 //XSTR:ON
+};
+
+obj_flag_name Object_flag_names[] = {
+	{OF_INVULNERABLE,			"invulnerable",				1,	},
+	{OF_PROTECTED,				"protect-ship",				1,	},
+	{OF_BEAM_PROTECTED,			"beam-protect-ship",		1,	},
+	{OF_NO_SHIELDS,				"no-shields",				1,	},
+	{OF_TARGETABLE_AS_BOMB,		"targetable-as-bomb",		1,	},
+	{OF_FLAK_PROTECTED,			"flak-protect-ship",		1,	},
+	{OF_LASER_PROTECTED,		"laser-protect-ship",		1,	},
+	{OF_MISSILE_PROTECTED,		"missile-protect-ship",		1,	},
+	{OF_IMMOBILE,				"immobile",					1,	},
 };
 
 //-----------------------------------------------------------------------------
@@ -201,6 +205,7 @@ int free_object_slots(int num_used)
 	}
 
 	deleted_weapons = collide_remove_weapons();
+
 	num_to_free -= deleted_weapons;
 	if ( !num_to_free ){
 		return original_num_to_free;
@@ -314,7 +319,11 @@ void obj_init()
 	Num_objects = 0;			
 	Highest_object_index = 0;
 
-	obj_reset_pairs();
+	if ( Cmdline_old_collision_sys ) {
+		obj_reset_pairs();
+	} else {
+		obj_reset_colliders();
+	}
 }
 
 static int num_objects_hwm = 0;
@@ -512,7 +521,11 @@ void obj_delete(int objnum)
 	};	
 
 	// Remove all object pairs
-	obj_remove_pairs( objp );
+	if ( Cmdline_old_collision_sys ) {
+		obj_remove_pairs( objp );
+	} else {
+		obj_remove_collider(objnum);
+	}
 	
 	switch( objp->type )	{
 	case OBJ_WEAPON:
@@ -626,7 +639,11 @@ void obj_merge_created_list(void)
 		list_remove( obj_create_list, objp );
 
 		// Add it to the object pairs array
-		obj_add_pairs(OBJ_INDEX(objp));
+		if ( Cmdline_old_collision_sys ) {
+			obj_add_pairs(OBJ_INDEX(objp));
+		} else {
+			obj_add_collider(OBJ_INDEX(objp));
+		}
 
 		// Then add it to the object used list
 		list_append( &obj_used_list, objp );
@@ -996,7 +1013,11 @@ void obj_set_flags( object *obj, uint new_flags )
 	// turning collision detection off
 	if ( (obj->flags & OF_COLLIDES) && (!(new_flags&OF_COLLIDES)))	{		
 		// Remove all object pairs
-		obj_remove_pairs( obj );
+		if ( Cmdline_old_collision_sys ) {
+			obj_remove_pairs( obj );
+		} else {
+			obj_remove_collider(objnum);
+		}
 
 		// update object flags properly		
 		obj->flags = new_flags;
@@ -1022,7 +1043,11 @@ void obj_set_flags( object *obj, uint new_flags )
 		obj->flags |= OF_COLLIDES;
 
 		// Turn on collision detection
-		obj_add_pairs(objnum);
+		if ( Cmdline_old_collision_sys ) {
+			obj_add_pairs(objnum);
+		} else {
+			obj_add_collider(objnum);
+		}
 				
 		obj->flags = new_flags;
 		obj->flags &= ~(OF_NOT_IN_COLL);		
@@ -1053,8 +1078,8 @@ void obj_set_flags( object *obj, uint new_flags )
 
 		// see if this ship is really a player ship (or should be)
 		shipp = &Ships[obj->instance];
-		extern void multi_ts_get_team_and_slot(char *, int *, int *);
-		multi_ts_get_team_and_slot(shipp->ship_name,&team,&slot);
+		extern void multi_ts_get_team_and_slot(char *, int *, int *, bool);
+		multi_ts_get_team_and_slot(shipp->ship_name,&team,&slot, false);
 		if ( (shipp->wingnum == -1) || (team == -1) || (slot==-1) ) {
 			Int3();
 			return;
@@ -1224,7 +1249,18 @@ void obj_move_all_post(object *objp, float frametime)
 						}
 					}
 				}
-			}		
+			}	
+
+			//Check for changing team colors
+			ship* shipp = &Ships[objp->instance];
+			if (Ship_info[shipp->ship_info_index].uses_team_colors && shipp->secondary_team_name != "<none>") {
+				if (f2fl(Missiontime) * 1000 > f2fl(shipp->team_change_timestamp) * 1000 + shipp->team_change_time) {
+					shipp->team_name = shipp->secondary_team_name;
+					shipp->team_change_timestamp = 0;
+					shipp->team_change_time = 0;
+					shipp->secondary_team_name = "<none>";
+				}
+			}
 
 			break;
 		}
@@ -1441,7 +1477,6 @@ void obj_move_all(float frametime)
 		// changes in banking so that rotated bitmaps look correct.
 		// This is used by the g3_draw_rotated_bitmap function.
 		extern physics_info *Viewer_physics_info;
-		extern int Physics_viewer_direction;
 		if ( &objp->phys_info == Viewer_physics_info )	{
 			vec3d tangles_r;
 			vm_vec_unrotate(&tangles_r, &tangles, &Eye_matrix);
@@ -1474,7 +1509,11 @@ void obj_move_all(float frametime)
 	beam_move_all_pre();
 
 	if ( Collisions_enabled ) {
-		obj_check_all_collisions();		
+		if ( Cmdline_old_collision_sys ) {
+			obj_check_all_collisions();
+		} else {
+			obj_sort_and_collide();
+		}
 	}
 
 	turret_swarm_check_validity();
@@ -1630,7 +1669,11 @@ void obj_client_post_interpolate()
 	}	
 
 	// check collisions
-	obj_check_all_collisions();		
+	if ( Cmdline_old_collision_sys ) {
+		obj_check_all_collisions();
+	} else {
+		obj_sort_and_collide();
+	}
 
 	// do post-collision stuff for beam weapons
 	beam_move_all_post();
@@ -1919,7 +1962,11 @@ void obj_reset_all_collisions()
 #endif
 
 	// clear object pairs
-	obj_reset_pairs();
+	if ( Cmdline_old_collision_sys ) {
+		obj_reset_pairs();
+	} else {
+		obj_reset_colliders();
+	}
 
 	// now add every object back into the object collision pairs
 	object *moveup;
@@ -1929,7 +1976,11 @@ void obj_reset_all_collisions()
 		moveup->flags |= OF_NOT_IN_COLL;
 
 		// recalc pairs for this guy
-		obj_add_pairs(OBJ_INDEX(moveup));
+		if ( Cmdline_old_collision_sys ) {
+			obj_add_pairs(OBJ_INDEX(moveup));
+		} else {
+			obj_add_collider(OBJ_INDEX(moveup));
+		}
 
 		// next
 		moveup = GET_NEXT(moveup);

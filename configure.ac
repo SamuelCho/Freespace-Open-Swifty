@@ -2,7 +2,7 @@ dnl configure.ac for fs2_open
 dnl
 dnl $Id: configure.ac,v 1.31.2.4 2007-05-28 19:36:12 taylor Exp $
 
-AC_INIT(fs2_open, 3.6.13)
+AC_INIT(fs2_open, 3.6.15)
 AC_CONFIG_SRCDIR(code/freespace2/freespace.cpp)
 
 dnl we need at least version 2.54 of autoconf
@@ -64,9 +64,9 @@ AC_ARG_ENABLE(speech,
 
 AC_ARG_ENABLE(inferno,
 	AC_HELP_STRING([--enable-inferno],
-		[Make an Inferno build]),
+		[Make an Inferno build (default = yes)]),
 		[fs2_inferno=$enableval],
-		[fs2_inferno=no],
+		[fs2_inferno=yes],
 )
 
 AC_ARG_ENABLE(gprof,
@@ -97,31 +97,33 @@ dnl
 dnl the following block will need to be updated as additional
 dnl environments are supported
 fs2_os_win32="no"
-fs2_os_unix="no"
+fs2_os_linux="no"
 fs2_os_osx="no"
 fs2_os_solaris="no"
+fs2_os_bsd="no"
 
 dnl case $host_os in
 case "$target" in
-    *-*-mingw*)
-        # windows
-        echo "using Win32 defines (for $host_os)"
-        fs2_os_win32="yes"
+	*-*-mingw*)
+		# windows
+		echo "using Win32 defines (for $host_os)"
+		fs2_os_win32="yes"
 		AC_DEFINE([_MINGW])
 		FS2_LDFLAGS="$FS2_LDFLAGS -lgdi32 -lole32 -lwsock32 -lwinmm -lmsacm32 \
-					-lcomctl32 -lstrmiids -ldxguid -lddraw -ldinput"
-        ;;
-    x86_64-*-linux*)
-        # linux
-        echo "Using 64-bit Unix defines (for $host_os)"
-        fs2_os_unix="yes"
-		D_CFLAGS="$D_CFLAGS -m64 -march=athlon64 -ansi"
+			-lcomctl32 -lstrmiids -ldxguid -lddraw -ldinput"
+		;;
+	x86_64-*-linux*)
+		# linux
+		echo "Using 64-bit Unix defines (for $host_os)"
+		fs2_os_linux="yes"
+		D_CFLAGS="$D_CFLAGS -m64 -mtune=i686 -msse -msse2 -ansi"
 		D_CFLAGS="$D_CFLAGS -DLUA_USE_LINUX"
-        ;;
+		;;
 	*-*-linux*)
 		# linux
 		echo "Using Unix defines (for $host_os)"
-		fs2_os_unix="yes"
+		fs2_os_linux="yes"
+		D_CFLAGS="$D_CFLAGS -mtune=i686 -mfpmath=sse -msse -msse2 -ansi"
 		D_CFLAGS="$D_CFLAGS -DLUA_USE_LINUX"
 		;;
 	*-*-darwin*)
@@ -134,7 +136,33 @@ case "$target" in
 	*-*-solaris*)
 		# Solaris
 		echo "Using Solaris 10 defines (for $host_os)"
+		echo "************************************************************"
+		echo "************************ NOTE ******************************"
+		echo "* Support for this OS is not actively maintatined. It ******"
+		echo "* should work but please provide feedback about builds and *"
+		echo "* play experience on this OS at ****************************"
+		echo "* http://www.hard-light.net/forums/index.php?board=113.0 ***"
+		echo "************************************************************"
 		fs2_os_solaris="yes"
+		;;
+	*freebsd*)
+		# FreeBSD 9.1
+		echo "Using Unix defines (for $host_os $host_cpu)"
+		echo "************************************************************"
+		echo "************************ NOTE ******************************"
+		echo "* Support for this OS is not actively maintatined. It ******"
+		echo "* should work but please provide feedback about builds and *"
+		echo "* play experience on this OS at ****************************"
+		echo "* http://www.hard-light.net/forums/index.php?board=113.0 ***"
+		echo "************************************************************"
+		fs2_os_bsd="yes"
+		if test "$host_cpu" = "amd64"
+		then
+			D_CFLAGS="$D_CFLAGS -m64 -march=athlon64 -ansi"
+		fi
+		D_CFLAGS="$D_CFLAGS -DLUA_USE_LINUX"
+		LDFLAGS="$LDFLAGS -L/usr/local/lib"
+		CPPFLAGS="$CPPFLAGS -I/usr/local/include"
 		;;
 	*)
 		# Unknown
@@ -143,6 +171,12 @@ case "$target" in
 		echo "host_cpu:    " $host_cpu
 		echo "host_vendor: " $host_vendor
 		echo "host_os      " $host_os
+		echo "************************************************************"
+		echo "* Please let us know about successful builds on this OS at *"
+		echo "* http://www.hard-light.net/forums/index.php?board=113.0 ***"
+		echo "* Create a new thread about your build experience and what *"
+		echo "* was required to make the build successful. ***************"
+		echo "************************************************************"
 		exit 1;
 		;;
 esac
@@ -185,39 +219,35 @@ if test "$fs2_debug" = "yes" ; then
 
 	if test "$fs2_fred" = "yes" ; then
 		if test "$fs2_inferno" = "yes" ; then
-			AC_SUBST(FS2_BINARY, ["wxFRED2_INF_d"])
+			AC_SUBST(FS2_BINARY, ["wxFRED2_${PACKAGE_VERSION}_DEBUG"])
 		else
-			AC_SUBST(FS2_BINARY, ["wxFRED2_d"])
+			AC_SUBST(FS2_BINARY, ["wxFRED2_${PACKAGE_VERSION}_NOINF_DEBUG"])
 		fi
 	else
 		if test "$fs2_inferno" = "yes" ; then
-			AC_SUBST(FS2_BINARY, ["fs2_open_INF_d"])
+			AC_SUBST(FS2_BINARY, ["fs2_open_${PACKAGE_VERSION}_DEBUG"])
 		else
-			AC_SUBST(FS2_BINARY, ["fs2_open_d"])
+			AC_SUBST(FS2_BINARY, ["fs2_open_${PACKAGE_VERSION}_NOINF_DEBUG"])
 		fi
 	fi
 else
 	AC_DEFINE([NDEBUG])
-	D_CFLAGS="$D_CFLAGS -O2 -Wall -funroll-loops"
+	D_CFLAGS="$D_CFLAGS -O2 -Wall -Wno-write-strings -funroll-loops"
 	D_LDFLAGS="$D_LDFLAGS "
 
 	if test "$fs2_fred" = "yes" ; then
 		if test "$fs2_inferno" = "yes" ; then
-			AC_SUBST(FS2_BINARY, ["wxFRED2_INF_r"])
+			AC_SUBST(FS2_BINARY, ["wxFRED2_${PACKAGE_VERSION}"])
 		else
-			AC_SUBST(FS2_BINARY, ["wxFRED2_r"])
+			AC_SUBST(FS2_BINARY, ["wxFRED2_${PACKAGE_VERSION}_NOINF"])
 		fi
 	else
 		if test "$fs2_inferno" = "yes" ; then
-			AC_SUBST(FS2_BINARY, ["fs2_open_INF_r"])
+			AC_SUBST(FS2_BINARY, ["fs2_open_${PACKAGE_VERSION}"])
 		else
-			AC_SUBST(FS2_BINARY, ["fs2_open_r"])
+			AC_SUBST(FS2_BINARY, ["fs2_open_${PACKAGE_VERSION}_NOINF"])
 		fi
 	fi
-fi
-
-if test "$fs2_lite" = "yes" ; then
-	AC_DEFINE([SCP_LITE])
 fi
 
 if test "$fs2_gprof" = "yes" ; then
@@ -227,9 +257,11 @@ fi
 
 dnl generate appropriate conditionals for Makefile.am
 AM_CONDITIONAL(FS2_OS_WIN32,   test "$fs2_os_win32" = "yes")
-AM_CONDITIONAL(FS2_OS_UNIX,    test "$fs2_os_unix"  = "yes" || test "$fs2_os_osx" = "yes" || test "$fs2_os_solaris" = "yes")
+AM_CONDITIONAL(FS2_OS_UNIX,    test "$fs2_os_linux" = "yes" || test "$fs2_os_osx" = "yes" || test "$fs2_os_solaris" = "yes" || test "$fs2_os_bsd" = "yes")
+AM_CONDITIONAL(FS2_OS_LINUX,   test "$fs2_os_linux" = "yes")
 AM_CONDITIONAL(FS2_OS_OSX,     test "$fs2_os_osx"   = "yes")
 AM_CONDITIONAL(FS2_OS_SOLARIS, test "$fs2_os_solaris"   = "yes")
+AM_CONDITIONAL(FS2_OS_BSD,     test "$fs2_os_bsd"   = "yes")
 
 AM_CONDITIONAL(FS2_DEVIL,      test "$fs2_devil"      = "yes")
 AM_CONDITIONAL(FS2_SPEECH,     test "$fs2_speech"     = "yes")
@@ -290,7 +322,7 @@ AC_CXX_IOS_BASE
 dnl Setup paths for lib and include dirs
 
 dnl SDL check
-if test "$fs2_os_unix" = "yes" ; then
+if test "$fs2_os_linux" = "yes" || test "$fs2_os_bsd" = "yes" ; then
 	dnl Check for SDL 1.2.6+
 	SDL_VERSION=1.2.6
 	AM_PATH_SDL($SDL_VERSION,:,AC_MSG_ERROR([*** SDL >= $SDL_VERSION not found!]))
@@ -308,9 +340,6 @@ elif test "$fs2_os_osx" = "yes" ; then
 elif test "$fs2_os_solaris" = "yes" ; then
 	FS2_CXXFLAGS="$FS2_CXXFLAGS -I/usr/include/SDL"
 	FS2_LDFLAGS="$FS2_LDFLAGS -lpng -lpng12 -ljpeg -lpthread -logg -lSDL -ltheora -lopenal -lsocket -lvorbisfile -lvorbis -lnsl -lGL -lGLU"
-	AC_DEFINE([SCP_UNIX])
-	AC_DEFINE([SCP_SOLARIS])
-	AC_DEFINE([NO_DIRECT3D])
 	## don't need the CFLAGS here if recent SDL is used
 fi
 
@@ -319,7 +348,7 @@ D_CFLAGS=$D_CFLAGS" $SDL_CFLAGS"
 FS2_LIBS=$FS2_LIBS" $SDL_LIBS"
 
 dnl OGG/Vorbis/Theora check
-if test "$fs2_os_unix" = "yes" ; then
+if test "$fs2_os_linux" = "yes" || test "$fs2_os_bsd" = "yes" ; then
 	dnl Check that we have libogg, libvorbis, libvorbisfile, & libtheora
 	XIPH_PATH_OGG(:,AC_MSG_ERROR([*** OGG installation not found!]))
 	XIPH_PATH_VORBIS(:,AC_MSG_ERROR([*** Vorbis installation not found!]))
@@ -335,7 +364,7 @@ D_CFLAGS=$D_CFLAGS" $OGG_CFLAGS"
 FS2_LIBS=$FS2_LIBS" $OGG_LIBS"
 
 dnl OpenAL
-if test "$fs2_os_unix" = "yes" ; then
+if test "$fs2_os_linux" = "yes" || test "$fs2_os_bsd" = "yes" ; then
 	AM_PATH_OPENAL(:,AC_MSG_ERROR([*** OpenAL installation not found!]))
 	D_CFLAGS=$D_CFLAGS" $OPENAL_CFLAGS"
 	FS2_LIBS=$FS2_LIBS" $OPENAL_LIBS"
@@ -356,9 +385,6 @@ if test "$fs2_os_win32" = "yes" ; then
 	FS2_LDFLAGS=$FS2_LDFLAGS" -L/c:/dxsdk/lib"
 fi
 
-dnl libpng
-FS2_LIBS="$FS2_LIBS -lpng"
-
 dnl OpenGL libs and CFLAGS
 if test "$fs2_os_win32" = "yes" ; then
 	if test "x$GL_LIBS" != "x" ; then
@@ -366,22 +392,34 @@ if test "$fs2_os_win32" = "yes" ; then
 	else
 		FS2_LDFLAGS="$FS2_LDFLAGS -lopengl32 -lglu32"
 	fi
-elif test "$fs2_os_unix" = "yes" ; then
+elif test "$fs2_os_linux" = "yes" || test "$fs2_os_bsd" = "yes" ; then
 	AM_PATH_OPENGL(:,AC_MSG_ERROR([*** OpenGL installation not found!]))
 	D_CFLAGS=$D_CFLAGS" $OPENGL_CFLAGS"
 	FS2_LIBS=$FS2_LIBS" $OPENGL_LIBS"
 	AC_DEFINE([SCP_UNIX])
 	AC_DEFINE([NO_DIRECT3D])
+	if test "$fs2_os_bsd" = "yes" ; then
+		AC_DEFINE([SCP_BSD])
+	fi
 elif test "$fs2_os_osx" = "yes" ; then
 	FS2_CXXFLAGS="$FS2_CXXFLAGS -I/System/Library/Frameworks/OpenGL.framework/Headers"
 	FS2_LDFLAGS="$FS2_LDFLAGS -framework OpenGL"
 	AC_DEFINE([SCP_UNIX])
 	AC_DEFINE([NO_DIRECT3D])
 	## don't need the CFLAGS here if recent SDL is used
+elif test "$fs2_os_solaris" = "yes" ; then
+	AC_DEFINE([SCP_UNIX])
+	AC_DEFINE([SCP_SOLARIS])
+	AC_DEFINE([NO_DIRECT3D])
 fi
 
-dnl PNG libs
-PKG_CHECK_MODULES([PNG], [libpng >= 1.2.20])
+dnl PNG libs (libpng, falling back to libpng12)
+PKG_CHECK_MODULES(
+	[PNG],
+	[libpng >= 1.2.20],
+	[], ## do nothing special
+	[PKG_CHECK_MODULES([PNG], [libpng12 >= 1.2.20])]
+	)
 D_CFLAGS=$D_CFLAGS" $PNG_CFLAGS"
 FS2_LIBS=$FS2_LIBS" $PNG_LIBS"
 
@@ -389,9 +427,11 @@ dnl LUA
 ## Checking for lua.pc and if that fails lua5.1.pc
 PKG_CHECK_MODULES(
 	[LUA],
-	[lua >= 5.1.3],
+	[lua >= 5.1.3 lua < 5.2],
 	[], ## do nothing special
-	[PKG_CHECK_MODULES([LUA], [lua5.1 >= 5.1.3], [])])
+	[PKG_CHECK_MODULES([LUA], [lua5.1 >= 5.1.3 lua5.1 < 5.2], [], [
+        PKG_CHECK_MODULES([LUA], [lua-5.1 >= 5.1.3 lua-5.1 < 5.2], [])
+    ])])
 D_CFLAGS=$D_CFLAGS" $LUA_CFLAGS"
 FS2_LIBS=$FS2_LIBS" $LUA_LIBS"
 
@@ -407,14 +447,7 @@ FS2_LIBS=$FS2_LIBS" -ljpeg"
 
 
 dnl OGG Vorbis/Theora (static libs)
-if test "$fs2_os_unix" = "yes" ; then
-	if test "x$fs2_static_ogg" != "x" ; then
-		FS2_LIBS="$FS2_LIBS $fs2_static_ogg/libtheora.a"
-		FS2_LIBS="$FS2_LIBS $fs2_static_ogg/libvorbisfile.a"
-		FS2_LIBS="$FS2_LIBS $fs2_static_ogg/libvorbis.a"
-		FS2_LIBS="$FS2_LIBS $fs2_static_ogg/libogg.a"
-	fi
-elif test "$fs2_os_osx" = "yes" ; then
+if test "$fs2_os_linux" = "yes" || test "$fs2_os_osx" = "yes" || test "$fs2_os_bsd" = "yes" ; then
 	if test "x$fs2_static_ogg" != "x" ; then
 		FS2_LIBS="$FS2_LIBS $fs2_static_ogg/libtheora.a"
 		FS2_LIBS="$FS2_LIBS $fs2_static_ogg/libvorbisfile.a"
@@ -427,7 +460,7 @@ fi
 dnl any extra optimization or warning flags
 if test "$fs2_os_win32" = "yes" ; then
 	D_CFLAGS="$D_CFLAGS -fexceptions"
-elif test "$fs2_os_unix" = "yes" ; then
+elif test "$fs2_os_linux" = "yes" || test "$fs2_os_bsd" = "yes" ; then
 	D_CFLAGS="$D_CFLAGS -fsigned-char -Wno-unknown-pragmas"
 	FS2_CXXFLAGS="$FS2_CXXFLAGS -Wno-deprecated -Wno-char-subscripts"
 elif test "$fs2_os_osx" = "yes" ; then

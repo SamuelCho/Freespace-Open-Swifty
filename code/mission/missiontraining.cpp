@@ -112,36 +112,12 @@ void message_translate_tokens(char *buf, char *text);
 static hud_frames Directive_gauge[NUM_DIRECTIVE_GAUGES];
 static int Directive_frames_loaded = 0;
 
-static char *Directive_fnames[3] = 
-{
-//XSTR:OFF
-	"directives1",
-	"directives2",
-	"directives3"
-//XSTR:ON
-};
-
 #define DIRECTIVE_H						9
 #define DIRECTIVE_X						5
 #define NUM_DIRECTIVE_COORDS			3
 #define DIRECTIVE_COORDS_TOP			0
 #define DIRECTIVE_COORDS_MIDDLE		1
 #define DIRECTIVE_COORDS_TITLE		2
-static int Directive_coords[GR_NUM_RESOLUTIONS][NUM_DIRECTIVE_COORDS][2] =
-{
-	{
-		// GR_640
-		{5,178},
-		{5,190},
-		{7,180}
-	},
-	{
-		// GR_1024
-		{5,278},
-		{5,290},
-		{7,280}
-	}
-};
 
 HudGaugeDirectives::HudGaugeDirectives():
 HudGauge(HUD_OBJECT_DIRECTIVES, HUD_DIRECTIVES_VIEW, false, true, (VM_EXTERNAL | VM_DEAD_VIEW | VM_WARP_CHASE | VM_PADLOCK_ANY | VM_OTHER_SHIP), 255, 255, 255)
@@ -168,6 +144,16 @@ void HudGaugeDirectives::initTextStartOffsets(int x, int y)
 void HudGaugeDirectives::initTextHeight(int h)
 {
 	text_h = h;
+}
+
+void HudGaugeDirectives::initMaxLineWidth(int w)
+{
+	max_line_width = w;
+}
+
+void HudGaugeDirectives::initBottomBgOffset(int offset)
+{
+	bottom_bg_offset = offset;
 }
 
 void HudGaugeDirectives::initBitmaps(char *fname_top, char *fname_middle, char *fname_bottom)
@@ -239,14 +225,12 @@ void HudGaugeDirectives::pageIn()
 void HudGaugeDirectives::render(float frametime)
 {
 	char buf[256], *second_line;
-	int i, t, x, y, z, height, end, offset, bx, by, y_count;
+	int i, t, x, y, z, end, offset, bx, by, y_count;
 	color *c;
 
 	if (!Training_obj_num_lines){
 		return;
 	}
-
-	height = gr_get_font_height();
 
 	offset = 0;
 	end = Training_obj_num_lines;
@@ -283,7 +267,7 @@ void HudGaugeDirectives::render(float frametime)
 			}
 
 			// if this is a multiplayer tvt game, and this is event is not for my team, don't display it
-			if((Game_mode & GM_MULTIPLAYER) && (Netgame.type_flags & NG_TYPE_TEAM) && (Net_player != NULL)){
+			if((MULTI_TEAM) && (Net_player != NULL)){
 				if((Mission_events[z].team != -1) && (Net_player->p_info.team != Mission_events[z].team)){
 					continue;
 				}
@@ -314,7 +298,7 @@ void HudGaugeDirectives::render(float frametime)
 		}
 
 		// maybe split the directives line
-		second_line = split_str_once(buf, 167);
+		second_line = split_str_once(buf, max_line_width);
 		Assert( second_line != buf );
 
 		// blit the background frames
@@ -349,7 +333,7 @@ void HudGaugeDirectives::render(float frametime)
 	// draw the bottom of objective display
 	setGaugeColor();
 
-	renderBitmap(directives_bottom.first_frame, bx, by);
+	renderBitmap(directives_bottom.first_frame, bx, by + bottom_bg_offset);
 }
 
 /**
@@ -661,10 +645,9 @@ char *translate_message_token(char *str)
  */
 void message_translate_tokens(char *buf, char *text)
 {
-	char temp[40], *toke1, *toke2, *ptr, *orig_buf;
+	char temp[40], *toke1, *toke2, *ptr;
 	int r;
 
-	orig_buf = buf;
 	*buf = 0;
 	toke1 = strchr(text, '$');
 	toke2 = strchr(text, '#');
@@ -803,7 +786,6 @@ int message_play_training_voice(int index)
 
 		} else {
 			game_snd tmp_gs;
-			memset(&tmp_gs, 0, sizeof(game_snd));
 			strcpy_s(tmp_gs.filename, Message_waves[index].name);
 			Message_waves[index].num = snd_load(&tmp_gs, 0);
 			if (Message_waves[index].num < 0) {

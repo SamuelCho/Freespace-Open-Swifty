@@ -40,6 +40,14 @@ extern int gr_global_zbuffering;
 #define SDR_FLAG_SOFT_QUAD		(1<<9)
 #define SDR_FLAG_DISTORTION		(1<<10)
 #define SDR_FLAG_MISC_MAP		(1<<11)
+#define SDR_FLAG_TEAMCOLOR		(1<<12)
+#define SDR_FLAG_THRUSTER		(1<<13)
+
+// stencil buffering stuff
+extern int gr_stencil_mode;
+
+// alpha test
+extern int gr_alpha_test;
 
 /**
  * This is a structure used by the shader to keep track
@@ -70,6 +78,17 @@ typedef struct color {
 	int		alphacolor;
 	int		magic;		
 } color;
+
+// Used by the team coloring code
+typedef struct team_color {
+	struct {
+		float r, g, b;
+	} base;
+	struct {
+		float r, g, b;
+	} stripe;
+} team_color;
+
 
 
 typedef struct tsb_t {
@@ -218,6 +237,7 @@ typedef struct screen {
 	int	max_w, max_h;		// Width and height
 	int max_w_unscaled, max_h_unscaled;		// Width and height, should be 1024x768 or 640x480 in non-standard resolutions
 	int	save_max_w, save_max_h;		// Width and height
+	int save_max_w_unscaled, save_max_h_unscaled;
 	int	res;					// GR_640 or GR_1024
 	int	mode;					// What mode gr_init was called with.
 	float	aspect, clip_aspect;				// Aspect ratio, aspect of clip_width/clip_height
@@ -343,6 +363,14 @@ typedef struct screen {
 
 	// Clears the zbuffer.  If use_zbuffer is FALSE, then zbuffering mode is ignored and zbuffer is always off.
 	void (*gf_zbuffer_clear)(int use_zbuffer);
+
+	// Set the stencil buffer mode. Returns previous mode
+	int (*gf_stencil_set)(int mode);
+
+	// Clears the stencil buffer.
+	void (*gf_stencil_clear)();
+
+	int (*gf_alpha_mask_set)(int mode, float alpha);
 	
 	// Saves screen. Returns an id you pass to restore and free.
 	int (*gf_save_screen)();
@@ -380,6 +408,9 @@ typedef struct screen {
 	// poly culling
 	int (*gf_set_cull)(int cull);
 
+	// color buffer writes
+	int (*gf_set_color_buffer)(int mode);
+
 	// cross fade
 	void (*gf_cross_fade)(int bmap1, int bmap2, int x1, int y1, int x2, int y2, float pct);
 
@@ -398,7 +429,7 @@ typedef struct screen {
 	int (*gf_bm_load)(ubyte type, int n, char *filename, CFILE *img_cfp, int *w, int *h, int *bpp, ubyte *c_type, int *mm_lvl, int *size);
 	void (*gf_bm_init)(int n);
 	void (*gf_bm_page_in_start)();
-	int (*gf_bm_lock)(char *filename, int handle, int bitmapnum, ubyte bpp, ubyte flags);
+	int (*gf_bm_lock)(char *filename, int handle, int bitmapnum, ubyte bpp, ubyte flags, bool nodebug);
 
 	int (*gf_bm_make_render_target)(int n, int *width, int *height, ubyte *bpp, int *mm_lvl, int flags );
 	int (*gf_bm_set_render_target)(int n, int face);
@@ -415,6 +446,12 @@ typedef struct screen {
 	void (*gf_destroy_buffer)(int);
 	void (*gf_set_buffer)(int);
 	void (*gf_render_buffer)(int, const vertex_buffer*, int, int);
+
+	int (*gf_create_stream_buffer)();
+	void (*gf_update_stream_buffer)(int buffer, effect_vertex *buffer_data, uint size);
+	void (*gf_render_stream_buffer)(int offset, int n_verts, int flags);
+	void (*gf_render_stream_buffer_start)(int buffer_id);
+	void (*gf_render_stream_buffer_end)();
 
 	int	 (*gf_make_flat_buffer)(poly_list*);
 	int	 (*gf_make_line_buffer)(line_list*);
@@ -476,6 +513,13 @@ typedef struct screen {
 	uint (*gf_create_transformation_tex)();
 	void (*gf_destroy_transformation_tex)(uint tex_id);
 	void (*gf_update_transformation_tex)(uint tex_id, int n_models, float *data);
+	void (*gf_flush_data_states)();
+
+	void (*gf_set_team_color)(const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime);
+	void (*gf_enable_team_color)();
+	void (*gf_disable_team_color)();
+
+	void (*gf_update_texture)(int bitmap_handle, int bpp, ubyte* data, int width, int height);
 } screen;
 
 // handy macro
@@ -510,6 +554,10 @@ extern screen gr_screen;
 #define GR_ZBUFF_WRITE	(1<<0)
 #define GR_ZBUFF_READ	(1<<1)
 #define GR_ZBUFF_FULL	(GR_ZBUFF_WRITE|GR_ZBUFF_READ)
+
+#define GR_STENCIL_NONE		0
+#define GR_STENCIL_READ		1
+#define GR_STENCIL_WRITE	2
 
 void gr_set_screen_scale(int x, int y);
 void gr_set_screen_scale(int x, int y, int max_x, int max_y);
@@ -590,6 +638,7 @@ __inline void gr_bitmap_ex(int x, int y, int w, int h, int sx, int sy, bool resi
 	(*gr_screen.gf_bitmap_ex)(x, y, w, h, sx, sy, resize);
 }
 
+void gr_shield_icon(coord2d coords[6], const bool resize = true);
 void gr_rect(int x, int y, int w, int h, bool resize = true);
 void gr_shade(int x, int y, int w, int h, bool resize = true);
 
@@ -640,6 +689,11 @@ __inline void gr_gradient(int x1, int y1, int x2, int y2, bool resize = true)
 #define gr_zbuffer_set		GR_CALL(gr_screen.gf_zbuffer_set)
 #define gr_zbuffer_clear	GR_CALL(gr_screen.gf_zbuffer_clear)
 
+#define gr_stencil_set		GR_CALL(gr_screen.gf_stencil_set)
+#define gr_stencil_clear	GR_CALL(gr_screen.gf_stencil_clear)
+
+#define gr_alpha_mask_set	GR_CALL(gr_screen.gf_alpha_mask_set)
+
 #define gr_save_screen		GR_CALL(gr_screen.gf_save_screen)
 #define gr_restore_screen	GR_CALL(gr_screen.gf_restore_screen)
 #define gr_free_screen		GR_CALL(gr_screen.gf_free_screen)
@@ -658,6 +712,7 @@ __inline void gr_fog_set(int fog_mode, int r, int g, int b, float fog_near = -1.
 }
 
 #define gr_set_cull			GR_CALL(gr_screen.gf_set_cull)
+#define gr_set_color_buffer	GR_CALL(gr_screen.gf_set_color_buffer)
 
 #define gr_cross_fade		GR_CALL(gr_screen.gf_cross_fade)
 
@@ -703,6 +758,12 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 {
 	(*gr_screen.gf_render_buffer)(start, bufferp, texi, flags);
 }
+
+#define gr_create_stream_buffer			GR_CALL(*gr_screen.gf_create_stream_buffer)
+#define gr_update_stream_buffer			GR_CALL(*gr_screen.gf_update_stream_buffer)
+#define gr_render_stream_buffer			GR_CALL(*gr_screen.gf_render_stream_buffer)
+#define gr_render_stream_buffer_start	GR_CALL(*gr_screen.gf_render_stream_buffer_start)
+#define gr_render_stream_buffer_end		GR_CALL(*gr_screen.gf_render_stream_buffer_end)
 
 #define gr_set_buffer					GR_CALL(*gr_screen.gf_set_buffer)      
       
@@ -764,6 +825,12 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_create_transform_tex			GR_CALL(*gr_screen.gf_create_transformation_tex)
 #define gr_destroy_transform_tex		GR_CALL(*gr_screen.gf_destroy_transformation_tex)
 #define gr_update_transform_tex			GR_CALL(*gr_screen.gf_update_transformation_tex)
+#define gr_flush_data_states			GR_CALL(*gr_screen.gf_flush_data_states)
+
+#define gr_set_team_color				GR_CALL(*gr_screen.gf_set_team_color)
+#define gr_disable_team_color			GR_CALL(*gr_screen.gf_disable_team_color)
+
+#define gr_update_texture				GR_CALL(*gr_screen.gf_update_texture)
 
 // color functions
 void gr_get_color( int *r, int *g, int  b );
@@ -781,6 +848,10 @@ void gr_bitmap(int x, int y, bool resize = true);
 void gr_bitmap_uv(int _x, int _y, int _w, int _h, float _u0, float _v0, float _u1, float _v1, bool resize = true);
 void gr_bitmap_list(bitmap_2d_list* list, int n_bm, bool allow_scaling);
 void gr_bitmap_list(bitmap_rect_list* list, int n_bm, bool allow_scaling);
+
+// texture update functions
+ubyte* gr_opengl_get_texture_update_pointer(int bitmap_handle);
+void gr_opengl_update_texture(int bitmap_handle, int bpp, ubyte* data, int width, int height);
 
 // special function for drawing polylines. this function is specifically intended for
 // polylines where each section is no more than 90 degrees away from a previous section.
