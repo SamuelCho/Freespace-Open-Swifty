@@ -581,8 +581,10 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 
 	if (bufferp->flags & VB_FLAG_MODEL_ID) {
 		int attrib_index = opengl_shader_get_attribute("model_id");
-		vglVertexAttribPointerARB(attrib_index, 1, GL_FLOAT, GL_FALSE, bufferp->stride, ptr + offset);
-		vglEnableVertexAttribArrayARB(attrib_index);
+		if ( attrib_index >= 0 ) {
+			GL_state.Array.EnableVertexAttrib(attrib_index);
+			GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, bufferp->stride, ptr + offset);
+		}
 		offset += (1 * sizeof(GLfloat));
 	}
 

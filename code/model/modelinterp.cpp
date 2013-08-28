@@ -3066,44 +3066,44 @@ void model_really_render(int model_num, int model_instance_num, matrix *orient, 
 	}
 
 	// Valathil - now draw the saved transparent objects
-	SCP_vector<transparent_submodel>::iterator ts;
-	SCP_vector<transparent_object>::iterator obj;
-
-	for(ts = transparent_submodels.begin(); ts != transparent_submodels.end(); ++ts)
-	{
-		if(ts->is_submodel)
-			g3_start_instance_matrix(&ts->model->offset, &ts->orient, true);
-
-		for(obj = ts->transparent_objects.begin(); obj != ts->transparent_objects.end(); ++obj)
-		{
-			GLOWMAP = obj->glow_map;
-			SPECMAP = obj->spec_map;
-			NORMMAP = obj->norm_map;
-			HEIGHTMAP = obj->height_map;
-			MISCMAP = obj->misc_map;
-
-			gr_push_scale_matrix(&obj->scale);
-			gr_set_bitmap(obj->texture, obj->blend_filter, GR_BITBLT_MODE_NORMAL, obj->alpha);
-
-			int zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
-		
-			gr_render_buffer(0, obj->buffer, obj->i, obj->tmap_flags);
-		
-			gr_zbuffer_set(zbuff);
-			gr_pop_scale_matrix();
-
-			GLOWMAP = -1;
-			SPECMAP = -1;
-			NORMMAP = -1;
-			HEIGHTMAP = -1;
-			MISCMAP = -1;
-		}
-		ts->transparent_objects.clear();
-		
-		if(ts->pop_matrix)
-			g3_done_instance(true);
-	}
-	transparent_submodels.clear();
+// 	SCP_vector<transparent_submodel>::iterator ts;
+// 	SCP_vector<transparent_object>::iterator obj;
+// 
+// 	for(ts = transparent_submodels.begin(); ts != transparent_submodels.end(); ++ts)
+// 	{
+// 		if(ts->is_submodel)
+// 			g3_start_instance_matrix(&ts->model->offset, &ts->orient, true);
+// 
+// 		for(obj = ts->transparent_objects.begin(); obj != ts->transparent_objects.end(); ++obj)
+// 		{
+// 			GLOWMAP = obj->glow_map;
+// 			SPECMAP = obj->spec_map;
+// 			NORMMAP = obj->norm_map;
+// 			HEIGHTMAP = obj->height_map;
+// 			MISCMAP = obj->misc_map;
+// 
+// 			gr_push_scale_matrix(&obj->scale);
+// 			gr_set_bitmap(obj->texture, obj->blend_filter, GR_BITBLT_MODE_NORMAL, obj->alpha);
+// 
+// 			int zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
+// 		
+// 			gr_render_buffer(0, obj->buffer, obj->i, obj->tmap_flags);
+// 		
+// 			gr_zbuffer_set(zbuff);
+// 			gr_pop_scale_matrix();
+// 
+// 			GLOWMAP = -1;
+// 			SPECMAP = -1;
+// 			NORMMAP = -1;
+// 			HEIGHTMAP = -1;
+// 			MISCMAP = -1;
+// 		}
+// 		ts->transparent_objects.clear();
+// 		
+// 		if(ts->pop_matrix)
+// 			g3_done_instance(true);
+// 	}
+// 	transparent_submodels.clear();
 
 	if ( !Interp_no_flush ) {
 		gr_flush_data_states();
@@ -4758,7 +4758,9 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 			scale.xyz.z = Interp_warp_scale_z;
 		}
 
-		gr_push_scale_matrix(&scale);
+		if (!Interp_thrust_scale_subobj) {
+			gr_push_scale_matrix(&scale);
+		}
 	} else {
 		model = NULL;
 
@@ -4795,10 +4797,6 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 	} else if (Interp_flags & MR_ALL_XPARENT) {
 		forced_alpha = Interp_xparent_alpha;
 		forced_blend_filter = GR_ALPHABLEND_FILTER;
-	}
-
-	if (!Interp_thrust_scale_subobj) {
-		gr_push_scale_matrix(&scale);
 	}
 
 	size_t buffer_size = buffer->tex_buf.size();
@@ -4942,7 +4940,7 @@ void model_render_buffers(polymodel *pm, int mn, bool is_child)
 		MISCMAP = -1;
 	}
 
-	if ( model != NULL ) {
+	if ( model != NULL && !Interp_thrust_scale_subobj ) {
 		gr_pop_scale_matrix();
 	}
 }
