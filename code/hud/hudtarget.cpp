@@ -7072,7 +7072,7 @@ void HudGaugeHardpoints::render(float frametime)
 	gr_set_color_buffer(0);
 
 	ship_model_start(objp);
-	model_render( sip->model_num, -1, &object_orient, &vmd_zero_vector, MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_TEXTURING | MR_NO_CULL);
+	model_render( sip->model_num, &object_orient, &vmd_zero_vector, MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_TEXTURING | MR_NO_CULL);
 
 	gr_set_color_buffer(1);
 	gr_stencil_set(GR_STENCIL_READ);
@@ -7084,7 +7084,6 @@ void HudGaugeHardpoints::render(float frametime)
 
 	model_render( 
 		sip->model_num, 
-		-1,
 		&object_orient, 
 		&vmd_zero_vector, 
 		MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_TEXTURING | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_NO_ZBUFFER | MR_NO_CULL | MR_ALL_XPARENT
@@ -7121,7 +7120,7 @@ void HudGaugeHardpoints::render(float frametime)
 
 			if (Weapon_info[swp->secondary_bank_weapons[i]].wi_flags2 & WIF2_EXTERNAL_WEAPON_LNCH) {
 				for(k = 0; k < bank->num_slots; k++) {
-					model_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &bank->pnt[k], render_flags);
+					model_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
 				}
 			} else {
 				num_secondaries_rendered = 0;
@@ -7147,7 +7146,7 @@ void HudGaugeHardpoints::render(float frametime)
 
 					vm_vec_scale_add2(&secondary_weapon_pos, &vmd_z_vector, -(1.0f-sp->secondary_point_reload_pct[i][k]) * model_get(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num)->rad);
 
-					model_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &secondary_weapon_pos, render_flags);
+					model_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos, render_flags);
 				}
 			}
 		}
@@ -7182,7 +7181,7 @@ void HudGaugeHardpoints::render(float frametime)
 				} else {
 					polymodel* pm = model_get(Weapon_info[swp->primary_bank_weapons[i]].external_model_num);
 					pm->gun_submodel_rotation = sp->primary_rotate_ang[i];
-					model_render(Weapon_info[swp->primary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &bank->pnt[k], render_flags);
+					model_render(Weapon_info[swp->primary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
 					pm->gun_submodel_rotation = 0.0f;
 				}
 			}

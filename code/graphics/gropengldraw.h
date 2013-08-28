@@ -41,13 +41,28 @@ void opengl_reset_spec_mapping();
 
 void gr_opengl_line_htl(vec3d *start, vec3d *end);
 void gr_opengl_sphere_htl(float rad);
+void gr_opengl_deferred_light_sphere_init(int rings, int segments);
+void gr_opengl_draw_deferred_light_sphere(vec3d *position, float rad, bool clearStencil);
+void gr_opengl_deferred_light_cylinder_init(int segments);
+void gr_opengl_draw_deferred_light_cylinder(vec3d *position,matrix *orient, float rad, float length, bool clearStencil);
 
 void gr_opengl_draw_line_list(colored_vector *lines, int num);
+
+void gr_opengl_start_shadow_map(float neardist, float middist, float fardist);
+void gr_opengl_end_shadow_map();
+void gr_opengl_clear_shadow_map();
 
 void opengl_setup_scene_textures();
 void opengl_scene_texture_shutdown();
 void gr_opengl_scene_texture_begin();
 void gr_opengl_scene_texture_end();
+void gr_opengl_copy_effect_texture();
+
+void gr_opengl_deferred_lighting_begin();
+void gr_opengl_deferred_lighting_end();
+void gr_opengl_deferred_lighting_finish();
+
+bool gr_opengl_set_shader_flag(uint shader_flags);
 
 inline void opengl_draw_textured_quad(
 	GLfloat x1, GLfloat y1, GLfloat u1, GLfloat v1,
@@ -124,5 +139,8 @@ extern int Scene_texture_height;
 
 extern float Scene_texture_u_scale;
 extern float Scene_texture_v_scale;
+
+extern bool Deferred_lighting;
+
 
 #endif	// !GR_OPENGLDRAW_H

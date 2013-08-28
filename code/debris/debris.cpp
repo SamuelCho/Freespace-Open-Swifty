@@ -1091,3 +1091,60 @@ void calc_debris_physics_properties( physics_info *pi, vec3d *mins, vec3d *maxs 
 	pi->I_body_inv.vec.fvec.xyz.y = 0.0f;
 	pi->I_body_inv.vec.fvec.xyz.z = 12.0f / (pi->mass *  (dx*dx + dy*dy));
 }
+
+void debris_queue_render(object * obj, DrawList *scene)
+{
+	int			i, num, swapped;
+	polymodel	*pm;
+	debris		*db;
+
+
+	swapped = -1;
+	pm = NULL;	
+	num = obj->instance;
+
+	Assert(num >= 0 && num < MAX_DEBRIS_PIECES);
+	db = &Debris[num];
+
+	Assert(db->flags & DEBRIS_USED);
+
+	texture_info *tbase = NULL;
+
+	model_clear_instance( db->model_num );
+
+	// Swap in a different texture depending on the species
+	if (db->species >= 0)
+	{
+		pm = model_get( db->model_num );
+
+		//WMC - Someday, we should have glowing debris.
+		if ( pm != NULL && (pm->n_textures == 1) ) {
+			tbase = &pm->maps[0].textures[TM_BASE_TYPE];
+			swapped = tbase->GetTexture();
+			tbase->SetTexture(Species_info[db->species].debris_texture.bitmap_id);
+		}
+	}
+
+	// Only render electrical arcs if within 500m of the eye (for a 10m piece)
+	if ( vm_vec_dist_quick( &obj->pos, &Eye_position ) < obj->radius*50.0f )	{
+		for (i=0; i<MAX_DEBRIS_ARCS; i++ )	{
+			if ( timestamp_valid( db->arc_timestamp[i] ) )	{
+				model_add_arc( db->model_num, db->submodel_num, &db->arc_pts[i][0], &db->arc_pts[i][1], MARC_TYPE_NORMAL );
+			}
+		}
+	}
+
+	interp_data interp;
+
+	if ( db->is_hull )	{
+		MONITOR_INC(NumHullDebrisRend,1);
+		submodel_queue_render( &interp, scene, db->model_num, db->submodel_num, &obj->orient, &obj->pos, MR_NORMAL );
+	} else {
+		MONITOR_INC(NumSmallDebrisRend,1);
+		submodel_queue_render( &interp, scene, db->model_num, db->submodel_num, &obj->orient, &obj->pos, MR_NO_LIGHTING );
+	}
+
+	if (tbase != NULL && (swapped!=-1) && pm)	{
+		tbase->SetTexture(swapped);
+	}
+}

@@ -31,7 +31,7 @@
 #include "parse/scripting.h"
 #include "gamesequence/gamesequence.h"	//WMC - for scripting hooks in gr_flip()
 #include "io/keycontrol.h" // m!m
-
+#include "graphics/gropengldraw.h"
 
 #if defined(SCP_UNIX) && !defined(__APPLE__)
 #if ( SDL_VERSION_ATLEAST(1, 2, 7) )
@@ -1569,4 +1569,90 @@ void gr_flip()
 	}
 
 	gr_screen.gf_flip();
+}
+
+uint gr_determine_shader_flags(
+	bool lighting, 
+	bool fog, 
+	bool textured, 
+	bool in_shadow_map, 
+	bool thruster_scale, 
+	bool team_color,
+	int tmap_flags, 
+	int diffuse_map, 
+	int spec_map, 
+	int glow_map, 
+	int normal_map, 
+	int height_map,
+	int env_map,
+	int misc_map
+) {
+	uint shader_flags = 0;
+
+	// setup shader flags for the things that we want/need
+	if ( lighting ) {
+		shader_flags |= SDR_FLAG_LIGHT;
+	}
+
+	if ( fog ) {
+		shader_flags |= SDR_FLAG_FOG;
+	}
+
+	if ( tmap_flags & TMAP_ANIMATED_SHADER ) {
+		shader_flags |= SDR_FLAG_ANIMATED;
+	}
+
+	if ( textured ) {
+		if ( !Basemap_override ) {
+			shader_flags |= SDR_FLAG_DIFFUSE_MAP;
+		}
+
+		if ( glow_map > 0 ) {
+			shader_flags |= SDR_FLAG_GLOW_MAP;
+		}
+
+		if ( lighting ) {
+			if ( ( spec_map > 0 ) && !Specmap_override ) {
+				shader_flags |= SDR_FLAG_SPEC_MAP;
+
+				if ( ( env_map > 0 ) && !Envmap_override ) {
+					shader_flags |= SDR_FLAG_ENV_MAP;
+				}
+			}
+
+			if ( ( normal_map > 0) && !Normalmap_override ) {
+				shader_flags |= SDR_FLAG_NORMAL_MAP;
+			}
+
+			if ( ( height_map > 0) && !Heightmap_override ) {
+				shader_flags |= SDR_FLAG_HEIGHT_MAP;
+			}
+
+			if ( Cmdline_shadow_quality && !in_shadow_map && !Shadow_override) {
+				shader_flags |= SDR_FLAG_SHADOWS;
+			}
+		}
+
+		if ( misc_map > 0 ) {
+			shader_flags |= SDR_FLAG_MISC_MAP;
+		}
+
+		if ( team_color ) {
+			shader_flags |= SDR_FLAG_TEAMCOLOR;
+		}
+	}
+
+	if ( Deferred_lighting ) {
+		shader_flags |= SDR_FLAG_DEFERRED;
+	}
+
+	if ( in_shadow_map ) {
+		shader_flags = SDR_FLAG_GEOMETRY | SDR_FLAG_SHADOW_MAP;
+	}
+
+	if ( thruster_scale ) {
+		shader_flags |= SDR_FLAG_THRUSTER;
+	}
+
+	return shader_flags;
 }

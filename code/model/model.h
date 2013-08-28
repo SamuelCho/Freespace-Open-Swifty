@@ -487,6 +487,11 @@ typedef struct thruster_bank {
 	int		submodel_num;	// what submodel number this bank is on; index to polymodel->submodel/polymodel_instance->submodel
 } thruster_bank;
 
+#define PULSE_SIN 1
+#define PULSE_COS 2
+#define PULSE_TRI 3
+#define PULSE_SHIFTTRI 4
+
 typedef struct glow_point_bank {  // glow bank structure -Bobboau
 	int			type;
 	int			glow_timestamp; 
@@ -502,6 +507,43 @@ typedef struct glow_point_bank {  // glow bank structure -Bobboau
 	int			glow_bitmap; 
 	int			glow_neb_bitmap; 
 } glow_point_bank;
+
+typedef struct glow_point_bank_override {
+	char		name[33];
+	int			type;
+	int			on_time; 
+	int			off_time; 
+	int			disp_time; 
+	int			glow_bitmap; 
+	int			glow_neb_bitmap;
+	bool		is_on;
+
+	bool		type_override;
+	bool		on_time_override; 
+	bool		off_time_override; 
+	bool		disp_time_override; 
+	bool		glow_bitmap_override;
+
+	ubyte		pulse_type;
+	int			pulse_period;
+	float		pulse_amplitude;
+	float		pulse_bias;
+	float		pulse_exponent;
+	bool		is_lightsource;
+	float		radius_multi;
+	vec3d		light_color;
+	vec3d		light_mix_color;
+	bool		lightcone;
+	float		cone_angle;
+	float		cone_inner_angle;
+	vec3d		cone_direction;
+	bool		dualcone;
+	bool		rotating;
+	vec3d		rotation_axis;
+	float		rotation_speed;
+
+	bool		pulse_period_override;
+} glow_point_bank_override;
 
 // defines for docking bay things.  The types are essentially flags since docking bays can probably
 // be used for multiple things in some cases (i.e. rearming and general docking)
@@ -837,13 +879,18 @@ void model_set_detail_level(int n);
 #define MR_FORCE_CLAMP				(1<<29)		// force clamp - Hery
 #define MR_ANIMATED_SHADER			(1<<30)		// Use a animated Shader - Valathil
 
+//Defines for the render parameter of model_render, model_really_render and model_render_buffers
+#define MODEL_RENDER_OPAQUE 1
+#define MODEL_RENDER_TRANS 2
+#define MODEL_RENDER_ALL 3
+
 // Renders a model and all it's submodels.
 // See MR_? defines for values for flags
-void model_render(int model_num, int model_instance_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL);
+void model_render(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL, int render = MODEL_RENDER_ALL);
 
 // Renders just one particular submodel on a model.
 // See MR_? defines for values for flags
-void submodel_render(int model_num,int submodel_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int *replacement_textures = NULL);
+void submodel_render(int model_num,int submodel_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int *replacement_textures = NULL, int render = MODEL_RENDER_ALL);
 
 // Returns the radius of a model
 float model_get_radius(int modelnum);
@@ -1226,30 +1273,6 @@ typedef struct mst_info {
 				{}
 } mst_info;
 
-
-//Valathil - Buffer struct for transparent object sorting
-typedef struct transparent_object {
-	int blend_filter;
-	float alpha;
-	int texture;
-	int glow_map;
-	int spec_map;
-	int norm_map;
-	int height_map;
-	int misc_map;
-	vertex_buffer *buffer;
-	unsigned int tmap_flags;
-	int i;
-	vec3d scale;
-} transparent_object;
-
-typedef struct transparent_submodel {
-	bsp_info *model;
-	matrix orient;
-	bool is_submodel;
-	bool pop_matrix;
-	SCP_vector<transparent_object> transparent_objects;
-} transparent_submodel;
 // scale the engines thrusters by this much
 // Only enabled if MR_SHOW_THRUSTERS is on
 void model_set_thrust(int model_num = -1, mst_info *mst = NULL);
@@ -1305,4 +1328,14 @@ void model_finish_cloak(int full_cloak);
 void model_do_look_at(int model_num); //Bobboau
 
 void model_do_dumb_rotation(int modelnum); //Bobboau
+
+int model_should_render_engine_glow(int objnum, int bank_obj);
+
+bool model_set_team_color(team_color *color, const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime);
+
+void moldel_calc_facing_pts( vec3d *top, vec3d *bot, vec3d *fvec, vec3d *pos, float w, float z_add, vec3d *Eyeposition );
+
+void glowpoint_init();
+SCP_vector<glow_point_bank_override>::iterator get_glowpoint_bank_override_by_name(const char* name);
+extern SCP_vector<glow_point_bank_override> glowpoint_bank_overrides;
 #endif // _MODEL_H

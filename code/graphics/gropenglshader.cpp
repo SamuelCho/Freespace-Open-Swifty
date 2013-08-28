@@ -31,6 +31,7 @@
 
 
 SCP_vector<opengl_shader_t> GL_shader;
+opengl_shader_t Deferred_light_shader;
 
 static char *GLshader_info_log = NULL;
 static const int GLshader_info_log_size = 8192;
@@ -45,7 +46,7 @@ static float Anim_timer = 0.0f;
  * When adding a new SDR_ flag, list all associated uniforms and attributes here
  */
 static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
-	{ SDR_FLAG_LIGHT,		1, {"n_lights"}, 0, { NULL }, "Lighting" },
+	{ SDR_FLAG_LIGHT,		1, {"n_lights"}, 0, {}, "Lighting" },
 	{ SDR_FLAG_FOG,			0, { NULL }, 0, { NULL }, "Fog Effect" },
 	{ SDR_FLAG_DIFFUSE_MAP, 5, {"sBasemap", "desaturate", "desaturate_r", "desaturate_g", "desaturate_b"}, 0, { NULL }, "Diffuse Mapping"},
 	{ SDR_FLAG_GLOW_MAP,	1, {"sGlowmap"}, 0, { NULL }, "Glow Mapping" },
@@ -55,6 +56,12 @@ static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
 	{ SDR_FLAG_ENV_MAP,		3, {"sEnvmap", "alpha_spec", "envMatrix"}, 0, { NULL }, "Environment Mapping" },
 	{ SDR_FLAG_ANIMATED,	5, {"sFramebuffer", "effect_num", "anim_timer", "vpwidth", "vpheight"}, 0, { NULL }, "Animated Effects" },
 	{ SDR_FLAG_MISC_MAP,	1, {"sMiscmap"}, 0, { NULL }, "Utility mapping" },
+	{ SDR_FLAG_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, { NULL }, "Team Colors" },
+	{ SDR_FLAG_DEFERRED,	0, { NULL }, 0, { NULL} , "Deferred lighting" },
+	{ SDR_FLAG_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, { NULL }, "Team Colors" },
+	{ SDR_FLAG_GEOMETRY,	1, { "shadow_proj_matrix" }, 0, { NULL }, "Geometry Transformation" },
+	{ SDR_FLAG_SHADOW_MAP,	0, { NULL }, 0, { NULL }, "Shadow Mapping" },
+	{ SDR_FLAG_SHADOWS,		7, { "shadow_map", "shadow_mv_matrix", "shadow_proj_matrix", "model_matrix", "neardist", "middist", "fardist" }, 0, { NULL }, "Shadows" },
 	{ SDR_FLAG_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, { NULL }, "Team Colors" },
 	{ SDR_FLAG_THRUSTER,	1, {"thruster_scale"}, 0, { NULL }, "Thruster scaling" },
 	{ SDR_FLAG_TRANSFORM,	1, {"transform_tex"}, 1, {"model_id"}, "Submodel Transforms" }
@@ -121,7 +128,7 @@ void opengl_shader_set_current(opengl_shader_t *shader_obj)
  * @param flags	Integer variable, holding a combination of SDR_* flags
  * @return 		Index into GL_shader, referencing a valid shader, or -1 if shader compilation failed
  */
-int gr_opengl_maybe_create_shader(int flags)
+int gr_opengl_maybe_create_shader(unsigned int flags)
 {
 	if (Use_GLSL < 2)
 		return -1;
@@ -184,14 +191,18 @@ void opengl_shader_shutdown()
 static char *opengl_load_shader(char *filename, int flags)
 {
 	SCP_string sflags;
-
-	if (Use_GLSL >= 4) {
+    
+    if (Use_GLSL >= 4) {
 		sflags += "#define SHADER_MODEL 4\n";
 	} else if (Use_GLSL == 3) {
 		sflags += "#define SHADER_MODEL 3\n";
 	} else {
 		sflags += "#define SHADER_MODEL 2\n";
 	}
+
+#ifdef __APPLE__
+	sflags += "#define APPLE\n";
+#endif
 
 	if (flags & SDR_FLAG_DIFFUSE_MAP) {
 		sflags += "#define FLAG_DIFFUSE_MAP\n";
@@ -241,8 +252,24 @@ static char *opengl_load_shader(char *filename, int flags)
 		sflags += "#define FLAG_MISC_MAP\n";
 	}
 
+	if (flags & SDR_FLAG_DEFERRED) {
+		sflags += "#define FLAG_DEFERRED\n";
+	}
+
 	if (flags & SDR_FLAG_TEAMCOLOR) {
 		sflags += "#define FLAG_TEAMCOLOR\n";
+	}
+    
+    if(flags & SDR_FLAG_GEOMETRY) {
+        sflags += "#define FLAG_GEOMETRY\n";
+    }
+    
+	if (flags & SDR_FLAG_SHADOW_MAP) {
+		sflags += "#define FLAG_SHADOW_MAP\n";
+	}
+
+	if (flags & SDR_FLAG_SHADOWS) {
+		sflags += "#define FLAG_SHADOWS\n";
 	}
 
 	if (flags & SDR_FLAG_THRUSTER) {
@@ -287,8 +314,8 @@ static char *opengl_load_shader(char *filename, int flags)
  *
  * @param flags		Combination of SDR_* flags
  */
-void opengl_compile_main_shader(int flags) {
-	char *vert = NULL, *frag = NULL;
+void opengl_compile_main_shader(unsigned int flags) {
+	char *vert = NULL, *frag = NULL, *geom = NULL;
 
 	mprintf(("Compiling new shader:\n"));
 
@@ -297,6 +324,7 @@ void opengl_compile_main_shader(int flags) {
 
 	// choose appropriate files
 	char vert_name[NAME_LENGTH];
+	char geom_name[NAME_LENGTH];
 	char frag_name[NAME_LENGTH];
 
 	if (flags & SDR_FLAG_SOFT_QUAD) {
@@ -319,10 +347,21 @@ void opengl_compile_main_shader(int flags) {
 		goto Done;
 	}
 
+	if( flags & SDR_FLAG_GEOMETRY )
+	{
+		if (flags & SDR_FLAG_SOFT_QUAD)
+			strcpy_s( geom_name, "soft-g.sdr");
+		else
+			strcpy_s( geom_name, "main-g.sdr");
+
+		// read geometry shader
+		geom = opengl_load_shader(geom_name, flags);
+	}
+
 	Verify( vert != NULL );
 	Verify( frag != NULL );
-
-	new_shader.program_id = opengl_shader_create(vert, frag);
+	
+	new_shader.program_id = opengl_shader_create(vert, frag, geom);
 
 	if ( !new_shader.program_id ) {
 		in_error = true;
@@ -464,7 +503,7 @@ void opengl_shader_init()
 	// Compile the particle shaders, since these are most definitely going to be used
 	opengl_compile_main_shader(SDR_FLAG_SOFT_QUAD);
 	opengl_compile_main_shader(SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION);
-
+	opengl_shader_compile_deferred_light_shader();
 	mprintf(("\n"));
 }
 
@@ -511,7 +550,7 @@ GLhandleARB opengl_shader_compile_object(const GLcharARB *shader_source, GLenum 
 	// we failed, bail out now...
 	if (status == 0) {
 		// basic error check
-		mprintf(("%s shader failed to compile:\n%s\n", (shader_type == GL_VERTEX_SHADER_ARB) ? "Vertex" : "Fragment", GLshader_info_log));
+		mprintf(("%s shader failed to compile:\n%s\n", (shader_type == GL_VERTEX_SHADER_ARB) ? "Vertex" : ((shader_type == GL_GEOMETRY_SHADER_EXT) ? "Geometry" : "Fragment"), GLshader_info_log));
 
 		// this really shouldn't exist, but just in case
 		if (shader_object) {
@@ -523,7 +562,7 @@ GLhandleARB opengl_shader_compile_object(const GLcharARB *shader_source, GLenum 
 
 	// we succeeded, maybe output warnings too
 	if (strlen(GLshader_info_log) > 5) {
-		nprintf(("SHADER-DEBUG", "%s shader compiled with warnings:\n%s\n", (shader_type == GL_VERTEX_SHADER_ARB) ? "Vertex" : "Fragment", GLshader_info_log));
+		nprintf(("SHADER-DEBUG", "%s shader compiled with warnings:\n%s\n", (shader_type == GL_VERTEX_SHADER_ARB) ? "Vertex" : ((shader_type == GL_GEOMETRY_SHADER_EXT) ? "Geometry" : "Fragment"), GLshader_info_log));
 	}
 
 	return shader_object;
@@ -537,7 +576,7 @@ GLhandleARB opengl_shader_compile_object(const GLcharARB *shader_source, GLenum 
  * @param fragment_object	Compiled fragment shader object
  * @return					Shader executable
  */
-GLhandleARB opengl_shader_link_object(GLhandleARB vertex_object, GLhandleARB fragment_object)
+GLhandleARB opengl_shader_link_object(GLhandleARB vertex_object, GLhandleARB fragment_object, GLhandleARB geometry_object)
 {
 	GLhandleARB shader_object = 0;
 	GLint status = 0;
@@ -551,7 +590,14 @@ GLhandleARB opengl_shader_link_object(GLhandleARB vertex_object, GLhandleARB fra
 	if (fragment_object) {
 		vglAttachObjectARB(shader_object, fragment_object);
 	}
+
+	if (geometry_object) {
+		vglAttachObjectARB(shader_object, geometry_object);
 	
+		vglProgramParameteriEXT((GLuint)shader_object, GL_GEOMETRY_INPUT_TYPE_EXT, GL_TRIANGLES);
+		vglProgramParameteriEXT((GLuint)shader_object, GL_GEOMETRY_OUTPUT_TYPE_EXT, GL_TRIANGLE_STRIP);
+		vglProgramParameteriEXT((GLuint)shader_object, GL_GEOMETRY_VERTICES_OUT_EXT, 3);
+	}
 	vglLinkProgramARB(shader_object);
 
 	// check if the link was successful
@@ -585,10 +631,11 @@ GLhandleARB opengl_shader_link_object(GLhandleARB vertex_object, GLhandleARB fra
  * @param fs	Fragment shader source code
  * @return 		Internal ID of the compiled and linked shader as generated by OpenGL
  */
-GLhandleARB opengl_shader_create(const char *vs, const char *fs)
+GLhandleARB opengl_shader_create(const char *vs, const char *fs, const char *gs)
 {
 	GLhandleARB vs_o = 0;
 	GLhandleARB fs_o = 0;
+	GLhandleARB gs_o = 0;
 	GLhandleARB program = 0;
 
 	if (vs) {
@@ -609,7 +656,16 @@ GLhandleARB opengl_shader_create(const char *vs, const char *fs)
 		}
 	}
 
-	program = opengl_shader_link_object(vs_o, fs_o);
+	if (gs) {
+		gs_o = opengl_shader_compile_object( (const GLcharARB*)gs, GL_GEOMETRY_SHADER_EXT );
+
+		if ( !gs_o ) {
+			mprintf(("ERROR! Unable to create fragment shader!\n"));
+			goto Done;
+		}
+	}
+
+	program = opengl_shader_link_object(vs_o, fs_o, gs_o);
 
 	if ( !program ) {
 		mprintf(("ERROR! Unable to create shader program!\n"));
@@ -622,6 +678,10 @@ Done:
 
 	if (fs_o) {
 		vglDeleteObjectARB(fs_o);
+	}
+
+	if (gs_o) {
+		vglDeleteObjectARB(gs_o);
 	}
 
 	return program;
@@ -762,4 +822,92 @@ void opengl_shader_set_animated_timer(float timer)
 float opengl_shader_get_animated_timer()
 {
 	return Anim_timer;
+}
+
+/**
+ * Compile the deferred light shader.
+ */
+void opengl_shader_compile_deferred_light_shader()
+{
+	char *vert = NULL, *frag = NULL;
+
+	mprintf(("Compiling deferred light shader...\n"));
+
+	bool in_error = false;
+
+	// choose appropriate files
+	char vert_name[NAME_LENGTH];
+	char frag_name[NAME_LENGTH];
+
+	strcpy_s( vert_name, "deferred-v.sdr");
+	strcpy_s( frag_name, "deferred-f.sdr");
+
+	// read vertex shader
+	if ( (vert = opengl_load_shader(vert_name, 0)) == NULL ) {
+		in_error = true;
+		goto Done;
+	}
+
+	// read fragment shader
+	if ( (frag = opengl_load_shader(frag_name, 0)) == NULL ) {
+		in_error = true;
+		goto Done;
+	}
+
+	Verify( vert != NULL );
+	Verify( frag != NULL );
+
+	Deferred_light_shader.program_id = opengl_shader_create(vert, frag, NULL);
+
+	if ( !Deferred_light_shader.program_id ) {
+		in_error = true;
+		goto Done;
+	}
+	opengl_shader_set_current( &Deferred_light_shader );
+	
+	//Hardcoded Uniforms
+	opengl_shader_init_uniform( "Scale" );
+	opengl_shader_init_uniform( "NormalBuffer" );
+	opengl_shader_init_uniform( "PositionBuffer" );
+	opengl_shader_init_uniform( "SpecBuffer" );
+	opengl_shader_init_uniform( "vpwidth" );
+	opengl_shader_init_uniform( "vpheight" );
+	opengl_shader_init_uniform( "lighttype" );
+	opengl_shader_init_uniform( "lightradius" );
+	opengl_shader_init_uniform( "diffuselightcolor" );
+	opengl_shader_init_uniform( "speclightcolor" );
+	opengl_shader_init_uniform( "dual_cone" );
+	opengl_shader_init_uniform( "coneDir" );
+	opengl_shader_init_uniform( "cone_angle" );
+	opengl_shader_init_uniform( "cone_inner_angle" );
+
+	vglUniform1iARB( opengl_shader_get_uniform("NormalBuffer"), 0 );
+	vglUniform1iARB( opengl_shader_get_uniform("PositionBuffer"), 1 );
+	vglUniform1iARB( opengl_shader_get_uniform("SpecBuffer"), 2 );
+	vglUniform1fARB( opengl_shader_get_uniform("vpwidth"), 1.0f/gr_screen.max_w );
+	vglUniform1fARB( opengl_shader_get_uniform("vpheight"), 1.0f/gr_screen.max_h );
+
+
+	opengl_shader_set_current();
+
+Done:
+	if (vert != NULL) {
+		vm_free(vert);
+		vert = NULL;
+	}
+
+	if (frag != NULL) {
+		vm_free(frag);
+		frag = NULL;
+	}
+
+	if (in_error) {
+		// We died on a lighting shader, probably due to instruction count.
+		// Drop down to a special var that will use fixed-function rendering
+		// but still allow for post-processing to work
+		mprintf(("  Shader in_error!  Disabling GLSL model rendering!\n"));
+		Use_GLSL = 1;
+		Cmdline_height = 0;
+		Cmdline_normal = 0;
+	}
 }

@@ -6074,7 +6074,13 @@ ADE_FUNC(renderTechModel, l_Shipclass, "X1, Y1, X2, Y2, [Rotation %, Pitch %, Ba
 	ship_info *sip = &Ship_info[idx];
 
 	if (sip->uses_team_colors) {
-		gr_set_team_color(sip->default_team_name, "<none>", 0, 0);
+		team_color color;
+
+		if ( model_set_team_color(&color, sip->default_team_name, "<none>", 0, 0) ) {
+			gr_set_team_color(&color);
+		} else {
+			gr_disable_team_color();
+		}
 	}
 
 	//Make sure model is loaded
@@ -6113,7 +6119,7 @@ ADE_FUNC(renderTechModel, l_Shipclass, "X1, Y1, X2, Y2, [Rotation %, Pitch %, Ba
 	//Draw the ship!!
 	model_clear_instance(sip->model_num);
 	model_set_detail_level(0);
-	model_render(sip->model_num, -1, &orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING);
+	model_render(sip->model_num, &orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING);
 
 	//OK we're done
 	gr_end_view_matrix();
@@ -6146,7 +6152,13 @@ ADE_FUNC(renderTechModel2, l_Shipclass, "X1, Y1, X2, Y2, orientation Orientation
 	ship_info *sip = &Ship_info[idx];
 
 	if (sip->uses_team_colors) {
-		gr_set_team_color(sip->default_team_name, "<none>", 0, 0);
+		team_color color;
+
+		if ( model_set_team_color(&color, sip->default_team_name, "<none>", 0, 0) ) {
+			gr_set_team_color(&color);
+		} else {
+			gr_disable_team_color();
+		}
 	}
 
 	//Make sure model is loaded
@@ -6178,7 +6190,7 @@ ADE_FUNC(renderTechModel2, l_Shipclass, "X1, Y1, X2, Y2, orientation Orientation
 	//Draw the ship!!
 	model_clear_instance(sip->model_num);
 	model_set_detail_level(0);
-	model_render(sip->model_num, -1, orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING);
+	model_render(sip->model_num, orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING);
 
 	//OK we're done
 	gr_end_view_matrix();
@@ -12327,7 +12339,7 @@ ADE_FUNC(drawModel, l_Graphics, "model, position, orientation", "Draws the given
 	//Draw the ship!!
 	model_clear_instance(model_num);
 	model_set_detail_level(0);
-	model_render(model_num, -1, orient, v, MR_NORMAL);
+	model_render(model_num, orient, v, MR_NORMAL);
 
 	//OK we're done
 	gr_end_view_matrix();
@@ -12368,7 +12380,7 @@ ADE_FUNC(drawModelOOR, l_Graphics, "model Model, vector Position, matrix Orienta
 
 	//Draw the ship!!
 	model_clear_instance(model_num);
-	model_render(model_num, -1, orient, v, flags);
+	model_render(model_num, orient, v, flags);
 
 	return ade_set_args(L, "i", 0);
 }

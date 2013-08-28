@@ -15,12 +15,15 @@
 #include "mission/missionparse.h"
 #include "nebula/neb.h"
 #include "ship/ship.h"
-
 #include <list>
+#include "jumpnode/jumpnode.h"
 #include "weapon/weapon.h"
 #include "debris/debris.h"
 #include "asteroid/asteroid.h"
-
+#include "model/modelrender.h"
+#include "cmdline/cmdline.h"
+#include "graphics/gropengldraw.h"
+#include "parse/scripting.h"
 
 typedef struct sorted_obj {
 	object			*obj;					// a pointer to the original object
@@ -101,7 +104,8 @@ inline bool sorted_obj::operator < (const sorted_obj &other)
 
 SCP_list<sorted_obj> Sorted_objects;
 SCP_vector<object*> effect_ships; 
-
+SCP_vector<object*> transparent_objects;
+bool object_had_transparency = false;
 // Used to (fairly) quicky find the 8 extreme
 // points around an object.
 vec3d check_offsets[8] = { 
@@ -275,13 +279,18 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 		}
 
 		if ( obj_render_is_model(obj) ) {
-			if( (obj->type == OBJ_SHIP) && Ships[obj->instance].shader_effect_active )
+			if( (obj->type == OBJ_SHIP) && Ships[obj->instance].shader_effect_active || obj->type == OBJ_FIREBALL )
 				effect_ships.push_back(obj);
 			else 
 				(*render_function)(obj);
 		}
+		if(object_had_transparency)
+		{
+			object_had_transparency = false;
+			transparent_objects.push_back(obj);
+		}
 	}
-
+	gr_deferred_lighting_end();
 	Interp_no_flush = 0;
 
 	// we're done rendering models so flush render states
@@ -331,3 +340,280 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 	batch_render_all();
 }
 
+void obj_queue_render(object* obj, DrawList* scene)
+{
+	if ( obj->flags & OF_SHOULD_BE_DEAD ) return;
+
+	// need to figure out what to do with this hook. 
+	// maybe save an array of these and run the script conditions after we finish drawing
+	Script_system.SetHookObject("Self", obj);
+
+	if ( Script_system.IsConditionOverride(CHA_OBJECTRENDER, obj) ) {
+		Script_system.RunCondition(CHA_OBJECTRENDER, '\0', NULL, obj);
+		Script_system.RemHookVar("Self");
+		return;
+	}
+
+	switch ( obj->type ) {
+	case OBJ_NONE:
+#ifndef NDEBUG
+		mprintf(( "ERROR!!!! Bogus obj %d is rendering!\n", obj-Objects ));
+		Int3();
+#endif
+		break;
+	case OBJ_WEAPON:
+		if ( Cmdline_dis_weapons ) return;
+		weapon_queue_render(obj, scene);
+		break;
+	case OBJ_SHIP:
+		ship_queue_render(obj, scene);
+		break;
+	case OBJ_FIREBALL:
+		fireball_queue_render(obj, scene);
+		break;
+	case OBJ_SHOCKWAVE:
+		shockwave_queue_render(obj, scene);
+		break;
+	case OBJ_DEBRIS:
+		debris_queue_render(obj, scene);
+		break;
+	case OBJ_ASTEROID:
+		asteroid_queue_render(obj, scene);
+		break;
+	case OBJ_JUMP_NODE:
+		for ( SCP_list<CJumpNode>::iterator jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp ) {
+			if ( jnp->GetSCPObject() != obj ) {
+				continue;
+			}
+
+			//jnp->QueueRender(scene, &obj->pos, &Eye_position);
+		}
+		break;
+	case OBJ_WAYPOINT:
+// 		if (Show_waypoints)	{
+// 			gr_set_color( 128, 128, 128 );
+// 			g3_draw_sphere_ez( &obj->pos, 5.0f );
+// 		}
+		break;
+	case OBJ_GHOST:
+		break;
+	case OBJ_BEAM:
+		break;
+	default:
+		Error( LOCATION, "Unhandled obj type %d in obj_render", obj->type );
+	}
+}
+
+void obj_render_queue_all()
+{
+	object *objp;
+	int i;
+	DrawList scene;
+
+	objp = Objects;
+
+	gr_deferred_lighting_begin();
+
+	// load lights into draw list
+	for ( i = 0; i < Num_lights; ++i ) {
+		if ( Lights[i].type == LT_DIRECTIONAL || !Deferred_lighting ) {
+			scene.addLight(&Lights[i]);
+		}	
+	}
+
+	for ( i = 0; i <= Highest_object_index; i++,objp++ ) {
+		if ( (objp->type != OBJ_NONE) && ( objp->flags & OF_RENDERS ) )	{
+			objp->flags &= ~OF_WAS_RENDERED;
+
+			if ( !obj_in_view_cone(objp) ) {
+				continue;
+			}
+
+			if ( (The_mission.flags & MISSION_FLAG_FULLNEB) && (Neb2_render_mode != NEB2_RENDER_NONE) && !Fred_running ) {
+				vec3d to_obj;
+				vm_vec_sub( &to_obj, &objp->pos, &Eye_position );
+				float z = vm_vec_dot( &Eye_matrix.vec.fvec, &to_obj );
+
+				if ( neb2_skip_render(objp, z) ){
+					continue;
+				}
+			}
+
+			objp->flags |= OF_WAS_RENDERED;
+
+			obj_queue_render(objp, &scene);
+		}
+	}
+
+	scene.sortDraws();
+
+	gr_zbuffer_set(ZBUFFER_TYPE_FULL);
+
+	scene.renderAll(GR_ALPHABLEND_NONE);
+	gr_zbias(0);
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+	gr_set_cull(0);
+
+	gr_flush_data_states();
+	gr_set_buffer(-1);
+
+ 	gr_deferred_lighting_end();
+
+	//WMC - draw maneuvering thrusters
+ 	extern void batch_render_man_thrusters();
+ 	batch_render_man_thrusters();
+
+	// if we're fullneb, switch off the fog effet
+	if((The_mission.flags & MISSION_FLAG_FULLNEB) && (Neb2_render_mode != NEB2_RENDER_NONE)){
+		gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
+	}
+
+	batch_render_all();
+
+	gr_reset_lighting();
+	gr_set_lighting(false, false);
+
+	//gr_deferred_lighting_end();
+	gr_deferred_lighting_finish();
+
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+
+	scene.renderAll(GR_ALPHABLEND_FILTER);
+
+	gr_zbias(0);
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+	gr_set_cull(0);
+
+	gr_flush_data_states();
+	gr_set_buffer(-1);
+
+	gr_reset_lighting();
+	gr_set_lighting(false, false);
+}
+
+void obj_render_queue_shadow_maps()
+{
+	extern SCP_vector<light*> Static_light;
+
+	if ( Static_light.empty() ) {
+		return;
+	}
+
+	light *lp = *(Static_light.begin());
+
+	if( Cmdline_nohtl || !Cmdline_shadow_quality || !lp ) {
+		return;
+	}
+
+	gr_end_proj_matrix();
+	gr_end_view_matrix();
+
+	gr_start_shadow_map(400.0f, 3000.0f, 20000.0f);
+	object *objp = Objects;
+
+	double clip_width, clip_height;
+	float minx = 0.0f, miny = 0.0f, minz = 0.0f, maxx = 0.0f, maxy = 0.0f, maxz = 0.0f;
+	vec3d frustum[8];
+	matrix orient;
+	vec3d bb_r;
+
+	vm_vector_2_matrix(&orient, &lp->vec, &Eye_matrix.vec.uvec, NULL);
+	clip_height = tan( (double)Proj_fov * 0.5 );
+	clip_width = clip_height * (double)gr_screen.clip_aspect;
+
+	vm_vec_scale_add(&frustum[0], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, (float)clip_width);
+	vm_vec_scale_add2(&frustum[0], &Eye_matrix.vec.uvec, (float)clip_height);
+
+	vm_vec_scale_add(&frustum[1], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, (float)clip_width);
+	vm_vec_scale_add2(&frustum[1], &Eye_matrix.vec.uvec, -(float)clip_height);
+
+	vm_vec_scale_add(&frustum[2], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, -(float)clip_width);
+	vm_vec_scale_add2(&frustum[2], &Eye_matrix.vec.uvec, (float)clip_height);
+
+	vm_vec_scale_add(&frustum[3], &Eye_matrix.vec.fvec, &Eye_matrix.vec.rvec, -(float)clip_width);
+	vm_vec_scale_add2(&frustum[3], &Eye_matrix.vec.uvec, -(float)clip_height);
+
+	vm_vec_copy_scale(&frustum[4], &frustum[0], 20000.0);
+	vm_vec_copy_scale(&frustum[5], &frustum[1], 20000.0);
+	vm_vec_copy_scale(&frustum[6], &frustum[2], 20000.0);
+	vm_vec_copy_scale(&frustum[7], &frustum[3], 20000.0);
+
+	for ( int i = 0; i < 8; i++ ) {
+		vm_vec_rotate(&bb_r, &frustum[i], &orient);
+
+		if ( !i ) {
+			minx = bb_r.xyz.x;
+			maxx = bb_r.xyz.x;
+			miny = bb_r.xyz.y;
+			maxy = bb_r.xyz.y;
+			minz = bb_r.xyz.z;
+			maxz = bb_r.xyz.z;
+		} else {
+			minx = MIN(bb_r.xyz.x, minx);
+			maxx = MAX(bb_r.xyz.x, maxx);
+			miny = MIN(bb_r.xyz.y, miny);
+			maxy = MAX(bb_r.xyz.y, maxy);
+			minz = MIN(bb_r.xyz.z, minz);
+			maxz = MAX(bb_r.xyz.z, maxz);
+		}
+	}
+
+	DrawList scene;
+
+	for ( int i = 0; i <= Highest_object_index; i++, objp++ ) {
+		vec3d pos, pos_rot;
+		vm_vec_sub(&pos, &objp->pos, &Eye_position);
+		vm_vec_rotate(&pos_rot, &pos, &orient);
+
+		if((pos_rot.xyz.x - objp->radius) > maxx || (pos_rot.xyz.x + objp->radius) < minx || (pos_rot.xyz.y - objp->radius) > maxy || (pos_rot.xyz.y + objp->radius) < miny || (pos_rot.xyz.z - objp->radius) > maxz)
+			continue;
+
+		switch(objp->type)
+		{
+		case OBJ_SHIP:
+			{
+				obj_queue_render(objp, &scene);
+			}
+			break;
+		case OBJ_ASTEROID:
+			{
+				interp_data interp;
+
+				model_clear_instance( Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype]);
+				model_queue_render(&interp, &scene, Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype], &objp->orient, &objp->pos, MR_NORMAL | MR_IS_ASTEROID | MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp), NULL );
+			}
+			break;
+
+		case OBJ_DEBRIS:
+			{
+				debris *db;
+				db = &Debris[objp->instance];
+
+				if ( !(db->flags & DEBRIS_USED)){
+					continue;
+				}
+
+				interp_data interp;
+
+				objp = &Objects[db->objnum];
+				submodel_queue_render(&interp, &scene, db->model_num, db->submodel_num, &objp->orient, &objp->pos, MR_NO_TEXTURING | MR_NO_LIGHTING, -1, NULL);
+			}
+			break; 
+		}
+	}
+
+	scene.sortDraws();
+	scene.renderAll();
+
+	gr_end_shadow_map();
+
+	gr_zbias(0);
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+	gr_set_cull(0);
+
+	gr_flush_data_states();
+	gr_set_buffer(-1);
+
+	gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+	gr_set_view_matrix(&Eye_position, &Eye_matrix);
+}

@@ -79,6 +79,9 @@ float batch_add_laser(int texture, vec3d *p0, float width1, vec3d *p1, float wid
 int batch_add_bitmap(int texture, int tmap_flags, vertex *pnt, int orient, float rad, float alpha = 1.0f, float depth = 0.0f);
 int batch_add_bitmap_rotated(int texture, int tmap_flags, vertex *pnt, float angle, float rad, float alpha = 1.0f, float depth = 0.0f);
 int batch_add_beam(int texture, int tmap_flags, vec3d *start, vec3d *end, float width, float intensity = 1.0f);
+int batch_add_polygon(int texture, int tmap_flags, vec3d *pos, matrix *orient, float width, float height, float alpha = 1.0f);
+int batch_add_tri(int texture, int tmap_flags, vertex *verts, float alpha = 1.0f);
+int batch_add_quad(int texture, int tmap_flags, vertex *verts, float alpha = 1.0f);
 int distortion_add_bitmap_rotated(int texture, int tmap_flags, vertex *pnt, float angle, float rad, float alpha = 1.0f, float depth = 0.0f);
 int distortion_add_beam(int texture, int tmap_flags, vec3d *start, vec3d *end, float width, float intensity = 1.0f, float offset = 0.0f);
 void batch_render_all(int stream_buffer = -1);

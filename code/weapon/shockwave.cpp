@@ -19,7 +19,7 @@
 #include "gamesnd/gamesnd.h"
 #include "asteroid/asteroid.h"
 #include "object/object.h"
-
+#include "model/modelrender.h"
 
 // -----------------------------------------------------------
 // Module-wide globals
@@ -397,7 +397,7 @@ void shockwave_render(object *objp)
 		float dist = vm_vec_dist_quick( &sw->pos, &Eye_position );
 
 		model_set_detail_level((int)(dist / (sw->radius * 10.0f)));
-		model_render( sw->model_id, -1, &Objects[sw->objnum].orient, &sw->pos, MR_NO_LIGHTING | MR_NO_FOGGING | MR_NORMAL | MR_CENTER_ALPHA | MR_NO_CULL, sw->objnum);
+		model_render( sw->model_id, &Objects[sw->objnum].orient, &sw->pos, MR_NO_LIGHTING | MR_NO_FOGGING | MR_NORMAL | MR_CENTER_ALPHA | MR_NO_CULL, sw->objnum);
 
 		model_set_warp_globals();
 		if(Cmdline_fb_explosions)
@@ -430,6 +430,80 @@ void shockwave_render(object *objp)
 				((sw->time_elapsed/sw->total_time)>0.9f)?(1.0f-(sw->time_elapsed/sw->total_time))*10.0f:1.0f
 			);
 		}
+		batch_add_bitmap_rotated(
+			sw->current_bitmap, 
+			TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD,
+			&p, 
+			fl_radians(sw->rot_angles.p), 
+			sw->radius
+		);
+	}
+}
+
+void shockwave_queue_render(object *objp, DrawList *scene)
+{
+	shockwave		*sw;
+	vertex			p;
+
+	Assert(objp->type == OBJ_SHOCKWAVE);
+	Assert(objp->instance >= 0 && objp->instance < MAX_SHOCKWAVES);
+
+	sw = &Shockwaves[objp->instance];
+
+	if( (sw->delay_stamp != -1) && !timestamp_elapsed(sw->delay_stamp)){
+		return;
+	}
+
+	if ( (sw->current_bitmap < 0) && (sw->model_id < 0) )
+		return;
+
+	if (sw->model_id > -1) {
+		float model_Interp_scale_xyz = sw->radius / 50.0f;
+
+		interp_data interp;
+
+		interp.warp_scale_x = model_Interp_scale_xyz;
+		interp.warp_scale_y = model_Interp_scale_xyz;
+		interp.warp_scale_z = model_Interp_scale_xyz;
+		interp.warp_bitmap = -1;
+		interp.warp_alpha = 1.0f - (sw->radius/sw->outer_radius);
+
+		float dist = vm_vec_dist_quick( &sw->pos, &Eye_position );
+
+		interp.detail_level_locked = (int)(dist / (sw->radius * 10.0f));
+
+		model_queue_render( &interp, scene, sw->model_id, &Objects[sw->objnum].orient, &sw->pos, MR_NO_LIGHTING | MR_NO_FOGGING | MR_NORMAL | MR_CENTER_ALPHA | MR_NO_CULL, sw->objnum, NULL);
+
+		if ( Cmdline_fb_explosions ) {
+			g3_transfer_vertex(&p, &sw->pos);
+
+			distortion_add_bitmap_rotated(
+				Shockwave_info[1].bitmap_id+shockwave_get_framenum(objp->instance, 94), 
+				TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD | TMAP_FLAG_DISTORTION, 
+				&p, 
+				fl_radians(sw->rot_angles.p), 
+				sw->radius,
+				((sw->time_elapsed/sw->total_time)>0.9f)?(1.0f-(sw->time_elapsed/sw->total_time))*10.0f:1.0f
+				);
+		}
+	} else {
+		if (!Cmdline_nohtl) {
+			g3_transfer_vertex(&p, &sw->pos);
+		} else {
+			g3_rotate_vertex(&p, &sw->pos);
+		}
+
+		if ( Cmdline_fb_explosions ) {
+			distortion_add_bitmap_rotated(
+				sw->current_bitmap, 
+				TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD | TMAP_FLAG_DISTORTION, 
+				&p, 
+				fl_radians(sw->rot_angles.p), 
+				sw->radius,
+				((sw->time_elapsed/sw->total_time)>0.9f)?(1.0f-(sw->time_elapsed/sw->total_time))*10.0f:1.0f
+			);
+		}
+
 		batch_add_bitmap_rotated(
 			sw->current_bitmap, 
 			TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD,

@@ -17,19 +17,6 @@
 
 #include <string>
 
-#define SDR_FLAG_LIGHT			(1<<0)
-#define SDR_FLAG_FOG			(1<<1)
-#define SDR_FLAG_DIFFUSE_MAP	(1<<2)
-#define SDR_FLAG_GLOW_MAP		(1<<3)
-#define SDR_FLAG_SPEC_MAP		(1<<4)
-#define SDR_FLAG_NORMAL_MAP		(1<<5)
-#define SDR_FLAG_HEIGHT_MAP		(1<<6)
-#define SDR_FLAG_ENV_MAP		(1<<7)
-#define SDR_FLAG_ANIMATED		(1<<8)
-#define SDR_FLAG_SOFT_QUAD		(1<<9)
-#define SDR_FLAG_DISTORTION		(1<<10)
-#define SDR_FLAG_TRANSFORM		(1<<11)
-
 #define MAX_SHADER_UNIFORMS		15
 
 #define SDR_ATTRIB_RADIUS		0
@@ -45,7 +32,7 @@ struct opengl_shader_flag_t {
 };
 
 struct opengl_shader_uniform_reference_t {
-	int flag;
+	unsigned int flag;
 
 	int num_uniforms;
 	char* uniforms[MAX_SHADER_UNIFORMS];
@@ -65,7 +52,7 @@ typedef struct opengl_shader_uniform_t {
 
 typedef struct opengl_shader_t {
 	GLhandleARB program_id;
-	int flags;
+	unsigned int flags;
 	int flags2;
 
 	SCP_vector<opengl_shader_uniform_t> uniforms;
@@ -80,15 +67,16 @@ typedef struct opengl_shader_t {
 extern SCP_vector<opengl_shader_t> GL_shader;
 
 extern opengl_shader_t *Current_shader;
+extern opengl_shader_t Deferred_light_shader;
 
-int gr_opengl_maybe_create_shader(int flags);
+int gr_opengl_maybe_create_shader(unsigned int flags);
 void opengl_shader_set_current(opengl_shader_t *shader_obj = NULL);
 
 void opengl_shader_init();
 void opengl_shader_shutdown();
 
-void opengl_compile_main_shader(int flags);
-GLhandleARB opengl_shader_create(const char *vs, const char *fs);
+void opengl_compile_main_shader(unsigned int flags);
+GLhandleARB opengl_shader_create(const char *vs, const char *fs, const char *gs);
 
 void opengl_shader_init_attribute(const char *attribute_text);
 GLint opengl_shader_get_attribute(const char *attribute_text);
@@ -100,6 +88,8 @@ void opengl_shader_set_animated_effect(int effect);
 int opengl_shader_get_animated_effect();
 void opengl_shader_set_animated_timer(float timer);
 float opengl_shader_get_animated_timer();
+
+void opengl_shader_compile_deferred_light_shader();
 
 #define ANIMATED_SHADER_LOADOUTSELECT_FS1	0
 #define ANIMATED_SHADER_LOADOUTSELECT_FS2	1

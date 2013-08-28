@@ -14,6 +14,7 @@
 
 #include "globalincs/pstypes.h"
 #include "graphics/grbatch.h"
+#include "model/modelrender.h"
 
 struct object;
 struct ship;
@@ -111,6 +112,8 @@ int shipfx_large_blowup_do_frame(ship *shipp, float frametime);
 
 void shipfx_large_blowup_render(ship *shipp);
 
+void shipfx_large_blowup_queue_render(interp_data *interp, DrawList *scene, ship* shipp);
+
 void shipfx_debris_limit_speed(struct debris *db, ship *shipp);
 
 // sound manager fore big ship sub explosions sounds
@@ -178,6 +181,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
+	virtual int warpQueueShipClip(DrawList *scene);
 	virtual int warpShipRender();
 	virtual int warpEnd();
 
@@ -216,6 +220,7 @@ public:
 	int warpStart();
 	int warpFrame(float frametime);
 	int warpShipClip();
+	int warpQueueShipClip(DrawList *scene);
 	int warpShipRender();
 
 	int getWarpPosition(vec3d *output);
@@ -273,6 +278,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
+	virtual int warpQueueShipClip(DrawList *scene);
 	virtual int warpShipRender();
 	virtual int warpEnd();
 
@@ -322,6 +328,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
+	virtual int warpQueueShipClip(DrawList *scene);
 	virtual int warpShipRender();
 	virtual int warpEnd();
 

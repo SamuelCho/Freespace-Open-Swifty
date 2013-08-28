@@ -874,10 +874,7 @@ void wl_render_overhead_view(float frametime)
 			g3_set_view_matrix( &sip->closeup_pos, &Eye_matrix, zoom);
 			model_set_detail_level(0);
 
-			if (!Cmdline_nohtl) {
-				gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
-				gr_set_view_matrix(&Eye_position, &Eye_matrix);
-			}
+			
 
 			light_reset();
 			vec3d light_dir = vmd_zero_vector;
@@ -890,7 +887,20 @@ void wl_render_overhead_view(float frametime)
             Glowpoint_use_depth_buffer = false;
             
 			model_clear_instance(wl_ship->model_num);
-			model_render(wl_ship->model_num, -1, &object_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1);
+			polymodel *pm = model_get(wl_ship->model_num);
+			gr_reset_clip();
+			if(Cmdline_shadow_quality)
+            {
+				gr_start_shadow_map(-sip->closeup_pos.xyz.z + pm->rad, 5000.0f, 20000.0f);
+                model_render(wl_ship->model_num, &object_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
+                gr_set_clip(Wl_overhead_coords[gr_screen.res][0], Wl_overhead_coords[gr_screen.res][1], gr_screen.res == 0 ? 291 : 467, gr_screen.res == 0 ? 226 : 362);
+                gr_end_shadow_map();
+            }
+			if (!Cmdline_nohtl) {
+				gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+				gr_set_view_matrix(&Eye_position, &Eye_matrix);
+			}
+			model_render(wl_ship->model_num, &object_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1);
 
             Glowpoint_use_depth_buffer = true;
             
@@ -902,7 +912,6 @@ void wl_render_overhead_view(float frametime)
 			vec3d subobj_pos;
 			int x, y;
 			int xc, yc;
-			polymodel *pm = model_get(wl_ship->model_num);
 			int num_found = 2;
 
 			//Render selected primary lines

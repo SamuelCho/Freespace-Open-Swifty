@@ -20,6 +20,8 @@
 struct vec3d;
 struct object;
 
+class DrawList;
+
 //Jump node flags
 #define JN_USE_DISPLAY_COLOR		(1<<0)		//Use display_color instead of HUD color
 #define JN_SHOW_POLYS				(1<<1)		//Display model normally, rather than as wireframe
@@ -67,6 +69,7 @@ public:
 
     //Rendering
     void Render(vec3d *pos, vec3d *view_pos = NULL);
+	void QueueRender(DrawList *scene, vec3d *pos, vec3d *view_pos = NULL);
 };
 
 //-----Globals------

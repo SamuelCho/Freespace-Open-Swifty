@@ -408,7 +408,7 @@ static void OGG_video_init(theora_info *tinfo)
 			Verify( vert != NULL );
 			Verify( frag != NULL );
 
-			shader_id = opengl_shader_create(vert, frag);
+			shader_id = opengl_shader_create(vert, frag, NULL);
 			vglUseProgramObjectARB(shader_id);
 			if (!shader_id)
 				use_shaders = false;

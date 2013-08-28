@@ -8,6 +8,7 @@
 #include <map>
 #include <string>
 #include <queue>
+#include <unordered_map>
 
 #if defined __GNUC__
 #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
@@ -123,6 +124,9 @@ class SCP_multimap : public std::multimap<T, U, std::less<T>, SCP_vm_allocator<s
 template< typename T >
 class SCP_queue : public std::queue< T, std::deque< T, SCP_vm_allocator< T > > > { };
 
+template< typename T, typename U >
+class SCP_unordered_map : public std::tr1::unordered_map<T, U, std::tr1::hash<T>, std::equal_to<T>, SCP_vm_allocator<std::pair<const T, U> > > { };
+
 template <class T1, class T2>
 bool operator==(const SCP_vm_allocator<T1>&, const SCP_vm_allocator<T2>&) throw()
 {
@@ -143,6 +147,7 @@ bool operator!=(const SCP_vm_allocator<T1>&, const SCP_vm_allocator<T2>&) throw(
 #define SCP_queue std::queue
 #define SCP_vector std::vector
 #define SCP_list std::list
+#define SCP_unordered_map std::unordered_map
 
 #endif
 

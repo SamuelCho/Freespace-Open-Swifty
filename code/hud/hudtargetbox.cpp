@@ -545,7 +545,14 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, 1, target_objp));
 
 				if (Ship_info[Ships[target_objp->instance].ship_info_index].uses_team_colors) {
-					gr_set_team_color(Ships[target_objp->instance].team_name, Ships[target_objp->instance].secondary_team_name, Ships[target_objp->instance].team_change_timestamp, Ships[target_objp->instance].team_change_time);
+					team_color color;
+					bool set_team_color = model_set_team_color(&color, Ships[target_objp->instance].team_name, Ships[target_objp->instance].secondary_team_name, Ships[target_objp->instance].team_change_timestamp, Ships[target_objp->instance].team_change_time);
+					
+					if ( set_team_color ) {
+						gr_set_team_color(&color);
+					} else {
+						gr_disable_team_color();
+					}
 				}
 
 				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
@@ -591,9 +598,9 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 
 		// maybe render a special hud-target-only model
 		if(target_sip->model_num_hud >= 0){
-			model_render( target_sip->model_num_hud, -1, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING);
+			model_render( target_sip->model_num_hud, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING);
 		} else {
-			model_render( target_sip->model_num, -1, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1, target_shipp->ship_replacement_textures);
+			model_render( target_sip->model_num, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1, target_shipp->ship_replacement_textures);
 		}
 
 		Interp_desaturate = false;
@@ -852,7 +859,7 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 
 		Interp_desaturate = Desaturated;
 
-		model_render( viewed_model_num, -1, &viewed_obj->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_IS_MISSILE | MR_NO_FOGGING, -1, -1, replacement_textures);
+		model_render( viewed_model_num, &viewed_obj->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_IS_MISSILE | MR_NO_FOGGING, -1, -1, replacement_textures);
 
 		Interp_desaturate = false;
 
@@ -970,7 +977,7 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 
 		Interp_desaturate = Desaturated;
 
-		model_render(Asteroid_info[asteroidp->asteroid_type].model_num[pof], -1, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_NO_FOGGING );
+		model_render(Asteroid_info[asteroidp->asteroid_type].model_num[pof], &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_NO_FOGGING );
 
 		Interp_desaturate = false;
 

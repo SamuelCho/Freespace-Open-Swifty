@@ -41,7 +41,12 @@ extern int gr_global_zbuffering;
 #define SDR_FLAG_DISTORTION		(1<<10)
 #define SDR_FLAG_MISC_MAP		(1<<11)
 #define SDR_FLAG_TEAMCOLOR		(1<<12)
-#define SDR_FLAG_THRUSTER		(1<<13)
+#define SDR_FLAG_TRANSFORM		(1<<13)
+#define SDR_FLAG_DEFERRED		(1<<14)
+#define SDR_FLAG_SHADOW_MAP		(1<<15)
+#define SDR_FLAG_GEOMETRY		(1<<16)
+#define SDR_FLAG_SHADOWS		(1<<17)
+#define SDR_FLAG_THRUSTER		(1<<18)
 
 // stencil buffering stuff
 extern int gr_stencil_mode;
@@ -486,8 +491,13 @@ typedef struct screen {
 	void (*gf_post_process_end)();
 	void (*gf_post_process_save_zbuffer)();
 
+	void (*gf_deferred_lighting_begin)();
+	void (*gf_deferred_lighting_end)();
+	void (*gf_deferred_lighting_finish)();
+
 	void (*gf_scene_texture_begin)();
 	void (*gf_scene_texture_end)();
+	void (*gf_copy_effect_texture)();
 
 	void (*gf_lighting)(bool,bool);
 	void (*gf_center_alpha)(int);
@@ -508,18 +518,24 @@ typedef struct screen {
 	void (*gf_line_htl)(vec3d *start, vec3d* end);
 	void (*gf_sphere_htl)(float rad);
 
-	int (*gf_maybe_create_shader)(int flags);
+	int (*gf_maybe_create_shader)(unsigned int flags);
 
 	uint (*gf_create_transformation_tex)();
 	void (*gf_destroy_transformation_tex)(uint tex_id);
 	void (*gf_update_transformation_tex)(uint tex_id, int n_models, float *data);
 	void (*gf_flush_data_states)();
 
-	void (*gf_set_team_color)(const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime);
+	void (*gf_set_team_color)(team_color *colors);
 	void (*gf_enable_team_color)();
 	void (*gf_disable_team_color)();
 
 	void (*gf_update_texture)(int bitmap_handle, int bpp, ubyte* data, int width, int height);
+
+	void (*gf_start_shadow_map)(float neardist, float middist, float fardist);
+	void (*gf_end_shadow_map)();
+	void (*gf_clear_shadow_map)();
+
+	bool (*gf_set_shader_flag)(uint shader_flags);
 } screen;
 
 // handy macro
@@ -789,12 +805,17 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 
 #define gr_scene_texture_begin			GR_CALL(*gr_screen.gf_scene_texture_begin)
 #define gr_scene_texture_end			GR_CALL(*gr_screen.gf_scene_texture_end)
+#define gr_copy_effect_texture			GR_CALL(*gr_screen.gf_copy_effect_texture)
 
 #define gr_post_process_set_effect		GR_CALL(*gr_screen.gf_post_process_set_effect)
 #define gr_post_process_set_defaults	GR_CALL(*gr_screen.gf_post_process_set_defaults)
 #define gr_post_process_begin			GR_CALL(*gr_screen.gf_post_process_begin)
 #define gr_post_process_end				GR_CALL(*gr_screen.gf_post_process_end)
 #define gr_post_process_save_zbuffer	GR_CALL(*gr_screen.gf_post_process_save_zbuffer)
+
+#define gr_deferred_lighting_begin		GR_CALL(*gr_screen.gf_deferred_lighting_begin)
+#define gr_deferred_lighting_end		GR_CALL(*gr_screen.gf_deferred_lighting_end)
+#define gr_deferred_lighting_finish		GR_CALL(*gr_screen.gf_deferred_lighting_finish)
 
 #define	gr_set_lighting					GR_CALL(*gr_screen.gf_lighting)
 #define	gr_center_alpha					GR_CALL(*gr_screen.gf_center_alpha)
@@ -832,6 +853,12 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 
 #define gr_update_texture				GR_CALL(*gr_screen.gf_update_texture)
 
+#define gr_start_shadow_map				GR_CALL(*gr_screen.gf_start_shadow_map)
+#define gr_end_shadow_map				GR_CALL(*gr_screen.gf_end_shadow_map)
+#define gr_clear_shadow_map				GR_CALL(*gr_screen.gf_clear_shadow_map)
+
+#define gr_set_shader_flag				GR_CALL(*gr_screen.gf_set_shader_flag)
+
 // color functions
 void gr_get_color( int *r, int *g, int  b );
 void gr_init_color(color *c, int r, int g, int b);
@@ -842,6 +869,23 @@ void gr_set_color_fast(color *dst);
 // shader functions
 void gr_create_shader(shader *shade, ubyte r, ubyte g, ubyte b, ubyte c);
 void gr_set_shader(shader *shade);
+
+uint gr_determine_shader_flags(
+	bool lighting, 
+	bool fog, 
+	bool textured, 
+	bool in_shadow_map, 
+	bool thruster_scale, 
+	bool team_color_set,
+	int tmap_flags, 
+	int diffuse_map, 
+	int spec_map, 
+	int glow_map, 
+	int normal_map, 
+	int height_map,
+	int env_map,
+	int misc_map
+);
 
 // new bitmap functions
 void gr_bitmap(int x, int y, bool resize = true);
