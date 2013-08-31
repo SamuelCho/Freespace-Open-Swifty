@@ -15,13 +15,47 @@
 
 
 #include "globalincs/pstypes.h"
-
+#include "model/model.h"
 
 extern GLint GL_max_elements_vertices;
 extern GLint GL_max_elements_indices;
 
 struct poly_list;
 struct vertex_buffer;
+
+struct uniform_bind
+{
+	SCP_string name;
+	int type;
+	int index;
+};
+
+struct uniform_block
+{
+	int uniform_start_index;
+	int num_uniforms;
+};
+
+class uniform_handler
+{
+	SCP_vector<uniform_bind> uniforms;
+
+	SCP_vector<int> uniform_data_ints;
+	SCP_vector<float> uniform_data_floats;
+
+	int current_textures[TM_NUM_TYPES];
+
+	SCP_map<SCP_string, int> uniform_lookup;
+
+	void loadUniformLookup(uniform_block *uniforms = NULL);
+
+	void queueUniformi(SCP_string name, int value);
+	void queueUniformf(SCP_string name, float value);
+public:
+	void setTexture(int texture_type, int texture_handle);
+	uniform_block generateUniforms(vertex_buffer *buffer, int texi, int flags, int sdr_flags, int prev_sdr_flags, uniform_block *prev_block = NULL);
+	void setUniforms(uniform_block uniforms);
+};
 
 void gr_opengl_start_instance_matrix(vec3d *offset, matrix *rotation);
 void gr_opengl_start_instance_angles(vec3d *pos, angles *rotation);

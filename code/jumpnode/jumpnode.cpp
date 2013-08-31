@@ -324,7 +324,7 @@ void CJumpNode::QueueRender(DrawList* scene, vec3d *pos, vec3d *view_pos)
 
 	if ( Fred_running ) {
 		gr_set_color_fast(&m_display_color);		
-		model_queue_render(&interp, scene, m_modelnum, &node_orient, pos, mr_flags, -1, NULL);
+		model_queue_render(&interp, scene, m_modelnum, -1, &node_orient, pos, mr_flags, -1, NULL);
 	} else {
 		if (m_flags & JN_USE_DISPLAY_COLOR) {
 			gr_set_color_fast(&m_display_color);
@@ -355,7 +355,7 @@ void CJumpNode::QueueRender(DrawList* scene, vec3d *pos, vec3d *view_pos)
 			gr_set_color(HUD_color_red, HUD_color_green, HUD_color_blue);
 		}
 
-		model_queue_render(&interp, scene, m_modelnum, &node_orient, pos, mr_flags, -1, NULL );
+		model_queue_render(&interp, scene, m_modelnum, -1, &node_orient, pos, mr_flags, -1, NULL );
 	}
 
 }

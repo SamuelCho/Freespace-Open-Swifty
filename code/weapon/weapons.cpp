@@ -6943,7 +6943,7 @@ void weapon_queue_render(object* obj, DrawList *scene)
 			}
 
 
-			model_queue_render(&interp, scene, wip->model_num, &obj->orient, &obj->pos, render_flags, -1, NULL);
+			model_queue_render(&interp, scene, wip->model_num, -1, &obj->orient, &obj->pos, render_flags, -1, NULL);
 			wp->weapon_flags |= WF_CONSIDER_FOR_FLYBY_SOUND;
 
 			break;

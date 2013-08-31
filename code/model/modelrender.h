@@ -34,6 +34,8 @@ struct interp_data
 	matrix orient;
 	vec3d pos;
 
+	int transform_texture;
+
 	int thrust_scale_subobj;
 	int flags;
 	int tmap_flags;
@@ -100,6 +102,8 @@ struct interp_data
 		objnum = -1;
 
 		desaturate = false;
+
+		transform_texture = -1;
 
 		detail_level_locked = 0;
 		detail_level = 0;
@@ -221,6 +225,7 @@ struct queued_buffer_draw
 {
 	int render_state_handle;
 	int texture_maps[TM_NUM_TYPES];
+	int transform_data;
 
 	color clr;
 	int blend_filter;
@@ -317,7 +322,7 @@ public:
 	static int sortDrawPair(const void* a, const void* b);
 };
 
-void model_queue_render(interp_data *interp, DrawList* scene, int model_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures);
+void model_queue_render(interp_data *interp, DrawList* scene, int model_num, int model_instance_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures);
 void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1, int *replacement_textures = NULL);
 void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel *pm, int mn, bool is_child = false);
 void model_queue_render_set_thrust(interp_data *interp, int model_num, mst_info *mst);

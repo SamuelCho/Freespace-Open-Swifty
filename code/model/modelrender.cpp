@@ -40,6 +40,7 @@ extern void interp_render_arc_segment( vec3d *v1, vec3d *v2, int depth );
 extern float Interp_light;
 extern int Interp_thrust_scale_subobj;
 extern float Interp_thrust_scale;
+extern int Interp_transform_texture;
 
 DrawList *DrawList::Target = NULL;
 
@@ -128,6 +129,7 @@ void DrawList::addBufferDraw(matrix *orient, vec3d *pos, vec3d *scale, vertex_bu
 	draw_data.blend_filter = current_blend_filter;
 	draw_data.depth_mode = current_depth_mode;
 	
+	draw_data.transform_data = interp->transform_texture;
 	draw_data.texture_maps[TM_BASE_TYPE] = current_textures[TM_BASE_TYPE];
 	draw_data.texture_maps[TM_GLOW_TYPE] = current_textures[TM_GLOW_TYPE];
 	draw_data.texture_maps[TM_SPECULAR_TYPE] = current_textures[TM_SPECULAR_TYPE];
@@ -225,6 +227,7 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 	gr_center_alpha(draw_state->center_alpha);
 
 	Interp_light = render_elements->light_factor;
+	Interp_transform_texture = render_elements->transform_data;
 
 	gr_set_color_fast(&render_elements->clr);
 
@@ -266,6 +269,7 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 	NORMMAP = -1;
 	HEIGHTMAP = -1;
 	MISCMAP = -1;
+	Interp_transform_texture = -1;
 
 	gr_pop_scale_matrix();
 
@@ -668,31 +672,40 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 		return;
 	}
 
+	vertex_buffer *buffer;
+	bsp_info *model = NULL;
+
+	Assert(interp->detail_level >= 0);
+
 	if ( (mn < 0) || (mn >= pm->n_models) ) {
-		Int3();
-		return;
-	}
+		if ( interp->thrust_scale_subobj ) {
+			buffer = &pm->thruster_buffers[interp->detail_level];
+		} else {
+			buffer = &pm->detail_buffers[interp->detail_level];
+		}
+	} else {
+		model = &pm->submodel[mn];
+		buffer = &model->buffer;
 
-	bsp_info *model = &pm->submodel[mn];
+		// if using detail boxes or spheres, check that we are valid for the range
+		if ( !is_child && !( interp->flags & MR_FULL_DETAIL ) && model->use_render_box ) {
+			vm_vec_copy_scale(&interp->render_box_min, &model->render_box_min, interp->box_scale);
+			vm_vec_copy_scale(&interp->render_box_max, &model->render_box_max, interp->box_scale);
 
-	// if using detail boxes or spheres, check that we are valid for the range
-	if ( !is_child && !( interp->flags & MR_FULL_DETAIL ) && model->use_render_box ) {
-		vm_vec_copy_scale(&interp->render_box_min, &model->render_box_min, interp->box_scale);
-		vm_vec_copy_scale(&interp->render_box_max, &model->render_box_max, interp->box_scale);
+			if ( (-model->use_render_box + in_box(&interp->render_box_min, &interp->render_box_max, &model->offset)) )
+				return;
+		}
+		if ( !is_child && !( interp->flags & MR_FULL_DETAIL ) && model->use_render_sphere ) {
+			interp->render_sphere_radius = model->render_sphere_radius * interp->box_scale;
 
-		if ( (-model->use_render_box + in_box(&interp->render_box_min, &interp->render_box_max, &model->offset)) )
-			return;
-	}
-	if ( !is_child && !( interp->flags & MR_FULL_DETAIL ) && model->use_render_sphere ) {
-		interp->render_sphere_radius = model->render_sphere_radius * interp->box_scale;
+			// TODO: doesn't consider submodel rotations yet -zookeeper
+			vec3d offset;
+			model_find_submodel_offset(&offset, pm->id, mn);
+			vm_vec_add2(&offset, &model->render_sphere_offset);
 
-		// TODO: doesn't consider submodel rotations yet -zookeeper
-		vec3d offset;
-		model_find_submodel_offset(&offset, pm->id, mn);
-		vm_vec_add2(&offset, &model->render_sphere_offset);
-
-		if ( -model->use_render_sphere + in_sphere(&offset, interp->render_sphere_radius) ) {
-			return;
+			if ( -model->use_render_sphere + in_sphere(&offset, interp->render_sphere_radius) ) {
+				return;
+			}
 		}
 	}
 
@@ -743,10 +756,10 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 	}
 
 	int texture_maps[TM_NUM_TYPES] = {-1, -1, -1, -1, -1, -1};
-	size_t buffer_size = model->buffer.tex_buf.size();
+	size_t buffer_size = buffer->tex_buf.size();
 
 	for ( size_t i = 0; i < buffer_size; i++ ) {
-		int tmap_num = model->buffer.tex_buf[i].texture;
+		int tmap_num = buffer->tex_buf[i].texture;
 		texture_map *tmap = &pm->maps[tmap_num];
 		int rt_begin_index = tmap_num*TM_NUM_TYPES;
 		float alpha = 1.0f;
@@ -882,7 +895,7 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 		scene->setTexture(TM_HEIGHT_TYPE, texture_maps[TM_HEIGHT_TYPE]);
 		scene->setTexture(TM_MISC_TYPE,	texture_maps[TM_MISC_TYPE]);
 
-		scene->addBufferDraw(&Object_matrix, &Object_position, &scale, &model->buffer, i, interp->tmap_flags, interp);
+		scene->addBufferDraw(&Object_matrix, &Object_position, &scale, buffer, i, interp->tmap_flags, interp);
 	}
 }
 
@@ -1833,7 +1846,7 @@ void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum
 	}
 }
 
-void model_queue_render(interp_data *interp, DrawList *scene, int model_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures)
+void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int model_instance_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures)
 {
 	int i;
 	int cull = 0;
@@ -1841,6 +1854,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 	model_set_replacement_textures(replacement_textures);
 
 	polymodel *pm = model_get(model_num);
+	polymodel_instance * pmi = NULL;
 
 	model_do_dumb_rotation(model_num);
 
@@ -1872,6 +1886,11 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 
 			if (shipp->flags2 & SF2_GLOWMAPS_DISABLED)
 				flags |= MR_NO_GLOWMAPS;
+
+			if ( model_instance_num >= 0 && Cmdline_merged_ibos ) {
+				pmi = model_get_instance(model_instance_num);
+				interp->transform_texture = pmi->transform_tex_id;
+			}
 		}
 	}
 
@@ -1925,6 +1944,10 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 	g3_start_instance_matrix(pos, orient, false);
 
 	interp->detail_level = model_queue_render_determine_detail(objnum, model_num, orient, pos, flags, interp->detail_level_locked);
+
+	if ( model_instance_num >= 0 && interp->transform_texture >= 0 ) {
+		model_interp_update_transforms(objp, interp->detail_level);
+	}
 
 // #ifndef NDEBUG
 // 	if ( Interp_detail_level == 0 )	{
@@ -2041,34 +2064,38 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, mat
 		scene->setZBias(0);
 	}
 
-	// Draw the subobjects
-	bool draw_thrusters = false;
-	i = pm->submodel[pm->detail[interp->detail_level]].first_child;
-
-	while( i >= 0 )	{
-		if ( !pm->submodel[i].is_thruster ) {
-			model_queue_render_children_buffers( scene, interp, pm, i, interp->detail_level );
-		} else {
-			draw_thrusters = true;
-		}
-
-		i = pm->submodel[i].next_sibling;
-	}
-
-	model_radius = pm->submodel[pm->detail[interp->detail_level]].rad;
-
-	//*************************** draw the hull of the ship *********************************************
-	model_queue_render_buffers(scene, interp, pm, pm->detail[interp->detail_level]);
-
-	// Draw the thruster subobjects
-	if ( draw_thrusters ) {
+	if ( model_instance_num >= 0 && interp->transform_texture >= 0) {
+		model_queue_render_buffers(scene, interp, pm, -1);
+	} else {
+		// Draw the subobjects
+		bool draw_thrusters = false;
 		i = pm->submodel[pm->detail[interp->detail_level]].first_child;
 
-		while( i >= 0 ) {
-			if (pm->submodel[i].is_thruster) {
+		while( i >= 0 )	{
+			if ( !pm->submodel[i].is_thruster ) {
 				model_queue_render_children_buffers( scene, interp, pm, i, interp->detail_level );
+			} else {
+				draw_thrusters = true;
 			}
+
 			i = pm->submodel[i].next_sibling;
+		}
+
+		model_radius = pm->submodel[pm->detail[interp->detail_level]].rad;
+
+		//*************************** draw the hull of the ship *********************************************
+		model_queue_render_buffers(scene, interp, pm, pm->detail[interp->detail_level]);
+
+		// Draw the thruster subobjects
+		if ( draw_thrusters ) {
+			i = pm->submodel[pm->detail[interp->detail_level]].first_child;
+
+			while( i >= 0 ) {
+				if (pm->submodel[i].is_thruster) {
+					model_queue_render_children_buffers( scene, interp, pm, i, interp->detail_level );
+				}
+				i = pm->submodel[i].next_sibling;
+			}
 		}
 	}
 

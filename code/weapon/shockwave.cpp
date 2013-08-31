@@ -472,7 +472,7 @@ void shockwave_queue_render(object *objp, DrawList *scene)
 
 		interp.detail_level_locked = (int)(dist / (sw->radius * 10.0f));
 
-		model_queue_render( &interp, scene, sw->model_id, &Objects[sw->objnum].orient, &sw->pos, MR_NO_LIGHTING | MR_NO_FOGGING | MR_NORMAL | MR_CENTER_ALPHA | MR_NO_CULL, sw->objnum, NULL);
+		model_queue_render( &interp, scene, sw->model_id, -1, &Objects[sw->objnum].orient, &sw->pos, MR_NO_LIGHTING | MR_NO_FOGGING | MR_NORMAL | MR_CENTER_ALPHA | MR_NO_CULL, sw->objnum, NULL);
 
 		if ( Cmdline_fb_explosions ) {
 			g3_transfer_vertex(&p, &sw->pos);

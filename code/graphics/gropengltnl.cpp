@@ -2258,3 +2258,56 @@ bool gr_opengl_set_shader_flag(uint shader_flags)
 
 	return true;
 }
+
+void uniform_handler::setTexture(int texture_type, int texture_handle)
+{
+	Assert(texture_type > -1);
+	Assert(texture_type < TM_NUM_TYPES);
+
+	current_textures[texture_type] = texture_handle;
+}
+
+void uniform_handler::loadUniformLookup(uniform_block *prev_block = NULL)
+{
+	uniform_lookup.clear();
+
+	if ( prev_block == NULL ) {
+		return;
+	}
+
+	// create a map of uniforms so we can do easy lookups for comparisons
+	int i = prev_block->uniform_start_index;
+	int end = i + prev_block->num_uniforms;
+
+	for ( ; i < end; ++i ) {
+		uniform_lookup[uniforms[i].name] = i;
+	}
+}
+
+uniform_block uniform_handler::generateUniforms(vertex_buffer *buffer, int texi, int flags, int sdr_flags, int prev_sdr_flags, uniform_block *prev_block)
+{
+	int start_index = uniforms.size();
+	int num_uniforms = 0;
+	
+	if ( sdr_flags == prev_sdr_flags ) {
+		loadUniformLookup(prev_block);
+	} else {
+		loadUniformLookup(NULL);
+	}
+	
+
+	if ( flags & TMAP_ANIMATED_SHADER ) {
+		queueUniformf("anim_timer", opengl_shader_get_animated_timer());
+		queueUniformi("effect_num", opengl_shader_get_animated_effect());
+		queueUniformf("vpwidth", 1.0f/gr_screen.max_w);
+		queueUniformf("vpheight", 1.0f/gr_screen.max_h);
+	}
+
+	int n_lights = MIN(Num_active_gl_lights, GL_max_lights) - 1;
+	queueUniformi("n_lights", n_lights);
+}
+
+void uniform_handler::setUniforms(uniform_block uniforms)
+{
+
+}
