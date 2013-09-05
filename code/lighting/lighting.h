@@ -75,6 +75,7 @@ public:
 	void setLightFilter(int objnum, vec3d *pos, float rad);
 	bool setLights(SceneLights::LightIndexingInfo *info);
 	void resetLightState();
+	int SceneLights::getNumStaticLights();
 	SceneLights::LightIndexingInfo bufferLights();
 };
 

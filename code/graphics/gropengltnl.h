@@ -14,6 +14,7 @@
 #define _GROPENGLTNL_H
 
 
+#include "graphics/gropengl.h"
 #include "globalincs/pstypes.h"
 #include "model/model.h"
 
@@ -23,39 +24,95 @@ extern GLint GL_max_elements_indices;
 struct poly_list;
 struct vertex_buffer;
 
+#define TEX_SLOT_DIFFUSE	0
+#define TEX_SLOT_GLOW		1
+#define TEX_SLOT_SPEC		2
+#define TEX_SLOT_ENV		3
+#define TEX_SLOT_NORMAL		4
+#define TEX_SLOT_HEIGHT		5
+#define TEX_SLOT_MISC		6
+#define TEX_SLOT_SHADOW		7
+#define TEX_SLOT_TRANSFORM	8
+#define TEX_SLOT_ANIMATED	9
+
+#define TEX_SLOT_MAX		10
+
 struct uniform_bind
 {
 	SCP_string name;
-	int type;
+
+	enum data_type {
+		INT,
+		FLOAT,
+		VEC3D,
+		MATRIX4
+	};
+
+	uniform_bind::data_type type;
 	int index;
+
+	int count;
+	int tranpose;
 };
 
 struct uniform_block
 {
 	int uniform_start_index;
 	int num_uniforms;
+
+	int texture_slots[TEX_SLOT_MAX];
 };
 
 class uniform_handler
 {
+	static const float EPSILON;
+
 	SCP_vector<uniform_bind> uniforms;
 
 	SCP_vector<int> uniform_data_ints;
 	SCP_vector<float> uniform_data_floats;
+	SCP_vector<vec3d> uniform_data_vec3d;
+	SCP_vector<matrix4> uniform_data_matrix4;
 
-	int current_textures[TM_NUM_TYPES];
+	matrix orientation;
+	vec3d position;
+	int current_textures[TEX_SLOT_MAX];
+	vec3d base_color;
+	vec3d stripe_color;
+	float thruster_scale;
+	int n_lights;
 
 	SCP_map<SCP_string, int> uniform_lookup;
 
+	uniform_block *loaded_block;
+
 	void loadUniformLookup(uniform_block *uniforms = NULL);
+	int findUniform(SCP_string &name);
+
+	bool compareMatrix4(matrix4 &a, matrix4 &b);
 
 	void queueUniformi(SCP_string name, int value);
 	void queueUniformf(SCP_string name, float value);
+	void queueUniform3f(SCP_string name, vec3d &value);
+	void queueUniform4fv(SCP_string name, int count, bool transpose, matrix4 *value);
 public:
+	uniform_handler();
+	void resetTextures();
+	void setNumLights(int num_lights);
+	void setOrientation(matrix *orient);
+	void setPosition(vec3d *pos);
+	void setThrusterScale(float scale);
+	void setTeamColor(float base_r, float base_g, float base_b, float stripe_r, float stripe_g, float stripe_b);
 	void setTexture(int texture_type, int texture_handle);
-	uniform_block generateUniforms(vertex_buffer *buffer, int texi, int flags, int sdr_flags, int prev_sdr_flags, uniform_block *prev_block = NULL);
-	void setUniforms(uniform_block uniforms);
+	void generateUniforms(uniform_block *block_out, int flags, int sdr_flags, int prev_sdr_flags, uniform_block *prev_block = NULL);
+	bool setUniforms();
+	uniform_block* getUniforms();
+	void loadUniforms(uniform_block *uniforms);
+
+	void resetAll();
 };
+
+extern uniform_handler Current_uniforms;
 
 void gr_opengl_start_instance_matrix(vec3d *offset, matrix *rotation);
 void gr_opengl_start_instance_angles(vec3d *pos, angles *rotation);
@@ -95,5 +152,6 @@ void gr_opengl_set_team_color(team_color *colors);
 void gr_opengl_disable_team_color();
 
 void opengl_tnl_shutdown();
+void gr_opengl_tnl_set_uniforms(int flags, uint shader_flags, int tmap_type);
 
 #endif //_GROPENGLTNL_H

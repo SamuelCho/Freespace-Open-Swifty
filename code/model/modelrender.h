@@ -13,6 +13,7 @@
 #include "model/model.h"
 #include "Math/vecmat.h"
 #include "lighting/lighting.h"
+#include "graphics/gropengltnl.h"
 
 extern light Lights[MAX_LIGHTS];
 extern int Num_lights;
@@ -240,6 +241,7 @@ struct queued_buffer_draw
 	int texi;
 	int flags;
 	int sdr_flags;
+	uniform_block uniform_handle;
 
 	float thrust_scale;
 	float light_factor;
@@ -260,8 +262,6 @@ struct queued_buffer_draw
 
 class DrawList
 {
-	bool in_shadow_map;
-
 	render_state current_render_state;
 	bool dirty_render_state;
 

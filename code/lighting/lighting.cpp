@@ -1202,6 +1202,11 @@ SceneLights::LightIndexingInfo SceneLights::bufferLights()
 	return light_info;
 }
 
+int SceneLights::getNumStaticLights()
+{
+	return StaticLightIndices.size();
+}
+
 void SceneLights::resetLightState()
 {
 	current_light_index = -1;

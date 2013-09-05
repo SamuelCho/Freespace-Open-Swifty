@@ -111,6 +111,13 @@ typedef struct matrix {
 	};
 } matrix;
 
+typedef struct matrix4 {
+	union {
+		float a2d[4][4];
+		float a1d[16];
+	};
+} matrix4;
+
 typedef struct uv_pair {
 	float u,v;
 } uv_pair;

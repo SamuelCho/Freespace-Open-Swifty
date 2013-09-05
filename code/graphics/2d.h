@@ -876,6 +876,7 @@ uint gr_determine_shader_flags(
 	bool textured, 
 	bool in_shadow_map, 
 	bool thruster_scale, 
+	bool transform,
 	bool team_color_set,
 	int tmap_flags, 
 	int diffuse_map, 

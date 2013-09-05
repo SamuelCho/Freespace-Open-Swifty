@@ -1577,6 +1577,7 @@ uint gr_determine_shader_flags(
 	bool textured, 
 	bool in_shadow_map, 
 	bool thruster_scale, 
+	bool transform,
 	bool team_color,
 	int tmap_flags, 
 	int diffuse_map, 
@@ -1600,6 +1601,10 @@ uint gr_determine_shader_flags(
 
 	if ( tmap_flags & TMAP_ANIMATED_SHADER ) {
 		shader_flags |= SDR_FLAG_ANIMATED;
+	}
+
+	if ( transform ) {
+		shader_flags |= SDR_FLAG_TRANSFORM;
 	}
 
 	if ( textured ) {

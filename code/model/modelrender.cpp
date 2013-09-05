@@ -173,8 +173,9 @@ uint DrawList::determineShaderFlags(render_state *state, queued_buffer_draw *dra
 		fog, 
 		texture, 
 		in_shadow_map, 
-		use_thrust_scale, 
-		state->using_team_color, 
+		use_thrust_scale,
+		draw_info->transform_data >= 0 && buffer->flags & VB_FLAG_MODEL_ID,
+		state->using_team_color,
 		tmap_flags, 
 		draw_info->texture_maps[TM_BASE_TYPE], 
 		draw_info->texture_maps[TM_SPECULAR_TYPE],
@@ -262,7 +263,12 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 		Interp_thrust_scale_subobj = 0;
 	}
 
+	//Current_uniforms.loadUniforms(&render_elements->uniform_handle);
+	Current_uniforms.loadUniforms(NULL);
+
 	gr_render_buffer(0, render_elements->buffer, render_elements->texi, render_elements->flags);
+
+	//Current_uniforms.loadUniforms(NULL);
 
 	GLOWMAP = -1;
 	SPECMAP = -1;
@@ -369,8 +375,32 @@ void DrawList::setCenterAlpha(int center_alpha)
 void DrawList::renderAll(int blend_filter)
 {
 	size_t i;
+	int prev_sdr_flags = 0;
+	uniform_block *prev_uniforms = NULL;
 
 	Lights.resetLightState();
+	Current_uniforms.resetAll();
+
+	for ( i = 0; i < render_keys.size(); ++i ) {
+		// process uniforms for each draw.
+		int render_index = render_keys[i];
+
+		if ( blend_filter == -1 || render_elements[render_index].blend_filter == blend_filter ) {
+			queued_buffer_draw *draw_element = &render_elements[render_index];
+			render_state *state = &render_states[draw_element->render_state_handle];
+
+			Current_uniforms.setOrientation(&draw_element->orient);
+			Current_uniforms.setPosition(&draw_element->pos);
+			Current_uniforms.setThrusterScale(draw_element->thrust_scale);
+			Current_uniforms.setTeamColor(state->tm_color.base.r, state->tm_color.base.g, state->tm_color.base.b, state->tm_color.stripe.r, state->tm_color.stripe.g, state->tm_color.stripe.b);
+			Current_uniforms.setNumLights(state->lights.num_lights + Lights.getNumStaticLights());
+
+			Current_uniforms.generateUniforms(&draw_element->uniform_handle, draw_element->flags, draw_element->sdr_flags, prev_sdr_flags, prev_uniforms);
+
+			prev_uniforms = &draw_element->uniform_handle;
+			prev_sdr_flags = draw_element->sdr_flags;
+		}
+	}
 
 	for ( i = 0; i < render_keys.size(); ++i ) {
 		int render_index = render_keys[i];
@@ -396,6 +426,10 @@ bool DrawList::sortDrawPair(const int a, const int b)
 // 		return -1;
 // 	}
 	
+	if ( draw_call_a->blend_filter != draw_call_b->blend_filter ) {
+		return draw_call_a->blend_filter < draw_call_b->blend_filter;
+	}
+
 	if ( draw_call_a->sdr_flags != draw_call_b->sdr_flags ) {
 		return draw_call_a->sdr_flags < draw_call_b->sdr_flags;
 	}
