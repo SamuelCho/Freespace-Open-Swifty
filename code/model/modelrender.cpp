@@ -263,12 +263,12 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 		Interp_thrust_scale_subobj = 0;
 	}
 
-	//Current_uniforms.loadUniforms(&render_elements->uniform_handle);
-	Current_uniforms.loadUniforms(NULL);
+	Current_uniforms.loadUniforms(&render_elements->uniform_handle);
+	//Current_uniforms.loadUniforms(NULL);
 
 	gr_render_buffer(0, render_elements->buffer, render_elements->texi, render_elements->flags);
 
-	//Current_uniforms.loadUniforms(NULL);
+	Current_uniforms.loadUniforms(NULL);
 
 	GLOWMAP = -1;
 	SPECMAP = -1;
@@ -415,7 +415,7 @@ void DrawList::renderAll(int blend_filter)
 bool DrawList::sortDrawPair(const int a, const int b)
 {
 	queued_buffer_draw *draw_call_a = &Target->render_elements[a];
-	queued_buffer_draw *draw_call_b = &Target->render_elements[a];
+	queued_buffer_draw *draw_call_b = &Target->render_elements[b];
 
 	render_state *render_state_a = &Target->render_states[draw_call_a->render_state_handle];
 	render_state *render_state_b = &Target->render_states[draw_call_b->render_state_handle];

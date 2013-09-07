@@ -361,6 +361,9 @@ void opengl_state::init()
 	glDisable(GL_POLYGON_OFFSET_FILL);
 	polygonoffsetfill_Status = GL_FALSE;
 
+	polygon_offset_Factor = 0.0f;
+	polygon_offset_Unit = 0.0f;
+
 	glDisable(GL_NORMALIZE);
 	normalize_Status = GL_FALSE;
 
@@ -550,6 +553,26 @@ GLboolean opengl_state::CullFace(GLint state)
 	}
 
 	return save_state;
+}
+
+void opengl_state::SetPolygonMode(GLenum face, GLenum mode)
+{
+	if ( polygon_mode_Face != face || polygon_mode_Mode != mode ) {
+		glPolygonMode(face, mode);
+
+		polygon_mode_Face = face;
+		polygon_mode_Mode = mode;
+	}
+}
+
+void opengl_state::SetPolygonOffset(GLfloat factor, GLfloat units)
+{
+	if ( polygon_offset_Factor != factor || polygon_offset_Unit != units) {
+		glPolygonOffset(factor, units);
+
+		polygon_offset_Factor = factor;
+		polygon_offset_Unit = units;
+	}
 }
 
 GLboolean opengl_state::PolygonOffsetFill(GLint state)

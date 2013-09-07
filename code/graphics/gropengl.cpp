@@ -1244,17 +1244,17 @@ void gr_opengl_dump_frame()
 void gr_opengl_set_fill_mode(int mode)
 {
 	if (mode == GR_FILL_MODE_SOLID) {
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		GL_state.SetPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		return;
 	}
 
 	if (mode == GR_FILL_MODE_WIRE) {
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		GL_state.SetPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		return;
 	}
 
 	// default setting
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	GL_state.SetPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 void gr_opengl_zbias(int bias)
@@ -1262,10 +1262,10 @@ void gr_opengl_zbias(int bias)
 	if (bias) {
 		GL_state.PolygonOffsetFill(GL_TRUE);
 		if(bias < 0) {
-			glPolygonOffset(1.0, -i2fl(bias));
+			GL_state.SetPolygonOffset(1.0, -i2fl(bias));
 		}
 		else {
-			glPolygonOffset(0.0, -i2fl(bias));
+			GL_state.SetPolygonOffset(0.0, -i2fl(bias));
 		}
 	} else {
 		GL_state.PolygonOffsetFill(GL_FALSE);

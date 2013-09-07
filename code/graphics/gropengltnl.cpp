@@ -666,6 +666,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 
 	int textured = ((flags & TMAP_FLAG_TEXTURED) && (bufferp->flags & VB_FLAG_UV1));
 
+	// setup shader flags for the things that we want/need
 	shader_flags = gr_determine_shader_flags(
 		lighting_is_enabled, 
 		GL_state.Fog(), 
@@ -683,73 +684,6 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		ENVMAP, 
 		MISCMAP
 	);
-
-	// setup shader flags for the things that we want/need
-// 	if (lighting_is_enabled) {
-// 		shader_flags |= SDR_FLAG_LIGHT;
-// 	}
-// 
-// 	if ( GL_state.Fog() ) {
-// 		shader_flags |= SDR_FLAG_FOG;
-// 	}
-// 
-// 	if (flags & TMAP_ANIMATED_SHADER)
-// 		shader_flags |= SDR_FLAG_ANIMATED;
-// 
-// 	if ( Interp_transform_texture >= 0  && bufferp->flags & VB_FLAG_MODEL_ID )
-// 		shader_flags |= SDR_FLAG_TRANSFORM;
-// 
-// 	if (textured) {
-// 		if ( !Basemap_override ) {
-// 			shader_flags |= SDR_FLAG_DIFFUSE_MAP;
-// 		}
-// 
-// 		if (GLOWMAP > 0) {
-// 			shader_flags |= SDR_FLAG_GLOW_MAP;
-// 		}
-// 
-// 		if (lighting_is_enabled) {
-// 			if ( (SPECMAP > 0) && !Specmap_override ) {
-// 				shader_flags |= SDR_FLAG_SPEC_MAP;
-// 		
-// 				if ( (ENVMAP > 0) && !Envmap_override ) {
-// 					shader_flags |= SDR_FLAG_ENV_MAP;
-// 				}
-// 			}
-// 
-// 			if ( (NORMMAP > 0) && GL_state.Light(0) && !Normalmap_override ) {
-// 				shader_flags |= SDR_FLAG_NORMAL_MAP;
-// 			}
-// 
-// 			if ( (HEIGHTMAP > 0) && !Heightmap_override ) {
-// 				shader_flags |= SDR_FLAG_HEIGHT_MAP;
-// 			}
-// 
-// 			if ( Cmdline_shadow_quality && !in_shadow_map && !Shadow_override) {
-// 				shader_flags |= SDR_FLAG_SHADOWS;
-// 			}
-// 		}
-// 
-// 		if (MISCMAP > 0) {
-// 			shader_flags |= SDR_FLAG_MISC_MAP;
-// 		}
-// 
-// 		if (Using_Team_Color) {
-// 			shader_flags |= SDR_FLAG_TEAMCOLOR;
-// 		}
-// 	}
-// 
-// 	if (Deferred_lighting) {
-// 		shader_flags |= SDR_FLAG_DEFERRED;
-// 	}
-// 
-// 	if ( in_shadow_map ) {
-// 		shader_flags = SDR_FLAG_GEOMETRY | SDR_FLAG_SHADOW_MAP;
-// 	}
-// 
-// 	if ( Interp_thrust_scale_subobj ) {
-// 		shader_flags |= SDR_FLAG_THRUSTER;
-// 	}
 
 	// find proper shader
 	if (shader_flags == GL_last_shader_flags) {

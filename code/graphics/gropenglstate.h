@@ -295,6 +295,12 @@ class opengl_state
 		GLenum blendfunc_Value[2];
 		GLenum depthfunc_Value;
 
+		GLenum polygon_mode_Face;
+		GLenum polygon_mode_Mode;
+
+		GLfloat polygon_offset_Factor;
+		GLfloat polygon_offset_Unit;
+
 		gr_alpha_blend Current_alpha_blend_mode;
 		gr_zbuffer_type Current_zbuffer_type;
         gr_stencil_type Current_stencil_type;
@@ -313,6 +319,8 @@ class opengl_state
 		void SetAlphaBlendMode(gr_alpha_blend ab);
 		void SetZbufferType(gr_zbuffer_type zt);
         void SetStencilType(gr_stencil_type st);
+		void SetPolygonOffset(GLfloat factor, GLfloat units);
+		void SetPolygonMode(GLenum face, GLenum mode);
 
 		// the GLboolean functions will return the current state if no argument
 		// and the previous state if an argument is passed
