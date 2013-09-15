@@ -17,6 +17,7 @@
 #include "cmdline/cmdline.h"
 #include "model/modelrender.h"
 #include "graphics/gropengllight.h"
+#include "graphics/gropengldraw.h"
 
 light Lights[MAX_LIGHTS];
 int Num_lights=0;
@@ -1105,6 +1106,10 @@ void SceneLights::setLightFilter(int objnum, vec3d *pos, float rad)
 
 	// clear out current filtered lights
 	FilteredLights.clear();
+
+	if ( Deferred_lighting ) {
+		return;
+	}
 
 	for ( i = 0; i < AllLights.size(); ++i ) {
 		light *l = &AllLights[i];

@@ -1190,6 +1190,17 @@ void opengl_array_state::BindElementBuffer(GLuint id)
 	element_array_buffer = id;
 }
 
+void opengl_array_state::BindUniformBuffer(GLuint id, GLuint index)
+{
+	if ( uniform_buffers[index] == id ) {
+		return;
+	}
+
+	vglBindBufferBaseEXT(GL_UNIFORM_BUFFER, index, id);
+
+	uniform_buffers[index] = id;
+}
+
 void gr_opengl_flush_data_states()
 {
 	GL_state.Array.SetActiveClientUnit(1);

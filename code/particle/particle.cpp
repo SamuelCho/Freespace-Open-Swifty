@@ -444,7 +444,7 @@ void particle_render_all()
 			}
 			// draw as a regular bitmap
 			else {
-				batch_add_bitmap( framenum + cur_frame, tmap_flags, &pos, part->particle_index % 8, part->radius, alpha );
+				batch_add_bitmap( framenum + cur_frame, tmap_flags | TMAP_FLAG_VERTEX_GEN, &pos, part->particle_index % 8, part->radius, alpha );
 			}
 
 			render_batch = true;

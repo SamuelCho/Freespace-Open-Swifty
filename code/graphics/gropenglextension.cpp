@@ -158,7 +158,13 @@ ogl_extension GL_Extensions[NUM_OGL_EXTENSIONS] =
 	{ false, false, 1, { "GL_EXT_geometry_shader4" }, 2, { "glProgramParameteriEXT", "glFramebufferTextureEXT" } },
 
 	// array textures
-	{ false, false, 1, { "GL_EXT_texture_array" }, 1, { "glTexImage3D" } }
+	{ false, false, 1, { "GL_EXT_texture_array" }, 1, { "glTexImage3D" } },
+
+	{ false, false, 1, { "GL_ARB_uniform_buffer_object" }, 7, { "glGetUniformIndices", "glGetActiveUniformsiv", "glGetActiveUniformName", 
+		"glGetUniformBlockIndex", "glGetActiveUniformBlockiv", "glGetActiveUniformBlockName", "glUniformBlockBinding" } },
+
+	{ false, false, 1, { "GL_EXT_transform_feedback" }, 7, { "glBeginTransformFeedbackEXT", "glEndTransformFeedbackEXT", "glBindBufferRangeEXT", 
+		"glBindBufferOffsetEXT", "glBindBufferBaseEXT", "glTransformFeedbackVaryingsEXT", "glGetTransformFeedbackVaryingEXT" } }
 };
 
 // ogl_funcion is:
@@ -238,7 +244,21 @@ ogl_function GL_Functions[NUM_OGL_FUNCTIONS] =
 	{ "glBlitFramebufferEXT", 0},
 	{ "glProgramParameteriEXT", 0 },
 	{ "glTexImage3D", 0 },
-	{ "glFramebufferTextureEXT", 0 }
+	{ "glFramebufferTextureEXT", 0 },
+	{ "glGetUniformIndices", 0 },
+	{ "glGetActiveUniformsiv", 0 },
+	{ "glGetActiveUniformName", 0 },
+	{ "glGetUniformBlockIndex", 0 },
+	{ "glGetActiveUniformBlockiv", 0 },
+	{ "glGetActiveUniformBlockName", 0 },
+	{ "glUniformBlockBinding", 0 },
+	{ "glBeginTransformFeedbackEXT", 0 },
+	{ "glEndTransformFeedbackEXT", 0 },
+	{ "glBindBufferRangeEXT", 0 },
+	{ "glBindBufferOffsetEXT", 0 },
+	{ "glBindBufferBaseEXT", 0 },
+	{ "glTransformFeedbackVaryingsEXT", 0 },
+	{ "glGetTransformFeedbackVaryingEXT", 0 }
 };
 
 // special extensions (only special functions are supported at the moment)

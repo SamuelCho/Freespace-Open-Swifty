@@ -31,6 +31,13 @@ struct opengl_shader_flag_t {
 	int flags;
 };
 
+struct geometry_sdr_params
+{
+	int input_type;
+	int output_type;
+	int vertices_out;
+};
+
 struct opengl_shader_uniform_reference_t {
 	unsigned int flag;
 

@@ -40,6 +40,10 @@ GLuint Framebuffer_fallback_texture_id = 0;
 static int Effect_num = 0;
 static float Anim_timer = 0.0f;
 
+geometry_sdr_params Geo_transform = {GL_TRIANGLES, GL_TRIANGLE_STRIP, 3};
+geometry_sdr_params Particle_billboards = {GL_POINTS, GL_TRIANGLE_STRIP, 4};
+
+geometry_sdr_params *Current_geo_sdr_params = NULL;
 
 /**
  * Static lookup reference for main shader uniforms
@@ -58,11 +62,9 @@ static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
 	{ SDR_FLAG_MISC_MAP,	1, {"sMiscmap"}, 0, { NULL }, "Utility mapping" },
 	{ SDR_FLAG_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, { NULL }, "Team Colors" },
 	{ SDR_FLAG_DEFERRED,	0, { NULL }, 0, { NULL} , "Deferred lighting" },
-	{ SDR_FLAG_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, { NULL }, "Team Colors" },
 	{ SDR_FLAG_GEOMETRY,	1, { "shadow_proj_matrix" }, 0, { NULL }, "Geometry Transformation" },
 	{ SDR_FLAG_SHADOW_MAP,	0, { NULL }, 0, { NULL }, "Shadow Mapping" },
 	{ SDR_FLAG_SHADOWS,		7, { "shadow_map", "shadow_mv_matrix", "shadow_proj_matrix", "model_matrix", "neardist", "middist", "fardist" }, 0, { NULL }, "Shadows" },
-	{ SDR_FLAG_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, { NULL }, "Team Colors" },
 	{ SDR_FLAG_THRUSTER,	1, {"thruster_scale"}, 0, { NULL }, "Thruster scaling" },
 	{ SDR_FLAG_TRANSFORM,	1, {"transform_tex"}, 1, {"model_id"}, "Submodel Transforms" }
 };
@@ -74,6 +76,7 @@ static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main)
  */
 static opengl_shader_uniform_reference_t GL_Uniform_Reference_Particle[] = {
 	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION), 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 1, { "offset_in" }, "Distorted Particles" },
+	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_GEOMETRY),	6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 2, { "radius_in", "up" }, "Geometry Shader Generated Particles" },
 	{ (SDR_FLAG_SOFT_QUAD),	6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, { "radius_in" }, "Depth-blended Particles" }
 };
 
@@ -347,15 +350,19 @@ void opengl_compile_main_shader(unsigned int flags) {
 		goto Done;
 	}
 
-	if( flags & SDR_FLAG_GEOMETRY )
-	{
-		if (flags & SDR_FLAG_SOFT_QUAD)
+	if( flags & SDR_FLAG_GEOMETRY ) {
+		if (flags & SDR_FLAG_SOFT_QUAD) {
 			strcpy_s( geom_name, "soft-g.sdr");
-		else
+			Current_geo_sdr_params = &Particle_billboards;
+		} else {
 			strcpy_s( geom_name, "main-g.sdr");
+			Current_geo_sdr_params = &Geo_transform;
+		}
 
 		// read geometry shader
 		geom = opengl_load_shader(geom_name, flags);
+	} else {
+		Current_geo_sdr_params = NULL;
 	}
 
 	Verify( vert != NULL );
@@ -503,6 +510,11 @@ void opengl_shader_init()
 	// Compile the particle shaders, since these are most definitely going to be used
 	opengl_compile_main_shader(SDR_FLAG_SOFT_QUAD);
 	opengl_compile_main_shader(SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION);
+
+	if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) ) {
+		opengl_compile_main_shader(SDR_FLAG_SOFT_QUAD | SDR_FLAG_GEOMETRY);
+	}
+
 	opengl_shader_compile_deferred_light_shader();
 	mprintf(("\n"));
 }
@@ -593,10 +605,12 @@ GLhandleARB opengl_shader_link_object(GLhandleARB vertex_object, GLhandleARB fra
 
 	if (geometry_object) {
 		vglAttachObjectARB(shader_object, geometry_object);
-	
-		vglProgramParameteriEXT((GLuint)shader_object, GL_GEOMETRY_INPUT_TYPE_EXT, GL_TRIANGLES);
-		vglProgramParameteriEXT((GLuint)shader_object, GL_GEOMETRY_OUTPUT_TYPE_EXT, GL_TRIANGLE_STRIP);
-		vglProgramParameteriEXT((GLuint)shader_object, GL_GEOMETRY_VERTICES_OUT_EXT, 3);
+		
+		if ( Current_geo_sdr_params != NULL) {
+			vglProgramParameteriEXT((GLuint)shader_object, GL_GEOMETRY_INPUT_TYPE_EXT, Current_geo_sdr_params->input_type);
+			vglProgramParameteriEXT((GLuint)shader_object, GL_GEOMETRY_OUTPUT_TYPE_EXT, Current_geo_sdr_params->output_type);
+			vglProgramParameteriEXT((GLuint)shader_object, GL_GEOMETRY_VERTICES_OUT_EXT, Current_geo_sdr_params->vertices_out);
+		}
 	}
 	vglLinkProgramARB(shader_object);
 

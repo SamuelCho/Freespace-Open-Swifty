@@ -226,7 +226,7 @@ int gr_opengl_create_stream_buffer()
 	return (int)(GL_vertex_buffers.size() - 1);
 }
 
-void gr_opengl_update_stream_buffer(int buffer, effect_vertex *buffer_data, uint size)
+void gr_opengl_update_stream_buffer(int buffer, void *buffer_data, uint size)
 {
 	opengl_vertex_buffer *stream_buffer = &GL_vertex_buffers[buffer];
 
@@ -1347,26 +1347,48 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 	int zbuff = ZBUFFER_TYPE_DEFAULT;
 	GL_CHECK_FOR_ERRORS("start of render3d()");
 
+	int stride = 0;
+
 	GLubyte *ptr = NULL;
 	int vert_offset = 0;
 
-	int pos_offset = vert_offset;
-	vert_offset += sizeof(vec3d);
+	int pos_offset = -1;
+	int tex_offset = -1;
+	int radius_offset = -1;
+	int color_offset = -1;
+	int up_offset = -1;
 
-	int tex_offset = vert_offset;
-	vert_offset += sizeof(uv_pair);
+	if ( flags & TMAP_FLAG_VERTEX_GEN ) {
+		stride = sizeof(particle_pnt);
 
-	int radius_offset = vert_offset;
-	vert_offset += sizeof(float);
+		pos_offset = vert_offset;
+		vert_offset += sizeof(vec3d);
 
-	int color_offset = vert_offset;
-	vert_offset += sizeof(ubyte)*4;
+		radius_offset = vert_offset;
+		vert_offset += sizeof(float);
+
+		up_offset = vert_offset;
+		//tex_offset = vert_offset;
+		vert_offset += sizeof(vec3d);
+	} else {
+		stride = sizeof(effect_vertex);
+
+		pos_offset = vert_offset;
+		vert_offset += sizeof(vec3d);
+
+		tex_offset = vert_offset;
+		vert_offset += sizeof(uv_pair);
+
+		radius_offset = vert_offset;
+		vert_offset += sizeof(float);
+
+		color_offset = vert_offset;
+		vert_offset += sizeof(ubyte)*4;
+	}
 
 	opengl_setup_render_states(r, g, b, alpha, tmap_type, flags);
 
 	if ( flags & TMAP_FLAG_TEXTURED ) {
-		GL_state.Texture.ResetUsed();
-
 		if ( flags & TMAP_FLAG_SOFT_QUAD ) {
 			int sdr_index;
 
@@ -1388,9 +1410,11 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 
 					vglUniform1iARB(opengl_shader_get_uniform("frameBuffer"), 2);
 
-					attrib_index = opengl_shader_get_attribute("offset_in");
-					GL_state.Array.EnableVertexAttrib(attrib_index);
-					GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, sizeof(effect_vertex), ptr + radius_offset);
+					if ( radius_offset >= 0 ) {
+						attrib_index = opengl_shader_get_attribute("offset_in");
+						GL_state.Array.EnableVertexAttrib(attrib_index);
+						GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, stride, ptr + radius_offset);
+					}
 				}
 
 				GL_state.Texture.SetActiveUnit(2);
@@ -1417,7 +1441,11 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 				GL_state.Texture.Enable(Scene_depth_texture);
 			} else if ( Cmdline_softparticles ) {
-				sdr_index = gr_opengl_maybe_create_shader(SDR_FLAG_SOFT_QUAD);
+				if ( flags & TMAP_FLAG_VERTEX_GEN ) {
+					sdr_index = gr_opengl_maybe_create_shader(SDR_FLAG_SOFT_QUAD|SDR_FLAG_GEOMETRY);
+				} else {
+					sdr_index = gr_opengl_maybe_create_shader(SDR_FLAG_SOFT_QUAD);
+				}
 
 				if ( sdr_index != Stream_buffer_sdr ) {
 					opengl_shader_set_current(&GL_shader[sdr_index]);
@@ -1430,9 +1458,17 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 					vglUniform1fARB(opengl_shader_get_uniform("nearZ"), Min_draw_distance);
 					vglUniform1fARB(opengl_shader_get_uniform("farZ"), Max_draw_distance);
 
-					attrib_index = opengl_shader_get_attribute("radius_in");
-					GL_state.Array.EnableVertexAttrib(attrib_index);
-					GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, sizeof(effect_vertex), ptr + radius_offset);
+					if ( radius_offset >= 0 ) {
+						attrib_index = opengl_shader_get_attribute("radius_in");
+						GL_state.Array.EnableVertexAttrib(attrib_index);
+						GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, stride, ptr + radius_offset);
+					}
+
+					if ( up_offset >= 0 ) {
+						attrib_index = opengl_shader_get_attribute("up");
+						GL_state.Array.EnableVertexAttrib(attrib_index);
+						GL_state.Array.VertexAttribPointer(attrib_index, 3, GL_FLOAT, GL_FALSE, stride, ptr + up_offset);
+					}
 				}
 
 				zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
@@ -1452,11 +1488,11 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 			return;
 		}
 
-		GL_state.Texture.DisableUnused();
-
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(effect_vertex), ptr + tex_offset);
+		if ( tex_offset >= 0 ) {
+			GL_state.Array.SetActiveClientUnit(0);
+			GL_state.Array.EnableClientTexture();
+			GL_state.Array.TexPointer(2, GL_FLOAT, stride, ptr + tex_offset);
+		}
 	} else {
 		GL_state.Array.SetActiveClientUnit(0);
 		GL_state.Array.DisableClientTexture();
@@ -1470,11 +1506,13 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 		gl_mode = GL_QUADS;
 	} else if (flags & TMAP_FLAG_QUADSTRIP) {
 		gl_mode = GL_QUAD_STRIP;
+	} else if (flags & TMAP_FLAG_POINTLIST) {
+		gl_mode = GL_POINTS;
 	}
 
-	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) ) {
+	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) && color_offset >= 0 ) {
 		GL_state.Array.EnableClientColor();
-		GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, sizeof(effect_vertex), ptr + color_offset);
+		GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, stride, ptr + color_offset);
 		GL_state.InvalidateColor();
 	} else {
 		// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
@@ -1482,9 +1520,11 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 		GL_state.Color( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
 	}
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(3, GL_FLOAT, sizeof(effect_vertex), ptr + pos_offset);
-	
+	if ( pos_offset >= 0 ) {
+		GL_state.Array.EnableClientVertex();
+		GL_state.Array.VertexPointer(3, GL_FLOAT, stride, ptr + pos_offset);
+	}
+
 	glDrawArrays(gl_mode, offset, n_verts);
 
 	if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) ) {

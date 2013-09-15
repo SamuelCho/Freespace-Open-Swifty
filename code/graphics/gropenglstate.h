@@ -16,6 +16,8 @@
 #include "graphics/gropenglextension.h"
 #include "graphics/gropengltexture.h"
 
+#define MAX_UNIFORM_BUFFERS 6
+
 struct opengl_texture_unit {
 	GLboolean active;	// unit is active
 	GLboolean enabled;	// has texture target enabled
@@ -231,8 +233,13 @@ class opengl_array_state
 
 		GLuint array_buffer;
 		GLuint element_array_buffer;
+		GLuint uniform_buffers[MAX_UNIFORM_BUFFERS];
 	public:
-		opengl_array_state(): active_client_texture_unit(0), client_texture_units(NULL) {}
+		opengl_array_state(): active_client_texture_unit(0), client_texture_units(NULL) {
+			for ( int i = 0; i < MAX_UNIFORM_BUFFERS; ++i ) {
+				uniform_buffers[i] = 0;
+			}
+		}
 		~opengl_array_state();
 
 		void init(GLuint n_units);
@@ -263,6 +270,7 @@ class opengl_array_state
 
 		void BindArrayBuffer(GLuint id);
 		void BindElementBuffer(GLuint id);
+		void BindUniformBuffer(GLuint id, GLuint index);
 };
 
 class opengl_state

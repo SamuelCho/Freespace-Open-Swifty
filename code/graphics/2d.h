@@ -453,7 +453,7 @@ typedef struct screen {
 	void (*gf_render_buffer)(int, const vertex_buffer*, int, int);
 
 	int (*gf_create_stream_buffer)();
-	void (*gf_update_stream_buffer)(int buffer, effect_vertex *buffer_data, uint size);
+	void (*gf_update_stream_buffer)(int buffer, void *buffer_data, uint size);
 	void (*gf_render_stream_buffer)(int offset, int n_verts, int flags);
 	void (*gf_render_stream_buffer_start)(int buffer_id);
 	void (*gf_render_stream_buffer_end)();

@@ -272,7 +272,7 @@ int gr_stub_create_stream_buffer()
 	return -1;
 }
 
-void gr_stub_update_stream_buffer(int buffer, effect_vertex *buffer_data, uint size)
+void gr_stub_update_stream_buffer(int buffer, void *buffer_data, uint size)
 {
 }
 

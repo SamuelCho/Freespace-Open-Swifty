@@ -61,7 +61,7 @@ extern void grx_tmapper( int nv, vertex * verts[], uint flags );
 
 // RT Flags added to determine whats being drawn for HT&L
 #define TMAP_HTL_3D_UNLIT			(1<<12)
-#define TMAP_HTL_2D					(1<<13)
+#define TMAP_HTL_2D					(1<<13)		// I don't think this flag is being used (Swifty)
 
 //tristrips, for trails mostly, might find other uses eventualy
 #define TMAP_FLAG_TRISTRIP			(1<<14)
@@ -85,6 +85,9 @@ extern void grx_tmapper( int nv, vertex * verts[], uint flags );
 #define TMAP_FLAG_DISTORTION		(1<<22)
 
 #define TMAP_FLAG_DESATURATE		(1<<23)
+
+#define TMAP_FLAG_POINTLIST			(1<<24)
+#define TMAP_FLAG_VERTEX_GEN		(1<<25)
 
 #define TMAP_ADDRESS_WRAP			1
 #define TMAP_ADDRESS_MIRROR			2

@@ -41,6 +41,7 @@ extern char* Default_post_vertex_shader;
 extern char* Default_fxaa_prepass_shader;
 extern char* Default_particle_vertex_shader;
 extern char* Default_particle_fragment_shader;
+extern char* Default_particle_geometry_shader;
 extern char* Default_shadowdebug_vertex_shader;
 extern char* Default_shadowdebug_fragment_shader;
 extern char* Default_lightshaft_fragment_shader;
@@ -81,7 +82,8 @@ def_file Default_files[] =
 	{ "video-v.sdr",			Default_video_vertex_shader},
 	{ "video-f.sdr",			Default_video_fragment_shader},
 	{ "deferred-v.sdr",			Default_deferred_vertex_shader},
-	{ "deferred-f.sdr",			Default_deferred_fragment_shader}
+	{ "deferred-f.sdr",			Default_deferred_fragment_shader},
+	{ "soft-g.sdr",				Default_particle_geometry_shader}
 };
 
 static int Num_default_files = sizeof(Default_files) / sizeof(def_file);
@@ -2521,7 +2523,13 @@ char* Default_fxaa_prepass_shader =
 
 char* Default_particle_vertex_shader = 
 "attribute float radius_in;\n"
-"varying float radius;\n"
+"#ifdef FLAG_GEOMETRY\n"
+"attribute vec3 up;\n"
+"varying vec3 up_g;\n"
+"varying float radius_g;\n"
+"#else\n"
+"varying float radius_p;\n"
+"#endif\n"
 "#ifdef FLAG_DISTORTION\n"
 "attribute float offset_in;\n"
 "varying float offset_out;\n"
@@ -2529,12 +2537,18 @@ char* Default_particle_vertex_shader =
 "#endif\n"
 "void main()\n"
 "{\n"
-"	radius = radius_in;\n"
+"	#ifdef FLAG_GEOMETRY\n"
+"	radius_g = radius_in;\n"
+"	up_g = up;\n"
+"	gl_Position = gl_ModelViewMatrix * gl_Vertex;\n"
+"	#else\n"
+"	radius_p = radius_in;\n"
+"	gl_Position = ftransform();\n"
+"	#endif\n"
 "	#ifdef FLAG_DISTORTION\n"
 "	offset_out = offset_in * use_offset;\n"
 "	#endif\n"
 "	gl_TexCoord[0] = gl_MultiTexCoord0;\n"
-"	gl_Position = ftransform();\n"
 "	gl_FrontColor = gl_Color;\n"
 "	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
 " #ifdef  __GLSL_CG_DATA_TYPES\n"
@@ -2550,7 +2564,7 @@ char* Default_particle_fragment_shader =
 "uniform float window_height;\n"
 "uniform float nearZ;\n"
 "uniform float farZ;\n"
-"varying float radius;\n"
+"varying float radius_p;\n"
 "#ifdef FLAG_DISTORTION\n"
 "uniform sampler2D distMap;\n"
 "uniform sampler2D frameBuffer;\n"
@@ -2559,9 +2573,9 @@ char* Default_particle_fragment_shader =
 "void main()\n"
 "{\n"
 " #ifndef FLAG_DISTORTION\n"
-"	vec2 offset = vec2(radius * abs(0.5 - gl_TexCoord[0].x) * 2.0, radius * abs(0.5 - gl_TexCoord[0].y) * 2.0);\n"
+"	vec2 offset = vec2(radius_p * abs(0.5 - gl_TexCoord[0].x) * 2.0, radius_p * abs(0.5 - gl_TexCoord[0].y) * 2.0);\n"
 "	float offset_len = length(offset);\n"
-"	if (offset_len > radius) {\n"
+"	if (offset_len > radius_p) {\n"
 "		gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);\n"
 "		return;\n"
 "	}\n"
@@ -2570,7 +2584,7 @@ char* Default_particle_fragment_shader =
 "	float sceneDepthLinear = ( 2.0 * farZ * nearZ ) / ( farZ + nearZ - sceneDepth.x * (farZ-nearZ) );\n"
 "	float fragDepthLinear = ( 2.0 * farZ * nearZ ) / ( farZ + nearZ - gl_FragCoord.z * (farZ-nearZ) );\n"
 "	// assume UV of 0.5, 0.5 is the centroid of this sphere volume\n"
-"	float depthOffset = sqrt(pow(radius, 2.0) - pow(offset_len, 2.0));\n"
+"	float depthOffset = sqrt(pow(radius_p, 2.0) - pow(offset_len, 2.0));\n"
 "	float frontDepth = fragDepthLinear - depthOffset;\n"
 "	float backDepth = fragDepthLinear + depthOffset;\n"
 "	float ds = min(sceneDepthLinear, backDepth) - max(nearZ, frontDepth);\n"
@@ -2586,6 +2600,49 @@ char* Default_particle_fragment_shader =
 "	gl_FragColor = texture2D(frameBuffer,depthCoord+distortion);\n"
 "	gl_FragColor.a = alpha;\n"
 " #endif\n"
+"}";
+
+char* Default_particle_geometry_shader =
+"#extension GL_EXT_geometry_shader4 : enable\n"
+"varying in vec3 up_g[];\n"
+"varying in float radius_g[];\n"
+"varying out float radius_p;\n"
+"void main(void)\n"
+"{\n"
+"	vec3 forward_vec = vec3(0.0, 0.0, 1.0);\n"
+"	vec3 up_vec = normalize(up_g[0]);\n"
+"	vec3 right_vec = cross(forward_vec, up_vec);\n"
+"	right_vec = normalize(right_vec);\n"
+
+"	gl_Position = gl_ProjectionMatrix * (gl_PositionIn[0] - vec4(radius_g[0] * up_vec, 0.0) - vec4(radius_g[0] * right_vec, 0.0));\n"
+"	gl_TexCoord[0] = vec4(0.0, 0.0, 0.0, 0.0);\n"
+"	radius_p = radius_g[0];\n"
+"	gl_FrontColor = gl_FrontColorIn[0];\n"
+"	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
+"	EmitVertex();\n"
+
+"	gl_Position = gl_ProjectionMatrix * (gl_PositionIn[0] - vec4(radius_g[0] * up_vec, 0.0) + vec4(radius_g[0] * right_vec, 0.0));\n"
+"	gl_TexCoord[0] = vec4(0.0, 1.0, 0.0, 0.0);\n"
+"	radius_p = radius_g[0];\n"
+"	gl_FrontColor = gl_FrontColorIn[0];\n"
+"	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
+"	EmitVertex();\n"
+
+"	gl_Position = gl_ProjectionMatrix * (gl_PositionIn[0] + vec4(radius_g[0] * up_vec, 0.0) - vec4(radius_g[0] * right_vec, 0.0));\n"
+"	gl_TexCoord[0] = vec4(1.0, 0.0, 0.0, 0.0);\n"
+"	radius_p = radius_g[0];\n"
+"	gl_FrontColor = gl_FrontColorIn[0];\n"
+"	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
+"	EmitVertex();\n"
+
+"	gl_Position = gl_ProjectionMatrix * (gl_PositionIn[0] + vec4(radius_g[0] * up_vec, 0.0) + vec4(radius_g[0] * right_vec, 0.0));\n"
+"	gl_TexCoord[0] = vec4(1.0, 1.0, 0.0, 0.0);\n"
+"	radius_p = radius_g[0];\n"
+"	gl_FrontColor = gl_FrontColorIn[0];\n"
+"	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
+"	EmitVertex();\n"
+
+"	EndPrimitive();\n"
 "}";
 
 char* Default_shadowdebug_vertex_shader = 
