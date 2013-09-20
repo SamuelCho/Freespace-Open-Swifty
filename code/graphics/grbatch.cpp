@@ -816,7 +816,6 @@ int geometry_batch_add_bitmap(int texture, int tmap_flags, vertex *pnt, int orie
 	}
 
 	g_sdr_batch_item *item = NULL;
-	profile_begin("Find Item");
 	SCP_map<int, g_sdr_batch_item>::iterator it = geometry_shader_map.find(texture);
 
 	if ( !geometry_shader_map.empty() && it != geometry_shader_map.end() ) {
@@ -825,7 +824,7 @@ int geometry_batch_add_bitmap(int texture, int tmap_flags, vertex *pnt, int orie
 		item = &geometry_shader_map[texture];
 		item->texture = texture;
 	}
-	profile_end("Find Item");
+	
 	Assertion( (item->laser == false), "Particle effect %s used as laser glow or laser bitmap\n", bm_get_filename(texture) );
 
 	item->tmap_flags = tmap_flags;
