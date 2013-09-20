@@ -42,6 +42,7 @@ static float Anim_timer = 0.0f;
 
 geometry_sdr_params Geo_transform = {GL_TRIANGLES, GL_TRIANGLE_STRIP, 3};
 geometry_sdr_params Particle_billboards = {GL_POINTS, GL_TRIANGLE_STRIP, 4};
+geometry_sdr_params Trail_billboards = {GL_LINES, GL_TRIANGLE_STRIP, 4};
 
 geometry_sdr_params *Current_geo_sdr_params = NULL;
 
@@ -50,7 +51,7 @@ geometry_sdr_params *Current_geo_sdr_params = NULL;
  * When adding a new SDR_ flag, list all associated uniforms and attributes here
  */
 static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
-	{ SDR_FLAG_LIGHT,		1, {"n_lights"}, 0, {}, "Lighting" },
+	{ SDR_FLAG_LIGHT,		2, {"n_lights", "light_factor"}, 0, {}, "Lighting" },
 	{ SDR_FLAG_FOG,			0, { NULL }, 0, { NULL }, "Fog Effect" },
 	{ SDR_FLAG_DIFFUSE_MAP, 5, {"sBasemap", "desaturate", "desaturate_r", "desaturate_g", "desaturate_b"}, 0, { NULL }, "Diffuse Mapping"},
 	{ SDR_FLAG_GLOW_MAP,	1, {"sGlowmap"}, 0, { NULL }, "Glow Mapping" },
@@ -77,6 +78,7 @@ static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main)
 static opengl_shader_uniform_reference_t GL_Uniform_Reference_Particle[] = {
 	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION), 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 1, { "offset_in" }, "Distorted Particles" },
 	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_GEOMETRY),	6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 2, { "radius_in", "up" }, "Geometry Shader Generated Particles" },
+	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_TRAILS | SDR_FLAG_GEOMETRY),	1, {"baseMap"}, 3, { "fvec", "intensity", "width" }, "Trails" },
 	{ (SDR_FLAG_SOFT_QUAD),	6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, { "radius_in" }, "Depth-blended Particles" }
 };
 
@@ -279,6 +281,10 @@ static char *opengl_load_shader(char *filename, int flags)
 		sflags += "#define FLAG_THRUSTER\n";
 	}
 
+	if (flags & SDR_FLAG_TRAILS) {
+		sflags += "#define FLAG_TRAILS\n";
+	}
+
 	const char *shader_flags = sflags.c_str();
 	int flags_len = strlen(shader_flags);
 
@@ -353,7 +359,12 @@ void opengl_compile_main_shader(unsigned int flags) {
 	if( flags & SDR_FLAG_GEOMETRY ) {
 		if (flags & SDR_FLAG_SOFT_QUAD) {
 			strcpy_s( geom_name, "soft-g.sdr");
-			Current_geo_sdr_params = &Particle_billboards;
+
+			if ( flags & SDR_FLAG_TRAILS ) {
+				Current_geo_sdr_params = &Trail_billboards;
+			} else {
+				Current_geo_sdr_params = &Particle_billboards;
+			}
 		} else {
 			strcpy_s( geom_name, "main-g.sdr");
 			Current_geo_sdr_params = &Geo_transform;
@@ -513,6 +524,7 @@ void opengl_shader_init()
 
 	if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) ) {
 		opengl_compile_main_shader(SDR_FLAG_SOFT_QUAD | SDR_FLAG_GEOMETRY);
+		opengl_compile_main_shader(SDR_FLAG_SOFT_QUAD | SDR_FLAG_GEOMETRY | SDR_FLAG_TRAILS);
 	}
 
 	opengl_shader_compile_deferred_light_shader();

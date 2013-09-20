@@ -111,7 +111,7 @@ struct interp_data
 
 		depth_scale = 1500.0f;
 
-		light = 0.0f;
+		light = 1.0f;
 
 		base_frametime = 0;
 

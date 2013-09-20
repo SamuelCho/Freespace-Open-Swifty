@@ -47,6 +47,7 @@ extern int gr_global_zbuffering;
 #define SDR_FLAG_GEOMETRY		(1<<16)
 #define SDR_FLAG_SHADOWS		(1<<17)
 #define SDR_FLAG_THRUSTER		(1<<18)
+#define SDR_FLAG_TRAILS			(1<<19)
 
 // stencil buffering stuff
 extern int gr_stencil_mode;

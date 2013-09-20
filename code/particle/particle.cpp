@@ -452,6 +452,7 @@ void particle_render_all()
 	}
 
 	if (render_batch) {
+		geometry_batch_render(Particle_buffer_object);
 		batch_render_all(Particle_buffer_object);
 	}
 }

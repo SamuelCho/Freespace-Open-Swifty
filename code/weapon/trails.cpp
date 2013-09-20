@@ -14,16 +14,27 @@
 #include "render/3d.h" 
 #include "io/timer.h"
 #include "ship/ship.h"
-
+#include "graphics/gropenglextension.h"
 
 int Num_trails;
 trail Trails;
+
+SCP_vector<trail_batch> Trail_batches;
+SCP_vector<trail_shader_info> Trail_vert_buffer;
+
+void* Trail_buffer = NULL;
+int Trail_buffer_allocated = 0;
+int Trail_buffer_object = -1;
 
 // Reset everything between levels
 void trail_level_init()
 {
 	Num_trails = 0;
 	Trails.next = &Trails;
+
+	if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) && Trail_buffer_object < 0 ) {
+		Trail_buffer_object = gr_create_stream_buffer();
+	}
 }
 
 void trail_level_close()
@@ -202,6 +213,11 @@ void trail_render( trail * trailp )
 	float a_size = (ti->a_end - ti->a_start);
 	int num_faded_sections = ti->n_fade_out_sections;
 
+	trail_batch new_trail;
+
+	new_trail.buffer_offset = Trail_vert_buffer.size();
+	new_trail.texture_id = ti->texture.bitmap_id;
+
 	for (i = 0; i < num_sections; i++) {
 		n = sections[i];
 		float init_fade_out = 1.0f;
@@ -232,6 +248,25 @@ void trail_render( trail * trailp )
 			vm_vec_sub(&tmp_fvec, &last_pos, &trailp->pos[n] );
 			vm_vec_normalize_safe(&tmp_fvec);
 			fvec = &tmp_fvec;
+		}
+
+		if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) ) {
+			trail_shader_info new_trail_vert;
+
+			new_trail_vert.pos = trailp->pos[n];
+			new_trail_vert.fvec = *fvec;
+			new_trail_vert.intensity = (float)l/255.0f;
+			new_trail_vert.width = w;
+			new_trail_vert.tex_coord.u = i2fl(i);
+			new_trail_vert.tex_coord.v = 0.5f;
+
+			if ( i > 0 && i == num_sections-1 ) {
+				new_trail_vert.width = 0.0f;
+			}
+
+			Trail_vert_buffer.push_back(new_trail_vert);
+			nv++;
+			continue;
 		}
 
 		trail_calc_facing_pts( &topv, &botv, fvec, &trailp->pos[n], w );
@@ -292,6 +327,15 @@ void trail_render( trail * trailp )
 		Trail_v_list[nv+1] = bot;
 	}
 
+	if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) ) {
+		new_trail.n_verts = Trail_vert_buffer.size() - new_trail.buffer_offset;
+
+		if ( new_trail.n_verts >= 2 ) {
+			Trail_batches.push_back(new_trail);
+		}
+		
+		return;
+	}
 
 	if ( !nv )
 		return;
@@ -392,11 +436,36 @@ void trail_render_all()
 	if ( !Detail.weapon_extras )
 		return;
 
+	Trail_vert_buffer.clear();
+	Trail_batches.clear();
+
 	for(trail *trailp = Trails.next; trailp!=&Trails; trailp = trailp->next )
 	{
 		trail_render(trailp);
 	}
 
+	if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) && Trail_buffer_object >= 0 ) {
+		gr_render_stream_buffer_start(Trail_buffer_object);
+
+		if ( Trail_buffer_allocated < Trail_vert_buffer.size()*sizeof(trail_shader_info) ) {
+			if ( Trail_buffer != NULL ) {
+				vm_free(Trail_buffer);
+			}
+
+			Trail_buffer = vm_malloc(Trail_vert_buffer.size()*sizeof(trail_shader_info));
+			Trail_buffer_allocated = Trail_vert_buffer.size()*sizeof(trail_shader_info);
+		}
+
+		memcpy(Trail_buffer, &Trail_vert_buffer[0], Trail_vert_buffer.size()*sizeof(trail_shader_info));
+		gr_update_stream_buffer(Trail_buffer_object, Trail_buffer, Trail_buffer_allocated);
+
+		for ( SCP_vector<trail_batch>::iterator it = Trail_batches.begin(); it != Trail_batches.end(); ++it ) {
+			gr_set_bitmap(it->texture_id, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 1.0f);
+			gr_render_stream_buffer(it->buffer_offset, it->n_verts, TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_LINESTRIP | TMAP_FLAG_VERTEX_GEN | TMAP_FLAG_SOFT_QUAD);
+		}
+
+		gr_render_stream_buffer_end();
+	}
 }
 int trail_stamp_elapsed(trail *trailp)
 {

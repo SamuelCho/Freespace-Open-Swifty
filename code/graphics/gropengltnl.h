@@ -61,6 +61,11 @@ struct uniform_block
 	int num_uniforms;
 
 	int texture_slots[TEX_SLOT_MAX];
+
+	uniform_block() 
+	{
+		memset(texture_slots, -1, TEX_SLOT_MAX*sizeof(int));
+	}
 };
 
 class uniform_handler
@@ -74,6 +79,11 @@ class uniform_handler
 	SCP_vector<vec3d> uniform_data_vec3d;
 	SCP_vector<matrix4> uniform_data_matrix4;
 
+	matrix4 matrix_uniform_data[10];
+	int num_matrix_uniforms;
+
+	SCP_vector<int> uniforms_to_set;
+
 	matrix orientation;
 	vec3d position;
 	int current_textures[TEX_SLOT_MAX];
@@ -84,6 +94,7 @@ class uniform_handler
 
 	SCP_map<SCP_string, int> uniform_lookup;
 
+	uint current_sdr;
 	uniform_block *loaded_block;
 
 	void loadUniformLookup(uniform_block *uniforms = NULL);
@@ -94,7 +105,8 @@ class uniform_handler
 	void queueUniformi(SCP_string name, int value);
 	void queueUniformf(SCP_string name, float value);
 	void queueUniform3f(SCP_string name, vec3d &value);
-	void queueUniform4fv(SCP_string name, int count, bool transpose, matrix4 *value);
+	void queueUniform4fv(SCP_string name, int count, int transpose, matrix4 *value);
+	void queueUniformMatrix4f(SCP_string name, int transpose, matrix4 &val);
 public:
 	uniform_handler();
 	void resetTextures();
@@ -104,7 +116,7 @@ public:
 	void setThrusterScale(float scale);
 	void setTeamColor(float base_r, float base_g, float base_b, float stripe_r, float stripe_g, float stripe_b);
 	void setTexture(int texture_type, int texture_handle);
-	void generateUniforms(uniform_block *block_out, int flags, int sdr_flags, int prev_sdr_flags, uniform_block *prev_block = NULL);
+	void generateUniforms(uniform_block *block_out, int flags, uint sdr_flags);
 	bool setUniforms();
 	uniform_block* getUniforms();
 	void loadUniforms(uniform_block *uniforms);

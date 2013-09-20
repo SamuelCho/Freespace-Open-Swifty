@@ -162,11 +162,11 @@ void opengl_set_light(int light_num, opengl_light *ltp)
 	GLfloat diffuse[4];
 	memcpy(diffuse, ltp->Diffuse, sizeof(GLfloat) * 4);
 
-	if ( (ltp->type == LT_DIRECTIONAL) && (Interp_light < 1.0f) ) {
-		diffuse[0] *= Interp_light;
-		diffuse[1] *= Interp_light;
-		diffuse[2] *= Interp_light;
-	}
+// 	if ( (ltp->type == LT_DIRECTIONAL) && (Interp_light < 1.0f) ) {
+// 		diffuse[0] *= Interp_light;
+// 		diffuse[1] *= Interp_light;
+// 		diffuse[2] *= Interp_light;
+// 	}
 
 	glLightfv(GL_LIGHT0+light_num, GL_POSITION, ltp->Position);
 	glLightfv(GL_LIGHT0+light_num, GL_AMBIENT, ltp->Ambient);

@@ -233,11 +233,11 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 	gr_set_color_fast(&render_elements->clr);
 
 	if ( draw_state->lighting ) {
-		gr_set_lighting(true, true);
-
 		Lights.setLights(&draw_state->lights);
 	} else {
 		gr_set_lighting(false, false);
+
+		Lights.resetLightState();
 	}
 
 	gr_set_buffer(draw_state->buffer_id);
@@ -381,26 +381,26 @@ void DrawList::renderAll(int blend_filter)
 	Lights.resetLightState();
 	Current_uniforms.resetAll();
 
-	for ( i = 0; i < render_keys.size(); ++i ) {
-		// process uniforms for each draw.
-		int render_index = render_keys[i];
-
-		if ( blend_filter == -1 || render_elements[render_index].blend_filter == blend_filter ) {
-			queued_buffer_draw *draw_element = &render_elements[render_index];
-			render_state *state = &render_states[draw_element->render_state_handle];
-
-			Current_uniforms.setOrientation(&draw_element->orient);
-			Current_uniforms.setPosition(&draw_element->pos);
-			Current_uniforms.setThrusterScale(draw_element->thrust_scale);
-			Current_uniforms.setTeamColor(state->tm_color.base.r, state->tm_color.base.g, state->tm_color.base.b, state->tm_color.stripe.r, state->tm_color.stripe.g, state->tm_color.stripe.b);
-			Current_uniforms.setNumLights(state->lights.num_lights + Lights.getNumStaticLights());
-
-			Current_uniforms.generateUniforms(&draw_element->uniform_handle, draw_element->flags, draw_element->sdr_flags, prev_sdr_flags, prev_uniforms);
-
-			prev_uniforms = &draw_element->uniform_handle;
-			prev_sdr_flags = draw_element->sdr_flags;
-		}
-	}
+// 	for ( i = 0; i < render_keys.size(); ++i ) {
+// 		// process uniforms for each draw.
+// 		int render_index = render_keys[i];
+// 
+// 		if ( blend_filter == -1 || render_elements[render_index].blend_filter == blend_filter ) {
+// 			queued_buffer_draw *draw_element = &render_elements[render_index];
+// 			render_state *state = &render_states[draw_element->render_state_handle];
+// 
+// 			Current_uniforms.setOrientation(&draw_element->orient);
+// 			Current_uniforms.setPosition(&draw_element->pos);
+// 			Current_uniforms.setThrusterScale(draw_element->thrust_scale);
+// 			Current_uniforms.setTeamColor(state->tm_color.base.r, state->tm_color.base.g, state->tm_color.base.b, state->tm_color.stripe.r, state->tm_color.stripe.g, state->tm_color.stripe.b);
+// 			Current_uniforms.setNumLights(state->lights.num_lights + Lights.getNumStaticLights());
+// 
+// 			Current_uniforms.generateUniforms(&draw_element->uniform_handle, draw_element->flags, draw_element->sdr_flags, prev_sdr_flags, prev_uniforms);
+// 
+// 			prev_uniforms = &draw_element->uniform_handle;
+// 			prev_sdr_flags = draw_element->sdr_flags;
+// 		}
+// 	}
 
 	for ( i = 0; i < render_keys.size(); ++i ) {
 		int render_index = render_keys[i];
@@ -1194,9 +1194,9 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 		scene->setFillMode(GR_FILL_MODE_SOLID);
 	}
 
-	if ( !( interp->flags & MR_NO_LIGHTING ) ) {
-		interp->light = 1.0f;
+	interp->light = 1.0f;
 
+	if ( !( interp->flags & MR_NO_LIGHTING ) ) {
 		scene->setLightFilter(-1, pos, pm->submodel[submodel_num].rad);
 		scene->setLighting(true);
 	} else {
@@ -1923,7 +1923,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 
 			if ( model_instance_num >= 0 && Cmdline_merged_ibos ) {
 				pmi = model_get_instance(model_instance_num);
-				interp->transform_texture = pmi->transform_tex_id;
+				//interp->transform_texture = pmi->transform_tex_id;
 			}
 		}
 	}

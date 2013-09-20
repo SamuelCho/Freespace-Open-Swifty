@@ -4890,6 +4890,8 @@ void model_render_buffers(polymodel *pm, int mn, int render, bool is_child)
 			blend_filter = forced_blend_filter;
 		}
 
+		Current_uniforms.resetAll();
+
 		extern bool object_had_transparency;
 		if (blend_filter != GR_ALPHABLEND_NONE) {
 			if(render & MODEL_RENDER_TRANS)

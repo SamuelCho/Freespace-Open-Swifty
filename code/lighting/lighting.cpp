@@ -1230,7 +1230,9 @@ bool SceneLights::setLights(SceneLights::LightIndexingInfo *info)
 	current_light_index = info->index_start;
 	current_num_lights = info->num_lights;
 
-	gr_reset_lighting();
+	// gr_reset_lighting();
+
+	gr_set_lighting(true, true);
 
 	for ( i = 0; i < StaticLightIndices.size(); ++i) {
 		int light_index = StaticLightIndices[i];

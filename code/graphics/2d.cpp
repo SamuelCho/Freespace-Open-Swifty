@@ -1590,6 +1590,17 @@ uint gr_determine_shader_flags(
 ) {
 	uint shader_flags = 0;
 
+	if ( transform ) {
+		shader_flags |= SDR_FLAG_TRANSFORM;
+	}
+
+	if ( in_shadow_map ) {
+		// if we're building the shadow map, we likely only need the flags here and above so bail
+		shader_flags = SDR_FLAG_GEOMETRY | SDR_FLAG_SHADOW_MAP;
+
+		return shader_flags;
+	}
+
 	// setup shader flags for the things that we want/need
 	if ( lighting ) {
 		shader_flags |= SDR_FLAG_LIGHT;
@@ -1601,10 +1612,6 @@ uint gr_determine_shader_flags(
 
 	if ( tmap_flags & TMAP_ANIMATED_SHADER ) {
 		shader_flags |= SDR_FLAG_ANIMATED;
-	}
-
-	if ( transform ) {
-		shader_flags |= SDR_FLAG_TRANSFORM;
 	}
 
 	if ( textured ) {
@@ -1649,10 +1656,6 @@ uint gr_determine_shader_flags(
 
 	if ( Deferred_lighting ) {
 		shader_flags |= SDR_FLAG_DEFERRED;
-	}
-
-	if ( in_shadow_map ) {
-		shader_flags = SDR_FLAG_GEOMETRY | SDR_FLAG_SHADOW_MAP;
 	}
 
 	if ( thruster_scale ) {

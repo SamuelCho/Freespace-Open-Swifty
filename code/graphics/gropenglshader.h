@@ -22,7 +22,7 @@
 #define SDR_ATTRIB_RADIUS		0
 #define SDR_ATTRIB_SUBMODEL		1
 
-#define MAX_SDR_ATTRIBUTES		2
+#define MAX_SDR_ATTRIBUTES		4
 
 struct opengl_shader_flag_t {
 	char *vert;
