@@ -17934,6 +17934,13 @@ void ship_queue_render(object* obj, DrawList* scene)
 		return;
 	}
 
+	if ( obj == Viewer_obj && !in_shadow_map ) {
+		if (!(Viewer_mode & VM_TOPDOWN))
+		{
+			return;
+		}
+	}
+
 	ship_model_start(obj);
 
 	// Only render electrical arcs if within 500m of the eye (for a 10m piece)

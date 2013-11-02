@@ -439,6 +439,14 @@ void obj_render_queue_all()
 				}
 			}
 
+			if ( (objp == Viewer_obj)
+				&& (objp->type == OBJ_SHIP)
+				&& (Ship_info[Ships[objp->instance].ship_info_index].flags2 & SIF2_SHOW_SHIP_MODEL)
+				&& (!Viewer_mode || (Viewer_mode & VM_PADLOCK_ANY) || (Viewer_mode & VM_OTHER_SHIP) || (Viewer_mode & VM_TRACK)) )
+			{
+				continue;
+			}
+
 			objp->flags |= OF_WAS_RENDERED;
 
 			obj_queue_render(objp, &scene);
