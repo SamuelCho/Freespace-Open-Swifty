@@ -77,7 +77,9 @@ typedef struct mevent {
 	char	status;
 } mevent;
 
-typedef struct cmission {
+class cmission
+{
+public:
 	char				*name;					// name of the mission
 	char				*notes;					// mission notes for mission (used by Fred)
 	char				briefing_cutscene[NAME_LENGTH];	// name of the cutscene to be played before this mission
@@ -99,9 +101,11 @@ typedef struct cmission {
 	SCP_string		main_hall;				// which main hall the player is in - converted to SCP_string by CommanderDJ
 	ubyte			debrief_persona_index;	// which persona is used for ranks/badges - Goober5000
 	scoring_struct	stats;
-} cmission;
+};
 
-typedef struct campaign {
+class campaign
+{
+public:
 	char	name[NAME_LENGTH];						// name of the campaign
 	char	filename[MAX_FILENAME_LEN];				// filename the campaign info is in
 	char	*desc;									// description of campaign
@@ -122,7 +126,14 @@ typedef struct campaign {
 	cmission	missions[MAX_CAMPAIGN_MISSIONS];	// decription of the missions
 	int				num_variables;					// number of variables this campaign had - Goober5000
 	sexp_variable	*variables;						// malloced array of sexp_variables (of num_variables size) containing campaign-persistent variables - Goober5000
-} campaign;
+
+	campaign()
+		: desc(NULL), num_missions(0), variables(NULL)
+	{
+		name[0] = 0;
+		filename[0] = 0;
+	}
+};
 
 extern campaign Campaign;
 
@@ -153,6 +164,11 @@ extern char Default_campaign_file_name[MAX_FILENAME_LEN - 4];
 
 // if the campaign file is missing this will get set for us to check against
 extern int Campaign_file_missing;
+
+/*
+ * initialise Player_loadout with default values
+ */
+void player_loadout_init();
 
 // called at game startup time to load the default single player campaign
 void mission_campaign_init( void );
@@ -217,10 +233,10 @@ void campaign_delete_save( char *cfn, char *pname);
 void campaign_savefile_load(char *fname, char *pname);
 
 // get name and type of specified campaign file
-int mission_campaign_get_info(char *filename, char *name, int *type, int *max_players, char **desc = NULL);
+int mission_campaign_get_info(const char *filename, char *name, int *type, int *max_players, char **desc = NULL);
 
 // get a listing of missions in a campaign
-int mission_campaign_get_mission_list(char *filename, char **list, int max);
+int mission_campaign_get_mission_list(const char *filename, char **list, int max);
 
 // load up a campaign for the current player.
 int mission_load_up_campaign( player *p = NULL );

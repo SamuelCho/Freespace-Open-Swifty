@@ -399,7 +399,7 @@ static void starfield_bitmap_entry_init(starfield_bitmap *sbm)
 	}	\
 }
 
-void parse_startbl(char *filename)
+void parse_startbl(const char *filename)
 {
 	char name[MAX_FILENAME_LEN], tempf[16];
 	starfield_bitmap sbm;
@@ -2123,7 +2123,7 @@ void stars_draw_background()
 
 	if (Nmodel_bitmap >= 0) {
 		model_set_forced_texture(-1);
-		Nmodel_flags &= !MR_FORCE_TEXTURE;
+		Nmodel_flags &= ~MR_FORCE_TEXTURE;
 	}
 }
 
@@ -2687,24 +2687,8 @@ void stars_load_background(int background_idx)
 // Goober5000
 void stars_copy_background(background_t *dest, background_t *src)
 {
-	uint i;
-
-	dest->suns.clear();
-	dest->bitmaps.clear();
-
-	for (i = 0; i < src->suns.size(); i++)
-	{
-		starfield_list_entry sle;
-		memcpy(&sle, &src->suns[i], sizeof(starfield_list_entry));
-		dest->suns.push_back(sle);
-	}
-
-	for (i = 0; i < src->bitmaps.size(); i++)
-	{
-		starfield_list_entry sle;
-		memcpy(&sle, &src->bitmaps[i], sizeof(starfield_list_entry));
-		dest->bitmaps.push_back(sle);
-	}
+	dest->suns.assign(src->suns.begin(), src->suns.end());
+	dest->bitmaps.assign(src->bitmaps.begin(), src->bitmaps.end());
 }
 
 // Goober5000

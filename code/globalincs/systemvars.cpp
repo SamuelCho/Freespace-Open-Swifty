@@ -170,7 +170,7 @@ int game_busy_callback( void (*callback)(int count), int delta_step )
 }
 
 // Call whenever loading to display cursor
-void game_busy(char *filename)
+void game_busy(const char *filename)
 {
 	if ( cf_in_callback != 0 ) return;	// don't call callback if we're already in it.
 	if ( cf_timestamp < 0 ) return;
@@ -182,7 +182,7 @@ void game_busy(char *filename)
 
 #ifndef NDEBUG
 	if (filename != NULL) 
-		strncpy(Processing_filename, filename, MAX_PATH_LEN);
+		strcpy_s(Processing_filename, filename);
 #endif
 
 	int t1 = timer_get_milliseconds();
@@ -578,6 +578,7 @@ DCF(detail, "Turns on/off parts of the game for speed testing" )
 
 // Goober5000
 // (Taylor says that for optimization purposes malloc/free should be used rather than vm_malloc/vm_free here)
+// NOTE: Because this uses memcpy, it should only be used to sort POD elements!
 void insertion_sort(void *array_base, size_t array_size, size_t element_size, int (*fncompare)(const void *, const void *))
 {
 	int i, j;

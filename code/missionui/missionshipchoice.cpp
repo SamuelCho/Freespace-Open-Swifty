@@ -347,7 +347,7 @@ void	ss_set_carried_icon(int from_slot, int ship_class);
 #define SHIP_DESC_X	445
 #define SHIP_DESC_Y	273
 
-char *ss_tooltip_handler(char *str)
+const char *ss_tooltip_handler(const char *str)
 {
 	if (Selected_ss_class < 0)
 		return NULL;
@@ -1216,7 +1216,7 @@ void ship_select_blit_ship_info()
 	int n_lines;
 	int n_chars[MAX_BRIEF_LINES];
 	char ship_desc[1000];
-	char *p_str[MAX_BRIEF_LINES];
+	const char *p_str[MAX_BRIEF_LINES];
 	char *token;
 	char Ship_select_ship_info_text[1500];
 	char Ship_select_ship_info_lines[MAX_NUM_SHIP_DESC_LINES][SHIP_SELECT_SHIP_INFO_MAX_LINE_LEN];
@@ -1224,6 +1224,7 @@ void ship_select_blit_ship_info()
 
 	// strip out newlines
 	memset(ship_desc,0,1000);
+	memset(Ship_select_ship_info_text,0,1500);
 	strcpy_s(ship_desc, sip->desc);
 	token = strtok(ship_desc,"\n");
 	if(token != NULL){
@@ -1965,6 +1966,7 @@ void commit_pressed()
 	}
 	// in single player we jump directly into the mission
 	else {
+		Pilot.save_savefile();
 		gameseq_post_event(GS_EVENT_ENTER_GAME);
 	}
 }
@@ -2493,7 +2495,6 @@ void update_player_ship(int si_index)
 		change_ship_type(Player_obj->instance, si_index);
 
 	Player->last_ship_flown_si_index = si_index;
-	Pilot.save_savefile();  // saves both Recent_mission & last_ship_flown_si_index (for quick-start-missions)
 }
 
 /*
@@ -2919,6 +2920,10 @@ void ss_clear_slots()
 
 	for ( i = 0; i < MAX_WSS_SLOTS; i++ ) {
 		Wss_slots[i].ship_class = -1;
+		for ( j = 0; j < MAX_SHIP_WEAPONS; j++ ) {
+			Wss_slots[i].wep[j] = 0;
+			Wss_slots[i].wep_count[j] = 0;
+		}
 	}
 
 	for ( i = 0; i < MAX_WING_BLOCKS; i++ ) {
