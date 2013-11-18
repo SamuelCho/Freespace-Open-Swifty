@@ -5134,15 +5134,21 @@ void model_interp_update_transforms(object *objp, int detail_num)
 
 		pmi->transform_buffer[i*16+15] = smi->blown_off || do_not_render ? 1.0f : 0.0f;
 
-		if ( pm->submodel[i].is_thruster ) {
-			pmi->transform_buffer[i*16+3] = 1.0f;
-			pmi->transform_buffer[i*16+7] = 1.0f;
-			pmi->transform_buffer[i*16+11] = Interp_thrust_scale;
-		} else {
-			pmi->transform_buffer[i*16+3] = Interp_warp_scale_x;
-			pmi->transform_buffer[i*16+7] = Interp_warp_scale_y;
-			pmi->transform_buffer[i*16+11] = Interp_warp_scale_z;
-		}
+// 		if ( pm->submodel[i].is_thruster ) {
+// 			pmi->transform_buffer[i*16+8] *= Interp_thrust_scale;
+// 			pmi->transform_buffer[i*16+9] *= Interp_thrust_scale;
+// 			pmi->transform_buffer[i*16+10] *= Interp_thrust_scale;
+// 		} else {
+// 			pmi->transform_buffer[i*16] *= Interp_warp_scale_x;
+// 			pmi->transform_buffer[i*16+1] *= Interp_warp_scale_x;
+// 			pmi->transform_buffer[i*16+2] *= Interp_warp_scale_x;
+// 			pmi->transform_buffer[i*16+4] *= Interp_warp_scale_y;
+// 			pmi->transform_buffer[i*16+5] *= Interp_warp_scale_y;
+// 			pmi->transform_buffer[i*16+6] *= Interp_warp_scale_y;
+// 			pmi->transform_buffer[i*16+8] *= Interp_warp_scale_z;
+// 			pmi->transform_buffer[i*16+9] *= Interp_warp_scale_z;
+// 			pmi->transform_buffer[i*16+10] *= Interp_warp_scale_z;
+// 		}
 	}
 
 	gr_update_transform_tex(pmi->transform_tex_id, pm->n_models, pmi->transform_buffer);

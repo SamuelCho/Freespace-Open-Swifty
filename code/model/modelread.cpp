@@ -2825,6 +2825,7 @@ int model_create_instance(int model_num, int submodel_num)
 	
 		// create transform texture buffer. allocate 12 floats per submodel. 3*3 for the orientation matrix. Plus another 3 for the offset.
 		pmi->transform_buffer = (float*)vm_malloc( sizeof(float)*pm->n_models*16 );
+		memset(pmi->transform_buffer, 0, sizeof(float)*pm->n_models*16);
 
 		// pre-populate all model batches with initial orientations
 		for ( i = 0; i < pm->n_detail_levels; ++i ) {

@@ -48,6 +48,8 @@ typedef struct light {
 	int instance;
 } light;
 
+extern SCP_vector<light*> Static_light;
+
 class SceneLights
 {
 	SCP_vector<light> AllLights;

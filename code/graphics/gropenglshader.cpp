@@ -51,23 +51,23 @@ geometry_sdr_params *Current_geo_sdr_params = NULL;
  * When adding a new SDR_ flag, list all associated uniforms and attributes here
  */
 static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
-	{ SDR_FLAG_LIGHT,		2, {"n_lights", "light_factor"}, 0, {}, "Lighting" },
-	{ SDR_FLAG_FOG,			0, { NULL }, 0, { NULL }, "Fog Effect" },
-	{ SDR_FLAG_DIFFUSE_MAP, 5, {"sBasemap", "desaturate", "desaturate_r", "desaturate_g", "desaturate_b"}, 0, { NULL }, "Diffuse Mapping"},
-	{ SDR_FLAG_GLOW_MAP,	1, {"sGlowmap"}, 0, { NULL }, "Glow Mapping" },
-	{ SDR_FLAG_SPEC_MAP,	1, {"sSpecmap"}, 0, { NULL }, "Specular Mapping" },
-	{ SDR_FLAG_NORMAL_MAP,	1, {"sNormalmap"}, 0, { NULL }, "Normal Mapping" },
-	{ SDR_FLAG_HEIGHT_MAP,	1, {"sHeightmap"}, 0, { NULL }, "Parallax Mapping" },
-	{ SDR_FLAG_ENV_MAP,		3, {"sEnvmap", "alpha_spec", "envMatrix"}, 0, { NULL }, "Environment Mapping" },
-	{ SDR_FLAG_ANIMATED,	5, {"sFramebuffer", "effect_num", "anim_timer", "vpwidth", "vpheight"}, 0, { NULL }, "Animated Effects" },
-	{ SDR_FLAG_MISC_MAP,	1, {"sMiscmap"}, 0, { NULL }, "Utility mapping" },
-	{ SDR_FLAG_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, { NULL }, "Team Colors" },
-	{ SDR_FLAG_DEFERRED,	0, { NULL }, 0, { NULL} , "Deferred lighting" },
-	{ SDR_FLAG_GEOMETRY,	1, { "shadow_proj_matrix" }, 0, { NULL }, "Geometry Transformation" },
-	{ SDR_FLAG_SHADOW_MAP,	0, { NULL }, 0, { NULL }, "Shadow Mapping" },
-	{ SDR_FLAG_SHADOWS,		7, { "shadow_map", "shadow_mv_matrix", "shadow_proj_matrix", "model_matrix", "neardist", "middist", "fardist" }, 0, { NULL }, "Shadows" },
-	{ SDR_FLAG_THRUSTER,	1, {"thruster_scale"}, 0, { NULL }, "Thruster scaling" },
-	{ SDR_FLAG_TRANSFORM,	1, {"transform_tex"}, 1, {"model_id"}, "Submodel Transforms" }
+	{ SDR_FLAG_LIGHT,		2, {"n_lights", "light_factor"}, 0, {}, 0, {}, "Lighting" },
+	{ SDR_FLAG_FOG,			0, { NULL }, 0, { NULL }, 0, {}, "Fog Effect" },
+	{ SDR_FLAG_DIFFUSE_MAP, 5, {"sBasemap", "desaturate", "desaturate_r", "desaturate_g", "desaturate_b"}, 0, { NULL }, 0, {}, "Diffuse Mapping"},
+	{ SDR_FLAG_GLOW_MAP,	1, {"sGlowmap"}, 0, { NULL }, 0, {}, "Glow Mapping" },
+	{ SDR_FLAG_SPEC_MAP,	1, {"sSpecmap"}, 0, { NULL }, 0, {}, "Specular Mapping" },
+	{ SDR_FLAG_NORMAL_MAP,	1, {"sNormalmap"}, 0, { NULL }, 0, {}, "Normal Mapping" },
+	{ SDR_FLAG_HEIGHT_MAP,	1, {"sHeightmap"}, 0, { NULL }, 0, {}, "Parallax Mapping" },
+	{ SDR_FLAG_ENV_MAP,		3, {"sEnvmap", "alpha_spec", "envMatrix"}, 0, { NULL }, 0, {}, "Environment Mapping" },
+	{ SDR_FLAG_ANIMATED,	5, {"sFramebuffer", "effect_num", "anim_timer", "vpwidth", "vpheight"}, 0, { NULL }, 0, {}, "Animated Effects" },
+	{ SDR_FLAG_MISC_MAP,	1, {"sMiscmap"}, 0, { NULL }, 0, {}, "Utility mapping" },
+	{ SDR_FLAG_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, { NULL }, 0, {}, "Team Colors" },
+	{ SDR_FLAG_DEFERRED,	0, { NULL }, 0, { NULL} , 0, {}, "Deferred lighting" },
+	{ SDR_FLAG_GEOMETRY,	1, { "shadow_proj_matrix" }, 0, { NULL }, 0, {}, "Geometry Transformation" },
+	{ SDR_FLAG_SHADOW_MAP,	2, { "shadow_map_num", "shadow_proj_matrix" }, 0, { NULL }, 0, {}, "Shadow Mapping" },
+	{ SDR_FLAG_SHADOWS,		8, { "shadow_map", "shadow_mv_matrix", "shadow_proj_matrix", "model_matrix", "veryneardist", "neardist", "middist", "fardist" }, 0, { NULL }, 0, {}, "Shadows" },
+	{ SDR_FLAG_THRUSTER,	1, {"thruster_scale"}, 0, { NULL }, 0, {}, "Thruster scaling" },
+	{ SDR_FLAG_TRANSFORM,	1, {"transform_tex"}, 1, {"model_id"}, 1, { "transform_data" }, "Submodel Transforms" }
 };
 
 static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main) / sizeof(opengl_shader_uniform_reference_t);
@@ -76,10 +76,10 @@ static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main)
  * Static lookup referene for particle shader uniforms
  */
 static opengl_shader_uniform_reference_t GL_Uniform_Reference_Particle[] = {
-	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION), 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 1, { "offset_in" }, "Distorted Particles" },
-	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_GEOMETRY),	6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 2, { "radius_in", "up" }, "Geometry Shader Generated Particles" },
-	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_TRAILS | SDR_FLAG_GEOMETRY),	1, {"baseMap"}, 3, { "fvec", "intensity", "width" }, "Trails" },
-	{ (SDR_FLAG_SOFT_QUAD),	6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, { "radius_in" }, "Depth-blended Particles" }
+	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION), 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 1, { "offset_in" }, 0, {}, "Distorted Particles" },
+	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_GEOMETRY),	6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 2, { "radius_in", "up" }, 0, {}, "Geometry Shader Generated Particles" },
+	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_TRAILS | SDR_FLAG_GEOMETRY),	1, {"baseMap"}, 3, { "fvec", "intensity", "width" }, 0, {}, "Trails" },
+	{ (SDR_FLAG_SOFT_QUAD),	6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, { "radius_in" }, 0, {}, "Depth-blended Particles" }
 };
 
 static const int Particle_shader_flag_references = sizeof(GL_Uniform_Reference_Particle) / sizeof(opengl_shader_uniform_reference_t);
@@ -400,12 +400,22 @@ void opengl_compile_main_shader(unsigned int flags) {
 
 			// Equality check needed because the combination of SDR_FLAG_SOFT_QUAD and SDR_FLAG_DISTORTION define something very different
 			// than just SDR_FLAG_SOFT_QUAD alone
-				for (k = 0; k < GL_Uniform_Reference_Particle[j].num_uniforms; k++) {
-					opengl_shader_init_uniform( GL_Uniform_Reference_Particle[j].uniforms[k] );
+				if (GL_Uniform_Reference_Particle[j].num_uniforms > 0) {
+					for (k = 0; k < GL_Uniform_Reference_Particle[j].num_uniforms; k++) {
+						opengl_shader_init_uniform( GL_Uniform_Reference_Particle[j].uniforms[k] );
+					}
 				}
 
-				for (k = 0; k < GL_Uniform_Reference_Particle[j].num_attributes; k++) {
-					opengl_shader_init_attribute( GL_Uniform_Reference_Particle[j].attributes[k] );
+				if (GL_Uniform_Reference_Particle[j].num_attributes > 0) {
+					for (k = 0; k < GL_Uniform_Reference_Particle[j].num_attributes; k++) {
+						opengl_shader_init_attribute( GL_Uniform_Reference_Particle[j].attributes[k] );
+					}
+				}
+
+				if (GL_Uniform_Reference_Particle[j].num_uniform_blocks > 0) {
+					for (k = 0; k < GL_Uniform_Reference_Particle[j].num_uniform_blocks; k++) {
+						opengl_shader_init_uniform_block( GL_Uniform_Reference_Particle[j].uniform_blocks[k] );
+					}
 				}
 
 				mprintf(("   %s\n", GL_Uniform_Reference_Particle[j].name));
@@ -423,6 +433,12 @@ void opengl_compile_main_shader(unsigned int flags) {
 				if (GL_Uniform_Reference_Main[j].num_attributes > 0) {
 					for (int k = 0; k < GL_Uniform_Reference_Main[j].num_attributes; k++) {
 						opengl_shader_init_attribute( GL_Uniform_Reference_Main[j].attributes[k] );
+					}
+				}
+
+				if (GL_Uniform_Reference_Main[j].num_uniform_blocks > 0) {
+					for (int k = 0; k < GL_Uniform_Reference_Main[j].num_uniform_blocks; k++) {
+						opengl_shader_init_uniform_block( GL_Uniform_Reference_Main[j].uniform_blocks[k] );
 					}
 				}
 
@@ -805,6 +821,55 @@ GLint opengl_shader_get_uniform(const char *uniform_text)
 	for (uniform = Current_shader->uniforms.begin(); uniform != Current_shader->uniforms.end(); ++uniform) {
 		if ( !uniform->text_id.compare(uniform_text) ) {
 			return uniform->location;
+		}
+	}
+
+	return -1;
+}
+
+/**
+ * Initialize a shader uniform. Requires that the Current_shader global variable is valid.
+ *
+ * @param uniform_text		Name of the uniform to be initialized
+ */
+void opengl_shader_init_uniform_block(const char *uniform_text)
+{
+	opengl_shader_uniform_t new_uniform_block;
+
+	if ( (Current_shader == NULL) || (uniform_text == NULL) ) {
+		Int3();
+		return;
+	}
+
+	new_uniform_block.text_id = uniform_text;
+	new_uniform_block.location = vglGetUniformBlockIndexARB(Current_shader->program_id, uniform_text);
+
+	if (new_uniform_block.location < 0) {
+		nprintf(("SHADER-DEBUG", "WARNING: Unable to get shader uniform block location for \"%s\"!\n", uniform_text));
+		return;
+	}
+
+	Current_shader->uniform_blocks.push_back( new_uniform_block );
+}
+
+/**
+ * Get the internal OpenGL location for a given uniform. Requires that the Current_shader global variable is valid
+ *
+ * @param uniform_text	Name of the uniform
+ * @return				Internal OpenGL location for the uniform
+ */
+GLint opengl_shader_get_uniform_block(const char *uniform_text)
+{
+	if ( (Current_shader == NULL) || (uniform_text == NULL) ) {
+		Int3();
+		return -1;
+	}
+
+	SCP_vector<opengl_shader_uniform_t>::iterator uniform_block;
+	
+	for (uniform_block = Current_shader->uniform_blocks.begin(); uniform_block != Current_shader->uniform_blocks.end(); ++uniform_block) {
+		if ( !uniform_block->text_id.compare(uniform_text) ) {
+			return uniform_block->location;
 		}
 	}
 

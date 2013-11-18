@@ -164,7 +164,9 @@ ogl_extension GL_Extensions[NUM_OGL_EXTENSIONS] =
 		"glGetUniformBlockIndex", "glGetActiveUniformBlockiv", "glGetActiveUniformBlockName", "glUniformBlockBinding" } },
 
 	{ false, false, 1, { "GL_EXT_transform_feedback" }, 7, { "glBeginTransformFeedbackEXT", "glEndTransformFeedbackEXT", "glBindBufferRangeEXT", 
-		"glBindBufferOffsetEXT", "glBindBufferBaseEXT", "glTransformFeedbackVaryingsEXT", "glGetTransformFeedbackVaryingEXT" } }
+		"glBindBufferOffsetEXT", "glBindBufferBaseEXT", "glTransformFeedbackVaryingsEXT", "glGetTransformFeedbackVaryingEXT" } },
+
+	{ false, false, 1, { "GL_ARB_draw_instanced" }, 2, { "glDrawArraysInstancedARB", "glDrawElementsInstancedARB" } }
 };
 
 // ogl_funcion is:
@@ -258,7 +260,9 @@ ogl_function GL_Functions[NUM_OGL_FUNCTIONS] =
 	{ "glBindBufferOffsetEXT", 0 },
 	{ "glBindBufferBaseEXT", 0 },
 	{ "glTransformFeedbackVaryingsEXT", 0 },
-	{ "glGetTransformFeedbackVaryingEXT", 0 }
+	{ "glGetTransformFeedbackVaryingEXT", 0 },
+	{ "glDrawArraysInstancedARB", 0	},
+	{ "glDrawElementsInstancedARB", 0 }
 };
 
 // special extensions (only special functions are supported at the moment)

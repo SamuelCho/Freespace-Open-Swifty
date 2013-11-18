@@ -2776,7 +2776,7 @@ void gr_opengl_scene_texture_begin()
 	vglDrawBuffers(4, buffers);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glDrawBuffer(GL_COLOR_ATTACHMENT0);
+	//glDrawBuffer(GL_COLOR_ATTACHMENT0);
 	Scene_framebuffer_in_frame = true;
 }
 

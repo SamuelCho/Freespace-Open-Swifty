@@ -312,6 +312,7 @@ public:
 
 	void sortDraws();
 	void renderAll(int blend_filter = -1);
+	void reset();
 };
 
 class DrawListSorter

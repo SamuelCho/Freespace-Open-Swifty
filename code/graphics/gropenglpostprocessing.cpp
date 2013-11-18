@@ -37,18 +37,22 @@ float ls_intensity = 0.5f;
 float ls_cpintensity = 0.5f * 50 * 0.02f;
 int ls_samplenum = 50;
 
+geometry_sdr_params Geometry_post = {GL_TRIANGLES, GL_TRIANGLE_STRIP, 3};
+
 #define SDR_POST_FLAG_MAIN		(1<<0)
 #define SDR_POST_FLAG_BRIGHT	(1<<1)
 #define SDR_POST_FLAG_BLUR		(1<<2)
 #define SDR_POST_FLAG_PASS1		(1<<3)
 #define SDR_POST_FLAG_PASS2		(1<<4)
 #define SDR_POST_FLAG_LIGHTSHAFT (1<<5)
+#define SDR_POST_FLAG_GEO		(1<<6)
 
 static SCP_vector<opengl_shader_t> GL_post_shader;
 
 struct opengl_shader_file_t {
-char *vert;
+	char *vert;
 	char *frag;
+	char *geo;
 
 	int flags;
 
@@ -65,29 +69,35 @@ char *vert;
 static opengl_shader_file_t GL_post_shader_files[] = {
 	// NOTE: the main post-processing shader has any number of uniforms, but
 	//       these few should always be present
-	{ "post-v.sdr", "post-f.sdr", SDR_POST_FLAG_MAIN,
+	{ "post-v.sdr", "post-f.sdr", 0, SDR_POST_FLAG_MAIN,
 		4, { "tex", "timer", "bloomed", "bloom_intensity" }, 0, { NULL } },
 
-	{ "post-v.sdr", "blur-f.sdr", SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS1,
-		2, { "tex", "bsize" }, 0, { NULL } },
+	{ "post-v.sdr", "blur-f.sdr", 0, SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS1,
+		2, { "tex", "bsize", "debug" }, 0, { NULL } },
 
-	{ "post-v.sdr", "blur-f.sdr", SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS2,
-		2, { "tex", "bsize" }, 0, { NULL } },
+	{ "post-v.sdr", "blur-f.sdr", 0, SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS2,
+		2, { "tex", "bsize", "debug" }, 0, { NULL } },
 
-	{ "post-v.sdr", "brightpass-f.sdr", SDR_POST_FLAG_BRIGHT,
+	{ "post-v.sdr", "brightpass-f.sdr", 0, SDR_POST_FLAG_BRIGHT,
 		1, { "tex" }, 0, { NULL } },
 
-	{ "fxaa-v.sdr", "fxaa-f.sdr", 0, 
+	{ "fxaa-v.sdr", "fxaa-f.sdr", 0, 0, 
 		3, { "tex0", "rt_w", "rt_h"}, 0, { NULL } },
 
-	{ "post-v.sdr", "fxaapre-f.sdr", 0,
+	{ "post-v.sdr", "fxaapre-f.sdr", 0, 0,
 		1, { "tex"}, 0, { NULL } },
 
-	{ "post-v.sdr", "ls-f.sdr", SDR_POST_FLAG_LIGHTSHAFT,
+	{ "post-v.sdr", "ls-f.sdr", 0, SDR_POST_FLAG_LIGHTSHAFT,
 		8, { "scene", "cockpit", "sun_pos", "weight", "intensity", "falloff", "density", "cp_intensity" }, 0, { NULL } },
 
-	{ "shadowdebug-v.sdr", "shadowdebug-f.sdr", 0,
-	2, { "shadow_map", "index" }, 0, { NULL } }
+	{ "shadowdebug-v.sdr", "shadowdebug-f.sdr", 0, 0,
+	2, { "shadow_map", "index" }, 0, { NULL } },
+	
+	{ "post-v.sdr", "blur-f.sdr", "blur-g.sdr", SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS1 | SDR_POST_FLAG_GEO,
+	2, { "blurSampler", "bsize" }, 0, { NULL } },
+
+	{ "post-v.sdr", "blur-f.sdr", "blur-g.sdr", SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS2 | SDR_POST_FLAG_GEO,
+	2, { "blurSampler", "bsize" }, 0, { NULL } }
 };
 
 static const unsigned int Num_post_shader_files = sizeof(GL_post_shader_files) / sizeof(opengl_shader_file_t);
@@ -121,6 +131,9 @@ static int Post_active_shader_index = 0;
 
 static GLuint Post_framebuffer_id[2] = { 0 };
 static GLuint Post_bloom_texture_id[3] = { 0 };
+static GLuint Post_shadow_framebuffer_id = 0;
+static GLuint Post_shadow_texture_id = 0;
+static GLuint Post_shadow_depth_texture_id = 0;
 
 static int Post_texture_width = 0;
 static int Post_texture_height = 0;
@@ -128,6 +141,70 @@ static int Post_texture_height = 0;
 
 static char *opengl_post_load_shader(char *filename, int flags, int flags2);
 
+void gr_opengl_post_process_shadow_map()
+{
+	extern GLuint Shadow_map_texture;
+	extern GLuint shadow_fbo;
+
+	if (Cmdline_shadow_quality <= 0) {
+		return;
+	}
+
+	int size = (Cmdline_shadow_quality == 2 ? 1024 : 512);
+
+	GLboolean scissor_test = GL_state.ScissorTest(GL_FALSE);
+	//GLboolean scissor_test = GL_state.ScissorTest(GL_TRUE);
+	int zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
+
+	glViewport(0, 0, size, size);
+
+	// ------  begin pass 1 ------
+
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_shadow_framebuffer_id);
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY);
+//	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Shadow_map_texture);
+
+	opengl_shader_set_current( &GL_post_shader[8] );
+
+	vglUniform1iARB( opengl_shader_get_uniform("blurSampler"), 0 );
+	vglUniform1fARB( opengl_shader_get_uniform("bsize"), i2fl(size) );
+	//vglUniform1fARB( opengl_shader_get_uniform("sigma"), 3.0f);
+
+	opengl_draw_textured_quad_instanced(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 4);
+
+	// ------  begin pass 2 ------
+
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo);
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	opengl_shader_set_current( &GL_post_shader[9] );
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY_EXT);
+//	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Post_shadow_texture_id);
+	
+	vglUniform1iARB( opengl_shader_get_uniform("blurSampler"), 0 );
+	vglUniform1fARB( opengl_shader_get_uniform("bsize"), i2fl(size) );
+	//vglUniform1fARB( opengl_shader_get_uniform("sigma"), 3.0f);
+
+	opengl_draw_textured_quad_instanced(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 4);
+
+	// reset viewport, scissor test and exit
+ 	glViewport(0, 0, gr_screen.max_w, gr_screen.max_h);
+ 	GL_state.ScissorTest(scissor_test);
+	gr_zbuffer_set(zbuff);
+
+	// vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, opengl_get_rtt_framebuffer());
+}
 
 static bool opengl_post_pass_bloom()
 {
@@ -327,7 +404,7 @@ void opengl_post_pass_fxaa() {
 	opengl_shader_set_current();
 }
 
-extern GLuint Shadow_map_texture;
+extern GLuint Shadow_map_depth_texture;
 extern GLuint Scene_depth_texture;
 extern GLuint Cockpit_depth_texture;
 extern GLuint Scene_position_texture;
@@ -465,21 +542,29 @@ void gr_opengl_post_process_end()
 	GL_state.Texture.SetActiveUnit(1);
 	GL_state.Texture.Enable(0);
 
-	
 	//Shadow Map debug window
 //#define SHADOW_DEBUG
 #ifdef SHADOW_DEBUG
 	opengl_shader_set_current( &GL_post_shader[7] );	
 	GL_state.Texture.SetActiveUnit(0);
+//	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY);
+//	GL_state.Texture.Enable(Shadow_map_depth_texture);
+	extern GLuint Shadow_map_texture;
+	extern GLuint Post_shadow_texture_id;
 	GL_state.Texture.Enable(Shadow_map_texture);
 	vglUniform1iARB( opengl_shader_get_uniform("shadow_map"), 0);
 	vglUniform1iARB( opengl_shader_get_uniform("index"), 0);
-	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, -0.5f, -0.5f, Scene_texture_u_scale, Scene_texture_u_scale);
+	//opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, -0.5f, -0.5f, Scene_texture_u_scale, Scene_texture_u_scale);
+	//opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, -0.5f, -0.5f, 0.5f, 0.5f);
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, -0.5f, -0.5f, 1.0f, 1.0f);
 	vglUniform1iARB( opengl_shader_get_uniform("index"), 1);
-	opengl_draw_textured_quad(-1.0f, -0.5f, 0.0f, 0.0f, -0.5f, 0.0f, Scene_texture_u_scale, Scene_texture_u_scale);
+	//opengl_draw_textured_quad(-1.0f, -0.5f, 0.5f, 0.0f, -0.5f, 0.0f, 0.75f, 0.25f);
+	opengl_draw_textured_quad(-1.0f, -0.5f, 0.0f, 0.0f, -0.5f, 0.0f, 1.0f, 1.0f);
 	vglUniform1iARB( opengl_shader_get_uniform("index"), 2);
-	opengl_draw_textured_quad(-0.5f, -1.0f, 0.0f, 0.0f, 0.0f, -0.5f, Scene_texture_u_scale, Scene_texture_u_scale);
+	opengl_draw_textured_quad(-0.5f, -1.0f, 0.0f, 0.0f, 0.0f, -0.5f, 1.0f, 1.0f);
+	vglUniform1iARB( opengl_shader_get_uniform("index"), 3);
+	opengl_draw_textured_quad(-0.5f, -1.0f, 0.0f, 0.0f, 0.0f, -0.5f, 1.0f, 1.0f);
 	opengl_shader_set_current();
 #endif
 
@@ -868,6 +953,10 @@ static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 		sflags += "#define PASS_1\n";
 	}
 
+	if (flags & SDR_POST_FLAG_GEO) {
+		sflags += "#define FLAG_GEOMETRY\n";
+	}
+
 	if (flags & SDR_POST_FLAG_LIGHTSHAFT) {
 		char temp[42];
 		sprintf(temp, "#define SAMPLE_NUM %d\n", ls_samplenum);
@@ -972,7 +1061,7 @@ static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 
 static bool opengl_post_init_shader()
 {
-	char *vert = NULL, *frag = NULL;
+	char *vert = NULL, *frag = NULL, *geo = NULL;
 	bool rval = true;
 	int idx, i;
 	int flags2 = 0;
@@ -993,6 +1082,7 @@ static bool opengl_post_init_shader()
 		// choose appropriate files
 		char *vert_name = shader_file->vert;
 		char *frag_name = shader_file->frag;
+		char *geo_name = shader_file->geo;
 
 		mprintf(("  Compiling post-processing shader %d ... \n", idx+1));
 
@@ -1008,10 +1098,20 @@ static bool opengl_post_init_shader()
 			goto Done;
 		}
 
+		// read geometry shader
+		if ( geo_name != NULL ) {
+			if ( (geo = opengl_post_load_shader(geo_name, shader_file->flags, flags2)) == NULL ) {
+				in_error = true;
+				goto Done;
+			}
+
+			Current_geo_sdr_params = &Geometry_post;
+		}
+
 		Verify( vert != NULL );
 		Verify( frag != NULL );
 
-		new_shader.program_id = opengl_shader_create(vert, frag, NULL);
+		new_shader.program_id = opengl_shader_create(vert, frag, geo);
 
 		if ( !new_shader.program_id ) {
 			in_error = true;
@@ -1170,6 +1270,61 @@ static bool opengl_post_init_framebuffer()
 				}
 			}
 		}
+	}
+
+	if ( Cmdline_shadow_quality ) {
+		int size = (Cmdline_shadow_quality == 2 ? 1024 : 512);
+
+		vglGenFramebuffersEXT(1, &Post_shadow_framebuffer_id);
+		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_shadow_framebuffer_id);
+
+		glGenTextures(1, &Post_shadow_texture_id);
+		
+		GL_state.Texture.SetActiveUnit(0);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY_EXT);
+//		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(Post_shadow_texture_id);
+
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		vglTexImage3D(GL_TEXTURE_2D_ARRAY_EXT, 0, GL_RGBA32F_ARB, size, size, 4, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+// 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F_ARB, size, size, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+
+//		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_shadow_texture_id, 0);
+		vglFramebufferTextureEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, Post_shadow_texture_id, 0);
+
+		glGenTextures(1, &Post_shadow_depth_texture_id);
+
+		GL_state.Texture.SetActiveUnit(0);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY_EXT);
+//		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(Post_shadow_depth_texture_id);
+
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		vglTexImage3D(GL_TEXTURE_2D_ARRAY_EXT, 0, GL_DEPTH_COMPONENT32, size, size, 4, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+// 		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, size, size, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+//		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, Post_shadow_depth_texture_id, 0);
+		vglFramebufferTextureEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, Post_shadow_depth_texture_id, 0);
 	}
 
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);

@@ -48,6 +48,7 @@
 #include "globalincs/version.h"
 #include "globalincs/mspdb_callstack.h"
 #include "graphics/font.h"
+#include "graphics/shadows.h"
 #include "hud/hud.h"
 #include "hud/hudconfig.h"
 #include "hud/hudescort.h"
@@ -3925,17 +3926,18 @@ void game_render_frame_new( camid cid )
 		stars_draw(1,1,1,0,0);
 	}
 
-	obj_render_queue_shadow_maps();
+	shadows_render_all();
+//	obj_render_queue_shadow_maps();
 //	render_shadow_maps();
 	obj_render_queue_all();
-//  	gr_deferred_lighting_begin();
-//  	bool draw_viewer_last = false;
-//  	extern int ship_render_mode;
-//  	ship_render_mode = MODEL_RENDER_OPAQUE;
-//  	obj_render_all(obj_render, &draw_viewer_last);
-//  	ship_render_mode = MODEL_RENDER_ALL;
-//  	gr_deferred_lighting_end();
-//  	gr_deferred_lighting_finish();
+// 	gr_deferred_lighting_begin();
+// 	bool draw_viewer_last = false;
+// 	extern int ship_render_mode;
+// 	ship_render_mode = MODEL_RENDER_OPAQUE;
+// 	obj_render_all(obj_render, &draw_viewer_last);
+// 	ship_render_mode = MODEL_RENDER_ALL;
+// 	gr_deferred_lighting_end();
+// 	gr_deferred_lighting_finish();
 
 	render_shields();
 

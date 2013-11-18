@@ -60,6 +60,27 @@ DrawList::DrawList()
 	current_textures[TM_MISC_TYPE] = -1;
 }
 
+void DrawList::reset()
+{
+	set_clip_plane = -1;
+
+	dirty_render_state = true;
+
+	current_render_state = render_state();
+
+	current_textures[TM_BASE_TYPE] = -1;
+	current_textures[TM_GLOW_TYPE] = -1;
+	current_textures[TM_SPECULAR_TYPE] = -1;
+	current_textures[TM_NORMAL_TYPE] = -1;
+	current_textures[TM_HEIGHT_TYPE] = -1;
+	current_textures[TM_MISC_TYPE] = -1;
+
+	clip_planes.clear();
+	render_states.clear();
+	render_elements.clear();
+	render_keys.clear();
+}
+
 void DrawList::sortDraws()
 {
 	Target = this;
@@ -1923,7 +1944,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 
 			if ( model_instance_num >= 0 && Cmdline_merged_ibos ) {
 				pmi = model_get_instance(model_instance_num);
-				//interp->transform_texture = pmi->transform_tex_id;
+				interp->transform_texture = pmi->transform_tex_id;
 			}
 		}
 	}
@@ -2097,6 +2118,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 	} else {
 		scene->setZBias(0);
 	}
+	scene->setZBias(0);
 
 	if ( model_instance_num >= 0 && interp->transform_texture >= 0) {
 		model_queue_render_buffers(scene, interp, pm, -1);

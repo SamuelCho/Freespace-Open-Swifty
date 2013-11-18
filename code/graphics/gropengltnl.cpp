@@ -34,6 +34,7 @@
 #include "cmdline/cmdline.h"
 #include "model/model.h"
 #include "weapon/trails.h"
+#include "graphics/shadows.h"
 
 extern int GLOWMAP;
 extern int CLOAKMAP;
@@ -77,8 +78,9 @@ vec3d shadow_ref_point;
 
 static bool use_last_view = false;
 static GLfloat lmatrix[16];
-static GLfloat lprojmatrix[3][16];
+static GLfloat lprojmatrix[4][16];
 static GLfloat modelmatrix[16];
+int Current_shadow_frustum = 0;
 
 int GL_vertex_data_in = 0;
 
@@ -90,9 +92,10 @@ team_color Current_temp_color;
 bool Using_Team_Color = false;
 
 GLuint Shadow_map_texture = 0;
-static GLuint shadow_fbo;
+GLuint Shadow_map_depth_texture = 0;
+GLuint shadow_fbo = 0;
 vec3d saved_Eye;
-float shadow_neardist = 0.0f, shadow_middist = 0.0f, shadow_fardist = 0.0f;
+float shadow_veryneardist = 0.0f, shadow_neardist = 0.0f, shadow_middist = 0.0f, shadow_fardist = 0.0f;
 bool shadowers = false;
 GLint saved_fb = 0;
 bool in_shadow_map = false;
@@ -518,10 +521,39 @@ void opengl_tnl_init()
 		vglGenFramebuffersEXT(1, &shadow_fbo);
 		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo);
 
+		glGenTextures(1, &Shadow_map_depth_texture);
+
+		GL_state.Texture.SetActiveUnit(0);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY_EXT);
+//		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(Shadow_map_depth_texture);
+		
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		//glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_REF_DEPTH_TO_TEXTURE_EXT);
+		//glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
+		//glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_DEPTH_TEXTURE_MODE_ARB, GL_INTENSITY);
+		int size = (Cmdline_shadow_quality == 2 ? 1024 : 512);
+		vglTexImage3D(GL_TEXTURE_2D_ARRAY_EXT, 0, GL_DEPTH_COMPONENT32, size, size, 4, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+		//glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, size, size, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+		vglFramebufferTextureEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, Shadow_map_depth_texture, 0);
+		//vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, Shadow_map_depth_texture, 0);
+
 		glGenTextures(1, &Shadow_map_texture);
 
 		GL_state.Texture.SetActiveUnit(0);
 		GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY_EXT);
+		//GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 		GL_state.Texture.Enable(Shadow_map_texture);
 
 		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -529,24 +561,39 @@ void opengl_tnl_init()
 		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_REF_DEPTH_TO_TEXTURE_EXT);
-		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
-		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_DEPTH_TEXTURE_MODE_ARB, GL_INTENSITY);
-		int size = (Cmdline_shadow_quality == 2 ? 4096 : 2048);
-		vglTexImage3D(GL_TEXTURE_2D_ARRAY_EXT, 0, GL_DEPTH_COMPONENT32, size, size, 3, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		vglTexImage3D(GL_TEXTURE_2D_ARRAY_EXT, 0, GL_RGBA32F_ARB, size, size, 4, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+		//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F_ARB, size, size, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 
-		vglFramebufferTextureEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, Shadow_map_texture, 0);	
+		vglFramebufferTextureEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, Shadow_map_texture, 0);
+		//vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Shadow_map_texture, 0);
 
 		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+
+		bool rval = true;
+
+		if ( opengl_check_for_errors("post_init_framebuffer()") ) {
+			rval = false;
+		}
 	}
 }
 
 void opengl_tnl_shutdown()
 {
+	if ( Shadow_map_depth_texture ) {
+		glDeleteTextures(1, &Shadow_map_depth_texture);
+		Shadow_map_depth_texture = 0;
+	}
+
 	if ( Shadow_map_texture ) {
 		glDeleteTextures(1, &Shadow_map_texture);
-		Scene_color_texture = 0;
+		Shadow_map_texture = 0;
 	}
+
 	opengl_destroy_all_buffers();
 }
 
@@ -807,14 +854,15 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		}
 	}
 
-	if ( ( shader_flags & SDR_FLAG_TRANSFORM ) && texture_slot[TEX_SLOT_TRANSFORM] >= 0 ) {
-		GL_state.Texture.SetActiveUnit(texture_slot[TEX_SLOT_TRANSFORM]);
-		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-		GL_state.Texture.Enable(Interp_transform_texture);
-	}
+// 	if ( ( shader_flags & SDR_FLAG_TRANSFORM ) && texture_slot[TEX_SLOT_TRANSFORM] >= 0 ) {
+// 		GL_state.Texture.SetActiveUnit(texture_slot[TEX_SLOT_TRANSFORM]);
+// 		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+// 		GL_state.Texture.Enable(Interp_transform_texture);
+// 	}
 
 	if(in_shadow_map) {
-		vglDrawElementsInstancedBaseVertex(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start), 3, (GLint)bufferp->vertex_offset/bufferp->stride);
+		vglDrawElementsInstancedBaseVertex(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start), 4, (GLint)bufferp->vertex_offset/bufferp->stride);
+		//vglDrawRangeElementsBaseVertex(GL_TRIANGLES, datap->i_first, datap->i_last, count, element_type, ibuffer + (datap->index_offset + start), (GLint)bufferp->vertex_offset/bufferp->stride);
 	} else {
 		if ( Is_Extension_Enabled(OGL_ARB_DRAW_ELEMENTS_BASE_VERTEX) ) {
 			if (Cmdline_drawelements) {
@@ -2034,7 +2082,14 @@ void gr_opengl_start_shadow_map(float neardist, float middist, float fardist)
 
 	glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &saved_fb);
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo);
-	glClear(GL_DEPTH_BUFFER_BIT);
+
+	//glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+	GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT};
+	vglDrawBuffers(1, buffers);
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 	gr_opengl_set_lighting(false,false);
 	if(lp)
 	{
@@ -2183,31 +2238,149 @@ void gr_opengl_start_shadow_map(float neardist, float middist, float fardist)
 		GL_htl_projection_matrix_set = 1;
 		gr_set_view_matrix(&Eye_position, &orient);
 		glGetFloatv(GL_MODELVIEW_MATRIX, lmatrix);
-		int size = (Cmdline_shadow_quality == 2 ? 4096 : 2048);
+		int size = (Cmdline_shadow_quality == 2 ? 1024 : 512);
 		glViewport(0, 0, size, size);
-		glDrawBuffer(GL_NONE);
-		glReadBuffer(GL_NONE);
+		//glDrawBuffer(GL_NONE);
+		//glReadBuffer(GL_NONE);
 	}
 }
 
+void gr_opengl_shadow_map_start(matrix *light_orient, light_frustum_info *verynear_frustum, light_frustum_info *near_frustum, light_frustum_info *mid_frustum, light_frustum_info *far_frustum)
+{
+	if(!Cmdline_shadow_quality)
+		return;
+
+	light *lp = *Static_light.begin();
+
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &saved_fb);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo);
+
+	//glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+	GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT};
+	vglDrawBuffers(1, buffers);
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	gr_opengl_set_lighting(false,false);
+	
+	in_shadow_map = true;
+	Glowpoint_override_save = Glowpoint_override;
+	Glowpoint_override = true;
+
+	memcpy(lprojmatrix[0], verynear_frustum->proj_matrix, sizeof(float)*16);
+	memcpy(lprojmatrix[1], near_frustum->proj_matrix, sizeof(float)*16);
+	memcpy(lprojmatrix[2], mid_frustum->proj_matrix, sizeof(float)*16);
+	memcpy(lprojmatrix[3], far_frustum->proj_matrix, sizeof(float)*16);
+
+	vec3d zero = ZERO_VECTOR;
+
+	GL_htl_projection_matrix_set = 1;
+	//gr_set_view_matrix(&near_frustum->view_position, light_orient);
+	//gr_set_view_matrix(&zero, light_orient);
+	gr_set_view_matrix(&Eye_position, light_orient);
+	//glOrtho(near_frustum->min.xyz.x, near_frustum->max.xyz.x, near_frustum->min.xyz.y, near_frustum->max.xyz.y, near_frustum->min.xyz.z, near_frustum->max.xyz.z);
+
+// 	glMatrixMode(GL_PROJECTION);
+// 	glLoadIdentity();
+// 	glOrtho(-1.0f, 1.0f, -1.0f, 1.0f, Min_draw_distance, Max_draw_distance);
+// 	glMatrixMode(GL_MODELVIEW);
+	//gr_set_view_matrix(&zero, light_orient);
+	//gr_set_proj_matrix(Proj_fov, 1.0, Min_draw_distance, Max_draw_distance);
+	//gr_set_view_matrix(&Eye_position, &Eye_matrix);
+
+	glGetFloatv(GL_MODELVIEW_MATRIX, lmatrix);
+
+	int size = (Cmdline_shadow_quality == 2 ? 1024 : 512);
+	glViewport(0, 0, size, size);
+}
+
+void gr_opengl_shadow_map_switch(int shadow_map_num)
+{
+	int size = (Cmdline_shadow_quality == 2 ? 1024 : 512);
+
+	if ( shadow_map_num == 0 ) {
+		glViewport(0, 0, size*0.5f, size*0.5f);
+		//glViewport(0, 0, size, size);
+		
+		GL_state.ScissorTest(GL_TRUE);
+		//glScissor(0, 0, size, size);
+		glScissor(0, 0, size*0.5f, size*0.5f);
+	} else if ( shadow_map_num == 1 ) {
+		glViewport(0, size*0.5f, size*0.5f, size*0.5f);
+		//glViewport(0, 0, size, size);
+
+		GL_state.ScissorTest(GL_TRUE);
+		//glScissor(0, 0, size, size);
+		glScissor(0, size*0.5f, size*0.5f, size*0.5f);
+	} else if ( shadow_map_num == 2 ) {
+		glViewport(size*0.5f, 0, size*0.5f, size*0.5f);
+
+		GL_state.ScissorTest(GL_TRUE);
+		glScissor(size*0.5f, 0, size*0.5f, size*0.5f);
+	} else {
+		glViewport(size*0.5f, size*0.5f, size*0.5f, size*0.5f);
+
+		GL_state.ScissorTest(GL_TRUE);
+		glScissor(size*0.5f, size*0.5f, size*0.5f, size*0.5f);
+	}
+
+	Current_shadow_frustum = shadow_map_num;
+}
 
 void gr_opengl_end_shadow_map()
 {
 		if(!in_shadow_map)
 			return;
+
+		gr_end_view_matrix();
+		in_shadow_map = false;
+
+		gr_post_process_shadow_map();
+
 		gr_zbuffer_set(ZBUFFER_TYPE_FULL);
 		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, saved_fb);
 		if(saved_fb)
 		{
-			GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
-			vglDrawBuffers(2, buffers);
+// 			GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
+// 			vglDrawBuffers(2, buffers);
 		}
-		in_shadow_map = false;
+
+		GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
+		vglDrawBuffers(2, buffers);
+
 		Glowpoint_override = Glowpoint_override_save;
 		GL_htl_projection_matrix_set = 0;
-		gr_end_view_matrix();
-
+		
 		glViewport(gr_screen.offset_x, (gr_screen.max_h - gr_screen.offset_y - gr_screen.clip_height), gr_screen.clip_width, gr_screen.clip_height);
+		glScissor(gr_screen.offset_x, (gr_screen.max_h - gr_screen.offset_y - gr_screen.clip_height), gr_screen.clip_width, gr_screen.clip_height);
+}
+
+void gr_opengl_shadow_map_end()
+{
+	if(!in_shadow_map)
+		return;
+
+	gr_end_view_matrix();
+	in_shadow_map = false;
+
+	//gr_post_process_shadow_map();
+
+	gr_zbuffer_set(ZBUFFER_TYPE_FULL);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, saved_fb);
+	if(saved_fb)
+	{
+		// 			GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
+		// 			vglDrawBuffers(2, buffers);
+	}
+
+	GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
+	vglDrawBuffers(2, buffers);
+
+	Glowpoint_override = Glowpoint_override_save;
+	GL_htl_projection_matrix_set = 0;
+
+	glViewport(gr_screen.offset_x, (gr_screen.max_h - gr_screen.offset_y - gr_screen.clip_height), gr_screen.clip_width, gr_screen.clip_height);
 }
 
 void gr_opengl_clear_shadow_map()
@@ -2350,7 +2523,7 @@ void gr_opengl_tnl_set_uniforms(int flags, uint shader_flags, int tmap_type)
 		vglUniform1iARB( opengl_shader_get_uniform("shadow_map"), render_pass );
 		GL_state.Texture.SetActiveUnit(render_pass);
 		GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY_EXT);
-		GL_state.Texture.Enable(Shadow_map_texture);
+		GL_state.Texture.Enable(Shadow_map_depth_texture);
 		render_pass++; // bump!
 	}
 
@@ -2375,12 +2548,14 @@ void gr_opengl_tnl_set_uniforms(int flags, uint shader_flags, int tmap_type)
 	}
 
 	if ( shader_flags & SDR_FLAG_TRANSFORM ) {
-		GL_state.Texture.SetActiveUnit(render_pass);
-		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-		GL_state.Texture.Enable(Interp_transform_texture);
-
-		vglUniform1iARB( opengl_shader_get_uniform("transform_tex"), render_pass );
-		render_pass++;
+		GL_state.Array.BindUniformBuffer(Interp_transform_texture, 0);
+		vglUniformBlockBindingARB(Current_shader->program_id, 0, opengl_shader_get_uniform_block("transform_data"));
+// 		GL_state.Texture.SetActiveUnit(render_pass);
+// 		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+// 		GL_state.Texture.Enable(Interp_transform_texture);
+// 
+// 		vglUniform1iARB( opengl_shader_get_uniform("transform_tex"), render_pass );
+//		render_pass++;
 	}
 
 	// Team colors are passed to the shader here, but the shader needs to handle their application.
@@ -2830,13 +3005,13 @@ void uniform_handler::generateUniforms(uniform_block *block_out, int flags, uint
 		model_matrix.a1d[15] = 1.0f;
 
 		matrix4 l_matrix;
-		matrix4 l_proj_matrix[3];
+		matrix4 l_proj_matrix[4];
 
 		for ( int i = 0; i < 16; ++i ) {
 			l_matrix.a1d[i] = lmatrix[i];
 		}
 
-		for ( int i = 0; i < 3; ++i ) {
+		for ( int i = 0; i < 4; ++i ) {
 			for ( int j = 0; j < 16; ++j ) {
 				l_proj_matrix[i].a1d[j] = lprojmatrix[i][j];
 			}
@@ -2856,9 +3031,10 @@ void uniform_handler::generateUniforms(uniform_block *block_out, int flags, uint
 // 		vglUniformMatrix4fvARB( opengl_shader_get_uniform("model_matrix"), 1, GL_FALSE, modelmatrix );
 //		queueUniform4fv("shadow_mv_matrix", 1, GL_FALSE, &l_matrix);
 		queueUniformMatrix4f("shadow_mv_matrix", GL_FALSE, l_matrix);
-		queueUniform4fv("shadow_proj_matrix", 3, GL_FALSE, l_proj_matrix);
+		queueUniform4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
 //		queueUniform4fv("model_matrix", 1, GL_FALSE, &model_matrix);
 		queueUniformMatrix4f("model_matrix", GL_FALSE, model_matrix);
+		queueUniformf("veryneardist", shadow_veryneardist);
 		queueUniformf("neardist", shadow_neardist);
 		queueUniformf("middist", shadow_middist);
 		queueUniformf("fardist", shadow_fardist);
@@ -2868,15 +3044,17 @@ void uniform_handler::generateUniforms(uniform_block *block_out, int flags, uint
 	}
 
 	if ( sdr_flags & SDR_FLAG_GEOMETRY ) {
-		matrix4 l_proj_matrix[3];
+	//if ( sdr_flags & SDR_FLAG_SHADOW_MAP ) {
+		matrix4 l_proj_matrix[4];
 
-		for ( int i = 0; i < 3; ++i ) {
+		for ( int i = 0; i < 4; ++i ) {
 			for ( int j = 0; j < 16; ++j ) {
 				l_proj_matrix[i].a1d[j] = lprojmatrix[i][j];
 			}
 		}
 
-		queueUniform4fv("shadow_proj_matrix", 3, GL_FALSE, l_proj_matrix);
+		queueUniformi("shadow_map_num", Current_shadow_frustum);
+		queueUniform4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
 		//vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_proj_matrix"), 3, GL_FALSE, &lprojmatrix[0][0]);
 	}
 
@@ -2887,9 +3065,11 @@ void uniform_handler::generateUniforms(uniform_block *block_out, int flags, uint
 	}
 
 	if ( sdr_flags & SDR_FLAG_TRANSFORM ) {
-		queueUniformi("transform_tex", render_pass);
-		block_out->texture_slots[TEX_SLOT_TRANSFORM] = render_pass;
-		++render_pass;
+		GL_state.Array.BindUniformBuffer(Interp_transform_texture, 0);
+		vglUniformBlockBindingARB(Current_shader->program_id, 0, opengl_shader_get_uniform_block("transform_data"));
+// 		queueUniformi("transform_tex", render_pass);
+// 		block_out->texture_slots[TEX_SLOT_TRANSFORM] = render_pass;
+// 		++render_pass;
 	}
 
 	// Team colors are passed to the shader here, but the shader needs to handle their application.
@@ -2909,6 +3089,170 @@ void uniform_handler::generateUniforms(uniform_block *block_out, int flags, uint
 	block_out->uniform_start_index = start_index;
 	block_out->num_uniforms = num_uniforms;
 }
+
+// void uniform_handler::generateUniforms(uniform_block *block_out, int flags, int sdr_flags, int prev_sdr_flags, uniform_block *prev_block)
+// {
+// 	int start_index = uniforms.size();
+// 	int num_uniforms = 0;
+// 	int render_pass = 0;
+// 
+// 	Assert(block_out != NULL);
+// 
+// 	if ( sdr_flags == prev_sdr_flags ) {
+// 		loadUniformLookup(prev_block);
+// 	} else {
+// 		loadUniformLookup(NULL);
+// 	}
+// 
+// 	if ( flags & TMAP_ANIMATED_SHADER ) {
+// 		queueUniformf("anim_timer", opengl_shader_get_animated_timer());
+// 		queueUniformi("effect_num", opengl_shader_get_animated_effect());
+// 		queueUniformf("vpwidth", 1.0f/gr_screen.max_w);
+// 		queueUniformf("vpheight", 1.0f/gr_screen.max_h);
+// 	}
+// 
+// 	int num_lights = MIN(n_lights, GL_max_lights) - 1;
+// 	queueUniformi("n_lights", num_lights);
+// 
+// 	if ( sdr_flags & SDR_FLAG_DIFFUSE_MAP ) {
+// 		queueUniformi("sBasemap", render_pass);
+// 		block_out->texture_slots[TEX_SLOT_DIFFUSE] = render_pass;
+// 		++render_pass;
+// 
+// 		int desaturate = 0;
+// 		if ( flags & TMAP_FLAG_DESATURATE ) {
+// 			desaturate = 1;
+// 		}
+// 
+// 		queueUniformi("desaturate", desaturate);
+// 		queueUniformf("desaturate_r", gr_screen.current_color.red/255.0f);
+// 		queueUniformf("desaturate_g", gr_screen.current_color.green/255.0f);
+// 		queueUniformf("desaturate_b", gr_screen.current_color.blue/255.0f);
+// 	}
+// 
+// 	if ( sdr_flags & SDR_FLAG_GLOW_MAP ) {
+// 		queueUniformi("sGlowmap", render_pass);
+// 		block_out->texture_slots[TEX_SLOT_GLOW] = render_pass;
+// 		++render_pass;
+// 	}
+// 
+// 	if ( sdr_flags & SDR_FLAG_SPEC_MAP ) {
+// 		queueUniformi("sSpecmap", render_pass);
+// 		block_out->texture_slots[TEX_SLOT_SPEC] = render_pass;
+// 		++render_pass;
+// 
+// 		if ( sdr_flags & SDR_FLAG_ENV_MAP) {
+// 			// 0 == env with non-alpha specmap, 1 == env with alpha specmap
+// 			int alpha_spec = bm_has_alpha_channel(ENVMAP);
+// 
+// 			queueUniformi("alpha_spec", alpha_spec);
+// 
+// 			matrix4 texture_mat;
+// 
+// 			for ( int i = 0; i < 16; ++i ) {
+// 				texture_mat.a1d[i] = GL_env_texture_matrix[i];
+// 			}
+// 
+// 			queueUniform4fv("envMatrix", 1, GL_FALSE, &texture_mat);
+// 			queueUniformi("sEnvmap", render_pass);
+// 			block_out->texture_slots[TEX_SLOT_ENV] = render_pass;
+// 			++render_pass;
+// 		}
+// 	}
+// 
+// 	if ( sdr_flags & SDR_FLAG_NORMAL_MAP ) {
+// 		queueUniformi("sNormalmap", render_pass);
+// 		block_out->texture_slots[TEX_SLOT_NORMAL] = render_pass;
+// 		++render_pass;
+// 	}
+// 
+// 	if ( sdr_flags & SDR_FLAG_HEIGHT_MAP ) {
+// 		queueUniformi("sHeightmap", render_pass);
+// 		block_out->texture_slots[TEX_SLOT_HEIGHT] = render_pass;
+// 		++render_pass;
+// 	}
+// 
+// 	if ( sdr_flags & SDR_FLAG_MISC_MAP ) {
+// 		queueUniformi("sMiscmap", render_pass);
+// 		block_out->texture_slots[TEX_SLOT_MISC] = render_pass;
+// 		++render_pass;
+// 	}
+// 
+// 	if ( sdr_flags & SDR_FLAG_SHADOWS ) {
+// 		matrix4 model_matrix;
+// 		model_matrix.a1d[0]  = orientation.vec.rvec.xyz.x;   model_matrix.a1d[4]  = orientation.vec.uvec.xyz.x;   model_matrix.a1d[8]  = orientation.vec.fvec.xyz.x;
+// 		model_matrix.a1d[1]  = orientation.vec.rvec.xyz.y;   model_matrix.a1d[5]  = orientation.vec.uvec.xyz.y;   model_matrix.a1d[9]  = orientation.vec.fvec.xyz.y;
+// 		model_matrix.a1d[2]  = orientation.vec.rvec.xyz.z;   model_matrix.a1d[6]  = orientation.vec.uvec.xyz.z;   model_matrix.a1d[10] = orientation.vec.fvec.xyz.z;
+// 		model_matrix.a1d[12] = position.xyz.x;
+// 		model_matrix.a1d[13] = position.xyz.y;
+// 		model_matrix.a1d[14] = position.xyz.z;
+// 		model_matrix.a1d[15] = 1.0f;
+// 
+// 		matrix4 l_matrix;
+// 		matrix4 l_proj_matrix[3];
+// 
+// 		for ( int i = 0; i < 16; ++i ) {
+// 			l_matrix.a1d[i] = lmatrix[i];
+// 		}
+// 
+// 		for ( int i = 0; i < 3; ++i ) {
+// 			for ( int j = 0; j < 16; ++j ) {
+// 				l_proj_matrix[i].a1d[j] = lprojmatrix[i][j];
+// 			}
+// 		}
+// 
+// 		queueUniform4fv("shadow_mv_matrix", 1, GL_FALSE, &l_matrix);
+// 		queueUniform4fv("shadow_proj_matrix", 3, GL_FALSE, l_proj_matrix);
+// 		queueUniform4fv("model_matrix", 1, GL_FALSE, &model_matrix);
+// 		queueUniformf("neardist", shadow_neardist);
+// 		queueUniformf("middist", shadow_middist);
+// 		queueUniformf("fardist", shadow_fardist);
+// 		queueUniformi("shadow_map", render_pass);
+// 		block_out->texture_slots[TEX_SLOT_SHADOW] = render_pass;
+// 		++render_pass; // bump!
+// 	}
+// 
+// 	if ( sdr_flags & SDR_FLAG_GEOMETRY ) {
+// 		matrix4 l_proj_matrix[3];
+// 
+// 		for ( int i = 0; i < 3; ++i ) {
+// 			for ( int j = 0; j < 16; ++j ) {
+// 				l_proj_matrix[i].a1d[j] = lprojmatrix[i][j];
+// 			}
+// 		}
+// 
+// 		queueUniform4fv("shadow_proj_matrix", 3, GL_FALSE, l_proj_matrix);
+// 	}
+// 
+// 	if ( sdr_flags & SDR_FLAG_ANIMATED ) {
+// 		queueUniformi("sFramebuffer", render_pass);
+// 		block_out->texture_slots[TEX_SLOT_ANIMATED] = render_pass;
+// 		++render_pass;
+// 	}
+// 
+// 	if ( sdr_flags & SDR_FLAG_TRANSFORM ) {
+// 		queueUniformi("transform_tex", render_pass);
+// 		block_out->texture_slots[TEX_SLOT_TRANSFORM] = render_pass;
+// 		render_pass++;
+// 	}
+// 
+// 	// Team colors are passed to the shader here, but the shader needs to handle their application.
+// 	// By default, this is handled through the r and g channels of the misc map, but this can be changed
+// 	// in the shader; test versions of this used the normal map r and b channels
+// 	if ( sdr_flags & SDR_FLAG_TEAMCOLOR ) {
+// 		queueUniform3f("stripe_color", stripe_color);
+// 		queueUniform3f("base_color", base_color);
+// 	}
+// 
+// 	if ( sdr_flags & SDR_FLAG_THRUSTER ) {
+// 		queueUniformf("thruster_scale", thruster_scale);
+// 	}
+// 
+// 	num_uniforms = uniforms.size() - start_index;
+// 
+// 	block_out->uniform_start_index = start_index;
+// 	block_out->num_uniforms = num_uniforms;
+// }
 
 void uniform_handler::loadUniforms(uniform_block *uniforms)
 {

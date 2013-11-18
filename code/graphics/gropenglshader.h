@@ -24,6 +24,8 @@
 
 #define MAX_SDR_ATTRIBUTES		4
 
+#define MAX_SDR_UNIFORM_BLOCKS	4
+
 struct opengl_shader_flag_t {
 	char *vert;
 	char *frag;
@@ -47,6 +49,9 @@ struct opengl_shader_uniform_reference_t {
 	int num_attributes;
 	char* attributes[MAX_SDR_ATTRIBUTES];
 
+	int num_uniform_blocks;
+	char* uniform_blocks[MAX_SDR_UNIFORM_BLOCKS];
+
 	const char* name;
 };
 
@@ -63,6 +68,7 @@ typedef struct opengl_shader_t {
 	int flags2;
 
 	SCP_vector<opengl_shader_uniform_t> uniforms;
+	SCP_vector<opengl_shader_uniform_t> uniform_blocks;
 	SCP_vector<opengl_shader_uniform_t> attributes; // using the uniform data structure to keep track of vert attribs
 
 	opengl_shader_t() :
@@ -75,6 +81,8 @@ extern SCP_vector<opengl_shader_t> GL_shader;
 
 extern opengl_shader_t *Current_shader;
 extern opengl_shader_t Deferred_light_shader;
+
+extern geometry_sdr_params *Current_geo_sdr_params;
 
 int gr_opengl_maybe_create_shader(unsigned int flags);
 void opengl_shader_set_current(opengl_shader_t *shader_obj = NULL);
@@ -90,6 +98,9 @@ GLint opengl_shader_get_attribute(const char *attribute_text);
 
 void opengl_shader_init_uniform(const char *uniform_text);
 GLint opengl_shader_get_uniform(const char *uniform_text);
+
+void opengl_shader_init_uniform_block(const char *uniform_text);
+GLint opengl_shader_get_uniform_block(const char *uniform_text);
 
 void opengl_shader_set_animated_effect(int effect);
 int opengl_shader_get_animated_effect();

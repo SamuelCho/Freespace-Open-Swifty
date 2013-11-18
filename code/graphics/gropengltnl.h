@@ -17,6 +17,7 @@
 #include "graphics/gropengl.h"
 #include "globalincs/pstypes.h"
 #include "model/model.h"
+#include "graphics/shadows.h"
 
 extern GLint GL_max_elements_vertices;
 extern GLint GL_max_elements_indices;
@@ -125,6 +126,12 @@ public:
 };
 
 extern uniform_handler Current_uniforms;
+
+extern float shadow_veryneardist;
+extern float shadow_neardist;
+extern float shadow_middist;
+extern float shadow_fardist;
+extern bool in_shadow_map;
 
 void gr_opengl_start_instance_matrix(vec3d *offset, matrix *rotation);
 void gr_opengl_start_instance_angles(vec3d *pos, angles *rotation);

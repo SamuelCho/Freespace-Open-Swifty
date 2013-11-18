@@ -432,6 +432,7 @@
     <ClCompile Include="..\..\code\graphics\gropenglstate.cpp" />
     <ClCompile Include="..\..\code\graphics\gropengltexture.cpp" />
     <ClCompile Include="..\..\code\graphics\gropengltnl.cpp" />
+    <ClCompile Include="..\..\code\graphics\shadows.cpp" />
     <ClCompile Include="..\..\code\hud\hud.cpp" />
     <ClCompile Include="..\..\code\hud\hudartillery.cpp" />
     <ClCompile Include="..\..\code\hud\hudbrackets.cpp" />
@@ -707,6 +708,7 @@
     <ClInclude Include="..\..\code\Graphics\2d.h" />
     <ClInclude Include="..\..\code\graphics\grbatch.h" />
     <ClInclude Include="..\..\code\graphics\grinternal.h" />
+    <ClInclude Include="..\..\code\graphics\shadows.h" />
     <ClInclude Include="..\..\code\graphics\tmapper.h" />
     <ClInclude Include="..\..\code\Graphics\font.h" />
     <ClInclude Include="..\..\code\graphics\generic.h" />
