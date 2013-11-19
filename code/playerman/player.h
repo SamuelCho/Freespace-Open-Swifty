@@ -81,20 +81,25 @@ typedef struct campaign_stats {
 	scoring_struct stats;
 } campaign_stats;
 
-typedef struct player {
+class player
+{
+public:
+	void reset();
+	void assign(const player *pl);
 
 	char				callsign[CALLSIGN_LEN + 1];
 	char				short_callsign[CALLSIGN_LEN + 1];	// callsign truncated to SHORT_CALLSIGN_PIXEL_W pixels
 	int				short_callsign_width;					// useful for mutliplayer chat boxes.
-	char				image_filename[MAX_FILENAME_LEN];	// filename of the image for this pilot
-	char				squad_filename[MAX_FILENAME_LEN];	// filename of the squad image for this pilot
-	char				squad_name[NAME_LENGTH + 1];			// pilot's squadron name
-	int				num_campaigns;								// tells how many array entries in the campaigns field
-	char				current_campaign[MAX_FILENAME_LEN]; // Name of the currently active campaign, or zero-length string if none
-	campaign_info	*campaigns;									// holds information regarding all active campaigns the player is playing
+
+	char				image_filename[MAX_FILENAME_LEN+1];	// filename of the image for this pilot
+	char				s_squad_filename[MAX_FILENAME_LEN+1];	// filename of the squad image for this pilot
+	char				s_squad_name[NAME_LENGTH + 1];			// pilot's squadron name
+	char				m_squad_filename[MAX_FILENAME_LEN+1];	// filename of the squad image for this pilot (multiplayer)
+	char				m_squad_name[NAME_LENGTH + 1];			// pilot's squadron name (multiplayer)
+
+	char				current_campaign[MAX_FILENAME_LEN+1]; // Name of the currently active campaign, or zero-length string if none
 	int				readyroom_listing_mode;
 
-	ubyte			main_hall;							// Goober5000 - now allows 256 halls; I didn't make this int because it would mess up the file compatibility
 	int				flags;
 	int				save_flags;
 
@@ -132,16 +137,15 @@ typedef struct player {
 																		//	done so we don't check each frame
 
 	int				distance_warning_count;					// Number of distance warings 
-
 	int				distance_warning_time;					// Time at which distance warning was given
 																
 	int				allow_warn_timestamp;					// Timestamp used to regulate how often a player might receive
 																		// warning messages about ships attacking.
 	int				warn_count;									// number of attack warnings player has received this mission
 	float				damage_this_burst;						// amount of damage done this frame to friendly craft
+
 	int				repair_sound_loop;						// Sound id for ship repair looping sound, this is in the player 
 																		// file since the repair sound only plays when Player ship is getting repaired
-	
 	int				cargo_scan_loop;							// Sound id for scanning cargo looping sound
 
 	int				praise_count;								// number of praises received this mission
@@ -198,8 +202,7 @@ typedef struct player {
 	ubyte				show_skip_popup;							// false if dude clicked "don't show this again" -- persists for current mission only
 
 	// player-persistent variables - Goober5000
-	int				num_variables;
-	sexp_variable	player_variables[MAX_SEXP_VARIABLES];
+	SCP_vector<sexp_variable>	variables;
 
 	SCP_string		death_message;								// Goober5000
 
@@ -207,134 +210,8 @@ typedef struct player {
 	button_info		lua_bi;				// copy of button info for scripting purposes (not to disturb real controls).
 	button_info		lua_bi_full;		// gets all the button controls, not just the ones usually allowed
 
-	//CommanderDJ - constructor to initialise everything to safe defaults.
-	//mostly copied from player::reset() in Antipodes 8
-	player()
-	{
-		memset(callsign, 0, sizeof(callsign));
-		memset(short_callsign, 0, sizeof(short_callsign));
-
-		short_callsign_width = 0;
-		memset(image_filename, 0, sizeof(image_filename));
-		memset(squad_filename, 0, sizeof(squad_filename));
-		memset(squad_name, 0, sizeof(squad_name));
-
-		memset(current_campaign, 0, sizeof(current_campaign));
-
-		main_hall = 0;
-
-		readyroom_listing_mode = 0;
-		flags = 0;
-		save_flags = 0;
-
-		memset(keyed_targets, 0, sizeof(keyed_targets));
-		current_hotkey_set = -1;
-
-		lead_target_pos = vmd_zero_vector;
-		lead_target_cheat = 0;
-		lead_indicator_active = 0;
-
-		lock_indicator_x = 0;
-		lock_indicator_y = 0;
-		lock_indicator_start_x = 0;
-		lock_indicator_start_y = 0;
-		lock_indicator_visible = 0;
-		lock_time_to_target = 0.0f;
-		lock_dist_to_target = 0.0f;
-
-		last_ship_flown_si_index = -1;
-
-		objnum = -1;
-
-		memset(&bi, 0, sizeof(button_info));
-		memset(&ci, 0, sizeof(control_info));
-
-		init_scoring_element(&stats);
-
-		friendly_hits = 0;
-		friendly_damage = 0.0f;
-		friendly_last_hit_time = 0;
-		last_warning_message_time = 0;
-
-		control_mode = 0;
-		saved_viewer_mode = 0;
-
-		check_warn_timestamp = -1;
-
-		distance_warning_count = 0;
-		distance_warning_time = -1;
-
-		allow_warn_timestamp = -1;
-		warn_count = 0;
-
-		damage_this_burst = 0.0f;
-
-		repair_sound_loop = -1;
-		cargo_scan_loop = -1;
-
-		praise_count = 0;
-		allow_praise_timestamp = -1;
-		praise_delay_timestamp = -1;
-
-		ask_help_count = 0;
-		allow_ask_help_timestamp = -1;
-
-		scream_count = 0;
-		allow_scream_timestamp = -1;
-
-		low_ammo_complaint_count = 0;
-		allow_ammo_timestamp = -1;
-
-		praise_self_count = 0;
-		praise_self_timestamp = -1;
-
-		subsys_in_view = -1;
-		request_repair_timestamp = -1;
-
-		cargo_inspect_time = -1;
-		target_is_dying = -1;
-		current_target_sx = 0;
-		current_target_sy = 0;
-		target_in_lock_cone = 0;
-		locking_subsys = NULL;
-		locking_subsys_parent = -1;
-		locking_on_center = 0;
-
-		killer_objtype = -1;
-		killer_species = 0;
-		killer_weapon_index = -1;
-		memset(killer_parent_name, 0, sizeof(killer_parent_name));
-
-		check_for_all_alone_msg = -1;
-
-		update_dumbfire_time = -1;
-		update_lock_time = -1;
-		threat_flags = 0;
-		auto_advance = 1;
-
-		multi_options_set_local_defaults(&m_local_options);
-		multi_options_set_netgame_defaults(&m_server_options);
-
-		insignia_texture = -1;
-
-		tips = 1;
-
-		shield_penalty_stamp = 0;
-
-		failures_this_session = 0;
-		show_skip_popup = 0;
-
-		num_variables = 0;
-		memset(player_variables, 0, sizeof(player_variables));
-
-		death_message = "";
-
-		memset(&lua_ci, 0, sizeof(control_info));
-		memset(&lua_bi, 0, sizeof(button_info));
-		memset(&lua_bi_full, 0, sizeof(button_info));
-	}
-
-} player;
+	int		player_was_multi;		// 1 if the player file was last used in Multiplayer
+};
 
 extern player Players[MAX_PLAYERS];
 
@@ -369,7 +246,7 @@ void player_stop_cargo_scan_sound();
 void player_maybe_start_cargo_scan_sound();
 
 // will attempt to load an insignia bitmap and set it as active for the player
-void player_set_squad_bitmap(player *p, char *fname);
+void player_set_squad_bitmap(player *p, char *fnamem, bool ismulti);
 
 // set squadron
 void player_set_squad(player *p, char *squad_name);

@@ -612,7 +612,7 @@ struct fs2_game_chat_packet
 //+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 // send a general game chat packet (if msg_mode == MULTI_MSG_TARGET, need to pass in "to", if == MULTI_MSG_EXPR, need to pass in expr)
-void send_game_chat_packet(net_player *from, char *msg, int msg_mode, net_player *to, char *expr, int server_msg)
+void send_game_chat_packet(net_player *from, const char *msg, int msg_mode, net_player *to, const char *expr, int server_msg)
 {
 	ubyte data[MAX_PACKET_SIZE],mode;
 	int packet_size,idx;
@@ -1043,7 +1043,7 @@ void send_new_player_packet(int new_player_num,net_player *target)
 	ADD_INT(Net_players[new_player_num].flags);
 	ADD_STRING(Net_players[new_player_num].m_player->callsign);
 	ADD_STRING(Net_players[new_player_num].m_player->image_filename);
-	ADD_STRING(Net_players[new_player_num].m_player->squad_filename);
+	ADD_STRING(Net_players[new_player_num].m_player->m_squad_filename);
 	ADD_STRING(Net_players[new_player_num].p_info.pxo_squad_name);
 
 	val = (ubyte)Net_players[new_player_num].p_info.team;
@@ -1122,7 +1122,7 @@ void process_new_player_packet(ubyte* data, header* hinfo)
 		}
 		// copy his pilot squad filename
 		Net_players[new_player_num].m_player->insignia_texture = -1;
-		player_set_squad_bitmap(Net_players[new_player_num].m_player, new_player_squad);				
+		player_set_squad_bitmap(Net_players[new_player_num].m_player, new_player_squad, true);
 
 		// copy in his pxo squad name
 		strcpy_s(Net_players[new_player_num].p_info.pxo_squad_name, new_player_pxo_squad);
@@ -1236,7 +1236,7 @@ void send_accept_player_data( net_player *npp, int is_ingame )
 		ADD_STRING(Net_players[i].m_player->image_filename);
 
 		// add his squad filename
-		ADD_STRING(Net_players[i].m_player->squad_filename);
+		ADD_STRING(Net_players[i].m_player->m_squad_filename);
 
 		// add his PXO squad name
 		ADD_STRING(Net_players[i].p_info.pxo_squad_name);
@@ -1330,7 +1330,7 @@ void process_accept_player_data( ubyte *data, header *hinfo )
 		
 		// copy his pilot squad filename
 		Net_players[player_num].m_player->insignia_texture = -1;
-		player_set_squad_bitmap(Net_players[player_num].m_player, squad_name);
+		player_set_squad_bitmap(Net_players[player_num].m_player, squad_name, true);
 
 		// copy his pxo squad name
 		strcpy_s(Net_players[player_num].p_info.pxo_squad_name, pxo_squad_name);
@@ -2108,7 +2108,7 @@ void process_netgame_update_packet( ubyte *data, header *hinfo )
 			multi_handle_state_special();
 						
 			Multi_sync_mode = MULTI_SYNC_PRE_BRIEFING;
-			strncpy( Game_current_mission_filename, Netgame.mission_name, MAX_FILENAME_LEN );					
+			strcpy_s( Game_current_mission_filename, Netgame.mission_name );
 			gameseq_post_event(GS_EVENT_MULTI_MISSION_SYNC);
 		} 
 		// if coming from the debriefing state
@@ -2121,7 +2121,7 @@ void process_netgame_update_packet( ubyte *data, header *hinfo )
 			multi_flush_mission_stuff();
 						
 			Multi_sync_mode = MULTI_SYNC_PRE_BRIEFING;
-			strncpy( Game_current_mission_filename, Netgame.mission_name, MAX_FILENAME_LEN );					
+			strcpy_s( Game_current_mission_filename, Netgame.mission_name );
 			gameseq_post_event(GS_EVENT_MULTI_MISSION_SYNC);
 		}
 	} 
@@ -2133,7 +2133,7 @@ void process_netgame_update_packet( ubyte *data, header *hinfo )
 			// do any special processing for forced state transitions
 			multi_handle_state_special();
 
-			strncpy( Game_current_mission_filename, Netgame.mission_name, MAX_FILENAME_LEN );					
+			strcpy_s( Game_current_mission_filename, Netgame.mission_name );
 			gameseq_post_event(GS_EVENT_START_BRIEFING);			
 		}
 	} 		
@@ -2501,7 +2501,7 @@ void send_ship_kill_packet( object *objp, object *other_objp, float percent_kill
 	if ( pm && !vaporized ) {
 		debris_signature = multi_get_next_network_signature( MULTI_SIG_DEBRIS );
 		multi_set_network_signature( (ushort)(debris_signature + pm->num_debris_objects), MULTI_SIG_DEBRIS );
-		Ships[objp->instance].arrival_distance = debris_signature;
+		Ships[objp->instance].debris_net_sig = debris_signature;
 	}
 
 	BUILD_HEADER(SHIP_KILL);
@@ -2632,7 +2632,7 @@ void process_ship_kill_packet( ubyte *data, header *hinfo )
 	multi_respawn_check(sobjp);
 
 	// store the debris signature in the arrival distance which will never get used for player ships
-	Ships[sobjp->instance].arrival_distance = debris_sig;
+	Ships[sobjp->instance].debris_net_sig = debris_sig;
 
 	// set this bit so that we don't accidentally start switching targets when we die
 	if(sobjp == Player_obj){
@@ -3337,9 +3337,9 @@ void process_turret_fired_packet( ubyte *data, header *hinfo )
 	}
 
 	weapon_objnum = weapon_create( &pos, &orient, wid, OBJ_INDEX(objp), -1, 1, 0, 0.0f, ssp);
-	wid = Weapons[Objects[weapon_objnum].instance].weapon_info_index;
 
 	if (weapon_objnum != -1) {
+		wid = Weapons[Objects[weapon_objnum].instance].weapon_info_index;
 		if ( Weapon_info[wid].launch_snd != -1 ) {
 			snd_play_3d( &Snds[Weapon_info[wid].launch_snd], &pos, &View_position );
 		}		
@@ -6413,23 +6413,19 @@ void send_player_stats_block_packet(net_player *pl, int stats_code, net_player *
 	switch(stats_code){
 	case STATS_ALLTIME:	
 		// alltime kills
-#ifdef INF_BUILD
+
 		idx = 0; 
 		while(idx<MAX_SHIP_CLASSES)
 		{
 			send_player_stats_block_packet(pl, STATS_ALLTIME_KILLS, target, (short)idx);
 			idx += MAX_SHIPS_PER_PACKET; 
 		}
-#else
-		for(idx=0;idx<MAX_SHIP_CLASSES;idx++){
-			u_tmp = (ushort)sc->kills[idx];
-			ADD_USHORT(u_tmp);
-		}
-#endif
+
+		ADD_USHORT( (ushort)Num_medals );
 
 		// medal information
-		for(idx=0;idx<MAX_MEDALS;idx++){
-			i_tmp = sc->medals[idx];
+		for(idx=0;idx<Num_medals;idx++){
+			i_tmp = sc->medal_counts[idx];
 			ADD_INT(i_tmp);
 		}
 
@@ -6454,19 +6450,13 @@ void send_player_stats_block_packet(net_player *pl, int stats_code, net_player *
 
 	case STATS_MISSION:	
 		// mission OKkills	
-#ifdef INF_BUILD
+
 		idx = 0; 
 		while(idx<MAX_SHIP_CLASSES)
 		{
 			send_player_stats_block_packet(pl, STATS_MISSION_CLASS_KILLS, target, (short)idx);
 			idx += MAX_SHIPS_PER_PACKET; 
 		}
-#else		
-		for(idx=0;idx<MAX_SHIP_CLASSES;idx++){
-			u_tmp = (ushort)sc->m_okKills[idx];
-			ADD_USHORT(u_tmp);			
-		}
-#endif
 	
 		ADD_INT(sc->m_score);
 		ADD_INT(sc->m_assists);
@@ -6499,12 +6489,11 @@ void send_player_stats_block_packet(net_player *pl, int stats_code, net_player *
 		ADD_INT(sc->m_assists);
 		break;
 	
-#ifdef INF_BUILD		
 	case STATS_MISSION_CLASS_KILLS:
 		ADD_SHORT(offset);
 		for (idx=offset; idx<MAX_SHIP_CLASSES && idx<offset+MAX_SHIPS_PER_PACKET; idx++)
 		{
-			ADD_USHORT((ushort)sc->m_okKills[idx]);			
+			ADD_INT(sc->m_okKills[idx]);			
 		}
 		break;
 		
@@ -6512,10 +6501,9 @@ void send_player_stats_block_packet(net_player *pl, int stats_code, net_player *
 		ADD_SHORT(offset);
 		for (idx=offset; idx<MAX_SHIP_CLASSES && idx<offset+MAX_SHIPS_PER_PACKET; idx++)
 		{
-			ADD_USHORT((ushort)sc->kills[idx]);			
+			ADD_INT(sc->kills[idx]);			
 		}
 		break;
-#endif
 	}
 
 	Assert(packet_size < MAX_PACKET_SIZE);
@@ -6545,7 +6533,7 @@ void process_player_stats_block_packet(ubyte *data, header *hinfo)
 	short player_id;
 	int offset = HEADER_LENGTH;
 	ushort u_tmp;
-	int i_tmp;
+	int i_tmp, num_medals;
 
 	// nprintf(("Network","----------++++++++++********RECEIVED STATS***********+++++++++----------\n"));
 
@@ -6565,16 +6553,14 @@ void process_player_stats_block_packet(ubyte *data, header *hinfo)
 	// get the stats code
 	GET_DATA(val);	
 	switch(val){
-
-#ifdef INF_BUILD
 	short si_offset;
 
 	case STATS_ALLTIME_KILLS:
 		GET_SHORT(si_offset);
 		for (idx = si_offset; idx<MAX_SHIP_CLASSES && idx<si_offset+MAX_SHIPS_PER_PACKET; idx++) 
 		{
-			GET_USHORT(u_tmp);
-			sc->kills[idx] = u_tmp;
+			GET_INT(i_tmp);
+			sc->kills[idx] = i_tmp;
 		}
 		break;
 
@@ -6582,27 +6568,20 @@ void process_player_stats_block_packet(ubyte *data, header *hinfo)
 		GET_SHORT(si_offset);
 		for (idx = si_offset; idx<MAX_SHIP_CLASSES && idx<si_offset+MAX_SHIPS_PER_PACKET; idx++) 
 		{
-			GET_USHORT(u_tmp);
-			sc->m_okKills[idx] = u_tmp;
+			GET_INT(i_tmp);
+			sc->m_okKills[idx] = i_tmp;
 		}
 		break;
-#endif
 
 	case STATS_ALLTIME:
 		ml_string("Received STATS_ALLTIME\n");
 
-#ifndef INF_BUILD
-		// kills - alltime
-		for (idx=0; idx<MAX_SHIP_CLASSES; idx++) {
-			GET_USHORT(u_tmp);
-			sc->kills[idx] = u_tmp;
-		}
-#endif
-
 		// read in the stats
-		for (idx=0; idx<MAX_MEDALS; idx++) {
+		GET_USHORT( num_medals );
+
+		for (idx=0; (idx < Num_medals) && (idx < num_medals); idx++) {
 			GET_INT(i_tmp);
-			sc->medals[idx] = i_tmp;
+			sc->medal_counts[idx] = i_tmp;
 		}
 
 		GET_INT(sc->score);
@@ -6627,14 +6606,6 @@ void process_player_stats_block_packet(ubyte *data, header *hinfo)
 	case STATS_MISSION:
 		ml_string("Received STATS_MISSION\n");
 
-#ifndef INF_BUILD
-		// kills - mission OK			
-		for (idx=0; idx<MAX_SHIP_CLASSES; idx++) {
-			GET_USHORT(u_tmp);
-			sc->m_okKills[idx] = u_tmp;			
-		}
-#endif
-		
 		GET_INT(sc->m_score);
 		GET_INT(sc->m_assists);
 		GET_INT(sc->m_kill_count);
@@ -7976,7 +7947,7 @@ void process_beam_fired_packet(ubyte *data, header *hinfo)
 	fire_info.beam_info_override = &b_info;
 	fire_info.accuracy = 1.0f;
 
-	if((fire_info.shooter == NULL) || (fire_info.shooter->type != OBJ_SHIP) || (fire_info.shooter->instance < 0) || (fire_info.shooter->instance > MAX_SHIPS)){
+	if((fire_info.shooter == NULL) || (fire_info.shooter->type != OBJ_SHIP) || (fire_info.shooter->instance < 0) || (fire_info.shooter->instance >= MAX_SHIPS)){
 		nprintf(("Network", "Couldn't get shooter info for BEAM weapon!\n"));
 		return;
 	}
@@ -8395,8 +8366,8 @@ void process_flak_fired_packet(ubyte *data, header *hinfo)
 
 	// create the weapon object	
 	weapon_objnum = weapon_create( &pos, &orient, wid, OBJ_INDEX(objp), -1, 1, 0, 0.0f, ssp);
-	wid = Weapons[Objects[weapon_objnum].instance].weapon_info_index;
 	if (weapon_objnum != -1) {
+		wid = Weapons[Objects[weapon_objnum].instance].weapon_info_index;
 		if ( Weapon_info[wid].launch_snd != -1 ) {
 			snd_play_3d( &Snds[Weapon_info[wid].launch_snd], &pos, &View_position );
 		}

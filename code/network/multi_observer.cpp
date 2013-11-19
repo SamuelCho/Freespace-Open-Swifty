@@ -44,11 +44,13 @@ int multi_obs_create_player(int player_num,char *name,net_addr *addr,player *pl)
 	Net_players[player_num].flags = (NETINFO_FLAG_DO_NETWORKING | NETINFO_FLAG_OBSERVER);
 	// memcpy(&Net_players[player_num].p_info.addr, addr, sizeof(net_addr));	
 	Net_players[player_num].m_player = pl;
-	
+
 	// 6/3/98 -- don't set observer to update high...let it be whatever player set it at.
 	//Net_players[player_num].p_info.options.obj_update_level = OBJ_UPDATE_HIGH;
+
 	// set up the net_player structure
-	memset(pl, 0, sizeof(player));
+	pl->reset();
+
 	stuff_netplayer_info( &Net_players[player_num], addr, 0, pl );
 	Net_players[player_num].last_heard_time = timer_get_fixed_seconds();
 	Net_players[player_num].reliable_socket = INVALID_SOCKET;
@@ -60,7 +62,7 @@ int multi_obs_create_player(int player_num,char *name,net_addr *addr,player *pl)
 
 	// reset the ping for this player
 	multi_ping_reset(&Net_players[player_num].s_info.ping);
-	
+
 	// timestamp his last_full_update_time
 	Net_players[player_num].s_info.last_full_update_time = timestamp(0);			
 	Net_players[player_num].m_player->objnum = -1;	
@@ -131,7 +133,7 @@ void multi_obs_create_observer_client()
 	Player_obj = &Objects[Net_player->m_player->objnum];
 	
 	// create the default player ship object and use that as my default virtual "ship", and make it "invisible"
-	pobj_num = parse_create_object(&Player_start_pobject);
+	pobj_num = parse_create_object(Player_start_pobject);
 	Assert(pobj_num != -1);
 	obj_set_flags(&Objects[pobj_num],OF_PLAYER_SHIP);
 	Player_ship = &Ships[Objects[pobj_num].instance];

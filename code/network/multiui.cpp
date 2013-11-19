@@ -48,6 +48,7 @@
 #include "network/multi_voice.h"
 #include "network/multi_endgame.h"
 #include "playerman/managepilot.h"
+#include "pilotfile/pilotfile.h"
 #include "stats/stats.h"
 #include "network/multi_pmsg.h"
 #include "network/multi_obj.h"
@@ -143,7 +144,7 @@ void multi_common_move_to_bottom()
 	Multi_common_top_text_line = Multi_common_num_text_lines - Multi_common_text_max_display[gr_screen.res];
 }
 
-void multi_common_set_text(char *str,int auto_scroll)
+void multi_common_set_text(const char *str,int auto_scroll)
 {
 	// make sure it fits
 	// store the entire string as well
@@ -162,7 +163,7 @@ void multi_common_set_text(char *str,int auto_scroll)
 	}
 }
 
-void multi_common_add_text(char *str,int auto_scroll)
+void multi_common_add_text(const char *str,int auto_scroll)
 {
 	// make sure it fits
 	// store the entire string as well
@@ -185,7 +186,7 @@ void multi_common_split_text()
 {
 	int	n_lines, i;
 	int	n_chars[MAX_BRIEF_LINES];
-	char	*p_str[MAX_BRIEF_LINES];
+	const char	*p_str[MAX_BRIEF_LINES];
 
 	n_lines = split_str(Multi_common_all_text, Multi_common_text_coords[gr_screen.res][2], n_chars, p_str, MULTI_COMMON_TEXT_MAX_LINES, MULTI_COMMON_TEXT_META_CHAR);
 	Assert(n_lines != -1);
@@ -256,7 +257,7 @@ void multi_common_notify_init()
 }
 
 // add a notification string, drawing appropriately depending on the state/screen we're in
-void multi_common_add_notify(char *str)
+void multi_common_add_notify(const char *str)
 {
 	if(str){
 		strcpy_s(Multi_common_notify_text,str);
@@ -1897,8 +1898,8 @@ void multi_join_send_join_request(int as_observer)
 	if(Player->image_filename[0] != '\0'){
 		strcpy_s(Multi_join_request.image_filename, Player->image_filename);
 	}	
-	if(Player->squad_filename[0] != '\0'){
-		strcpy_s(Multi_join_request.squad_filename, Player->squad_filename);
+	if(Player->m_squad_filename[0] != '\0'){
+		strcpy_s(Multi_join_request.squad_filename, Player->m_squad_filename);
 	}
 
 	// tracker id (if any)
@@ -1919,7 +1920,7 @@ void multi_join_send_join_request(int as_observer)
 	}
 	
 	// pxo squad info
-	strncpy(Multi_join_request.pxo_squad_name, Multi_tracker_squad_name, LOGIN_LEN);
+	strcpy_s(Multi_join_request.pxo_squad_name, Multi_tracker_squad_name);
 
 	// version of this server
 	Multi_join_request.version = MULTI_FS_SERVER_VERSION;
@@ -3679,8 +3680,8 @@ void multi_create_game_do()
 
 			Netgame.campaign_mode = MP_SINGLE_MISSION; //multiplayer single mission. meaning Single mission, not single player
 
-			strncpy(Game_current_mission_filename,almissionname,MAX_FILENAME_LEN ); // copying almissionname to Game_current_mission_filename
-			strncpy(Netgame.mission_name,almissionname,MAX_FILENAME_LEN);// copying almission name to netgame.mission_name
+			strcpy_s(Game_current_mission_filename,almissionname); // copying almissionname to Game_current_mission_filename
+			strcpy_s(Netgame.mission_name,almissionname);// copying almission name to netgame.mission_name
 
 			Multi_sync_mode = MULTI_SYNC_PRE_BRIEFING; //DTP must be set before a call to gameseq_post_event(GS_EVENT_MULTI_MISSION_SYNC) is done as it is below.
 			gameseq_post_event(GS_EVENT_MULTI_MISSION_SYNC);//DTP STart game
@@ -3697,7 +3698,7 @@ void multi_create_game_do()
 	}
 	
 	int player_index;
-	char *loading_str = XSTR("Loading", 1336);
+	const char *loading_str = XSTR("Loading", 1336);
 	int str_w, str_h;
 
 	// set this if we want to show the pilot info popup
@@ -4941,8 +4942,8 @@ void multi_create_accept_hit()
 
 			// setup various filenames and mission names
 			multi_create_select_to_filename(Multi_create_list_select,selected_name);
-			strncpy( Game_current_mission_filename, selected_name, MAX_FILENAME_LEN );
-			strncpy(Netgame.mission_name,selected_name,MAX_FILENAME_LEN);			
+			strcpy_s( Game_current_mission_filename, selected_name);
+			strcpy_s(Netgame.mission_name,selected_name);
 
 			// NETLOG
 			ml_printf(NOX("Starting single mission %s, with %d players"), Game_current_mission_filename, multi_num_players());
@@ -6242,7 +6243,7 @@ void multi_ho_accept_hit()
 	// store these values locally
 	memcpy(&Player->m_local_options,&Net_player->p_info.options,sizeof(multi_local_options));
 	memcpy(&Player->m_server_options,&Netgame.options,sizeof(multi_server_options));
-	write_pilot_file(Player);	
+	Pilot.save_player(Player);
 
 	// apply any changes in settings (notify everyone of voice qos changes, etc)
 	multi_ho_apply_options();
@@ -7398,8 +7399,8 @@ void multi_sync_check_buttons();
 void multi_sync_button_pressed(int n);
 void multi_sync_scroll_info_up();
 void multi_sync_scroll_info_down();
-void multi_sync_display_name(char *name,int index,int np_index);		// display info on the left hand portion of the status window thingie
-void multi_sync_display_status(char *status,int index);					// display info on the right hand portion of the status window thingie
+void multi_sync_display_name(const char *name,int index,int np_index);		// display info on the left hand portion of the status window thingie
+void multi_sync_display_status(const char *status,int index);					// display info on the right hand portion of the status window thingie
 void multi_sync_force_start_pre();
 void multi_sync_force_start_post();
 void multi_sync_launch();
@@ -7507,7 +7508,7 @@ void multi_sync_close()
 	}
 }
 
-char *multi_sync_tooltip_handler(char *str)
+const char *multi_sync_tooltip_handler(const char *str)
 {
 	if (!stricmp(str, NOX("@launch"))) {
 		if (Multi_launch_button_created){
@@ -8332,7 +8333,7 @@ void multi_sync_post_close()
 	*/
 }
 
-void multi_sync_display_name(char *name,int index,int np_index)
+void multi_sync_display_name(const char *name,int index,int np_index)
 {
 	char fit[CALLSIGN_LEN];	
 	
@@ -8409,7 +8410,7 @@ void multi_sync_display_name(char *name,int index,int np_index)
 	}
 }
 
-void multi_sync_display_status(char *status,int index)
+void multi_sync_display_status(const char *status,int index)
 {
 	char fit[250];
 

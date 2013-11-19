@@ -20,8 +20,8 @@
 #include "graphics/generic.h"
 #include "model/model.h"
 
-struct object;
-struct ship_subsys;
+class object;
+class ship_subsys;
 
 #define	WP_UNUSED			-1
 #define	WP_LASER			0		// PLEASE NOTE that this flag specifies ballistic primaries as well - Goober5000
@@ -114,7 +114,8 @@ extern int Num_weapon_subtypes;
 #define WIF2_ANTISUBSYSBEAM				(1 << 31)	// This beam can target subsystems as per normal
 
 #define WIF3_NOLINK						(1 << 0)	// This weapon can not be linked with others
-#define WIF3_TRIGGER_LOCK				(1 << 1)	// This weapon can only lock when the trigger is held down
+#define WIF3_USE_EMP_TIME_FOR_CAPSHIP_TURRETS	(1 << 1)	// override MAX_TURRET_DISRUPT_TIME in emp.cpp - Goober5000
+#define WIF3_TRIGGER_LOCK				(1 << 2)	// This weapon can only lock when the trigger is held down
 
 #define	WIF_HOMING					(WIF_HOMING_HEAT | WIF_HOMING_ASPECT | WIF_HOMING_JAVELIN)
 #define WIF_LOCKED_HOMING           (WIF_HOMING_ASPECT | WIF_HOMING_JAVELIN)
@@ -517,10 +518,6 @@ typedef struct weapon_info {
 	float alpha_min;			// minimum alpha value to use
 	float alpha_cycle;			// cycle between max and min by this much each frame
 
-	//WMC - scripting stuff
-	script_hook sc_collide_ship;
-	script_hook sc_collide_weapon;
-
 	int weapon_hitpoints;
 
 	int	burst_shots;
@@ -535,10 +532,6 @@ typedef struct weapon_info {
 	float			target_lead_scaler;
 	int				targeting_priorities[32];
 	int				num_targeting_priorities;
-
-	// the optional pattern of weapons that this weapon will fire
-	SCP_vector<int> weapon_substitution_pattern; //weapon_indexs
-	SCP_vector<SCP_string> weapon_substitution_pattern_names; // weapon names so that we can generate the indexs after sort
 
 	int			score; //Optional score for destroying the weapon
 

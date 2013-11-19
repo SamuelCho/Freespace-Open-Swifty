@@ -253,29 +253,16 @@ void parse_medal_tbl()
 }
 */
 
-// an atexit() call!!
-void fred_close()
-{
-	if (Fred_texture_replacements != NULL) {
-		delete[] Fred_texture_replacements;
-		Fred_texture_replacements = NULL;
-	}
-}
-
 void parse_init(bool basic = false);
 void brief_init_colors();
 
 void fred_preload_all_briefing_icons()
 {
-	uint i,j;
-	for (i = 0; i < Species_info.size(); i++)
+	for (SCP_vector<briefing_icon_info>::iterator ii = Briefing_icon_info.begin(); ii != Briefing_icon_info.end(); ++ii)
 	{
-		for (j = 0; j < MAX_BRIEF_ICONS; j++)
-		{
-			generic_anim_load(&Species_info[i].icon_bitmaps[j]);
-			hud_anim_load(&Species_info[i].icon_fade_anims[j]);
-			hud_anim_load(&Species_info[i].icon_highlight_anims[j]);
-		}
+		generic_anim_load(&ii->regular);
+		hud_anim_load(&ii->fade);
+		hud_anim_load(&ii->highlight);
 	}
 }
 
@@ -325,7 +312,7 @@ bool fred_init()
 	// NOTE : Fred should ALWAYS run in English. Otherwise it might swap in another language
 	// when saving - which would cause inconsistencies when externalizing to tstrings.tbl via Exstr
 	// trust me on this :)
-	lcl_init(LCL_ENGLISH);
+	lcl_init(FS2_OPEN_DEFAULT_LANGUAGE);
 
 	// Goober5000 - force init XSTRs (so they work, but only work in English, based on above comment)
 	extern int Xstr_inited;
@@ -384,10 +371,10 @@ bool fred_init()
 	iff_init();			// Goober5000
 	species_init();		// Kazan
 
+	brief_parse_icon_tbl();
+
 	// for fred specific replacement texture stuff
-	//Fred_texture_replacements = (texture_replace*) vm_malloc( sizeof(texture_replace) * MAX_SHIPS * MAX_REPLACEMENT_TEXTURES );
-	Fred_texture_replacements = new texture_replace[MAX_SHIPS*MAX_REPLACEMENT_TEXTURES];
-	atexit(fred_close);
+	Fred_texture_replacements.clear();
 
 	// Goober5000
 	for (i = 0; i < MAX_IFFS; i++)
@@ -432,13 +419,12 @@ bool fred_init()
 	neb2_init();						// fullneb stuff
 	stars_init();
 	brief_init_colors();
-	brief_parse_icon_tbl();
 	fred_preload_all_briefing_icons(); //phreak.  This needs to be done or else the briefing icons won't show up
 	event_music_init();
 	fiction_viewer_reset();
 	cmd_brief_reset();
 	Show_waypoints = TRUE;
-	Campaign.filename[0] = 0;  // indicate initialized state
+	mission_campaign_clear();
 
 	stars_post_level_init();
 
@@ -1365,8 +1351,16 @@ int common_object_delete(int obj)
 			if(jnp->GetSCPObject() == &Objects[obj])
 				break;
 		}
+
+		// come on, WMC, we don't want to call obj_delete twice...
+		// fool the destructor into not calling obj_delete yet
+		Objects[obj].type = OBJ_NONE;
 		
+		// now call the destructor
 		Jump_nodes.erase(jnp);
+
+		// now restore the jump node type so that the below unmark and obj_delete will work
+		Objects[obj].type = OBJ_JUMP_NODE;
 	}
 
 	unmark_object(obj);
@@ -1972,7 +1966,7 @@ void ai_update_goal_references(int type, const char *old_name, const char *new_n
 			ai_update_goal_references(Wings[i].ai_goals, type, old_name, new_name);
 }
 
-int query_referenced_in_ai_goals(int type, char *name)
+int query_referenced_in_ai_goals(int type, const char *name)
 {
 	int i;
 
@@ -2642,11 +2636,9 @@ void stuff_special_arrival_anchor_name(char *buf, int anchor_num, int retail_for
 // Goober5000
 void update_texture_replacements(const char *old_name, const char *new_name)
 {
-	int i;
-
-	for (i = 0; i < Fred_num_texture_replacements; i++)
+	for (SCP_vector<texture_replace>::iterator ii = Fred_texture_replacements.begin(); ii != Fred_texture_replacements.end(); ++ii)
 	{
-		if (!stricmp(Fred_texture_replacements[i].ship_name, old_name))
-			strcpy_s(Fred_texture_replacements[i].ship_name, new_name);
+		if (!stricmp(ii->ship_name, old_name))
+			strcpy_s(ii->ship_name, new_name);
 	}
 }

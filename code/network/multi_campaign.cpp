@@ -108,7 +108,7 @@ void multi_campaign_start(char *filename)
 // client-side start of a campaign
 void multi_campaign_client_start()
 {
-	memset(&Campaign,0,sizeof(Campaign));
+	mission_campaign_clear();
 
 	// set campaign mode. why not.
 	Game_mode |= GM_CAMPAIGN_MODE;
@@ -128,7 +128,7 @@ void multi_campaign_next_mission()
 	// now we should be sequencing through the next stage (mission load, etc)
 	// this will eventually be replaced with the real filename of the next mission
 	if(Campaign.current_mission != -1){
-		strncpy(Game_current_mission_filename, Campaign.missions[Campaign.current_mission].name, MAX_FILENAME_LEN);
+		strcpy_s(Game_current_mission_filename, Campaign.missions[Campaign.current_mission].name);
 		strcpy_s(Netgame.mission_name,Game_current_mission_filename);			
 
 		// if we're the standalone server, set the mission and campaign names
@@ -711,7 +711,7 @@ void multi_campaign_process_ingame_start( ubyte *data, header *hinfo )
 	case MC_JIP_INITIAL_PACKET:
 
 		// clear out the names of the missions
-		mission_campaign_close();						// should free all data structures which need to be freed
+		mission_campaign_clear();		// should free all data structures which need to be freed
 
 		// get the number of campaigns and their names.
 		GET_INT(Campaign.num_missions);

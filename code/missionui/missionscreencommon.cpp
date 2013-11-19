@@ -1030,6 +1030,11 @@ void wss_maybe_restore_loadout()
 
 	Assert( (Ss_pool != NULL) && (Wl_pool != NULL) && (Wss_slots != NULL) );
 
+	// only restore if mission hasn't changed
+	if ( stricmp(Player_loadout.last_modified, The_mission.modified) ) {
+		return;
+	}
+
 	// first we generate a pool of ships and weapons used the last time this mission was played. We also generate a pool of what is 
 	// available in this mission.
 	int	last_loadout_ships[MAX_SHIP_CLASSES];
@@ -1108,7 +1113,7 @@ void wss_maybe_restore_loadout()
 		Wss_slots[i].ship_class = slot->ship_class;
 
 		for ( j = 0; j < MAX_SHIP_WEAPONS; j++ ) {
-			if ((slot->wep[j] >= 0) && (slot->wep[j] < MAX_WEAPON_TYPES)) {
+			if ((slot->ship_class >= 0) && (slot->wep[j] >= 0) && (slot->wep[j] < MAX_WEAPON_TYPES)) {
 				this_loadout_weapons[slot->wep[j]] -= slot->wep_count[j];
 				Assertion((this_loadout_weapons[slot->wep[j]] >= 0), "Attempting to restore the previous missions loadout has resulted in an invalid number of weapons available");
 			}

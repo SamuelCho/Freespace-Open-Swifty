@@ -15,7 +15,7 @@
 #include "bmpman/bmpman.h"
 #include "gamesequence/gamesequence.h"
 #include "io/key.h"
-#include "playerman/managepilot.h"
+#include "pilotfile/pilotfile.h"
 #include "freespace2/freespace.h"
 #include "gamesnd/gamesnd.h"
 #include "gamesnd/eventmusic.h"
@@ -252,7 +252,7 @@ void options_force_button_frame(int n, int frame_num);
 
 extern float FreeSpace_gamma;
 
-void options_add_notify(char *str);
+void options_add_notify(const char *str);
 void options_notify_do_frame();
 
 int Options_gamma_coords[GR_NUM_RESOLUTIONS][4] = {
@@ -475,7 +475,7 @@ void options_play_voice_clip()
 	Voice_vol_handle = snd_play_raw( snd_id, 0.0f, 1.0f, SND_PRIORITY_SINGLE_INSTANCE );
 }
 
-void options_add_notify(char *str)
+void options_add_notify(const char *str)
 {
 	strcpy_s(Options_notify_string, str);
 	Options_notify_stamp = timestamp(OPTIONS_NOTIFY_TIME);
@@ -1021,8 +1021,6 @@ void options_menu_init()
 
 	Gamma_colors_inited = 0;
 
-	// used to allow all keystrokes, even when called from a demo playback
-	key_clear_filter();
 	Options_menu_inited = 1;
 
 	// hide options crap
@@ -1053,7 +1051,8 @@ void options_menu_close()
 
 	Ui_window.destroy();
 	common_free_interface_palette();		// restore game palette
-	write_pilot_file();
+	Pilot.save_player();
+	Pilot.save_savefile();
 	game_flush();
 	
 	// unpause all sounds, since we could be headed back to the game

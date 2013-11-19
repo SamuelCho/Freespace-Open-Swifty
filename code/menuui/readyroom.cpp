@@ -23,6 +23,7 @@
 #include "freespace2/freespace.h"
 #include "playerman/player.h"
 #include "playerman/managepilot.h"
+#include "pilotfile/pilotfile.h"
 #include "popup/popup.h"
 #include "gamehelp/contexthelp.h"
 #include "globalincs/alphacolors.h"
@@ -217,7 +218,6 @@ static int list_w1;
 static int list_w2;
 static int list_h;
 static int Background_bitmap;
-static int Old_main_hall = 0;
 static UI_WINDOW Ui_window;
 static UI_BUTTON List_buttons[LIST_BUTTONS_MAX];  // buttons for each line of text in list
 
@@ -263,9 +263,9 @@ void sim_room_blit_icons(int line_index, int y_start, fs_builtin_mission *fb = N
 // Finds a hash value for mission filename
 //
 // returns hash value
-int hash_filename(char *filename) {
+int hash_filename(const char *filename) {
 	ulonglong hash_val = 0;
-	char *ptr = filename;
+	const char *ptr = filename;
 	
 	// Don't hash .fsm extension, convert all to upper case
 	for (int i=0; i < ((signed int)(strlen(filename)) - 4); i++) {
@@ -321,7 +321,7 @@ int hash_insert(char *filename) {
 // Checks if a filename already exitst in the hash table
 //
 // returns 1 if found (collision), 0 if no collision
-int campaign_mission_hash_collision(char *filename)
+int campaign_mission_hash_collision(const char *filename)
 {
 	int hash_val = hash_filename(filename);
 	hash_node *cur_node = Campaign_mission_hash_table[hash_val];
@@ -401,40 +401,8 @@ int sim_room_line_add(int type, char *name, char *filename, int x, int y, int fl
 	return Num_lines++;
 }
 
-// filter out all multiplayer campaigns
-int campaign_room_campaign_filter(char *filename)
-{
-	Int3();
-
-	return 0;
-
-	// obsolete, moved all of this to global mission_campaign_build_list() - taylor
-
-/*	int type, max_players;
-	char name[NAME_LENGTH], *desc = NULL;
-
-	#ifdef OEM_BUILD
-	// also need to check if this is the builtin campaign
-	if ( game_find_builtin_mission(filename) && mission_campaign_get_info(filename, name, &type, &max_players, &desc) ) {
-	#else
-	if ( mission_campaign_get_info(filename, name, &type, &max_players, &desc) ) {
-	#endif
-		if ( type == CAMPAIGN_TYPE_SINGLE ) {			
-			Campaign_file_names_temp[Num_campaigns] = vm_strdup(filename);
-			Campaign_descs_temp[Num_campaigns++] = desc;
-			return 1;			
-		}
-	}
-
-	if (desc){
-		vm_free(desc);
-	}
-
-	return 0;*/
-}
-
 // build up a list of all missions in all campaigns.
-int sim_room_campaign_mission_filter(char *filename)
+int sim_room_campaign_mission_filter(const char *filename)
 {
 	int num;
 
@@ -448,7 +416,7 @@ int sim_room_campaign_mission_filter(char *filename)
 }
 
 // filter out all missions already used in existing campaigns
-int sim_room_standalone_mission_filter(char *filename)
+int sim_room_standalone_mission_filter(const char *filename)
 {
 	int type;
 	char mission_name[255];
@@ -884,7 +852,7 @@ int readyroom_continue_campaign()
 			// this isn't the same thing that is done in mission_campaign_next_mission(), but it's
 			// cleaner to do this here than it is to hack that function to do the same thing
 			Campaign.current_mission = Campaign.prev_mission;
-			strncpy( Game_current_mission_filename, Campaign.missions[Campaign.current_mission].name, MAX_FILENAME_LEN );
+			strcpy_s( Game_current_mission_filename, Campaign.missions[Campaign.current_mission].name );
 
 			// set the bit for campaign mode
 			Game_mode |= GM_CAMPAIGN_MODE;
@@ -929,7 +897,7 @@ void sim_room_commit()
 		return;
 	}
 
-	strncpy(Game_current_mission_filename, sim_room_lines[Selected_line].filename, MAX_FILENAME_LEN);
+	strcpy_s(Game_current_mission_filename, sim_room_lines[Selected_line].filename);
 
 	Game_mode &= ~(GM_CAMPAIGN_MODE);						// be sure this bit is clear
 
@@ -960,7 +928,7 @@ int sim_room_button_pressed(int n)
 
 		case CAMPAIGN_TAB:
 			if ( !strlen(Campaign.filename) ) {
-				popup( PF_NO_NETWORKING, 1, POPUP_OK, XSTR( "The currently active campaign cannot be found, unable to switch to campaign mode!", -1));
+				popup( PF_NO_NETWORKING, 1, POPUP_OK, XSTR( "The currently active campaign cannot be found, unable to switch to campaign mode!", 1612));
 				break;
 			}
 
@@ -1092,6 +1060,8 @@ void sim_room_init()
 	} else {
 		Campaign.filename[0] = 0;
 		Campaign.num_missions = 0;
+
+		mission_campaign_load_failure_popup();
 	}
 
 	Num_campaign_missions = 0;
@@ -1188,8 +1158,7 @@ void sim_room_close()
 
 	Ui_window.destroy();
 	common_free_interface_palette();		// restore game palette
-	write_pilot_file();
-	mission_campaign_savefile_save();
+	Pilot.save_player();
 
 	// unload special mission icons
 	sim_room_unload_mission_icons();
@@ -1487,7 +1456,7 @@ static int Desc_scroll_offset;
 static int Selected_campaign_index;
 static int Active_campaign_index;
 
-char *Info_text_ptrs[MAX_INFO_LINES];
+const char *Info_text_ptrs[MAX_INFO_LINES];
 int Num_info_lines, Info_text_line_size[MAX_INFO_LINES];
 
 void campaign_room_build_listing()
@@ -1567,6 +1536,8 @@ int campaign_room_reset_campaign(int n)
 		mission_campaign_load(filename);
 		mission_campaign_next_mission();
 
+		vm_free(filename);
+
 		return 0;
 	}
 
@@ -1599,9 +1570,6 @@ void campaign_room_commit()
 
 		mission_campaign_load(Campaign_file_names[Selected_campaign_index]);
 		strcpy_s(Player->current_campaign, Campaign.filename);  // track new campaign for player
-
-		// Goober5000 - reset player-persistent variables
-		Player->num_variables = 0;
 	}
 
 	if (mission_campaign_next_mission()) {  // is campaign and next mission valid?
@@ -1663,9 +1631,6 @@ int campaign_room_button_pressed(int n)
 					// reset tech database to what's in the tables
 					tech_reset_to_default();
 				}
-
-				// Goober5000 - reset player-persistent variables
-				Player->num_variables = 0;
 			}
 
 			break;
@@ -1721,9 +1686,6 @@ void campaign_room_init()
 	Num_desc_lines = 0;
 	Desc_scroll_offset = Scroll_offset = 0;
 
-	// Goober5000 - dumb hack, since main hall can be set in multiple places
-	Old_main_hall = Player->main_hall;
-
 	// this stuff needs to happen before the mission_campaign_build_list() call
 	load_failed = mission_load_up_campaign();
 	if (!load_failed) {
@@ -1731,6 +1693,8 @@ void campaign_room_init()
 	} else {
 		Campaign.filename[0] = 0;
 		Campaign.num_missions = 0;
+
+		mission_campaign_load_failure_popup();
 	}
 
 	// we need descriptions too, so "true" it
@@ -1762,19 +1726,9 @@ void campaign_room_close()
 	// unload the overlay bitmap
 	help_overlay_unload(CAMPAIGN_ROOM_OVERLAY);
 
-	// be sure that we are going to use the correct mainhall
-	if ( (Player != NULL) && (Campaign.current_mission >= 0) ) {
-		Player->main_hall = Campaign.missions[Campaign.current_mission].main_hall;
-
-		// we might need to switch the music
-		if (main_hall_get_music_index(Player->main_hall) != main_hall_get_music_index(Old_main_hall))
-			main_hall_stop_music();
-	}
-
 	Ui_window.destroy();
 	common_free_interface_palette();		// restore game palette
-	write_pilot_file();
-	mission_campaign_savefile_save();
+	Pilot.save_player();
 }
 
 void campaign_room_do_frame(float frametime)
@@ -1915,7 +1869,7 @@ void campaign_room_do_frame(float frametime)
 	}
 
 	if (Num_campaigns < 1) {
-		popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR( "No campaigns are available!", -1));
+		popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR( "No campaigns are available!", 1613));
 		Campaign_room_no_campaigns = true;
 		gameseq_post_event(GS_EVENT_MAIN_MENU);
 	}

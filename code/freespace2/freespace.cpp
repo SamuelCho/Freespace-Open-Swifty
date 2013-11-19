@@ -157,8 +157,11 @@
 #include "weapon/shockwave.h"
 #include "weapon/weapon.h"
 #include "fs2netd/fs2netd_client.h"
+#include "pilotfile/pilotfile.h"
 
 #include "globalincs/pstypes.h"
+
+#include <stdexcept>
 
 extern int Om_tracker_flag; // needed for FS2OpenPXO config
 
@@ -179,11 +182,6 @@ extern int Om_tracker_flag; // needed for FS2OpenPXO config
 //    1.00.01	5/25/98	MWA -- going final
 //		0.90		5/21/98	MWA -- getting ready for final.
 //		0.10		4/9/98.  Set by MK.
-//
-//	Demo version: (obsolete since DEMO codebase split from tree)
-//		0.03		4/10/98	AL.	Interplay rev
-//		0.02		4/8/98	MK.	Increased when this system was modified.
-//		0.01		4/7/98?	AL.	First release to Interplay QA.
 //
 //	OEM version:
 //		1.00		5/28/98	AL.	First release to Interplay QA.
@@ -466,7 +464,6 @@ void game_shutdown(void);
 void game_show_event_debug(float frametime);
 void game_event_debug_init();
 void game_frame(bool paused = false);
-void demo_upsell_show_screens();
 void game_start_subspace_ambient_sound();
 void game_stop_subspace_ambient_sound();
 void verify_ships_tbl();
@@ -943,7 +940,6 @@ uint load_post_level_init;
 /**
  * Intializes game stuff.  
  *
- * @param seed Only set by demo playback code.
  * @return 0 on failure, 1 on success
  */
 void game_level_init(int seed)
@@ -986,9 +982,7 @@ void game_level_init(int seed)
 	batch_reset();
 
 	// Initialize the game subsystems
-	if(!Is_standalone){
-		game_reset_time();			// resets time, and resets saved time too
-	}
+	game_reset_time();			// resets time, and resets saved time too
 
 	Multi_ping_timestamp = -1;
 
@@ -1691,7 +1685,7 @@ char full_path[1024];
 void game_init()
 {
 	int s1, e1;
-	char *ptr;
+	const char *ptr;
 	char whee[MAX_PATH_LEN];
 
 	Game_current_mission_filename[0] = 0;
@@ -1711,6 +1705,10 @@ void game_init()
 
 	// Initialize the timer before the os
 	timer_init();
+    
+#ifndef NDEBUG
+	outwnd_init(1);
+#endif
 
 	// init os stuff next
 	if ( !Is_standalone ) {		
@@ -1728,23 +1726,12 @@ void game_init()
 	cmdline_debug_print_cmdline();
 #endif
 
-#ifdef APPLE_APP
-	// some OSX hackery to drop us out of the APP the binary is run from
-	char *c = NULL;
-	c = strstr(full_path, ".app");
-	if ( c != NULL ) {
-		while (c && (*c != '/'))
-			c--;
-
-		*c = '\0';
-	}
-	strncpy(whee, full_path, MAX_PATH_LEN-1);
-#else
 	GetCurrentDirectory(MAX_PATH_LEN-1, whee);
-#endif
+
 	strcat_s(whee, DIR_SEPARATOR_STR);
 	strcat_s(whee, EXE_FNAME);
 
+	profile_init();
 	//Initialize the libraries
 	s1 = timer_get_milliseconds();
 
@@ -1757,6 +1744,8 @@ void game_init()
 	// initialize localization module. Make sure this is done AFTER initialzing OS.
 	lcl_init( detect_lang() );	
 	lcl_xstr_init();
+
+	mod_table_init();		// load in all the mod dependent settings
 
 	if (Is_standalone) {
 		// force off some cmdlines if they are on
@@ -1860,8 +1849,6 @@ void game_init()
 	// D3D's gamma system now works differently. 1.0 is the default value
 	ptr = os_config_read_string(NULL, NOX("GammaD3D"), NOX("1.0"));
 	FreeSpace_gamma = (float)atof(ptr);
-
-	mod_table_init();		// load in all the mod dependent settings
 
 	script_init();			//WMC
 
@@ -2005,7 +1992,7 @@ void game_init()
 
 	if(!Cmdline_reparse_mainhall)
 	{
-		main_hall_read_table();
+		main_hall_table_init();
 	}
 
 	if (Cmdline_env) {
@@ -2019,6 +2006,9 @@ void game_init()
 	Script_system.RunCondition(CHA_GAMEINIT);
 
 	game_title_screen_close();
+
+	// convert old pilot files (if they need it)
+	convert_pilot_files();
 
 #ifdef _WIN32
 	timeBeginPeriod(1);	
@@ -2120,13 +2110,19 @@ void game_show_framerate()
 #endif
 
 
-	if (Show_framerate)	{
+	if (Show_framerate || Cmdline_frame_profile)	{
 		gr_set_color_fast(&HUD_color_debug);
 
-		if (frametotal != 0.0f)
-			gr_printf( 20, 100, "FPS: %0.1f", Framerate );
-		else
-			gr_string( 20, 100, "FPS: ?" );
+		if (Cmdline_frame_profile) {
+			gr_string(20, 110, profile_output);
+		}
+
+		if (Show_framerate) {
+			if (frametotal != 0.0f)
+				gr_printf( 20, 100, "FPS: %0.1f", Framerate );
+			else
+				gr_string( 20, 100, "FPS: ?" );
+		}
 	}
 
 #ifndef NDEBUG
@@ -3443,15 +3439,17 @@ camid game_render_frame_setup()
 			} else if ( Viewer_mode & VM_CHASE ) {
 				vec3d	move_dir;
 				vec3d aim_pt;
-								
 				
-
 				if ( Viewer_obj->phys_info.speed < 62.5f )
 					move_dir = Viewer_obj->phys_info.vel;
 				else {
 					move_dir = Viewer_obj->phys_info.vel;
 					vm_vec_scale(&move_dir, (62.5f/Viewer_obj->phys_info.speed));
 				}
+
+				vec3d tmp_up;
+				matrix eyemat;
+				ship_get_eye(&tmp_up, &eyemat, Viewer_obj, false, false);
 
 				//create a better 3rd person view if this is the player ship
 				if (Viewer_obj==Player_obj)
@@ -3461,16 +3459,16 @@ camid game_render_frame_setup()
 					vm_vec_add2(&aim_pt,&Viewer_obj->pos);
 
 					vm_vec_scale_add(&eye_pos, &Viewer_obj->pos, &move_dir, -0.02f * Viewer_obj->radius);
-					vm_vec_scale_add2(&eye_pos, &Viewer_obj->orient.vec.fvec, -2.125f * Viewer_obj->radius - Viewer_chase_info.distance);
-					vm_vec_scale_add2(&eye_pos, &Viewer_obj->orient.vec.uvec, 0.625f * Viewer_obj->radius + 0.35f * Viewer_chase_info.distance);
+					vm_vec_scale_add2(&eye_pos, &eyemat.vec.fvec, -2.125f * Viewer_obj->radius - Viewer_chase_info.distance);
+					vm_vec_scale_add2(&eye_pos, &eyemat.vec.uvec, 0.625f * Viewer_obj->radius + 0.35f * Viewer_chase_info.distance);
 					vm_vec_sub(&tmp_dir, &aim_pt, &eye_pos);
 					vm_vec_normalize(&tmp_dir);
 				}
 				else
 				{
 					vm_vec_scale_add(&eye_pos, &Viewer_obj->pos, &move_dir, -0.02f * Viewer_obj->radius);
-					vm_vec_scale_add2(&eye_pos, &Viewer_obj->orient.vec.fvec, -2.5f * Viewer_obj->radius - Viewer_chase_info.distance);
-					vm_vec_scale_add2(&eye_pos, &Viewer_obj->orient.vec.uvec, 0.75f * Viewer_obj->radius + 0.35f * Viewer_chase_info.distance);
+					vm_vec_scale_add2(&eye_pos, &eyemat.vec.fvec, -2.5f * Viewer_obj->radius - Viewer_chase_info.distance);
+					vm_vec_scale_add2(&eye_pos, &eyemat.vec.uvec, 0.75f * Viewer_obj->radius + 0.35f * Viewer_chase_info.distance);
 					vm_vec_sub(&tmp_dir, &Viewer_obj->pos, &eye_pos);
 					vm_vec_normalize(&tmp_dir);
 				}
@@ -3481,8 +3479,8 @@ camid game_render_frame_setup()
 				// call because the up and the forward vector are the same.   I fixed
 				// it by adding in a fraction of the right vector all the time to the
 				// up vector.
-				vec3d tmp_up = Viewer_obj->orient.vec.uvec;
-				vm_vec_scale_add2( &tmp_up, &Viewer_obj->orient.vec.rvec, 0.00001f );
+				tmp_up = eyemat.vec.uvec;
+				vm_vec_scale_add2( &tmp_up, &eyemat.vec.rvec, 0.00001f );
 
 				vm_vector_2_matrix(&eye_orient, &tmp_dir, &tmp_up, NULL);
 				Viewer_obj = NULL;
@@ -3640,7 +3638,9 @@ void game_render_frame( camid cid )
 	//if (!(Viewer_mode & (VM_EXTERNAL | VM_SLEWED | VM_CHASE | VM_DEAD_VIEW))) {
 	render_shields();
 	//}
-	particle_render_all();					// render particles after everything else.
+
+	PROFILE("Particles", particle_render_all());					// render particles after everything else.
+	
 #ifdef DYN_CLIP_DIST
 	if(!Cmdline_nohtl)
 	{
@@ -3652,7 +3652,8 @@ void game_render_frame( camid cid )
 #endif
 
 	beam_render_all();						// render all beam weapons
-	trail_render_all();						// render missilie trails after everything else.	
+	
+	PROFILE("Trails", trail_render_all());						// render missilie trails after everything else.	
 
 	// render nebula lightning
 	nebl_render_all();
@@ -3997,7 +3998,7 @@ void game_simulation_frame()
 		}
 		
 		// move all the objects now
-		obj_move_all(flFrametime);
+		PROFILE("Move Objects - Master", obj_move_all(flFrametime));
 
 		mission_eval_goals();
 	}
@@ -4016,7 +4017,7 @@ void game_simulation_frame()
 		}
 
 		// move all objects - does interpolation now as well
-		obj_move_all(flFrametime);
+		PROFILE("Move Objects - Client", obj_move_all(flFrametime));
 
 
 	}
@@ -4039,10 +4040,10 @@ void game_simulation_frame()
 
 		if (!physics_paused)	{
 			// Move particle system
-			particle_move_all(flFrametime);	
+			PROFILE("Move Particles", particle_move_all(flFrametime));	
 
 			// Move missile trails
-			trail_move_all(flFrametime);		
+			PROFILE("Move Trails", trail_move_all(flFrametime));		
 
 			// Flash the gun flashes
 			shipfx_flash_do_frame(flFrametime);			
@@ -4329,19 +4330,11 @@ void game_frame(bool paused)
 			;
 	}
 #endif
+	// start timing frame
+	timing_frame_start();
+	profile_begin("Main Frame");
 
-#ifdef DEMO_SYSTEM
-	demo_do_frame_start();
-	if(Demo_error){
-		mprintf(("Error (%d) while processing demo!\n", Demo_error));
-		demo_close();
-	}
-#endif
-	
-		// start timing frame
-		timing_frame_start();
-	
-		DEBUG_GET_TIME( total_time1 )
+	DEBUG_GET_TIME( total_time1 )
 
 	if(paused)
 	{
@@ -4352,8 +4345,7 @@ void game_frame(bool paused)
 	{
 		// var to hold which state we are in
 		actually_playing = game_actually_playing();
-	
-		
+
 		if ((!(Game_mode & GM_MULTIPLAYER)) || ((Game_mode & GM_MULTIPLAYER) && !(Net_player->flags & NETINFO_FLAG_OBSERVER))) {
 			if (!(Game_mode & GM_STANDALONE_SERVER)){
 				Assert( OBJ_INDEX(Player_obj) >= 0 );
@@ -4365,17 +4357,17 @@ void game_frame(bool paused)
 		} else {
 			; //nprintf(("AI", "Framecount = %i, time = %7.3f\n", Framecount, f2fl(Missiontime)));
 		}
-	
+
 		//	Note: These are done even before the player enters, else buffers can overflow.
 		if (! (Game_mode & GM_STANDALONE_SERVER)){
 			radar_frame_init();
 		}
-	
+
 		shield_frame_init();
-	
-		if ( !Pre_player_entry && actually_playing ) {		   		
+
+		if ( !Pre_player_entry && actually_playing ) {
 			if (! (Game_mode & GM_STANDALONE_SERVER) ) {
-	
+
 				if( (!popup_running_state()) && (!popupdead_is_active()) ){
 					game_process_keys();
 					read_player_controls( Player_obj, flFrametime);
@@ -4399,8 +4391,7 @@ void game_frame(bool paused)
 			return;
 		}
 		
-		
-		game_simulation_frame(); 
+		PROFILE("Simulation", game_simulation_frame()); 
 		
 		// if not actually in a game play state, then return.  This condition could only be true in 
 		// a multiplayer game.
@@ -4429,7 +4420,8 @@ void game_frame(bool paused)
 			DEBUG_GET_TIME( render3_time1 )
 			
 			camid cid = game_render_frame_setup();
-			game_render_frame( cid );
+
+			PROFILE("Render", game_render_frame( cid ));
 			
 			//Cutscene bars
 			clip_frame_view();
@@ -4512,7 +4504,7 @@ void game_frame(bool paused)
 			// If a regular popup is active, don't flip (popup code flips)
 			if( !popup_running_state() ){
 				DEBUG_GET_TIME( flip_time1 )
-				game_flip_page_and_time_it();
+				PROFILE("Page Flip", game_flip_page_and_time_it());
 				DEBUG_GET_TIME( flip_time2 )
 			}
 
@@ -4530,6 +4522,9 @@ void game_frame(bool paused)
 	// process lightning (nebula only)
 	nebl_process();
 
+	profile_end("Main Frame");
+	profile_dump_output();
+
 	DEBUG_GET_TIME( total_time2 )
 
 #ifndef NDEBUG
@@ -4541,13 +4536,6 @@ void game_frame(bool paused)
 	Timing_flip = f2fl( flip_time2 - flip_time1 ) * 1000.0f;
 #endif
 
-#ifdef DEMO_SYSTEM
-	demo_do_frame_end();
-	if(Demo_error){
-		mprintf(("Error (%d) while processing demo!\n", Demo_error));
-		demo_close();
-	}
-#endif
 }
 
 #define	MAX_FRAMETIME	(F1_0/4)		// Frametime gets saturated at this.  Changed by MK on 11/1/97.
@@ -4765,7 +4753,6 @@ void game_set_frametime(int state)
 	//mprintf(("Frame %i, Last_time = %7.3f\n", Framecount, f2fl(Last_time)));
 
 	flFrametime = f2fl(Frametime);
-	//if(!(Game_mode & GM_PLAYING_DEMO)){
 	timestamp_inc(flFrametime);
 
 	// wrap overall frametime if needed
@@ -5086,12 +5073,6 @@ void os_close()
 	gameseq_post_event(GS_EVENT_QUIT_GAME);
 }
 
-void end_demo_campaign_do()
-{
-	// drop into main hall
-	gameseq_post_event( GS_EVENT_MAIN_MENU );
-}
-
 // All code to process events.   This is the only place
 // that you should change the state of the game.
 void game_process_event( int current_state, int event )
@@ -5144,7 +5125,7 @@ void game_process_event( int current_state, int event )
 			break;
 
 		case GS_EVENT_START_BRIEFING:
-			gameseq_set_state(GS_STATE_BRIEFING);		
+			gameseq_set_state(GS_STATE_BRIEFING);
 			break;
 
 		case GS_EVENT_DEBRIEF:
@@ -5154,7 +5135,7 @@ void game_process_event( int current_state, int event )
 			if (Campaign_ending_via_supernova && (Game_mode & GM_CAMPAIGN_MODE)/* && !stricmp(Campaign.filename, "freespace2")*/) {
 				gameseq_post_event(GS_EVENT_END_CAMPAIGN);
 			} else {
-				gameseq_set_state(GS_STATE_DEBRIEF);		
+				gameseq_set_state(GS_STATE_DEBRIEF);
 			}
 			break;
 
@@ -5166,14 +5147,7 @@ void game_process_event( int current_state, int event )
 			gameseq_set_state( GS_STATE_WEAPON_SELECT );
 			break;
 
-		case GS_EVENT_ENTER_GAME:		
-#ifdef DEMO_SYSTEM
-			// maybe start recording a demo
-			if(Demo_make){
-				demo_start_record("test.fsd");
-			}
-#endif
-
+		case GS_EVENT_ENTER_GAME:
 			if (Game_mode & GM_MULTIPLAYER) {
 				// if we're respawning, make sure we change the view mode so that the hud shows up
 				if (current_state == GS_STATE_DEATH_BLEW_UP) {
@@ -5185,7 +5159,7 @@ void game_process_event( int current_state, int event )
 				gameseq_set_state(GS_STATE_GAME_PLAY, 1);
 			}
 
-			// clear multiplayer button info			
+			// clear multiplayer button info
 			extern button_info Multi_ship_status_bi;
 			memset(&Multi_ship_status_bi, 0, sizeof(button_info));
 
@@ -5463,10 +5437,6 @@ void game_process_event( int current_state, int event )
 			gameseq_set_state(GS_STATE_END_OF_CAMPAIGN);
 			break;		
 
-		case GS_EVENT_END_DEMO:
-			gameseq_set_state(GS_STATE_END_DEMO);
-			break;
-
 		case GS_EVENT_LOOP_BRIEF:
 			gameseq_set_state(GS_STATE_LOOP_BRIEF);
 			break;
@@ -5515,7 +5485,7 @@ void game_leave_state( int old_state, int new_state )
 
 	//WMC - Scripting override
 	/*
-	if(GS_state_hooks[old_state].IsValid() && Script_system.IsOverride(GS_state_hooks[old_state])) {
+	if(script_hook_valid(&GS_state_hooks[old_state]) && Script_system.IsOverride(GS_state_hooks[old_state])) {
 		return;
 	}
 	*/
@@ -5576,9 +5546,10 @@ void game_leave_state( int old_state, int new_state )
 
 			} else {
 				cmd_brief_close();
-				if (new_state == GS_STATE_MAIN_MENU)
+				common_select_close();
+				if (new_state == GS_STATE_MAIN_MENU) {
 					freespace_stop_mission();	
-					common_select_close();
+				}
 			}
 			break;
 
@@ -5664,11 +5635,6 @@ void game_leave_state( int old_state, int new_state )
 			}
 
 			if (end_mission) {
-			// shut down any recording or playing demos
-#ifdef DEMO_SYSTEM
-				demo_close();
-#endif
-
 				// when in multiplayer and going back to the main menu, send a leave game packet
 				// right away (before calling stop mission).  stop_mission was taking to long to
 				// close mission down and I want people to get notified ASAP.
@@ -5677,7 +5643,7 @@ void game_leave_state( int old_state, int new_state )
 				}
 				snd_aav_init();
 
-				freespace_stop_mission();			
+				freespace_stop_mission();
 			}
 			break;
 
@@ -5908,7 +5874,7 @@ void game_enter_state( int old_state, int new_state )
 {
 	//WMC - Scripting override
 	/*
-	if(GS_state_hooks[new_state].IsValid() && Script_system.IsOverride(GS_state_hooks[new_state])) {
+	if(script_hook_valid(&GS_state_hooks[new_state]) && Script_system.IsOverride(GS_state_hooks[new_state])) {
 		return;
 	}
 	*/
@@ -5927,9 +5893,7 @@ void game_enter_state( int old_state, int new_state )
 
 			// remove any multiplayer flags from the game mode
 			Game_mode &= ~(GM_MULTIPLAYER);
-	
-			// determine which ship this guy is currently based on
-			main_hall_init(Player->main_hall);
+
 			// set the game_mode based on the type of player
 			Assert( Player != NULL );
 
@@ -5937,6 +5901,17 @@ void game_enter_state( int old_state, int new_state )
 				Game_mode = GM_MULTIPLAYER;
 			} else {
 				Game_mode = GM_NORMAL;
+			}
+
+			// determine which ship this guy is currently based on
+			mission_load_up_campaign(Player);
+
+			// if we're coming from the end of a campaign, we want to load the first mainhall of the campaign
+			// otherwise load the mainhall for the mission the player's up to
+			if (Campaign.next_mission == -1) {
+				main_hall_init(Campaign.missions[0].main_hall);
+			} else {
+				main_hall_init(Campaign.missions[Campaign.next_mission].main_hall);
 			}
 
 			//if ( (Cmdline_start_netgame || (Cmdline_connect_addr != NULL)) && !Main_hall_netgame_started ) {
@@ -6701,7 +6676,7 @@ void game_do_state(int state)
 		case GS_STATE_MULTI_MISSION_SYNC:
 			game_set_frametime(GS_STATE_MULTI_MISSION_SYNC);
 			multi_sync_do();
-			break;		
+			break;
 
 		case GS_STATE_MULTI_START_GAME:
 			game_set_frametime(GS_STATE_MULTI_START_GAME);
@@ -6711,20 +6686,15 @@ void game_do_state(int state)
 		case GS_STATE_MULTI_HOST_OPTIONS:
 			game_set_frametime(GS_STATE_MULTI_HOST_OPTIONS);
 			multi_host_options_do();
-			break;		
+			break;
 
 		case GS_STATE_END_OF_CAMPAIGN:
 			mission_campaign_end_do();
-			break;		
-
-		case GS_STATE_END_DEMO:
-			game_set_frametime(GS_STATE_END_DEMO);
-			end_demo_campaign_do();
-			break;
+			break;	
 
 		case GS_STATE_LOOP_BRIEF:
 			game_set_frametime(GS_STATE_LOOP_BRIEF);
-			loop_brief_do();
+			loop_brief_do(flFrametime);
 			break;
 
 		case GS_STATE_FICTION_VIEWER:
@@ -7009,14 +6979,10 @@ int game_main(char *cmdline)
 	}
 
 
-#ifdef STANDALONE_ONLY_BUILD
-	Is_standalone = 1;
-	nprintf(("Network", "Standalone running"));
-#else
 	if (Is_standalone){
-		nprintf(("Network", "Standalone running"));
+		nprintf(("Network", "Standalone running\n"));
 	}
-#endif
+
 
 #ifdef _WIN32
 	if ( !Is_standalone )
@@ -7306,8 +7272,8 @@ void game_shutdown(void)
    // if the player has left the "player select" screen and quit the game without actually choosing
 	// a player, Player will be NULL, in which case we shouldn't write the player file out!
 	if (!(Game_mode & GM_STANDALONE_SERVER) && (Player!=NULL) && !Is_standalone){
-		write_pilot_file();
-		mission_campaign_savefile_save();
+		Pilot.save_player();
+		Pilot.save_savefile();
 	}
 
 	// load up common multiplayer icons
@@ -7319,7 +7285,7 @@ void game_shutdown(void)
 	ship_close();					// free any memory that was allocated for the ships
 	hud_free_scrollback_list();// free space allocated to store hud messages in hud scrollback
 	unload_animating_pointer();// frees the frames used for the animating mouse pointer
-	mission_campaign_close();	// close out the campaign stuff
+	mission_campaign_clear();	// clear out the campaign stuff
 	message_mission_close();	// clear loaded table data from message.tbl
 	mission_parse_close();		// clear out any extra memory that may be in use by mission parsing
 	multi_voice_close();			// close down multiplayer voice (including freeing buffers, etc)
@@ -7937,7 +7903,7 @@ void Do_model_timings_test()
 // Call this function when you want to inform the player that a feature is disabled in this build
 void game_feature_disabled_popup()
 {
-	popup(PF_USE_AFFIRMATIVE_ICON|PF_BODY_BIG, 1, POPUP_OK, XSTR( "Sorry, the requested feature is currently disabled in this build", -1));
+	popup(PF_USE_AFFIRMATIVE_ICON|PF_BODY_BIG, 1, POPUP_OK, XSTR( "Sorry, the requested feature is currently disabled in this build", 1621));
 }
 
 // format the specified time (fixed point) into a nice string
@@ -7995,10 +7961,6 @@ void get_version_string(char *str, int max_size)
 	#else
 		sprintf(str, "FreeSpace 2 Open v%i.%i.%i.%i", FS_VERSION_MAJOR, FS_VERSION_MINOR, FS_VERSION_BUILD, FS_VERSION_REVIS);
 	#endif
-
-#ifdef INF_BUILD
-	strcat_s( str, max_size, " Inferno" );
-#endif
 
 #ifndef NDEBUG
 	strcat_s( str, max_size, " Debug" );
@@ -8134,7 +8096,7 @@ int find_freespace_cd(char *volume_name)
 	_finddata_t find;
 	int find_handle;
 
-	GetCurrentDirectory(MAX_PATH, oldpath);
+	GetCurrentDirectory(MAX_PATH-1, oldpath);
 
 	for (i = 0; i < 26; i++) 
 	{
@@ -8436,14 +8398,6 @@ int game_do_cd_check_specific(char *volume_name, int cdnum)
 // Language autodetection stuff
 //
 
-// this layout *must* match Lcl_languages in localize.cpp in order for the
-// correct language to be detected
-int Lang_auto_detect_checksums[LCL_NUM_LANGUAGES] = {
-	589986744,						// English
-	-1132430286,					// German
-	0,								// French
-};
-
 // default setting is "-1" to use registry setting with English as fall back
 // DO NOT change that default setting here or something uncouth might happen
 // in the localization code
@@ -8473,8 +8427,8 @@ int detect_lang()
 	detect = NULL;
 
 	// now compare the checksum/filesize against known #'s
-	for (idx=0; idx<LCL_NUM_LANGUAGES; idx++) {
-		if (Lang_auto_detect_checksums[idx] == (int)file_checksum) {
+	for (idx=0; idx < (int)Lcl_languages.size(); idx++) {
+		if (Lcl_languages[idx].checksum == (int)file_checksum) {
 			mprintf(( "AutoLang: Language auto-detection successful...\n" ));
 			return idx;
 		}

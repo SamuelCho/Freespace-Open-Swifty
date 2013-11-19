@@ -63,8 +63,8 @@ struct vec3d;
 #define EG_SQ9						34				// squadmsg 9
 #define EG_SQ10					35				// squadmsg 10
 
-struct object;
-struct ship;
+class object;
+class ship;
 struct weapon_info;
 
 
@@ -76,7 +76,7 @@ struct weapon_info;
 void emp_level_init();
 
 // apply the EMP effect to all relevant ships
-void emp_apply(vec3d *pos, float inner_radius, float outer_radius, float emp_intensity, float emp_time);
+void emp_apply(vec3d *pos, float inner_radius, float outer_radius, float emp_intensity, float emp_time, bool use_emp_time_for_capship_turrets = false);
 
 // start the emp effect for the passed ship (setup lightning arcs, timestamp, etc)
 // NOTE : if this ship is also me, I should call emp_start_local() as well
@@ -102,10 +102,10 @@ void emp_process_local();
 int emp_should_blit_gauge();
 
 // emp hud string
-void emp_hud_string(int x, int y, int gauge_id, char *str, bool resize);
+void emp_hud_string(int x, int y, int gauge_id, const char *str, bool resize);
 
 // emp hud printf
-void emp_hud_printf(int x, int y, int gauge_id, char *format, ...);
+void emp_hud_printf(int x, int y, int gauge_id, const char *format, ...);
 
 // throw some jitter into HUD x and y coords
 void emp_hud_jitter(int *x, int *y);

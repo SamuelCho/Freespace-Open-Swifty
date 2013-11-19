@@ -133,7 +133,7 @@ int		Weapon_impact_timer;			// timer, initialized at start of each mission
 
 extern int compute_num_homing_objects(object *target_objp);
 
-extern void fs2netd_add_table_validation(char *tblname);
+extern void fs2netd_add_table_validation(const char *tblname);
 
 
 weapon_explosions::weapon_explosions()
@@ -317,7 +317,7 @@ int weapon_explosions::GetAnim(int weapon_expl_index, vec3d *pos, float size)
 }
 
 
-void parse_weapon_expl_tbl(char *filename)
+void parse_weapon_expl_tbl(const char *filename)
 {
 	int rval;
 	uint i;
@@ -646,6 +646,8 @@ void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2, int wi_fl
 			weaponp->wi_flags2 |= WIF2_ANTISUBSYSBEAM;
 		else if (!stricmp(NOX("no primary linking"), weapon_strings[i]))
 			weaponp->wi_flags3 |= WIF3_NOLINK;
+		else if (!stricmp(NOX("same emp time for capships"), weapon_strings[i]))
+			weaponp->wi_flags3 |= WIF3_USE_EMP_TIME_FOR_CAPSHIP_TURRETS;
 		else
 			Warning(LOCATION, "Bogus string in weapon flags: %s\n", weapon_strings[i]);
 	}
@@ -1047,9 +1049,8 @@ void init_weapon_entry(int weap_info_index)
 	wip->alpha_min = 0.0f;
 	wip->alpha_cycle = 0.0f;
 
-	// this can get reset after the constructor, so be sure it's correct
-	wip->shockwave.damage_type_idx = -1;
-	wip->shockwave.damage_type_idx_sav = -1;
+	shockwave_create_info_init(&wip->shockwave);
+	shockwave_create_info_init(&wip->dinky_shockwave);
 
 	wip->weapon_hitpoints = 0;
 
@@ -1097,11 +1098,6 @@ int parse_weapon(int subtype, bool replace)
 		}
 		create_if_not_found = false;
 	}
-
-	strcpy_s(parse_error_text, "");
-	strcpy_s(parse_error_text, "\nin weapon: ");
-	strcat_s(parse_error_text, fname);
-	strcat_s(parse_error_text, "\n");
 
 	//Remove @ symbol
 	//these used to be used to denote weapons that would
@@ -2449,8 +2445,8 @@ int parse_weapon(int subtype, bool replace)
 					} else {
 						wip->particle_spewers[spew_index].particle_spew_type = PSPEW_DEFAULT;
 					}
-				// for compatability with existing tables that don't have a type tag
-				} else if (wip->particle_spewers[spew_index].particle_spew_type == PSPEW_NONE) { // make sure the ommission of type wanst to edit an existing entry
+				// for compatibility with existing tables that don't have a type tag
+				} else if (wip->particle_spewers[spew_index].particle_spew_type == PSPEW_NONE) { // make sure the omission of type wasn't to edit an existing entry
 					wip->particle_spewers[spew_index].particle_spew_type = PSPEW_DEFAULT;
 				}
 
@@ -2661,75 +2657,20 @@ int parse_weapon(int subtype, bool replace)
 	if (wip->burst_delay >= wip->fire_wait)
 		wip->burst_shots = 0;
 
-	/* Generate a substitution pattern for this weapon.
-	This pattern is very naive such that is calculates the lowest common demoniator as being all of
-	the periods multiplied together.
-	*/
+	// vestigial parsing support for a feature that never worked
 	while ( optional_string("$substitute:") ) {
-		char subname[NAME_LENGTH];
-		int period = 0;
-		int index = 0;
-		int offset = 0;
-		stuff_string(subname, F_NAME, NAME_LENGTH);
+		nprintf(("Weapons", "Ignoring $substitute field for weapon '%s'!\n", wip->name));
+
+		char temp_name[NAME_LENGTH];
+		int  temp_int;
+		stuff_string(temp_name, F_NAME, NAME_LENGTH);
 		if ( optional_string("+period:") ) {
-			stuff_int(&period);
-			if ( period <= 0 ) {
-				Warning(LOCATION, "Substitution '%s' for weapon '%s' requires a period greater than 0. Setting period to 1.", subname, wip->name);
-				period = 1;
-			}
+			stuff_int(&temp_int);
 			if ( optional_string("+offset:") ) {
-				stuff_int(&offset);
-				if ( offset <= 0 ) {
-					Warning(LOCATION, "Period offset for substitution '%s' of weapon '%s' has to be greater than 0. Setting offset to 1.", subname, wip->name);
-					offset = 1;
-				}
+				stuff_int(&temp_int);
 			}
 		} else if ( optional_string("+index:") ) {
-			stuff_int(&index);
-			if ( index < 0 ) {
-				Warning(LOCATION, "Substitution '%s' for weapon '%s' requires an index greater than 0. Setting index to 0.", subname, wip->name);
-				index = 0;
-			}
-		}
-
-		// we are going to use weapon substition so, make sure that the pattern array has at least one element
-		if ( wip->weapon_substitution_pattern_names.empty() ) {
-			// pattern is empty, initialize pattern with the weapon being currently parsed.
-			wip->weapon_substitution_pattern_names.push_back(wip->name);
-		}
-
-		// if tbler specifies a period then determine if we can fit the resulting pattern
-		// neatly into the pattern array.
-		if ( period > 0 ) {
-			if ( (wip->weapon_substitution_pattern_names.size() % period) > 0 ) {
-				// not neat, need to expand the pattern so that our freqency pattern fits completly.
-				size_t current_size = wip->weapon_substitution_pattern_names.size();
-				wip->weapon_substitution_pattern_names.resize(current_size*period);
-
-				// now duplicate the current pattern into the new area so the current pattern holds
-				for ( size_t i = current_size; i < wip->weapon_substitution_pattern_names.size(); i++) {
-					wip->weapon_substitution_pattern_names[i] = wip->weapon_substitution_pattern_names[i%current_size];
-				}
-			}
-
-			/* Apply the substituted weapon at the requested period, barrel
-			shifted by offset if needed.*/
-			for ( size_t pos = (period + offset - 1) % period;
-				pos < wip->weapon_substitution_pattern_names.size(); pos += period )
-			{
-				wip->weapon_substitution_pattern_names[pos] = subname;
-			}
-		} else {
-			// assume that tbler wanted to specify a index for the new weapon.
-
-			// make sure that there is enough room
-			if ( !(index < (int)wip->weapon_substitution_pattern_names.size()) ) {
-				// need to make the pattern bigger by filling the extra with the current weapon.
-				size_t current_size = wip->weapon_substitution_pattern_names.size();
-				wip->weapon_substitution_pattern_names.resize(current_size+1, subname);
-			}
-
-			wip->weapon_substitution_pattern_names[index] = subname;
+			stuff_int(&temp_int);
 		}
 	}
 
@@ -2778,7 +2719,7 @@ void translate_spawn_types()
 
 static char Default_cmeasure_name[NAME_LENGTH] = "";
 
-void parse_weaponstbl(char *filename)
+void parse_weaponstbl(const char *filename)
 {
 	int rval;
 
@@ -2828,8 +2769,6 @@ void parse_weaponstbl(char *filename)
 		required_string("#End");
 	}
 
-	strcpy_s(parse_error_text, "in the counter measure table entry");
-
 	if(optional_string("#Countermeasures"))
 	{
 		while (required_string_either("#End", "$Name:"))
@@ -2853,16 +2792,12 @@ void parse_weaponstbl(char *filename)
 		required_string("#End");
 	}
 
-	strcpy_s(parse_error_text, "");
-
 	// Read in a list of weapon_info indicies that are an ordering of the player weapon precedence.
 	// This list is used to select an alternate weapon when a particular weapon is not available
 	// during weapon selection.
 	if ( (!Parsing_modular_table && required_string("$Player Weapon Precedence:")) || optional_string("$Player Weapon Precedence:") )
 	{
-		strcpy_s(parse_error_text, "in the player weapon precedence list");
 		Num_player_weapon_precedence = stuff_int_list(Player_weapon_precedence, MAX_WEAPON_TYPES, WEAPON_LIST_TYPE);
-		strcpy_s(parse_error_text, "");
 	}
 
 	// add tbl/tbm to multiplayer validation list
@@ -3302,35 +3237,6 @@ void weapon_load_bitmaps(int weapon_index)
 		used_weapons[weapon_index]++;
 }
 
-/**
- * Checks all of the weapon infos for substitution patterns and caches the weapon_index of any that it finds. 
- */
-void weapon_generate_indexes_for_substitution() {
-	for (int i = 0; i < MAX_WEAPON_TYPES; i++) {
-		weapon_info *wip = &(Weapon_info[i]);
-
-		if ( wip->weapon_substitution_pattern_names.size() > 0 ) {
-			wip->weapon_substitution_pattern.resize(wip->weapon_substitution_pattern_names.size());
-
-			for ( size_t j = 0; j < wip->weapon_substitution_pattern_names.size(); j++ ) {
-				int weapon_index = -1;
-				if ( stricmp("none", wip->weapon_substitution_pattern_names[j].c_str()) != 0 ) {
-					weapon_index = weapon_info_lookup(wip->weapon_substitution_pattern_names[j].c_str());
-					if ( weapon_index == -1 ) { // invalid sub weapon
-						Warning(LOCATION, "Weapon '%s' requests substitution with '%s' which does not seem to exist",
-							wip->name, wip->weapon_substitution_pattern_names[j].c_str());
-						continue;
-					}
-				}
-
-				wip->weapon_substitution_pattern[j] = weapon_index;
-			}
-
-			wip->weapon_substitution_pattern_names.clear();
-		}
-	}
-}
-
 void weapon_do_post_parse()
 {
 	weapon_info *wip;
@@ -3339,7 +3245,6 @@ void weapon_do_post_parse()
 
 	weapon_sort_by_type();	// NOTE: This has to be first thing!
 	weapon_clean_entries();
-	weapon_generate_indexes_for_substitution();
 
 	Default_cmeasure_index = -1;
 
@@ -3491,11 +3396,8 @@ void weapon_level_init()
 	if (used_weapons == NULL)
 		used_weapons = new int[Num_weapon_types];
 
-	Assert( used_weapons != NULL );
-
 	// clear out used_weapons between missions
-	if (used_weapons != NULL)
-		memset(used_weapons, 0, Num_weapon_types * sizeof(int));
+	memset(used_weapons, 0, Num_weapon_types * sizeof(int));
 
 	Weapon_flyby_sound_timer = timestamp(0);
 	Weapon_impact_timer = 1;	// inited each level, used to reduce impact sounds
@@ -4913,31 +4815,6 @@ void weapon_set_tracking_info(int weapon_objnum, int parent_objnum, int target_o
 	}
 }
 
-inline size_t* get_pointer_to_weapon_fire_pattern_index(int weapon_type, ship* shipp, ship_subsys * src_turret) {
-	Assert( shipp != NULL );
-	ship_weapon* ship_weapon_p = &(shipp->weapons);
-	if(src_turret)
-	{
-		ship_weapon_p = &src_turret->weapons;
-	}
-	Assert( ship_weapon_p != NULL );
-
-	// search for the corresponding bank pattern index for the weapon_type that is being fired.
-	// Note: Because a weapon_type may not be unique to a weapon bank per ship this search may attribute
-	// the weapon to the wrong bank.  Hopefully this isn't a problem.
-	for ( int pi = 0; pi < MAX_SHIP_PRIMARY_BANKS; pi++ ) {
-		if ( ship_weapon_p->primary_bank_weapons[pi] == weapon_type ) {
-			return &(ship_weapon_p->primary_bank_pattern_index[pi]);
-		}
-	}
-	for ( int si = 0; si < MAX_SHIP_SECONDARY_BANKS; si++ ) {
-		if ( ship_weapon_p->secondary_bank_weapons[si] == weapon_type ) {
-			return &(ship_weapon_p->secondary_bank_pattern_index[si]);
-		}
-	}
-	return NULL;
-}
-
 /**
  * Create a weapon object
  *
@@ -4961,35 +4838,6 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 	{
 		Warning(LOCATION, "An attempt to fire a beam ('%s') through weapon_create() was made.\n", wip->name);
 		return -1;
-	}
-
-	parent_objp = NULL;
-	if(parent_objnum >= 0){
-		parent_objp = &Objects[parent_objnum];
-	}
-
-	if ( (wip->weapon_substitution_pattern.size() > 0) && (parent_objp != NULL)) {
-		// using substitution
-
-		// get to the instance of the gun
-		Assertion( parent_objp->type == OBJ_SHIP, "Expected type OBJ_SHIP, got %d", parent_objp->type );
-		Assertion( (parent_objp->instance < MAX_SHIPS) && (parent_objp->instance >= 0),
-			"Ship index is %d, which is out of range [%d,%d)", parent_objp->instance, 0, MAX_SHIPS);
-		ship* parent_shipp = &(Ships[parent_objp->instance]);
-		Assert( parent_shipp != NULL );
-
-		size_t *position = get_pointer_to_weapon_fire_pattern_index(weapon_type, parent_shipp, src_turret);
-		Assertion( position != NULL, "'%s' is trying to fire a weapon that is not selected", Ships[parent_objp->instance].ship_name );
-
-		*position = ++(*position) % wip->weapon_substitution_pattern.size();
-
-		if ( wip->weapon_substitution_pattern[*position] == -1 ) {
-			// weapon doesn't want any sub
-			return -1;
-		} else if ( wip->weapon_substitution_pattern[*position] != weapon_type ) {
-			// weapon wants to sub with weapon other than me
-			return weapon_create(pos, porient, wip->weapon_substitution_pattern[*position], parent_objnum, group_id, is_locked, is_spawned, fof_cooldown);
-		}
 	}
 
 	num_deleted = 0;
@@ -5066,6 +4914,11 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 	objnum = obj_create( OBJ_WEAPON, parent_objnum, n, orient, pos, 2.0f, OF_RENDERS | OF_COLLIDES | OF_PHYSICS );
 	Assert(objnum >= 0);
 	objp = &Objects[objnum];
+
+	parent_objp = NULL;
+	if(parent_objnum >= 0){
+		parent_objp = &Objects[parent_objnum];
+	}
 
 	// Create laser n!
 	wp = &Weapons[n];
@@ -5163,7 +5016,7 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 		wp->lifeleft = wip->lifetime;
 	} else {
 		wp->lifeleft = (rand_val) * (wip->life_max - wip->life_min) / wip->life_min;
-		if((wip->wi_flags & WIF_CMEASURE) && (parent_objp->flags & OF_PLAYER_SHIP)) {
+		if((wip->wi_flags & WIF_CMEASURE) && (parent_objp != NULL) && (parent_objp->flags & OF_PLAYER_SHIP)) {
 			wp->lifeleft *= The_mission.ai_profile->cmeasure_life_scale[Game_skill_level];
 		}
 		wp->lifeleft = wip->life_min + wp->lifeleft * (wip->life_max - wip->life_min);
@@ -5213,9 +5066,12 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 		//	Note that it is important to extract the forward component of the parent's velocity to factor out sliding, else
 		//	the missile will not be moving forward.
 		if(parent_objp != NULL){
-			vm_vec_copy_scale(&objp->phys_info.desired_vel, &objp->orient.vec.fvec, vm_vec_dot(&parent_objp->phys_info.vel, &parent_objp->orient.vec.fvec) + objp->phys_info.max_vel.xyz.z/4 );
+			if (wip->free_flight_time > 0.0)
+				vm_vec_copy_scale(&objp->phys_info.desired_vel, &objp->orient.vec.fvec, vm_vec_dot(&parent_objp->phys_info.vel, &parent_objp->orient.vec.fvec) + objp->phys_info.max_vel.xyz.z/4 );
+			else
+				vm_vec_copy_scale(&objp->phys_info.desired_vel, &objp->orient.vec.fvec, objp->phys_info.max_vel.xyz.z );
 		} else {
-            if (!is_locked)
+			if (!is_locked && wip->free_flight_time > 0.0)
             {
 			    vm_vec_copy_scale(&objp->phys_info.desired_vel, &objp->orient.vec.fvec, objp->phys_info.max_vel.xyz.z/4 );
             }
@@ -5287,7 +5143,7 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 	}
 
 	// Ensure weapon flyby sound doesn't get played for player lasers
-	if ( parent_objp == Player_obj ) {
+	if ( parent_objp != NULL && parent_objp == Player_obj ) {
 		wp->weapon_flags |= WF_PLAYED_FLYBY_SOUND;
 	}
 
@@ -5903,15 +5759,21 @@ void weapon_hit( object * weapon_obj, object * other_obj, vec3d * hitpos, int qu
 	int			weapon_type = Weapons[num].weapon_info_index;
 	int			expl_ani_handle;
 	weapon_info	*wip;
-	weapon *wp;
+	weapon      *wp;
 	bool		hit_target = false;
+    
+	object      *other_objp;
+	ship_obj	*so;
+	ship		*shipp;
+	int         objnum;
 
-	Assert((weapon_type >= 0) && (weapon_type < MAX_WEAPONS));
-	if((weapon_type < 0) || (weapon_type >= MAX_WEAPONS)){
+	Assert((weapon_type >= 0) && (weapon_type < MAX_WEAPON_TYPES));
+	if((weapon_type < 0) || (weapon_type >= MAX_WEAPON_TYPES)){
 		return;
 	}
 	wp = &Weapons[weapon_obj->instance];
 	wip = &Weapon_info[weapon_type];
+	objnum = wp->objnum;
 
 	// check if the weapon actually hit the intended target
 	if (wp->homing_object != NULL)
@@ -5920,7 +5782,6 @@ void weapon_hit( object * weapon_obj, object * other_obj, vec3d * hitpos, int qu
 
 	//This is an expensive check
 	bool armed_weapon = weapon_armed(&Weapons[num], hit_target);
-	// int np_index;
 
 	// if this is the player ship, and is a laser hit, skip it. wait for player "pain" to take care of it
 	if ((other_obj != Player_obj) || (wip->subtype != WP_LASER) || !MULTIPLAYER_CLIENT) {
@@ -5947,7 +5808,7 @@ void weapon_hit( object * weapon_obj, object * other_obj, vec3d * hitpos, int qu
 				float draw_limit, hull_pct;
 				int dmg_type_idx, piercing_type;
 
-				ship *shipp = &Ships[other_obj->instance];
+				shipp = &Ships[other_obj->instance];
 
 				hull_pct = other_obj->hull_strength / shipp->ship_max_hull_strength;
 				dmg_type_idx = wip->damage_type_idx;
@@ -6000,6 +5861,38 @@ void weapon_hit( object * weapon_obj, object * other_obj, vec3d * hitpos, int qu
 			}
 		}
 	}
+    
+	// For all objects that had this weapon as a target, wipe it out, forcing find of a new enemy
+	for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) {
+		other_objp = &Objects[so->objnum];
+		Assert(other_objp->instance != -1);
+        
+		shipp = &Ships[other_objp->instance];
+		Assert(shipp->ai_index != -1);
+        
+		ai_info	*aip = &Ai_info[shipp->ai_index];
+        
+		if (aip->target_objnum == objnum) {
+			set_target_objnum(aip, -1);
+			//	If this ship had a dynamic goal of chasing this weapon, clear the dynamic goal.
+			if (aip->resume_goal_time != -1)
+				aip->active_goal = AI_GOAL_NONE;
+		}
+        
+		if (aip->goal_objnum == objnum) {
+			aip->goal_objnum = -1;
+			aip->goal_signature = -1;
+		}
+        
+		if (aip->guard_objnum == objnum) {
+			aip->guard_objnum = -1;
+			aip->guard_signature = -1;
+		}
+        
+		if (aip->hitter_objnum == objnum) {
+			aip->hitter_objnum = -1;
+        }
+	}
 
 	// single player and multiplayer masters evaluate the scoring and kill stuff
 	if (!MULTIPLAYER_CLIENT) {
@@ -6037,7 +5930,7 @@ void weapon_hit( object * weapon_obj, object * other_obj, vec3d * hitpos, int qu
 
 	// check if this is an EMP weapon
 	if(wip->wi_flags & WIF_EMP){
-		emp_apply(&weapon_obj->pos, wip->shockwave.inner_rad, wip->shockwave.outer_rad, wip->emp_intensity, wip->emp_time);
+		emp_apply(&weapon_obj->pos, wip->shockwave.inner_rad, wip->shockwave.outer_rad, wip->emp_intensity, wip->emp_time, (wip->wi_flags3 & WIF3_USE_EMP_TIME_FOR_CAPSHIP_TURRETS) != 0);
 	}	
 
 	// spawn weapons - note the change from FS 1 multiplayer.
@@ -6196,8 +6089,8 @@ void weapons_page_in()
 
 
 		//Load shockwaves
-		wip->shockwave.load();
-		wip->dinky_shockwave.load();
+		shockwave_create_info_load(&wip->shockwave);
+		shockwave_create_info_load(&wip->dinky_shockwave);
 
 		//Explosions
 		Weapon_explosions.PageIn(wip->impact_weapon_expl_index);
@@ -6293,8 +6186,8 @@ void weapons_page_in_cheats()
 		
 		
 		//Load shockwaves
-		wip->shockwave.load();
-		wip->dinky_shockwave.load();
+		shockwave_create_info_load(&wip->shockwave);
+		shockwave_create_info_load(&wip->dinky_shockwave);
 
 		used_weapons[i]++;
 	}
@@ -6504,7 +6397,7 @@ void weapon_maybe_spew_particle(object *obj)
 						
 						if (wip->particle_spewers[psi].particle_spew_z_scale != 1.0f) {	// don't do the extra math for spherical effect
 							temp_vel = input_vel;
-							temp_vel.xyz.z *= wip->particle_spewers[psi].particle_spew_z_scale;	// for an oviod particle effect to better combine with laser effects
+							temp_vel.xyz.z *= wip->particle_spewers[psi].particle_spew_z_scale;	// for an ovoid particle effect to better combine with laser effects
 							vm_vec_unrotate(&input_vel, &temp_vel, &obj->orient);				// so it has to be rotated
 						}
 

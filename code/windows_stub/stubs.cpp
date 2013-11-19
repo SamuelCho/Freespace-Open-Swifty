@@ -37,6 +37,8 @@ static char buffer[MAX_BUF_SIZE], buffer_tmp[MAX_BUF_SIZE];
 #ifdef __APPLE__
 #include <malloc/malloc.h>
 #define MALLOC_USABLE(pointer) malloc_size(pointer)
+#elif defined(SCP_SOLARIS)
+#define MALLOC_USABLE(pointer) (*((size_t*)(pointer)-1))
 #else
 #ifdef SCP_BSD
 #include <stdlib.h>
@@ -96,9 +98,11 @@ void WinAssert(char * text, char *filename, int line)
 	// this stuff migt be really useful for solving bug reports and user errors. We should output it! 
 	mprintf(("ASSERTION: \"%s\" at %s:%d\n", text, strrchr(filename, '/')+1, line ));
 
+#ifdef Allow_NoWarn
 	if (Cmdline_nowarn) {
 		return;
 	}
+#endif
 
 	// we have to call os_deinit() before abort() so we make sure that SDL gets
 	// closed out and we don't lose video/input control
@@ -146,9 +150,11 @@ void WinAssert(char * text, char *filename, int line, const char * format, ... )
 	// this stuff migt be really useful for solving bug reports and user errors. We should output it! 
 	mprintf(("ASSERTION: \"%s\" at %s:%d  %s\n", text, strrchr(filename, '/')+1, line, buffer ));
 
+#ifdef Allow_NoWarn
 	if (Cmdline_nowarn) {
 		return;
 	}
+#endif
 
 	// we have to call os_deinit() before abort() so we make sure that SDL gets
 	// closed out and we don't lose video/input control
