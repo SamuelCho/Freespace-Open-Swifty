@@ -31,6 +31,7 @@
 #include "graphics/gropengldraw.h"
 #include "hud/hudshield.h"
 #include "graphics/gropengllight.h"
+#include "graphics/shadows.h"
 
 // flags
 #define LAB_FLAG_NORMAL				(0)		// default
@@ -892,9 +893,27 @@ void labviewer_render_model(float frametime)
 		if(!(flagggs & MR_NO_LIGHTING) && Cmdline_shadow_quality)
 		{
 			polymodel *pm = model_get(Lab_model_num);
-            gr_start_shadow_map(-Lab_viewer_pos.xyz.z + pm->rad , 1000.0, 5000.0);
+            //gr_start_shadow_map(-Lab_viewer_pos.xyz.z + pm->rad , 1000.0, 5000.0);
+
+			float fov = Proj_fov;
+			matrix eye_orient = Eye_matrix;
+			vec3d eye_pos = Eye_position;
+
+			// create light matrix using orient up vec and light vector
+			matrix light_matrix;
+			vec3d light_dir;
+
+			light *lp = *(Static_light.begin());
+
+			vm_vec_copy_normalize(&light_dir, &lp->vec);
+			vm_vector_2_matrix(&light_matrix, &light_dir, &eye_orient.vec.uvec, NULL);
+
+			shadows_start_render(&light_matrix, &eye_orient, &eye_pos, fov, gr_screen.clip_aspect, -Lab_viewer_pos.xyz.z + pm->rad, 200.0f, 5000.0f, 5000.0f);
+
 			model_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
-			gr_end_shadow_map();
+
+			shadows_end_render();
+			//gr_end_shadow_map();
 		}
 
 		if (!Cmdline_nohtl) {

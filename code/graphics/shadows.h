@@ -27,4 +27,7 @@ void shadows_construct_light_frustum(vec3d *min_out, vec3d *max_out, vec3d light
 bool shadows_obj_in_frustum(object *objp, vec3d *min, vec3d *max, matrix *light_orient);
 void shadows_render_all();
 
+void shadows_start_render(matrix *light_orient, matrix *eye_orient, vec3d *eye_pos, float fov, float aspect, float veryneardist, float neardist, float middist, float fardist);
+void shadows_end_render();
+
 #endif
