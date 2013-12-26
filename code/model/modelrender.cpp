@@ -216,16 +216,17 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 	render_state *draw_state = &render_states[render_state_num];
 
 	// set clip plane if necessary
-// 	if ( draw_state->clip_plane_handle >= 0 && draw_state->clip_plane_handle != set_clip_plane ) {
-// 		set_clip_plane = draw_state->clip_plane_handle;
-// 
-// 		clip_plane_state *clip_plane = &clip_planes[set_clip_plane];
-// 
-// 		g3_start_user_clip_plane(&clip_plane->point, &clip_plane->normal);
-// 	} else if ( draw_state->clip_plane_handle < 0 && set_clip_plane >= 0 ) {
-// 		// stop the clip plane if this draw call doesn't have clip plane and clip plane is set.
-// 		g3_stop_user_clip_plane();
-// 	}
+	if ( draw_state->clip_plane_handle >= 0 && draw_state->clip_plane_handle != set_clip_plane ) {
+		set_clip_plane = draw_state->clip_plane_handle;
+
+		clip_plane_state *clip_plane = &clip_planes[set_clip_plane];
+
+		g3_start_user_clip_plane(&clip_plane->point, &clip_plane->normal);
+	} else if ( draw_state->clip_plane_handle < 0 && set_clip_plane >= 0 ) {
+		// stop the clip plane if this draw call doesn't have clip plane and clip plane is set.
+		set_clip_plane = -1;
+		g3_stop_user_clip_plane();
+	}
 
 	opengl_shader_set_animated_effect(draw_state->animated_effect);
 	opengl_shader_set_animated_timer(draw_state->animated_timer);
