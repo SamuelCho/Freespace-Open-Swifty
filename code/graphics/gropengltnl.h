@@ -117,10 +117,8 @@ public:
 	void setThrusterScale(float scale);
 	void setTeamColor(float base_r, float base_g, float base_b, float stripe_r, float stripe_g, float stripe_b);
 	void setTexture(int texture_type, int texture_handle);
-	void generateUniforms(uniform_block *block_out, int flags, uint sdr_flags);
+	void generateUniforms(int texture_slots[], int flags, uint sdr_flags);
 	bool setUniforms();
-	uniform_block* getUniforms();
-	void loadUniforms(uniform_block *uniforms);
 
 	void resetAll();
 };

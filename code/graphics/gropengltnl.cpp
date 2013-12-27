@@ -776,9 +776,6 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 
 	int texture_slot[TEX_SLOT_MAX] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
-	uniform_block uniform_block_info;
-
-//	Current_uniforms.resetAll();
 	Current_uniforms.setOrientation(&Object_matrix);
 	Current_uniforms.setPosition(&Object_position);
 	Current_uniforms.setNumLights(Num_active_gl_lights);
@@ -790,22 +787,8 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 
 	Current_uniforms.setThrusterScale(Interp_thrust_scale);
 		
-	//Current_uniforms.generateUniforms(&uniform_block_info, flags, shader_flags, 0);
-	Current_uniforms.generateUniforms(&uniform_block_info, flags, shader_flags);
-	//Current_uniforms.loadUniforms(&uniform_block_info);
+	Current_uniforms.generateUniforms(texture_slot, flags, shader_flags);
 	Current_uniforms.setUniforms();
-	//Current_uniforms.loadUniforms(NULL);
-
-	texture_slot[TEX_SLOT_DIFFUSE] = uniform_block_info.texture_slots[TEX_SLOT_DIFFUSE];
-	texture_slot[TEX_SLOT_GLOW] = uniform_block_info.texture_slots[TEX_SLOT_GLOW];
-	texture_slot[TEX_SLOT_SPEC] = uniform_block_info.texture_slots[TEX_SLOT_SPEC];
-	texture_slot[TEX_SLOT_ENV] = uniform_block_info.texture_slots[TEX_SLOT_ENV];
-	texture_slot[TEX_SLOT_NORMAL] = uniform_block_info.texture_slots[TEX_SLOT_NORMAL];
-	texture_slot[TEX_SLOT_HEIGHT] = uniform_block_info.texture_slots[TEX_SLOT_HEIGHT];
-	texture_slot[TEX_SLOT_MISC] = uniform_block_info.texture_slots[TEX_SLOT_MISC];
-	texture_slot[TEX_SLOT_SHADOW] = uniform_block_info.texture_slots[TEX_SLOT_SHADOW];
-	texture_slot[TEX_SLOT_TRANSFORM] = uniform_block_info.texture_slots[TEX_SLOT_TRANSFORM];
-	texture_slot[TEX_SLOT_ANIMATED] = uniform_block_info.texture_slots[TEX_SLOT_ANIMATED];
 	
 	// base texture
 	if ( ( shader_flags & SDR_FLAG_DIFFUSE_MAP ) && texture_slot[TEX_SLOT_DIFFUSE] >= 0 ) {
@@ -2894,13 +2877,11 @@ bool uniform_handler::compareMatrix4(matrix4 &a, matrix4 &b)
 	return false;
 }
 
-void uniform_handler::generateUniforms(uniform_block *block_out, int flags, uint sdr_flags)
+void uniform_handler::generateUniforms(int texture_slots[], int flags, uint sdr_flags)
 {
 	int start_index = uniforms.size();
 	int num_uniforms = 0;
 	int render_pass = 0;
-
-	Assert(block_out != NULL);
 	
 	if ( sdr_flags != current_sdr ) {
 		resetAll();
@@ -2923,7 +2904,7 @@ void uniform_handler::generateUniforms(uniform_block *block_out, int flags, uint
 
 	if ( sdr_flags & SDR_FLAG_DIFFUSE_MAP ) {
 		queueUniformi("sBasemap", render_pass);
-		block_out->texture_slots[TEX_SLOT_DIFFUSE] = render_pass;
+		texture_slots[TEX_SLOT_DIFFUSE] = render_pass;
 		++render_pass;
 
 		int desaturate = 0;
@@ -2939,13 +2920,13 @@ void uniform_handler::generateUniforms(uniform_block *block_out, int flags, uint
 
 	if ( sdr_flags & SDR_FLAG_GLOW_MAP ) {
 		queueUniformi("sGlowmap", render_pass);
-		block_out->texture_slots[TEX_SLOT_GLOW] = render_pass;
+		texture_slots[TEX_SLOT_GLOW] = render_pass;
 		++render_pass;
 	}
 
 	if ( sdr_flags & SDR_FLAG_SPEC_MAP ) {
 		queueUniformi("sSpecmap", render_pass);
-		block_out->texture_slots[TEX_SLOT_SPEC] = render_pass;
+		texture_slots[TEX_SLOT_SPEC] = render_pass;
 		++render_pass;
 
 		if ( sdr_flags & SDR_FLAG_ENV_MAP) {
@@ -2962,26 +2943,26 @@ void uniform_handler::generateUniforms(uniform_block *block_out, int flags, uint
 
 			queueUniform4fv("envMatrix", 1, GL_FALSE, &texture_mat);
 			queueUniformi("sEnvmap", render_pass);
-			block_out->texture_slots[TEX_SLOT_ENV] = render_pass;
+			texture_slots[TEX_SLOT_ENV] = render_pass;
 			++render_pass;
 		}
 	}
 
 	if ( sdr_flags & SDR_FLAG_NORMAL_MAP ) {
 		queueUniformi("sNormalmap", render_pass);
-		block_out->texture_slots[TEX_SLOT_NORMAL] = render_pass;
+		texture_slots[TEX_SLOT_NORMAL] = render_pass;
 		++render_pass;
 	}
 
 	if ( sdr_flags & SDR_FLAG_HEIGHT_MAP ) {
 		queueUniformi("sHeightmap", render_pass);
-		block_out->texture_slots[TEX_SLOT_HEIGHT] = render_pass;
+		texture_slots[TEX_SLOT_HEIGHT] = render_pass;
 		++render_pass;
 	}
 
 	if ( sdr_flags & SDR_FLAG_MISC_MAP ) {
 		queueUniformi("sMiscmap", render_pass);
-		block_out->texture_slots[TEX_SLOT_MISC] = render_pass;
+		texture_slots[TEX_SLOT_MISC] = render_pass;
 		++render_pass;
 	}
 
@@ -3039,12 +3020,11 @@ void uniform_handler::generateUniforms(uniform_block *block_out, int flags, uint
 		queueUniformf("middist", shadow_middist);
 		queueUniformf("fardist", shadow_fardist);
 		queueUniformi("shadow_map", render_pass);
-		block_out->texture_slots[TEX_SLOT_SHADOW] = render_pass;
+		texture_slots[TEX_SLOT_SHADOW] = render_pass;
 		++render_pass; // bump!
 	}
 
-	if ( sdr_flags & SDR_FLAG_GEOMETRY ) {
-	//if ( sdr_flags & SDR_FLAG_SHADOW_MAP ) {
+	if ( sdr_flags & SDR_FLAG_GEOMETRY && sdr_flags & SDR_FLAG_SHADOW_MAP ) {
 		matrix4 l_proj_matrix[4];
 
 		for ( int i = 0; i < 4; ++i ) {
@@ -3060,7 +3040,7 @@ void uniform_handler::generateUniforms(uniform_block *block_out, int flags, uint
 
 	if ( sdr_flags & SDR_FLAG_ANIMATED ) {
 		queueUniformi("sFramebuffer", render_pass);
-		block_out->texture_slots[TEX_SLOT_ANIMATED] = render_pass;
+		texture_slots[TEX_SLOT_ANIMATED] = render_pass;
 		++render_pass;
 	}
 
@@ -3068,7 +3048,7 @@ void uniform_handler::generateUniforms(uniform_block *block_out, int flags, uint
 		GL_state.Array.BindUniformBuffer(Interp_transform_texture, 0);
 		vglUniformBlockBindingARB(Current_shader->program_id, 0, opengl_shader_get_uniform_block("transform_data"));
 // 		queueUniformi("transform_tex", render_pass);
-// 		block_out->texture_slots[TEX_SLOT_TRANSFORM] = render_pass;
+// 		texture_slots[TEX_SLOT_TRANSFORM] = render_pass;
 // 		++render_pass;
 	}
 
@@ -3083,204 +3063,10 @@ void uniform_handler::generateUniforms(uniform_block *block_out, int flags, uint
 	if ( sdr_flags & SDR_FLAG_THRUSTER ) {
 		queueUniformf("thruster_scale", thruster_scale);
 	}
-
-	num_uniforms = uniforms.size() - start_index;
-
-	block_out->uniform_start_index = start_index;
-	block_out->num_uniforms = num_uniforms;
-}
-
-// void uniform_handler::generateUniforms(uniform_block *block_out, int flags, int sdr_flags, int prev_sdr_flags, uniform_block *prev_block)
-// {
-// 	int start_index = uniforms.size();
-// 	int num_uniforms = 0;
-// 	int render_pass = 0;
-// 
-// 	Assert(block_out != NULL);
-// 
-// 	if ( sdr_flags == prev_sdr_flags ) {
-// 		loadUniformLookup(prev_block);
-// 	} else {
-// 		loadUniformLookup(NULL);
-// 	}
-// 
-// 	if ( flags & TMAP_ANIMATED_SHADER ) {
-// 		queueUniformf("anim_timer", opengl_shader_get_animated_timer());
-// 		queueUniformi("effect_num", opengl_shader_get_animated_effect());
-// 		queueUniformf("vpwidth", 1.0f/gr_screen.max_w);
-// 		queueUniformf("vpheight", 1.0f/gr_screen.max_h);
-// 	}
-// 
-// 	int num_lights = MIN(n_lights, GL_max_lights) - 1;
-// 	queueUniformi("n_lights", num_lights);
-// 
-// 	if ( sdr_flags & SDR_FLAG_DIFFUSE_MAP ) {
-// 		queueUniformi("sBasemap", render_pass);
-// 		block_out->texture_slots[TEX_SLOT_DIFFUSE] = render_pass;
-// 		++render_pass;
-// 
-// 		int desaturate = 0;
-// 		if ( flags & TMAP_FLAG_DESATURATE ) {
-// 			desaturate = 1;
-// 		}
-// 
-// 		queueUniformi("desaturate", desaturate);
-// 		queueUniformf("desaturate_r", gr_screen.current_color.red/255.0f);
-// 		queueUniformf("desaturate_g", gr_screen.current_color.green/255.0f);
-// 		queueUniformf("desaturate_b", gr_screen.current_color.blue/255.0f);
-// 	}
-// 
-// 	if ( sdr_flags & SDR_FLAG_GLOW_MAP ) {
-// 		queueUniformi("sGlowmap", render_pass);
-// 		block_out->texture_slots[TEX_SLOT_GLOW] = render_pass;
-// 		++render_pass;
-// 	}
-// 
-// 	if ( sdr_flags & SDR_FLAG_SPEC_MAP ) {
-// 		queueUniformi("sSpecmap", render_pass);
-// 		block_out->texture_slots[TEX_SLOT_SPEC] = render_pass;
-// 		++render_pass;
-// 
-// 		if ( sdr_flags & SDR_FLAG_ENV_MAP) {
-// 			// 0 == env with non-alpha specmap, 1 == env with alpha specmap
-// 			int alpha_spec = bm_has_alpha_channel(ENVMAP);
-// 
-// 			queueUniformi("alpha_spec", alpha_spec);
-// 
-// 			matrix4 texture_mat;
-// 
-// 			for ( int i = 0; i < 16; ++i ) {
-// 				texture_mat.a1d[i] = GL_env_texture_matrix[i];
-// 			}
-// 
-// 			queueUniform4fv("envMatrix", 1, GL_FALSE, &texture_mat);
-// 			queueUniformi("sEnvmap", render_pass);
-// 			block_out->texture_slots[TEX_SLOT_ENV] = render_pass;
-// 			++render_pass;
-// 		}
-// 	}
-// 
-// 	if ( sdr_flags & SDR_FLAG_NORMAL_MAP ) {
-// 		queueUniformi("sNormalmap", render_pass);
-// 		block_out->texture_slots[TEX_SLOT_NORMAL] = render_pass;
-// 		++render_pass;
-// 	}
-// 
-// 	if ( sdr_flags & SDR_FLAG_HEIGHT_MAP ) {
-// 		queueUniformi("sHeightmap", render_pass);
-// 		block_out->texture_slots[TEX_SLOT_HEIGHT] = render_pass;
-// 		++render_pass;
-// 	}
-// 
-// 	if ( sdr_flags & SDR_FLAG_MISC_MAP ) {
-// 		queueUniformi("sMiscmap", render_pass);
-// 		block_out->texture_slots[TEX_SLOT_MISC] = render_pass;
-// 		++render_pass;
-// 	}
-// 
-// 	if ( sdr_flags & SDR_FLAG_SHADOWS ) {
-// 		matrix4 model_matrix;
-// 		model_matrix.a1d[0]  = orientation.vec.rvec.xyz.x;   model_matrix.a1d[4]  = orientation.vec.uvec.xyz.x;   model_matrix.a1d[8]  = orientation.vec.fvec.xyz.x;
-// 		model_matrix.a1d[1]  = orientation.vec.rvec.xyz.y;   model_matrix.a1d[5]  = orientation.vec.uvec.xyz.y;   model_matrix.a1d[9]  = orientation.vec.fvec.xyz.y;
-// 		model_matrix.a1d[2]  = orientation.vec.rvec.xyz.z;   model_matrix.a1d[6]  = orientation.vec.uvec.xyz.z;   model_matrix.a1d[10] = orientation.vec.fvec.xyz.z;
-// 		model_matrix.a1d[12] = position.xyz.x;
-// 		model_matrix.a1d[13] = position.xyz.y;
-// 		model_matrix.a1d[14] = position.xyz.z;
-// 		model_matrix.a1d[15] = 1.0f;
-// 
-// 		matrix4 l_matrix;
-// 		matrix4 l_proj_matrix[3];
-// 
-// 		for ( int i = 0; i < 16; ++i ) {
-// 			l_matrix.a1d[i] = lmatrix[i];
-// 		}
-// 
-// 		for ( int i = 0; i < 3; ++i ) {
-// 			for ( int j = 0; j < 16; ++j ) {
-// 				l_proj_matrix[i].a1d[j] = lprojmatrix[i][j];
-// 			}
-// 		}
-// 
-// 		queueUniform4fv("shadow_mv_matrix", 1, GL_FALSE, &l_matrix);
-// 		queueUniform4fv("shadow_proj_matrix", 3, GL_FALSE, l_proj_matrix);
-// 		queueUniform4fv("model_matrix", 1, GL_FALSE, &model_matrix);
-// 		queueUniformf("neardist", shadow_neardist);
-// 		queueUniformf("middist", shadow_middist);
-// 		queueUniformf("fardist", shadow_fardist);
-// 		queueUniformi("shadow_map", render_pass);
-// 		block_out->texture_slots[TEX_SLOT_SHADOW] = render_pass;
-// 		++render_pass; // bump!
-// 	}
-// 
-// 	if ( sdr_flags & SDR_FLAG_GEOMETRY ) {
-// 		matrix4 l_proj_matrix[3];
-// 
-// 		for ( int i = 0; i < 3; ++i ) {
-// 			for ( int j = 0; j < 16; ++j ) {
-// 				l_proj_matrix[i].a1d[j] = lprojmatrix[i][j];
-// 			}
-// 		}
-// 
-// 		queueUniform4fv("shadow_proj_matrix", 3, GL_FALSE, l_proj_matrix);
-// 	}
-// 
-// 	if ( sdr_flags & SDR_FLAG_ANIMATED ) {
-// 		queueUniformi("sFramebuffer", render_pass);
-// 		block_out->texture_slots[TEX_SLOT_ANIMATED] = render_pass;
-// 		++render_pass;
-// 	}
-// 
-// 	if ( sdr_flags & SDR_FLAG_TRANSFORM ) {
-// 		queueUniformi("transform_tex", render_pass);
-// 		block_out->texture_slots[TEX_SLOT_TRANSFORM] = render_pass;
-// 		render_pass++;
-// 	}
-// 
-// 	// Team colors are passed to the shader here, but the shader needs to handle their application.
-// 	// By default, this is handled through the r and g channels of the misc map, but this can be changed
-// 	// in the shader; test versions of this used the normal map r and b channels
-// 	if ( sdr_flags & SDR_FLAG_TEAMCOLOR ) {
-// 		queueUniform3f("stripe_color", stripe_color);
-// 		queueUniform3f("base_color", base_color);
-// 	}
-// 
-// 	if ( sdr_flags & SDR_FLAG_THRUSTER ) {
-// 		queueUniformf("thruster_scale", thruster_scale);
-// 	}
-// 
-// 	num_uniforms = uniforms.size() - start_index;
-// 
-// 	block_out->uniform_start_index = start_index;
-// 	block_out->num_uniforms = num_uniforms;
-// }
-
-void uniform_handler::loadUniforms(uniform_block *uniforms)
-{
-	loaded_block = uniforms;
-}
-
-uniform_block* uniform_handler::getUniforms()
-{
-	return loaded_block;
 }
 
 bool uniform_handler::setUniforms()
 {
-// 	if ( loaded_block == NULL ) {
-// 		return false; 
-// 	}
-// 
-// 	if ( loaded_block->uniform_start_index < 0 ) {
-// 		return false;
-// 	}
-// 
-// 	if ( loaded_block->num_uniforms <= 0 ) {
-// 		return true;
-// 	}
-
-// 	int i = loaded_block->uniform_start_index;
-// 	int end = i + loaded_block->num_uniforms;
-
 	GLfloat buffer[4][16];
 
 	for ( int i = 0; i < uniforms_to_set.size(); ++i ) {
@@ -3300,17 +3086,7 @@ bool uniform_handler::setUniforms()
 				vglUniform3fARB(opengl_shader_get_uniform(name), uniform_data_vec3d[data_index].a1d[0], uniform_data_vec3d[data_index].a1d[1], uniform_data_vec3d[data_index].a1d[2]);
 				break;
 			case uniform_bind::MATRIX4: {
-// 				matrix4 *data = (matrix4*)vm_malloc(uniforms[i].count*sizeof(matrix4));
-// 
-// 				for ( int i = 0; i < uniforms[i].count; ++i ) {
-// 					matrix4 &mat = matrix_uniform_data[index+i];
-// 
-// 					memcpy(&data[i], &mat, sizeof(matrix4));
-// 				}
-
-//				vglUniformMatrix4fvARB(opengl_shader_get_uniform(name), uniforms[uniforms_to_set[i]].count, uniforms[uniforms_to_set[i]].tranpose, (const GLfloat*)&(matrix_uniform_data[index].a1d[0]));
 				vglUniformMatrix4fvARB(opengl_shader_get_uniform(name), uniforms[uniform_index].count, uniforms[uniform_index].tranpose, (const GLfloat*)&(uniform_data_matrix4[data_index].a1d[0]));
-				//vm_free(data);
 				break;
 			} default:
 				Int3();
