@@ -285,12 +285,7 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 		Interp_thrust_scale_subobj = 0;
 	}
 
-	Current_uniforms.loadUniforms(&render_elements->uniform_handle);
-	//Current_uniforms.loadUniforms(NULL);
-
 	gr_render_buffer(0, render_elements->buffer, render_elements->texi, render_elements->flags);
-
-	Current_uniforms.loadUniforms(NULL);
 
 	GLOWMAP = -1;
 	SPECMAP = -1;
@@ -402,27 +397,6 @@ void DrawList::renderAll(int blend_filter)
 
 	Lights.resetLightState();
 	Current_uniforms.resetAll();
-
-// 	for ( i = 0; i < render_keys.size(); ++i ) {
-// 		// process uniforms for each draw.
-// 		int render_index = render_keys[i];
-// 
-// 		if ( blend_filter == -1 || render_elements[render_index].blend_filter == blend_filter ) {
-// 			queued_buffer_draw *draw_element = &render_elements[render_index];
-// 			render_state *state = &render_states[draw_element->render_state_handle];
-// 
-// 			Current_uniforms.setOrientation(&draw_element->orient);
-// 			Current_uniforms.setPosition(&draw_element->pos);
-// 			Current_uniforms.setThrusterScale(draw_element->thrust_scale);
-// 			Current_uniforms.setTeamColor(state->tm_color.base.r, state->tm_color.base.g, state->tm_color.base.b, state->tm_color.stripe.r, state->tm_color.stripe.g, state->tm_color.stripe.b);
-// 			Current_uniforms.setNumLights(state->lights.num_lights + Lights.getNumStaticLights());
-// 
-// 			Current_uniforms.generateUniforms(&draw_element->uniform_handle, draw_element->flags, draw_element->sdr_flags, prev_sdr_flags, prev_uniforms);
-// 
-// 			prev_uniforms = &draw_element->uniform_handle;
-// 			prev_sdr_flags = draw_element->sdr_flags;
-// 		}
-// 	}
 
 	for ( i = 0; i < render_keys.size(); ++i ) {
 		int render_index = render_keys[i];
@@ -1899,6 +1873,29 @@ void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum
 				}
 			}
 		}
+	}
+}
+
+void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures, int render)
+{
+	DrawList model_list;
+
+	interp_data interp;
+
+	model_queue_render(&interp, &model_list, model_num, -1, orient, pos, flags, objnum, replacement_textures);
+
+	model_list.sortDraws();
+
+	switch ( render ) {
+	case MODEL_RENDER_OPAQUE:
+		model_list.renderAll(GR_ALPHABLEND_NONE);
+		break;
+	case MODEL_RENDER_TRANS:
+		model_list.renderAll(GR_ALPHABLEND_FILTER);
+		break;
+	case MODEL_RENDER_ALL:
+		model_list.renderAll();
+		break;
 	}
 }
 
