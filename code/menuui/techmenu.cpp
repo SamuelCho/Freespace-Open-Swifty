@@ -563,10 +563,11 @@ void techroom_ships_render(float frametime)
 		shadows_start_render(&light_matrix, &eye_orient, &eye_pos, fov, gr_screen.clip_aspect, -sip->closeup_pos.xyz.z + pm->rad, 200.0f, 5000.0f, 5000.0f);
 
         //gr_start_shadow_map(-sip->closeup_pos.xyz.z + pm->rad, 1000.0f, 5000.0f);
-        model_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
-        gr_set_clip(Tech_ship_display_coords[gr_screen.res][SHIP_X_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_Y_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_W_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_H_COORD]);
+        model_immediate_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
         shadows_end_render();
 		//gr_end_shadow_map();
+
+		gr_set_clip(Tech_ship_display_coords[gr_screen.res][SHIP_X_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_Y_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_W_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_H_COORD]);
     }
 	
 	if (!Cmdline_nohtl) {
@@ -574,7 +575,7 @@ void techroom_ships_render(float frametime)
 		gr_set_view_matrix(&Eye_position, &Eye_matrix);
 	}
 
-	model_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER);
+	model_immediate_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER);
 
 	Glowpoint_use_depth_buffer = true;
 

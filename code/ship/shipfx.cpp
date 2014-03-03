@@ -3447,6 +3447,11 @@ int WarpEffect::warpShipRender()
 	return 0;
 }
 
+int WarpEffect::warpShipQueueRender(DrawList *scene)
+{
+	return 0;
+}
+
 int WarpEffect::warpEnd()
 {
 	if(!this->isValid())

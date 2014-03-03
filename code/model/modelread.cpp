@@ -1286,7 +1286,7 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 				// Check for unrealistic radii
 				if ( pm->submodel[n].rad <= 0.1f )
 				{
-					Warning(LOCATION, "Submodel <%s> in model <%s> has a radius <= 0.1f\n", pm->submodel[n].name, filename);
+					//Warning(LOCATION, "Submodel <%s> in model <%s> has a radius <= 0.1f\n", pm->submodel[n].name, filename);
 				}
 				
 				// sanity first!
@@ -2492,6 +2492,9 @@ void model_load_texture(polymodel *pm, int i, char *file)
 	if(Use_GLSL > 1)
 		shader_flags |= SDR_FLAG_DEFERRED;
 	
+	if(GL_version >= 30)
+		shader_flags |= SDR_FLAG_CLIP;
+
 	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT);
 	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_FOG);
 	

@@ -67,7 +67,8 @@ static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
 	{ SDR_FLAG_SHADOW_MAP,	2, { "shadow_map_num", "shadow_proj_matrix" }, 0, { NULL }, 0, {}, "Shadow Mapping" },
 	{ SDR_FLAG_SHADOWS,		8, { "shadow_map", "shadow_mv_matrix", "shadow_proj_matrix", "model_matrix", "veryneardist", "neardist", "middist", "fardist" }, 0, { NULL }, 0, {}, "Shadows" },
 	{ SDR_FLAG_THRUSTER,	1, {"thruster_scale"}, 0, { NULL }, 0, {}, "Thruster scaling" },
-	{ SDR_FLAG_TRANSFORM,	1, {"transform_tex"}, 1, {"model_id"}, 1, { "transform_data" }, "Submodel Transforms" }
+	{ SDR_FLAG_TRANSFORM,	1, {"transform_tex"}, 1, {"model_id"}, 1, { "transform_data" }, "Submodel Transforms" },
+	{ SDR_FLAG_CLIP,		4, {"use_clip_plane", "world_matrix", "clip_normal", "clip_position"}, 0, { NULL }, 0, { NULL }, "Clip Plane" }
 };
 
 static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main) / sizeof(opengl_shader_uniform_reference_t);
@@ -279,6 +280,10 @@ static char *opengl_load_shader(char *filename, int flags)
 
 	if (flags & SDR_FLAG_THRUSTER) {
 		sflags += "#define FLAG_THRUSTER\n";
+	}
+
+	if (flags & SDR_FLAG_CLIP) {
+		sflags += "#define FLAG_CLIP\n";
 	}
 
 	if (flags & SDR_FLAG_TRAILS) {
@@ -961,6 +966,7 @@ void opengl_shader_compile_deferred_light_shader()
 	opengl_shader_init_uniform( "NormalBuffer" );
 	opengl_shader_init_uniform( "PositionBuffer" );
 	opengl_shader_init_uniform( "SpecBuffer" );
+	opengl_shader_init_uniform( "DepthBuffer" );
 	opengl_shader_init_uniform( "vpwidth" );
 	opengl_shader_init_uniform( "vpheight" );
 	opengl_shader_init_uniform( "lighttype" );
@@ -971,10 +977,13 @@ void opengl_shader_compile_deferred_light_shader()
 	opengl_shader_init_uniform( "coneDir" );
 	opengl_shader_init_uniform( "cone_angle" );
 	opengl_shader_init_uniform( "cone_inner_angle" );
+	opengl_shader_init_uniform( "farZ" );
+	opengl_shader_init_uniform( "nearZ" );
 
 	vglUniform1iARB( opengl_shader_get_uniform("NormalBuffer"), 0 );
 	vglUniform1iARB( opengl_shader_get_uniform("PositionBuffer"), 1 );
 	vglUniform1iARB( opengl_shader_get_uniform("SpecBuffer"), 2 );
+	vglUniform1iARB( opengl_shader_get_uniform("DepthBuffer"), 3 );
 	vglUniform1fARB( opengl_shader_get_uniform("vpwidth"), 1.0f/gr_screen.max_w );
 	vglUniform1fARB( opengl_shader_get_uniform("vpheight"), 1.0f/gr_screen.max_h );
 

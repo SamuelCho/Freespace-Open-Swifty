@@ -72,6 +72,15 @@ typedef struct ccodes {
 
 struct vertex;
 
+typedef struct vec4 {
+	union {
+		struct {
+			float x,y,z;
+		} xyzw;
+		float a1d[4];
+	};
+} vec4;
+
 /** Represents a point in 3d space.
 
 Note: this is a struct, not a class, so no member functions. */

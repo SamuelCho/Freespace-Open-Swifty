@@ -3936,7 +3936,7 @@ void game_render_frame_new( camid cid )
 // 	ship_render_mode = MODEL_RENDER_OPAQUE;
 // 	obj_render_all(obj_render, &draw_viewer_last);
 // 	ship_render_mode = MODEL_RENDER_ALL;
-// 	gr_deferred_lighting_end();
+//	gr_deferred_lighting_end();
 // 	gr_deferred_lighting_finish();
 
 	render_shields();

@@ -42,6 +42,7 @@ extern int SPECMAP;
 extern int NORMMAP;
 extern int MISCMAP;
 extern int HEIGHTMAP;
+extern int G3_user_clip;
 extern vec3d G3_user_clip_normal;
 extern vec3d G3_user_clip_point;
 extern int Interp_multitex_cloakmap;
@@ -1959,12 +1960,21 @@ void gr_opengl_end_clip_plane()
 		return;
 	}
 
+	if ( Use_GLSL > 1 ) {
+		return;
+	}
+
 	GL_state.ClipPlane(0, GL_FALSE);
 }
 
 void gr_opengl_start_clip_plane()
 {
 	if (Cmdline_nohtl) {
+		return;
+	}
+
+	if ( Use_GLSL > 1 ) {
+		// bail since we're gonna clip in the shader
 		return;
 	}
 
@@ -2716,7 +2726,7 @@ void uniform_handler::queueUniform3f(SCP_string name, vec3d &val)
 
 		uniform_bind *bind_info = &uniforms[uniform_index];
 
-		if ( bind_info->type == uniform_bind::VEC3D 
+		if ( bind_info->type == uniform_bind::VEC3 
 			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[0] - val.a1d[0]) < EPSILON 
 			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[1] - val.a1d[1]) < EPSILON 
 			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[2] - val.a1d[2]) < EPSILON 
@@ -2737,7 +2747,48 @@ void uniform_handler::queueUniform3f(SCP_string name, vec3d &val)
 
 	new_bind.count = 1;
 	new_bind.index = uniform_data_vec3d.size() - 1;
-	new_bind.type = uniform_bind::VEC3D;
+	new_bind.type = uniform_bind::VEC3;
+	new_bind.name = name;
+	new_bind.tranpose = false;
+
+	uniforms.push_back(new_bind);
+	uniforms_to_set.push_back(uniforms.size()-1);
+
+	uniform_lookup[name] = uniforms.size()-1;
+}
+
+void uniform_handler::queueUniform4f(SCP_string name, vec4 &val)
+{
+	int uniform_index = findUniform(name);
+
+	if ( uniform_index >= 0 ) {
+		Assert( uniform_index < uniforms.size() );
+
+		uniform_bind *bind_info = &uniforms[uniform_index];
+
+		if ( bind_info->type == uniform_bind::VEC4
+			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[0] - val.a1d[0]) < EPSILON 
+			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[1] - val.a1d[1]) < EPSILON 
+			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[2] - val.a1d[2]) < EPSILON 
+			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[3] - val.a1d[3]) < EPSILON 
+			) {
+				// if the values are close enough, pass.
+				return;
+		} else {
+			uniform_data_vec4[bind_info->index] = val;
+			uniforms_to_set.push_back(uniform_index);
+			return;
+		}
+	}
+
+	// uniform doesn't exist in our previous uniform block so queue this new value
+	uniform_data_vec4.push_back(val);
+
+	uniform_bind new_bind;
+
+	new_bind.count = 1;
+	new_bind.index = uniform_data_vec4.size() - 1;
+	new_bind.type = uniform_bind::VEC4;
 	new_bind.name = name;
 	new_bind.tranpose = false;
 
@@ -2845,6 +2896,7 @@ void uniform_handler::resetAll()
 	uniform_data_ints.clear();
 	uniform_data_floats.clear();
 	uniform_data_vec3d.clear();
+	uniform_data_vec4.clear();
 	uniform_data_matrix4.clear();
 	num_matrix_uniforms = 0;
 
@@ -2901,6 +2953,44 @@ void uniform_handler::generateUniforms(int texture_slots[], int flags, uint sdr_
 	queueUniformi("n_lights", num_lights);
 	queueUniformf( "light_factor", Interp_light );
 	//vglUniform1iARB( opengl_shader_get_uniform("n_lights"), num_lights );
+
+	if ( sdr_flags & SDR_FLAG_CLIP ) {
+		queueUniformi("use_clip_plane", G3_user_clip);
+
+		if ( G3_user_clip ) {
+			vec3d normal, pos;
+			vec3d zero = ZERO_VECTOR;
+
+			vm_vec_unrotate(&normal, &G3_user_clip_normal, &Eye_matrix);
+			vm_vec_normalize(&normal);
+
+			vm_vec_unrotate(&pos, &G3_user_clip_point, &Eye_matrix);
+			vm_vec_add2(&pos, &Eye_position);
+
+			vec4 clip_plane_equation;
+
+			clip_plane_equation.a1d[0] = normal.a1d[0];
+			clip_plane_equation.a1d[1] = normal.a1d[1];
+			clip_plane_equation.a1d[2] = normal.a1d[2];
+			clip_plane_equation.a1d[3] = vm_vec_mag(&pos);
+
+			matrix4 model_matrix;
+			memset( &model_matrix, 0, sizeof(model_matrix) );
+
+			model_matrix.a1d[0]  = Object_matrix.vec.rvec.xyz.x;   model_matrix.a1d[4]  = Object_matrix.vec.uvec.xyz.x;   model_matrix.a1d[8]  = Object_matrix.vec.fvec.xyz.x;
+			model_matrix.a1d[1]  = Object_matrix.vec.rvec.xyz.y;   model_matrix.a1d[5]  = Object_matrix.vec.uvec.xyz.y;   model_matrix.a1d[9]  = Object_matrix.vec.fvec.xyz.y;
+			model_matrix.a1d[2]  = Object_matrix.vec.rvec.xyz.z;   model_matrix.a1d[6]  = Object_matrix.vec.uvec.xyz.z;   model_matrix.a1d[10] = Object_matrix.vec.fvec.xyz.z;
+			model_matrix.a1d[12] = Object_position.xyz.x;
+			model_matrix.a1d[13] = Object_position.xyz.y;
+			model_matrix.a1d[14] = Object_position.xyz.z;
+			model_matrix.a1d[15] = 1.0f;
+
+ 			queueUniform3f("clip_normal", normal);
+ 			queueUniform3f("clip_position", pos);
+			queueUniformMatrix4f("world_matrix", 0, model_matrix);
+			//queueUniform4f("clip_plane", clip_plane_equation);
+		}
+	}
 
 	if ( sdr_flags & SDR_FLAG_DIFFUSE_MAP ) {
 		queueUniformi("sBasemap", render_pass);
@@ -3082,8 +3172,11 @@ bool uniform_handler::setUniforms()
 			case uniform_bind::FLOAT:
 				vglUniform1fARB(opengl_shader_get_uniform(name), uniform_data_floats[data_index]);
 				break;
-			case uniform_bind::VEC3D:
+			case uniform_bind::VEC3:
 				vglUniform3fARB(opengl_shader_get_uniform(name), uniform_data_vec3d[data_index].a1d[0], uniform_data_vec3d[data_index].a1d[1], uniform_data_vec3d[data_index].a1d[2]);
+				break;
+			case uniform_bind::VEC4:
+				vglUniform4fARB(opengl_shader_get_uniform(name), uniform_data_vec4[data_index].a1d[0], uniform_data_vec4[data_index].a1d[1], uniform_data_vec4[data_index].a1d[2], uniform_data_vec4[data_index].a1d[3]);
 				break;
 			case uniform_bind::MATRIX4: {
 				vglUniformMatrix4fvARB(opengl_shader_get_uniform(name), uniforms[uniform_index].count, uniforms[uniform_index].tranpose, (const GLfloat*)&(uniform_data_matrix4[data_index].a1d[0]));

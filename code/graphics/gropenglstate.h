@@ -288,6 +288,7 @@ class opengl_state
 		GLboolean polygonoffsetfill_Status;
 		GLboolean normalize_Status;
 		GLboolean clipplane_Status[6];
+		GLboolean clipdistance_Status[6];
 		GLboolean *light_Status;
 		GLboolean depthmask_Status;
 		GLboolean lighting_Status;
@@ -344,6 +345,7 @@ class opengl_state
 		GLboolean Normalize(GLint state = -1);
 		GLboolean Light(GLint num, GLint state = -1);
 		GLboolean ClipPlane(GLint num, GLint state = -1);
+		GLboolean ClipDistance(GLint num, GLint state = -1);
 		GLboolean DepthMask(GLint state = -1);
         GLboolean ColorMask(GLint state = -1);
 

@@ -17989,8 +17989,6 @@ void ship_queue_render(object* obj, DrawList* scene)
 	// of the warp in effect
 	int clip_started = 0;
 
-	scene->setClipPlane();
-
 	// Warp_shipp points to the ship that is going through a
 	// warp... either this ship or the ship it is docked with.
 	if ( warp_shipp != NULL ) {
@@ -17999,6 +17997,8 @@ void ship_queue_render(object* obj, DrawList* scene)
 		} else if ( warp_shipp->flags & SF_DEPART_WARP ) {
 			clip_started = warp_shipp->warpout_effect->warpQueueShipClip(scene);
 		}
+	} else {
+		scene->setClipPlane();
 	}
 
 	// maybe set squad logo bitmap
@@ -18097,6 +18097,13 @@ void ship_queue_render(object* obj, DrawList* scene)
 		}
 	}
 
+	ship_model_stop(obj);
+
+	if (shipp->shield_hits && !in_shadow_map) {
+		create_shield_explosion_all(obj);
+		shipp->shield_hits = 0;
+	}
+
 	//WMC - Draw animated warp effect (ie BSG thingy)
 	//WMC - based on Bobb's secondary thruster stuff
 	//which was in turn based on the beam code.
@@ -18106,6 +18113,4 @@ void ship_queue_render(object* obj, DrawList* scene)
 	} else if(shipp->flags & SF_DEPART_WARP) {
 		shipp->warpout_effect->warpShipRender();
 	}
-
-	ship_model_stop(obj);
 }

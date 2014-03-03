@@ -94,10 +94,16 @@ static opengl_shader_file_t GL_post_shader_files[] = {
 	2, { "shadow_map", "index" }, 0, { NULL } },
 	
 	{ "post-v.sdr", "blur-f.sdr", "blur-g.sdr", SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS1 | SDR_POST_FLAG_GEO,
-	2, { "blurSampler", "bsize" }, 0, { NULL } },
+	3, { "tex", "blurSampler", "bsize" }, 0, { NULL } },
 
 	{ "post-v.sdr", "blur-f.sdr", "blur-g.sdr", SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS2 | SDR_POST_FLAG_GEO,
-	2, { "blurSampler", "bsize" }, 0, { NULL } }
+	3, { "tex", "blurSampler", "bsize" }, 0, { NULL } },
+
+// 	{ "post-v.sdr", "tex-array-blur-f.sdr", 0, SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS1,
+// 	4, { "tex", "tex_index", "blurSampler", "bsize"}, 0, { NULL } },
+// 
+// 	{ "post-v.sdr", "tex-array-blur-f.sdr", 0, SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS2,
+// 	4, { "tex", "tex_index", "blurSampler", "bsize"}, 0, { NULL } }
 };
 
 static const unsigned int Num_post_shader_files = sizeof(GL_post_shader_files) / sizeof(opengl_shader_file_t);
@@ -141,6 +147,80 @@ static int Post_texture_height = 0;
 
 static char *opengl_post_load_shader(char *filename, int flags, int flags2);
 
+void gr_opengl_post_process_shadow_map_new()
+{
+	extern GLuint Shadow_map_texture;
+	extern GLuint shadow_fbo;
+
+	if (Cmdline_shadow_quality <= 0) {
+		return;
+	}
+
+	int size = (Cmdline_shadow_quality == 2 ? 1024 : 512);
+
+	GLboolean scissor_test = GL_state.ScissorTest(GL_FALSE);
+	//GLboolean scissor_test = GL_state.ScissorTest(GL_TRUE);
+	int zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
+
+	glViewport(0, 0, size, size);
+
+	// ------  begin pass 1 ------
+
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_shadow_framebuffer_id);
+
+// 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+// 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY);
+	GL_state.Texture.Enable(Shadow_map_texture);
+
+	opengl_shader_set_current( &GL_post_shader[10] );
+
+	vglUniform1iARB( opengl_shader_get_uniform("tex"), 0);
+	vglUniform1fARB( opengl_shader_get_uniform("tex_index"), 0);
+	vglUniform1iARB( opengl_shader_get_uniform("blurSampler"), 0 );
+	vglUniform1fARB( opengl_shader_get_uniform("bsize"), i2fl(size) );
+	//vglUniform1fARB( opengl_shader_get_uniform("sigma"), 3.0f);
+
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+	vglUniform1fARB( opengl_shader_get_uniform("tex_index"), 1);
+
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+	// ------  begin pass 2 ------
+
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo);
+
+// 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+// 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	opengl_shader_set_current( &GL_post_shader[11] );
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY_EXT);
+	GL_state.Texture.Enable(Post_shadow_texture_id);
+
+	vglUniform1iARB( opengl_shader_get_uniform("tex"), 0);
+	vglUniform1fARB( opengl_shader_get_uniform("tex_index"), 0);
+	vglUniform1iARB( opengl_shader_get_uniform("blurSampler"), 0 );
+	vglUniform1fARB( opengl_shader_get_uniform("bsize"), i2fl(size) );
+
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+	vglUniform1fARB( opengl_shader_get_uniform("tex_index"), 1);
+
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+	// reset viewport, scissor test and exit
+	glViewport(0, 0, gr_screen.max_w, gr_screen.max_h);
+	GL_state.ScissorTest(scissor_test);
+	gr_zbuffer_set(zbuff);
+
+	// vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, opengl_get_rtt_framebuffer());
+}
+
 void gr_opengl_post_process_shadow_map()
 {
 	extern GLuint Shadow_map_texture;
@@ -162,8 +242,8 @@ void gr_opengl_post_process_shadow_map()
 
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_shadow_framebuffer_id);
 
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+// 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+// 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY);
@@ -172,6 +252,7 @@ void gr_opengl_post_process_shadow_map()
 
 	opengl_shader_set_current( &GL_post_shader[8] );
 
+	vglUniform1iARB( opengl_shader_get_uniform( "tex" ), 0);
 	vglUniform1iARB( opengl_shader_get_uniform("blurSampler"), 0 );
 	vglUniform1fARB( opengl_shader_get_uniform("bsize"), i2fl(size) );
 	//vglUniform1fARB( opengl_shader_get_uniform("sigma"), 3.0f);
@@ -182,8 +263,8 @@ void gr_opengl_post_process_shadow_map()
 
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo);
 
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+// 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+// 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	opengl_shader_set_current( &GL_post_shader[9] );
 
@@ -192,6 +273,7 @@ void gr_opengl_post_process_shadow_map()
 //	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Post_shadow_texture_id);
 	
+	vglUniform1iARB( opengl_shader_get_uniform( "tex" ), 0);
 	vglUniform1iARB( opengl_shader_get_uniform("blurSampler"), 0 );
 	vglUniform1fARB( opengl_shader_get_uniform("bsize"), i2fl(size) );
 	//vglUniform1fARB( opengl_shader_get_uniform("sigma"), 3.0f);

@@ -34,6 +34,7 @@
 #include "ship/shipfx.h"
 #include "gamesequence/gamesequence.h"
 #include "globalincs/alphacolors.h"
+#include "model/modelrender.h"
 
 #include <limits.h>
 
@@ -2046,14 +2047,16 @@ void model_render(int model_num, matrix *orient, vec3d * pos, uint flags, int ob
 		Interp_light = 1.0f;
 	}
 
-	if ( !(flags & MR_NO_LIGHTING ) )	{
-		//light_filter_push( objnum, pos, pm->rad );
+	extern bool Deferred_lighting;
+
+	if ( !(flags & MR_NO_LIGHTING ) && !Deferred_lighting )	{
+		light_filter_push( objnum, pos, pm->rad );
 	}
 
 	model_really_render(model_num, orient, pos, flags, render, objnum);
 
-	if ( !(flags & MR_NO_LIGHTING ) )	{
-		//light_filter_pop();
+	if ( !(flags & MR_NO_LIGHTING ) && !Deferred_lighting )	{
+		light_filter_pop();
 	}
 
 	// maybe turn culling back on
@@ -5200,6 +5203,63 @@ bool model_set_team_color(team_color *color, const SCP_string &team, const SCP_s
 		} else
 			return false;
 	}
+}
+
+void model_interp_load_global_interp_data(interp_data *interp)
+{
+	interp->afterburner = Interp_afterburner;
+	interp->base_frametime = Interp_base_frametime;
+	interp->box_scale = Interp_box_scale;
+	interp->depth_scale = Interp_depth_scale;
+	interp->desaturate = Interp_desaturate;
+	interp->detail_level = Interp_detail_level;
+	interp->detail_level_locked = Interp_detail_level_locked;
+	interp->distortion_thrust_bitmap = Interp_distortion_thrust_bitmap;
+	interp->distortion_thrust_length_factor = Interp_distortion_thrust_length_factor;
+	interp->distortion_thrust_rad_factor = Interp_distortion_thrust_rad_factor;
+	interp->draw_distortion = Interp_draw_distortion;
+	interp->flags = Interp_flags;
+	interp->forced_bitmap = Interp_forced_bitmap;
+	interp->insignia_bitmap = Interp_insignia_bitmap;
+	interp->light = Interp_light;
+	interp->new_replacement_textures = Interp_new_replacement_textures;
+	interp->objnum = Interp_objnum;
+	
+	if ( Interp_orient ) {
+		interp->orient = *Interp_orient;
+	}
+
+	interp->outline_color = Interp_outline_color;
+
+	if ( Interp_pos ) {
+		interp->pos = *Interp_pos;
+	}
+
+	interp->render_box_max = Interp_render_box_max;
+	interp->render_box_min = Interp_render_box_min;
+	interp->render_sphere_offset = Interp_render_sphere_offset;
+	interp->render_sphere_radius = Interp_render_sphere_radius;
+	interp->secondary_thrust_glow_bitmap = Interp_secondary_thrust_glow_bitmap;
+	interp->secondary_thrust_glow_rad_factor = Interp_secondary_thrust_glow_rad_factor;
+	interp->tertiary_thrust_glow_bitmap = Interp_tertiary_thrust_glow_bitmap;
+	interp->tertiary_thrust_glow_rad_factor = Interp_tertiary_thrust_glow_rad_factor;
+	interp->thrust_bitmap = Interp_thrust_bitmap;
+	interp->thrust_glow_bitmap = Interp_thrust_glow_bitmap;
+	interp->thrust_glow_len_factor = Interp_thrust_glow_len_factor;
+	interp->thrust_glow_noise = Interp_thrust_glow_noise;
+	interp->thrust_glow_rad_factor = Interp_thrust_glow_rad_factor;
+	interp->thrust_rotvel = Interp_thrust_rotvel;
+	interp->thrust_scale = Interp_thrust_scale;
+	interp->thrust_scale_subobj = Interp_thrust_scale_subobj;
+	interp->thrust_scale_x = Interp_thrust_scale_x;
+	interp->thrust_scale_y = Interp_thrust_scale_y;
+	interp->tmap_flags = Interp_tmap_flags;
+	interp->transform_texture = Interp_transform_texture;
+	interp->warp_bitmap = Interp_warp_bitmap;
+	interp->warp_scale_x = Interp_warp_scale_x;
+	interp->warp_scale_y = Interp_warp_scale_y;
+	interp->warp_scale_z = Interp_warp_scale_z;
+	interp->xparent_alpha = Interp_xparent_alpha;
 }
 
 //********************-----CLASS: texture_info-----********************//

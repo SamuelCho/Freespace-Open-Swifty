@@ -368,9 +368,9 @@ void obj_queue_render(object* obj, DrawList* scene)
 	case OBJ_SHIP:
 		ship_queue_render(obj, scene);
 		break;
-	case OBJ_FIREBALL:
-		fireball_queue_render(obj, scene);
-		break;
+ 	case OBJ_FIREBALL:
+ 		fireball_queue_render(obj, scene);
+ 		break;
 	case OBJ_SHOCKWAVE:
 		shockwave_queue_render(obj, scene);
 		break;
@@ -448,10 +448,9 @@ void obj_render_queue_all()
 	scene.sortDraws();
 
 	gr_zbuffer_set(ZBUFFER_TYPE_FULL);
-
 	scene.renderAll(GR_ALPHABLEND_NONE);
-	gr_zbias(0);
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+	gr_zbias(0);
 	gr_set_cull(0);
 
 	gr_flush_data_states();
@@ -473,7 +472,6 @@ void obj_render_queue_all()
 	gr_reset_lighting();
 	gr_set_lighting(false, false);
 
-	//gr_deferred_lighting_end();
 	gr_deferred_lighting_finish();
 
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);

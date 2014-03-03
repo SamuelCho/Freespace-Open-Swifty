@@ -1112,21 +1112,21 @@ void SceneLights::setLightFilter(int objnum, vec3d *pos, float rad)
 	}
 
 	for ( i = 0; i < AllLights.size(); ++i ) {
-		light *l = &AllLights[i];
+		light& l = AllLights[i];
 
-		switch ( l->type ) {
+		switch ( l.type ) {
 			case LT_DIRECTIONAL:
 				break;
 			case LT_POINT: {
 				// if this is a "unique" light source, it only affects one guy
-				if ( l->affected_objnum >= 0 ) {
-					if ( objnum == l->affected_objnum ) {
+				if ( l.affected_objnum >= 0 ) {
+					if ( objnum == l.affected_objnum ) {
 						vec3d to_light;
 						float dist_squared, max_dist_squared;
-						vm_vec_sub( &to_light, &l->vec, pos );
+						vm_vec_sub( &to_light, &l.vec, pos );
 						dist_squared = vm_vec_mag_squared(&to_light);
 
-						max_dist_squared = l->radb+rad;
+						max_dist_squared = l.radb+rad;
 						max_dist_squared *= max_dist_squared;
 
 						if ( dist_squared < max_dist_squared )	{
@@ -1136,10 +1136,10 @@ void SceneLights::setLightFilter(int objnum, vec3d *pos, float rad)
 				} else { // otherwise check all relevant objects
 					vec3d to_light;
 					float dist_squared, max_dist_squared;
-					vm_vec_sub( &to_light, &l->vec, pos );
+					vm_vec_sub( &to_light, &l.vec, pos );
 					dist_squared = vm_vec_mag_squared(&to_light);
 
-					max_dist_squared = l->radb+rad;
+					max_dist_squared = l.radb+rad;
 					max_dist_squared *= max_dist_squared;
 
 					if ( dist_squared < max_dist_squared )	{
@@ -1150,12 +1150,12 @@ void SceneLights::setLightFilter(int objnum, vec3d *pos, float rad)
 			break;
 			case LT_TUBE: {
 				if ( Use_GLSL > 1 ) {
-					if ( l->light_ignore_objnum != objnum ) {
+					if ( l.light_ignore_objnum != objnum ) {
 						vec3d nearest;
 						float dist_squared, max_dist_squared;
-						vm_vec_dist_squared_to_line(pos,&l->vec,&l->vec2,&nearest,&dist_squared);
+						vm_vec_dist_squared_to_line(pos,&l.vec,&l.vec2,&nearest,&dist_squared);
 
-						max_dist_squared = l->radb+rad;
+						max_dist_squared = l.radb+rad;
 						max_dist_squared *= max_dist_squared;
 
 						if ( dist_squared < max_dist_squared ) {
@@ -1164,7 +1164,7 @@ void SceneLights::setLightFilter(int objnum, vec3d *pos, float rad)
 					}
 				} else {
 					// all tubes are "unique" light sources for now
-					if ( ( l->affected_objnum >= 0 ) && ( objnum == l->affected_objnum ) ) {
+					if ( ( l.affected_objnum >= 0 ) && ( objnum == l.affected_objnum ) ) {
 						FilteredLights.push_back(i);
 					}
 				}
@@ -1197,12 +1197,10 @@ SceneLights::LightIndexingInfo SceneLights::bufferLights()
 	light_info.index_start = BufferedLights.size();
 	
 	for ( i = 0; i < FilteredLights.size(); ++i ) {
-		int light_index = FilteredLights[i];
-
-		BufferedLights.push_back(light_index);
-
-		light_info.num_lights++;
+		BufferedLights.push_back(FilteredLights[i]);
 	}
+
+	light_info.num_lights = FilteredLights.size();
 
 	return light_info;
 }
@@ -1230,7 +1228,7 @@ bool SceneLights::setLights(SceneLights::LightIndexingInfo *info)
 	current_light_index = info->index_start;
 	current_num_lights = info->num_lights;
 
-	// gr_reset_lighting();
+	gr_reset_lighting();
 
 	gr_set_lighting(true, true);
 
@@ -1251,6 +1249,7 @@ bool SceneLights::setLights(SceneLights::LightIndexingInfo *info)
 
 	// check if there are any lights to actually set
 	if ( num_lights <= 0 || index_start < 0 ) {
+		opengl_change_active_lights(0);
 		return false;
 	}
 

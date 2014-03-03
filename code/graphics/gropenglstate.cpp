@@ -372,6 +372,13 @@ void opengl_state::init()
 		clipplane_Status[i] = GL_FALSE;
 	}
 
+	if (GL_version >= 30) {
+		for (i = 0; i < (int)(sizeof(clipdistance_Status) / sizeof(GLboolean)); i++) {
+			glDisable(GL_CLIP_DISTANCE0+i);
+			clipdistance_Status[i] = GL_FALSE;
+		}
+	}
+
 	Assert( GL_max_lights > 0 );
 	light_Status = (GLboolean*) vm_malloc(GL_max_lights * sizeof(GLboolean));
 
@@ -645,6 +652,26 @@ GLboolean opengl_state::ClipPlane(GLint num, GLint state)
 		} else {
 			glDisable(GL_CLIP_PLANE0+num);
 			clipplane_Status[num] = GL_FALSE;
+		}
+	}
+
+	return save_state;
+}
+
+GLboolean opengl_state::ClipDistance(GLint num, GLint state)
+{
+	Assert( (num >= 0) || (num < (int)(sizeof(clipdistance_Status) / sizeof(GLboolean))) || GL_version >= 30 );
+
+	GLboolean save_state = clipdistance_Status[num];
+
+	if ( !((state == -1) || (state == clipdistance_Status[num])) ) {
+		if (state) {
+			Assert( state == GL_TRUE );
+			glEnable(GL_CLIP_DISTANCE0+num);
+			clipdistance_Status[num] = GL_TRUE;
+		} else {
+			glDisable(GL_CLIP_DISTANCE0+num);
+			clipdistance_Status[num] = GL_FALSE;
 		}
 	}
 

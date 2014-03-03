@@ -18,6 +18,7 @@
 #include "object/object.h"
 
 struct object;
+struct interp_data;
 
 extern flag_def_list model_render_flags[];
 extern int model_render_flags_size;
@@ -1333,7 +1334,11 @@ int model_should_render_engine_glow(int objnum, int bank_obj);
 
 bool model_set_team_color(team_color *color, const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime);
 
+void model_interp_load_global_interp_data(interp_data *interp);
+
 void moldel_calc_facing_pts( vec3d *top, vec3d *bot, vec3d *fvec, vec3d *pos, float w, float z_add, vec3d *Eyeposition );
+
+void interp_render_arc(vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width);
 
 void glowpoint_init();
 SCP_vector<glow_point_bank_override>::iterator get_glowpoint_bank_override_by_name(const char* name);

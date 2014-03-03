@@ -1590,13 +1590,17 @@ uint gr_determine_shader_flags(
 ) {
 	uint shader_flags = 0;
 
+	if ( Use_GLSL > 1 ) {
+		shader_flags |= SDR_FLAG_CLIP;
+	}
+
 	if ( transform ) {
 		shader_flags |= SDR_FLAG_TRANSFORM;
 	}
 
 	if ( in_shadow_map ) {
 		// if we're building the shadow map, we likely only need the flags here and above so bail
-		shader_flags = SDR_FLAG_GEOMETRY | SDR_FLAG_SHADOW_MAP;
+		shader_flags |= SDR_FLAG_GEOMETRY | SDR_FLAG_SHADOW_MAP;
 
 		return shader_flags;
 	}

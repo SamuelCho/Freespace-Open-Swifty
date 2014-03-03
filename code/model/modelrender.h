@@ -173,6 +173,17 @@ struct clip_plane_state
 	vec3d point;
 };
 
+struct arc_effect
+{
+	matrix orient;
+	vec3d pos;
+	vec3d v1;
+	vec3d v2;
+	color primary;
+	color secondary;
+	float width;
+};
+
 struct render_state
 {
 	int clip_plane_handle;
@@ -216,6 +227,9 @@ struct render_state
 		b = 0;
 		fog_near = -1.0f;
 		fog_far = -1.0f;
+
+		lights.index_start = 0;
+		lights.num_lights = 0;
 
 		animated_timer = 0.0f;
 		animated_effect = 0;
@@ -282,6 +296,8 @@ class DrawList
 	SCP_vector<render_state> render_states;
 	SCP_vector<queued_buffer_draw> render_elements;
 	SCP_vector<int> render_keys;
+
+	SCP_vector<arc_effect> arcs;
 	
 	static DrawList *Target;
 	static bool sortDrawPair(const int a, const int b);
@@ -306,7 +322,10 @@ public:
 	void setAnimatedTimer(float time);
 	void setAnimatedEffect(int effect);
 	void addBufferDraw(matrix* orient, vec3d* pos, vec3d *scale, vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp);
-	void addArc(matrix *orient, vec3d *pos, vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width);
+	
+	void addArc(vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width);
+	void renderArc(arc_effect &arc);
+	void renderArcs();
 
 	void setLightFilter(int objnum, vec3d *pos, float rad);
 
@@ -325,6 +344,7 @@ public:
 
 void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL, int render = MODEL_RENDER_ALL);
 void model_queue_render(interp_data *interp, DrawList* scene, int model_num, int model_instance_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures);
+void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int *replacement_textures = NULL);
 void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1, int *replacement_textures = NULL);
 void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel *pm, int mn, bool is_child = false);
 void model_queue_render_set_thrust(interp_data *interp, int model_num, mst_info *mst);

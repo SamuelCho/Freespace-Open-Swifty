@@ -101,6 +101,21 @@ void DrawList::addLight(light *light_ptr)
 	Lights.addLight(light_ptr);
 }
 
+void DrawList::addArc(vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width)
+{
+	arc_effect new_arc;
+
+	new_arc.orient = Object_matrix;
+	new_arc.pos = Object_position;
+	new_arc.v1 = *v1;
+	new_arc.v2 = *v2;
+	new_arc.primary = *primary;
+	new_arc.secondary = *secondary;
+	new_arc.width = arc_width;
+
+	arcs.push_back(new_arc);
+}
+
 void DrawList::setLightFilter(int objnum, vec3d *pos, float rad)
 {
 	Lights.setLightFilter(objnum, pos, rad);
@@ -217,6 +232,10 @@ void DrawList::drawRenderElement(queued_buffer_draw *render_elements)
 
 	// set clip plane if necessary
 	if ( draw_state->clip_plane_handle >= 0 && draw_state->clip_plane_handle != set_clip_plane ) {
+		if ( set_clip_plane >= 0 ) {
+			g3_stop_user_clip_plane();
+		}
+
 		set_clip_plane = draw_state->clip_plane_handle;
 
 		clip_plane_state *clip_plane = &clip_planes[set_clip_plane];
@@ -406,6 +425,30 @@ void DrawList::renderAll(int blend_filter)
 			drawRenderElement(&render_elements[render_index]);
 		}
 	}
+
+	if ( set_clip_plane >= 0 ) {
+		g3_stop_user_clip_plane();
+	}
+}
+
+void DrawList::renderArc(arc_effect &arc)
+{
+	g3_start_instance_matrix(&arc.pos, &arc.orient);	
+
+	interp_render_arc(&arc.v1, &arc.v2, &arc.primary, &arc.secondary, arc.width);
+
+	g3_done_instance(true);
+}
+
+void DrawList::renderArcs()
+{
+	int mode = gr_zbuffer_set(GR_ZBUFF_READ);
+
+	for ( size_t i = 0; i < arcs.size(); ++i ) {
+		renderArc(arcs[i]);
+	}
+
+	gr_zbuffer_set(mode);
 }
 
 bool DrawList::sortDrawPair(const int a, const int b)
@@ -416,11 +459,9 @@ bool DrawList::sortDrawPair(const int a, const int b)
 	render_state *render_state_a = &Target->render_states[draw_call_a->render_state_handle];
 	render_state *render_state_b = &Target->render_states[draw_call_b->render_state_handle];
 
-// 	if ( render_state_a->clip_plane_handle > render_state_b->clip_plane_handle ) {
-// 		return 1;
-// 	} else if ( render_state_a->clip_plane_handle < render_state_b->clip_plane_handle ) {
-// 		return -1;
-// 	}
+	if ( render_state_a->clip_plane_handle != render_state_b->clip_plane_handle ) {
+		return render_state_a->clip_plane_handle < render_state_b->clip_plane_handle;
+	}
 	
 	if ( draw_call_a->blend_filter != draw_call_b->blend_filter ) {
 		return draw_call_a->blend_filter < draw_call_b->blend_filter;
@@ -454,171 +495,78 @@ bool DrawList::sortDrawPair(const int a, const int b)
 		return draw_call_a->texture_maps[TM_HEIGHT_TYPE] < draw_call_b->texture_maps[TM_HEIGHT_TYPE];
 	}
 
-	return draw_call_a->texture_maps[TM_MISC_TYPE] < draw_call_b->texture_maps[TM_MISC_TYPE];
+	if ( draw_call_a->texture_maps[TM_MISC_TYPE] != draw_call_b->texture_maps[TM_MISC_TYPE] ) {
+		return draw_call_a->texture_maps[TM_MISC_TYPE] < draw_call_b->texture_maps[TM_MISC_TYPE];
+	}
+
+	return render_state_a->lights.index_start < render_state_b->lights.index_start;
 }
 
-int model_queue_render_batch_rod(int num_points, vec3d *pvecs, float width, uint tmap_flags)
+void model_queue_render_lightning( DrawList *scene, interp_data* interp, polymodel *pm, bsp_info * sm )
 {
-	const int MAX_ROD_VECS = 100;
+	int i;
+	float width = 0.9f;
+	color primary, secondary;
 
-	vec3d uvec, fvec, rvec;
-	vec3d vecs[2];
-	vertex pts[MAX_ROD_VECS];
-	vertex *ptlist[MAX_ROD_VECS];
-	int i, nv = 0;
+	const int AR = 64;
+	const int AG = 64;
+	const int AB = 5;
+	const int AR2 = 128;
+	const int AG2 = 128;
+	const int AB2 = 10;
 
-	Assert( num_points >= 2 );
-	Assert( (num_points * 2) <= MAX_ROD_VECS );
+	Assert( sm->num_arcs > 0 );
 
-	for (i = 0; i < num_points; i++) {
-		vm_vec_sub(&fvec, &View_position, &pvecs[i]);
-		vm_vec_normalize_safe(&fvec);
+	if ( interp->flags & MR_SHOW_OUTLINE_PRESET ) {
+		return;
+	}
 
-		int first = i+1;
-		int second = i-1;
+/*	if ( !Interp_lightning ) {
+ 		return;
+ 	}
+*/
+	// try and scale the size a bit so that it looks equally well on smaller vessels
+	if ( pm->rad < 500.0f ) {
+		width *= (pm->rad * 0.01f);
 
-		if (i == 0) {
-			first = 1;
-			second = 0;
-		} else if (i == num_points-1) {
-			first = i;
+		if ( width < 0.2f ) {
+			width = 0.2f;
 		}
+	}
 
-		vm_vec_sub(&rvec, &pvecs[first], &pvecs[second]);
-		vm_vec_normalize_safe(&rvec);
+	for ( i = 0; i < sm->num_arcs; i++ ) {
+		// pick a color based upon arc type
+		switch ( sm->arc_type[i] ) {
+			// "normal", FreeSpace 1 style arcs
+		case MARC_TYPE_NORMAL:
+			if ( (rand()>>4) & 1 )	{
+				gr_init_color(&primary, 64, 64, 255);
+			} else {
+				gr_init_color(&primary, 128, 128, 255);
+			}
 
-		vm_vec_crossprod(&uvec, &rvec, &fvec);
-
-		vm_vec_scale_add(&vecs[0], &pvecs[i], &uvec, width * 0.5f);
-		vm_vec_scale_add(&vecs[1], &pvecs[i], &uvec, -width * 0.5f);
-
-		if (nv > MAX_ROD_VECS-2) {
-			Warning(LOCATION, "Hit high-water mark (%i) in g3_draw_rod()!!\n", MAX_ROD_VECS);
+			gr_init_color(&secondary, 200, 200, 255);
 			break;
+
+			// "EMP" style arcs
+		case MARC_TYPE_EMP:
+			if ( (rand()>>4) & 1 )	{
+				gr_init_color(&primary, AR, AG, AB);
+			} else {
+				gr_init_color(&primary, AR2, AG2, AB2);
+			}
+
+			gr_init_color(&secondary, 255, 255, 10);
+			break;
+
+		default:
+			Int3();
 		}
 
-		ptlist[nv] = &pts[nv];
-		ptlist[nv+1] = &pts[nv+1];
-
-		if (Cmdline_nohtl) {
-			g3_rotate_vertex( &pts[nv], &vecs[0] );
-			g3_rotate_vertex( &pts[nv+1], &vecs[1] );
-		} else {
-			g3_transfer_vertex( &pts[nv], &vecs[0] );
-			g3_transfer_vertex( &pts[nv+1], &vecs[1] );
-		}
-
-		ptlist[nv]->texture_position.u = 1.0f;
-		ptlist[nv]->texture_position.v = i2fl(i);
-		ptlist[nv]->r = gr_screen.current_color.red;
-		ptlist[nv]->g = gr_screen.current_color.green;
-		ptlist[nv]->b = gr_screen.current_color.blue;
-		ptlist[nv]->a = gr_screen.current_color.alpha;
-
-		ptlist[nv+1]->texture_position.u = 0.0f;
-		ptlist[nv+1]->texture_position.v = i2fl(i);
-		ptlist[nv+1]->r = gr_screen.current_color.red;
-		ptlist[nv+1]->g = gr_screen.current_color.green;
-		ptlist[nv+1]->b = gr_screen.current_color.blue;
-		ptlist[nv+1]->a = gr_screen.current_color.alpha;
-
-		nv += 2;
-	}
-
-	// we should always have at least 4 verts, and there should always be an even number
-	Assert( (nv >= 4) && !(nv % 2) );
-
-	int rc = g3_draw_poly(nv, ptlist, tmap_flags);
-
-	return rc;
-}
-
-void model_queue_render_add_arc(vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width)
-{
-	Num_arc_segment_points = 0;
-
-	// need need to add the first point
-	memcpy( &Arc_segment_points[Num_arc_segment_points++], v1, sizeof(vec3d) );
-
-	// this should fill in all of the middle, and the last, points
-	interp_render_arc_segment(v1, v2, 0);
-
-	int tmap_flags = (TMAP_FLAG_RGB | TMAP_FLAG_GOURAUD | TMAP_HTL_3D_UNLIT | TMAP_FLAG_TRISTRIP);
-
-	int mode = gr_zbuffer_set(GR_ZBUFF_READ);
-
-	// use primary color for fist pass
-	Assert( primary );
-	gr_set_color_fast(primary);
-
-	model_queue_render_batch_rod(Num_arc_segment_points, Arc_segment_points, arc_width, tmap_flags);
-
-	if (secondary) {
-		// now render again with a secondary center color
-		gr_set_color_fast(secondary);
-
-		model_queue_render_batch_rod(Num_arc_segment_points, Arc_segment_points, arc_width * 0.33f, tmap_flags);
+		// render the actual arc segment
+		scene->addArc(&sm->arc_pts[i][0], &sm->arc_pts[i][1], &primary, &secondary, width);
 	}
 }
-
-// void model_queue_render_lightning( DrawList *scene, interp_data* interp, polymodel *pm, bsp_info * sm )
-// {
-// 	int i;
-// 	float width = 0.9f;
-// 	color primary, secondary;
-// 
-// 	Assert( sm->num_arcs > 0 );
-// 
-// 	if ( interp->flags & MR_SHOW_OUTLINE_PRESET ) {
-// 		return;
-// 	}
-// 
-// /*	if ( !Interp_lightning ) {
-//  		return;
-//  	}
-// */
-// 	// try and scale the size a bit so that it looks equally well on smaller vessels
-// 	if ( pm->rad < 500.0f ) {
-// 		width *= (pm->rad * 0.01f);
-// 
-// 		if ( width < 0.2f ) {
-// 			width = 0.2f;
-// 		}
-// 	}
-// 
-// 	for ( i = 0; i < sm->num_arcs; i++ ) {
-// 		// pick a color based upon arc type
-// 		switch ( sm->arc_type[i] ) {
-// 			// "normal", FreeSpace 1 style arcs
-// 		case MARC_TYPE_NORMAL:
-// 			if ( (rand()>>4) & 1 )	{
-// 				gr_init_color(&primary, 64, 64, 255);
-// 			} else {
-// 				gr_init_color(&primary, 128, 128, 255);
-// 			}
-// 
-// 			gr_init_color(&secondary, 200, 200, 255);
-// 			break;
-// 
-// 			// "EMP" style arcs
-// 		case MARC_TYPE_EMP:
-// 			if ( (rand()>>4) & 1 )	{
-// 				gr_init_color(&primary, AR, AG, AB);
-// 			} else {
-// 				gr_init_color(&primary, AR2, AG2, AB2);
-// 			}
-// 
-// 			gr_init_color(&secondary, 255, 255, 10);
-// 			break;
-// 
-// 		default:
-// 			Int3();
-// 		}
-// 
-// 		// render the actual arc segment
-// 		model_queue_render_add_arc(&sm->arc_pts[i][0], &sm->arc_pts[i][1], &primary, &secondary, width);
-// 	}
-// }
 
 int model_queue_render_determine_detail(int obj_num, int model_num, matrix* orient, vec3d* pos, int flags, int detail_level_locked)
 {
@@ -1105,6 +1053,34 @@ void model_queue_render_set_thrust(interp_data *interp, int model_num, mst_info 
 	interp->draw_distortion = mst->draw_distortion;
 }
 
+void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures)
+{
+	DrawList model_list;
+	interp_data interp;
+
+	model_interp_load_global_interp_data(&interp);
+
+	for ( int i = 0; i < Num_lights; ++i ) {
+		if ( Lights[i].type == LT_DIRECTIONAL || !Deferred_lighting ) {
+			model_list.addLight(&Lights[i]);
+		}	
+	}
+
+	submodel_queue_render(&interp, &model_list, model_num, submodel_num, orient, pos, flags, objnum, replacement_textures);
+	
+	model_list.renderAll();
+
+	gr_zbias(0);
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+	gr_set_cull(0);
+
+	gr_flush_data_states();
+	gr_set_buffer(-1);
+
+	gr_reset_lighting();
+	gr_set_lighting(false, false);
+}
+
 void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures)
 {
 	// replacement textures - Goober5000
@@ -1482,6 +1458,63 @@ void model_queue_render_glowpoint(int point_num, vec3d *pos, matrix *orient, glo
 			}
 
 			break;
+		}
+	}
+}
+
+void model_queue_render_set_glow_points(polymodel *pm, int objnum)
+{
+	int time = timestamp();
+	glow_point_bank_override *gpo = NULL;
+	bool override_all = false;
+	SCP_unordered_map<int, void*>::iterator gpoi;
+	ship_info *sip = NULL;
+	ship *shipp = NULL;
+
+	if ( Glowpoint_override ) {
+		return;
+	}
+
+	if ( objnum > -1 ) {
+		shipp = &Ships[Objects[objnum].instance];
+		sip = &Ship_info[shipp->ship_info_index];
+		SCP_unordered_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
+
+		if ( gpoi != sip->glowpoint_bank_override_map.end() ) {
+			override_all = true;
+			gpo = (glow_point_bank_override*) sip->glowpoint_bank_override_map[-1];
+		}
+	}
+
+	for ( int i = 0; i < pm->n_glow_point_banks; i++ ) { //glow point blink code -Bobboau
+		glow_point_bank *bank = &pm->glow_point_banks[i];
+
+		if ( !override_all && sip ) {
+			gpoi = sip->glowpoint_bank_override_map.find(i);
+
+			if ( gpoi != sip->glowpoint_bank_override_map.end() ) {
+				gpo = (glow_point_bank_override*) sip->glowpoint_bank_override_map[i];
+			} else {
+				gpo = NULL;
+			}
+		}
+
+		if ( bank->glow_timestamp == 0 ) {
+			bank->glow_timestamp=time;
+		}
+
+		if ( ( gpo && gpo->off_time_override ) ? gpo->off_time : bank->off_time ) {
+			if ( bank->is_on ) {
+				if( ((gpo && gpo->on_time_override) ? gpo->on_time : bank->on_time) > ((time - ((gpo && gpo->disp_time_override) ? gpo->disp_time : bank->disp_time)) % (((gpo && gpo->on_time_override) ? gpo->on_time : bank->on_time) + ((gpo && gpo->off_time_override) ? gpo->off_time : bank->off_time))) ){
+					bank->glow_timestamp = time;
+					bank->is_on = 0;
+				}
+			} else {
+				if( ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time) < ((time - ((gpo && gpo->disp_time_override)?gpo->disp_time:bank->disp_time)) % (((gpo && gpo->on_time_override)?gpo->on_time:bank->on_time) + ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time))) ){
+					bank->glow_timestamp = time;
+					bank->is_on = 1;
+				}
+			}
 		}
 	}
 }
@@ -1882,6 +1915,14 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 
 	interp_data interp;
 
+	for ( int i = 0; i < Num_lights; ++i ) {
+		if ( Lights[i].type == LT_DIRECTIONAL || !Deferred_lighting ) {
+			model_list.addLight(&Lights[i]);
+		}	
+	}
+
+	model_interp_load_global_interp_data(&interp);
+
 	model_queue_render(&interp, &model_list, model_num, -1, orient, pos, flags, objnum, replacement_textures);
 
 	model_list.sortDraws();
@@ -1897,6 +1938,16 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 		model_list.renderAll();
 		break;
 	}
+
+	gr_zbias(0);
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+	gr_set_cull(0);
+
+	gr_flush_data_states();
+	gr_set_buffer(-1);
+
+	gr_reset_lighting();
+	gr_set_lighting(false, false);
 }
 
 void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int model_instance_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures)
@@ -1904,7 +1955,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 	int i;
 	int cull = 0;
 	// replacement textures - Goober5000
-	model_set_replacement_textures(replacement_textures);
+	interp->new_replacement_textures = replacement_textures;
 
 	polymodel *pm = model_get(model_num);
 	polymodel_instance * pmi = NULL;
@@ -1916,6 +1967,8 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 	} else {
 		scene->setTextureAddressing(TMAP_ADDRESS_WRAP);
 	}
+
+	model_queue_render_set_glow_points(pm, objnum);
 
 	if ( !(flags & MR_NO_LIGHTING) ) {
 		scene->setLightFilter( objnum, pos, pm->rad );
@@ -2116,7 +2169,6 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 	} else {
 		scene->setZBias(0);
 	}
-	scene->setZBias(0);
 
 	if ( model_instance_num >= 0 && interp->transform_texture >= 0) {
 		model_queue_render_buffers(scene, interp, pm, -1);

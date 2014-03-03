@@ -895,10 +895,6 @@ void labviewer_render_model(float frametime)
 			polymodel *pm = model_get(Lab_model_num);
             //gr_start_shadow_map(-Lab_viewer_pos.xyz.z + pm->rad , 1000.0, 5000.0);
 
-			float fov = Proj_fov;
-			matrix eye_orient = Eye_matrix;
-			vec3d eye_pos = Eye_position;
-
 			// create light matrix using orient up vec and light vector
 			matrix light_matrix;
 			vec3d light_dir;
@@ -906,11 +902,58 @@ void labviewer_render_model(float frametime)
 			light *lp = *(Static_light.begin());
 
 			vm_vec_copy_normalize(&light_dir, &lp->vec);
-			vm_vector_2_matrix(&light_matrix, &light_dir, &eye_orient.vec.uvec, NULL);
+			vm_vector_2_matrix(&light_matrix, &light_dir, &Eye_matrix.vec.uvec, NULL);
 
-			shadows_start_render(&light_matrix, &eye_orient, &eye_pos, fov, gr_screen.clip_aspect, -Lab_viewer_pos.xyz.z + pm->rad, 200.0f, 5000.0f, 5000.0f);
+			shadows_start_render(&light_matrix, &Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -Lab_viewer_pos.xyz.z + pm->rad, 200.0f, 5000.0f, 5000.0f);
 
-			model_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
+			model_immediate_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
+
+			//render weapon models if selected
+			if (Lab_mode == LAB_MODE_SHIP && (Lab_viewer_flags & LAB_FLAG_SHOW_WEAPONS)) {
+				int j,k,l;
+				g3_start_instance_matrix(&vmd_zero_vector, &Lab_viewer_orient, false);
+				l = 0;
+
+				// no thrusters for attached missiles
+				int render_flags = MR_NO_TEXTURING | MR_NO_LIGHTING;
+
+				//primary weapons
+				for (j = 0; j < sip->num_primary_banks; j++) {
+					if (!sip->draw_primary_models[j])
+						continue;
+					if (Lab_weaponmodel_num[l] >= 0) {
+						w_bank *bank = &model_get(Lab_model_num)->gun_banks[j];
+						for(k = 0; k < bank->num_slots; k++) {	
+							model_immediate_render(Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k], render_flags);
+						}
+					}
+					l++;
+				}
+				//secondary weapons
+				vec3d secondary_weapon_pos;
+				w_bank* bank;
+
+				for (j = 0; j < sip->num_secondary_banks; j++) {
+					if (!sip->draw_secondary_models[j])
+						continue;
+					if (Lab_weaponmodel_num[l] >= 0) {
+						bank = &(model_get(Lab_model_num))->missile_banks[j];
+						if (Weapon_info[sip->secondary_bank_weapons[j]].wi_flags2 & WIF2_EXTERNAL_WEAPON_LNCH) {
+							for(k = 0; k < bank->num_slots; k++) {
+								model_immediate_render(Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k], render_flags);
+							}
+						} else {
+							for(k = 0; k < bank->num_slots; k++)
+							{
+								secondary_weapon_pos = bank->pnt[k];
+								model_immediate_render(Lab_weaponmodel_num[l], &vmd_identity_matrix, &secondary_weapon_pos, render_flags);
+							}
+						}
+					}
+					l++;
+				}
+				g3_done_instance(false);
+			}
 
 			shadows_end_render();
 			//gr_end_shadow_map();
@@ -929,7 +972,7 @@ void labviewer_render_model(float frametime)
 		//render weapon models if selected
 		if (Lab_mode == LAB_MODE_SHIP && (Lab_viewer_flags & LAB_FLAG_SHOW_WEAPONS)) {
 			int j,k,l;
-			g3_start_instance_matrix(&vmd_zero_vector, &Lab_viewer_orient, true);
+			g3_start_instance_matrix(&vmd_zero_vector, &Lab_viewer_orient, false);
 			l = 0;
 
 			// no thrusters for attached missiles
@@ -943,7 +986,7 @@ void labviewer_render_model(float frametime)
 				if (Lab_weaponmodel_num[l] >= 0) {
 					w_bank *bank = &model_get(Lab_model_num)->gun_banks[j];
 					for(k = 0; k < bank->num_slots; k++) {	
-						model_render(Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k], render_flags);
+						model_immediate_render(Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k], render_flags);
 					}
 				}
 				l++;
@@ -959,26 +1002,26 @@ void labviewer_render_model(float frametime)
 					bank = &(model_get(Lab_model_num))->missile_banks[j];
 					if (Weapon_info[sip->secondary_bank_weapons[j]].wi_flags2 & WIF2_EXTERNAL_WEAPON_LNCH) {
 						for(k = 0; k < bank->num_slots; k++) {
-							model_render(Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k], render_flags);
+							model_immediate_render(Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k], render_flags);
 						}
 					} else {
 						for(k = 0; k < bank->num_slots; k++)
 						{
 							secondary_weapon_pos = bank->pnt[k];
-							model_render(Lab_weaponmodel_num[l], &vmd_identity_matrix, &secondary_weapon_pos, render_flags);
+							model_immediate_render(Lab_weaponmodel_num[l], &vmd_identity_matrix, &secondary_weapon_pos, render_flags);
 						}
 					}
 				}
 				l++;
 			}
-			g3_done_instance(true);
+			g3_done_instance(false);
 		}
-		model_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, /*Lab_model_flags*/flagggs, Lab_selected_object, -1, NULL, MODEL_RENDER_OPAQUE);
+		model_immediate_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, /*Lab_model_flags*/flagggs, Lab_selected_object, -1, NULL, MODEL_RENDER_OPAQUE);
 		gr_opengl_deferred_lighting_end();
 		gr_opengl_deferred_lighting_finish();
 		bool gpo_save = Glowpoint_override;
 		Glowpoint_override = true;
-		model_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, /*Lab_model_flags*/flagggs, -1, -1, NULL, MODEL_RENDER_TRANS);
+		model_immediate_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, /*Lab_model_flags*/flagggs, -1, -1, NULL, MODEL_RENDER_TRANS);
 		Glowpoint_override = gpo_save;
 	}
 

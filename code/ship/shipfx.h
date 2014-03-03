@@ -183,6 +183,7 @@ public:
 	virtual int warpShipClip();
 	virtual int warpQueueShipClip(DrawList *scene);
 	virtual int warpShipRender();
+	virtual int warpShipQueueRender(DrawList *scene);
 	virtual int warpEnd();
 
 	//For VM_WARP_CHASE

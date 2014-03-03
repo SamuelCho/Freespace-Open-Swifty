@@ -45,7 +45,8 @@ struct uniform_bind
 	enum data_type {
 		INT,
 		FLOAT,
-		VEC3D,
+		VEC3,
+		VEC4,
 		MATRIX4
 	};
 
@@ -78,6 +79,7 @@ class uniform_handler
 	SCP_vector<int> uniform_data_ints;
 	SCP_vector<float> uniform_data_floats;
 	SCP_vector<vec3d> uniform_data_vec3d;
+	SCP_vector<vec4> uniform_data_vec4;
 	SCP_vector<matrix4> uniform_data_matrix4;
 
 	matrix4 matrix_uniform_data[10];
@@ -106,6 +108,7 @@ class uniform_handler
 	void queueUniformi(SCP_string name, int value);
 	void queueUniformf(SCP_string name, float value);
 	void queueUniform3f(SCP_string name, vec3d &value);
+	void queueUniform4f(SCP_string name, vec4 &val);
 	void queueUniform4fv(SCP_string name, int count, int transpose, matrix4 *value);
 	void queueUniformMatrix4f(SCP_string name, int transpose, matrix4 &val);
 public:

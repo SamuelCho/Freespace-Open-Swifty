@@ -7062,6 +7062,7 @@ void HudGaugeHardpoints::render(float frametime)
 	}
 
 	setGaugeColor();
+	model_set_outline_color(gauge_color.red, gauge_color.green, gauge_color.blue);
 
 	//We're ready to show stuff
 	
@@ -7079,14 +7080,14 @@ void HudGaugeHardpoints::render(float frametime)
 	gr_set_cull(cull);
 	gr_set_line_width(_line_width*2.0f);
 
-	model_set_alpha( gr_screen.current_color.alpha / 255.0f );
-	model_set_forced_texture(0);
+	//model_set_alpha( gr_screen.current_color.alpha / 255.0f );
+	//model_set_forced_texture(0);
 
 	model_render( 
 		sip->model_num, 
 		&object_orient, 
 		&vmd_zero_vector, 
-		MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_TEXTURING | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_NO_ZBUFFER | MR_NO_CULL | MR_ALL_XPARENT
+		MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_TEXTURING | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_NO_ZBUFFER | MR_NO_CULL // | MR_ALL_XPARENT
 	);
 	ship_model_stop( objp );
 

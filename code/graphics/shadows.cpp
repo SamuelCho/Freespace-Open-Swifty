@@ -675,66 +675,59 @@ void shadows_render_all()
 
 	shadows_start_render(&light_matrix, &eye_orient, &eye_pos, fov, gr_screen.clip_aspect, 200.0f, 500.0f, 2000.0f, 10000.0f);
 
-	//
-		DrawList scene;
+	DrawList scene;
+	object *objp = Objects;
 
-		// need to change viewports based on which shadow map we're rendering to
-		//int j = 0;
-		//gr_opengl_shadow_map_switch(j);
+	for ( int i = 0; i <= Highest_object_index; i++, objp++ ) {
+		bool cull = true;
 
-		object *objp = Objects;
-
-		for ( int i = 0; i <= Highest_object_index; i++, objp++ ) {
-			bool cull = true;
-
-			for ( int j = 0; j < 4; ++j ) {
-  				if ( shadows_obj_in_frustum(objp, &light_matrix, &shadow_frustums[j]) ) {
-					cull = false;
-  					break;
-  				}
-			}
-
-			if ( cull ) {
-				continue;
-			}
-
-			switch(objp->type)
-			{
-			case OBJ_SHIP:
-				{
-					obj_queue_render(objp, &scene);
-				}
+		for ( int j = 0; j < 4; ++j ) {
+			if ( shadows_obj_in_frustum(objp, &light_matrix, &shadow_frustums[j]) ) {
+				cull = false;
 				break;
-			case OBJ_ASTEROID:
-				{
-					interp_data interp;
-
-					model_clear_instance( Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype]);
-					model_queue_render(&interp, &scene, Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype], -1, &objp->orient, &objp->pos, MR_NORMAL | MR_IS_ASTEROID | MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp), NULL );
-				}
-				break;
-
-			case OBJ_DEBRIS:
-				{
-					debris *db;
-					db = &Debris[objp->instance];
-
-					if ( !(db->flags & DEBRIS_USED)){
-						continue;
-					}
-
-					interp_data interp;
-
-					objp = &Objects[db->objnum];
-					submodel_queue_render(&interp, &scene, db->model_num, db->submodel_num, &objp->orient, &objp->pos, MR_NO_TEXTURING | MR_NO_LIGHTING, -1, NULL);
-				}
-				break; 
 			}
 		}
 
-		scene.sortDraws();
-		scene.renderAll();
-	//}
+		if ( cull ) {
+			continue;
+		}
+
+		switch(objp->type)
+		{
+		case OBJ_SHIP:
+			{
+				obj_queue_render(objp, &scene);
+			}
+			break;
+		case OBJ_ASTEROID:
+			{
+				interp_data interp;
+
+				model_clear_instance( Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype]);
+				model_queue_render(&interp, &scene, Asteroid_info[Asteroids[objp->instance].asteroid_type].model_num[Asteroids[objp->instance].asteroid_subtype], -1, &objp->orient, &objp->pos, MR_NORMAL | MR_IS_ASTEROID | MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp), NULL );
+			}
+			break;
+
+		case OBJ_DEBRIS:
+			{
+				debris *db;
+				db = &Debris[objp->instance];
+
+				if ( !(db->flags & DEBRIS_USED)){
+					continue;
+				}
+
+				interp_data interp;
+
+				objp = &Objects[db->objnum];
+				submodel_queue_render(&interp, &scene, db->model_num, db->submodel_num, &objp->orient, &objp->pos, MR_NO_TEXTURING | MR_NO_LIGHTING, -1, NULL);
+			}
+			break; 
+		}
+	}
+
+	scene.sortDraws();
+	scene.renderAll();
 
 	shadows_end_render();
 
