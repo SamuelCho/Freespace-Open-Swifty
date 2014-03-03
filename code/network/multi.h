@@ -19,9 +19,9 @@
 #include "io/keycontrol.h"
 #include "globalincs/globals.h"
 
-struct p_object;
+class p_object;
 struct CFILE;
-struct player;
+class player;
 
 // ----------------------------------------------------------------------------------------
 // Basic defines

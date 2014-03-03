@@ -22,8 +22,8 @@
 extern GLint GL_max_elements_vertices;
 extern GLint GL_max_elements_indices;
 
-struct poly_list;
-struct vertex_buffer;
+class poly_list;
+class vertex_buffer;
 
 #define TEX_SLOT_DIFFUSE	0
 #define TEX_SLOT_GLOW		1

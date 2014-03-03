@@ -919,6 +919,10 @@ void hud_target_hotkey_select( int k )
 			// this should not happen
 			return;
 		}
+	// if current target is in the list but this is not our current selection set,
+	// then we don't want to change target.
+	} else if (Players[Player_num].current_hotkey_set != k) {
+		next_target = target;
 	}
 	
 	// update target if more than 1 is visible
@@ -2479,6 +2483,7 @@ void hud_target_in_reticle_new()
 	//	Get 3d vector through center of reticle
 	vm_vec_scale_add(&terminus, &Eye_position, &Player_obj->orient.vec.fvec, TARGET_IN_RETICLE_DISTANCE);
 
+	mc_info_init(&mc);
 	mc.model_instance_num = -1;
 	mc.model_num = 0;
 	for ( A = GET_FIRST(&obj_used_list); A !=END_OF_LIST(&obj_used_list); A = GET_NEXT(A) ) {
@@ -3976,9 +3981,16 @@ void HudGaugeLeadIndicator::renderLeadCurrentTarget()
 		vm_vec_add2(&source_pos, &gun_point);
 	} 
 	
-	// Determine "accurate" distance to target.  This is the distance from the player ship
-	// to the closest point on the bounding box of the target
-	dist_to_target = hud_find_target_distance(targetp, Player_obj);
+	// Determine "accurate" distance to target.
+	// This is the distance from the player ship to:
+	//   (if targeting a subsystem) the distance to the subsystem centre
+	//     (playing it safe, will usually be in range at slightly further away due to subsys radius)
+	//   (otherwise) the closest point on the bounding box of the target
+	if ( Player_ai->targeted_subsys != NULL ) {
+		dist_to_target = vm_vec_dist(&target_pos, &Player_obj->pos);
+	} else {
+		dist_to_target = hud_find_target_distance(targetp, Player_obj);
+	}
 
 	srange = ship_get_secondary_weapon_range(Player_ship);
 
@@ -5254,7 +5266,7 @@ void hud_stuff_ship_name(char *ship_name_text, ship *shipp)
 
 		// handle translation
 		if (Lcl_gr) {
-			lcl_translate_targetbox_name(ship_name_text);
+			lcl_translate_targetbox_name_gr(ship_name_text);
 		}
 	}
 }
@@ -5294,7 +5306,7 @@ void hud_stuff_ship_callsign(char *ship_callsign_text, ship *shipp)
 
 	// handle translation
 	if (Lcl_gr) {
-		lcl_translate_targetbox_name(ship_callsign_text);
+		lcl_translate_targetbox_name_gr(ship_callsign_text);
 	}
 }
 
@@ -5321,7 +5333,7 @@ void hud_stuff_ship_class(char *ship_class_text, ship *shipp)
 
 	// handle translation
 	if (Lcl_gr) {
-		lcl_translate_targetbox_name(ship_class_text);
+		lcl_translate_targetbox_name_gr(ship_class_text);
 	}
 }
 
@@ -5669,7 +5681,7 @@ void HudGaugeWeaponEnergy::render(float frametime)
 				delta_y = clip_h;
 			}
 
-			hud_num_make_mono(buf);
+			hud_num_make_mono(buf, font_num);
 
 			if ( Text_alignment ) {
 				gr_get_string_size(&w, &h, buf);
@@ -5981,7 +5993,7 @@ void HudGaugeWeapons::render(float frametime)
 
 		strcpy_s(name, (Weapon_info[sw->primary_bank_weapons[i]].alt_name[0]) ? Weapon_info[sw->primary_bank_weapons[i]].alt_name : Weapon_info[sw->primary_bank_weapons[i]].name);
 		if (Lcl_gr) {
-			lcl_translate_wep_name(name);
+			lcl_translate_wep_name_gr(name);
 		}
 		
 		// maybe modify name here to fit
@@ -6013,7 +6025,7 @@ void HudGaugeWeapons::render(float frametime)
 			// get rid of #
 			end_string_at_first_hash_symbol(ammo_str);
 
-			hud_num_make_mono(ammo_str);
+			hud_num_make_mono(ammo_str, font_num);
 			gr_get_string_size(&w, &h, ammo_str);
 
 			renderString(position[0] + Weapon_pammo_offset_x - w, name_y, EG_NULL, ammo_str);
@@ -6089,7 +6101,7 @@ void HudGaugeWeapons::render(float frametime)
 	
 		// print out the ammo right justified
 		sprintf(ammo_str, "%d", ammo);
-		hud_num_make_mono(ammo_str);
+		hud_num_make_mono(ammo_str, font_num);
 		gr_get_string_size(&w, &h, ammo_str);
 
 		renderString(position[0] + Weapon_sammo_offset_x - w, name_y, EG_NULL, ammo_str);		
@@ -6221,14 +6233,12 @@ void HudGaugeOffscreen::render(float frametime)
 		return;
 	}
 
-	bool in_frame = g3_in_frame() > 0;
-	if(!in_frame)
-		g3_start_frame(0);
-	gr_set_screen_scale(base_w, base_h);
-
 	for(size_t i = 0; i < target_display_list.size(); i++) {
 		if(target_display_list[i].target_point.codes != 0) {
 			float dist = 0.0f;
+			vec2d coords;
+			float half_triangle_sep;
+			int dir;
 
 			if(target_display_list[i].objp) {
 				dist = hud_find_target_distance( target_display_list[i].objp, Player_obj );
@@ -6250,44 +6260,24 @@ void HudGaugeOffscreen::render(float frametime)
 				}
 			}
 
-			renderOffscreenIndicator(&target_display_list[i].target_point, &target_display_list[i].target_pos, dist);
+			calculatePosition(&target_display_list[i].target_point, &target_display_list[i].target_pos, &coords, &dir, &half_triangle_sep);
+			renderOffscreenIndicator(&coords, dir, dist, half_triangle_sep, true);
 		}
 	}
-
-	gr_reset_screen_scale();
-	if(!in_frame)
-		g3_end_frame();
 }
 
-void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tpos, float distance, int draw_solid)
+void HudGaugeOffscreen::calculatePosition(vertex* target_point, vec3d *tpos, vec2d *outcoords, int *dir, float *half_triangle_sep)
 {
-	char buf[32];
-	int w = 0, h = 0;
-	int on_top, on_right, on_left, on_bottom;
-
 	float xpos,ypos;
-	// points to draw triangles
-	float x1=0.0f;
-	float y1=0.0f;
-	float x2=0.0f;
-	float y2=0.0f;
-	float x3=0.0f;
-	float y3=0.0f;
-	float x4=0.0f;
-	float y4=0.0f;
-	float x5=0.0f;
-	float y5=0.0f;
-	float x6=0.0f;
-	float y6=0.0f;
-
 	vec3d targ_to_player;
 	float dist_behind;
 	float triangle_sep;
-	float half_gauge_length, half_triangle_sep;
-	float displayed_distance;
+	float half_gauge_length;
 
-	// scale by distance modifier from hud_guages.tbl for display purposes
-	displayed_distance = distance * Hud_unit_multiplier;
+	bool in_frame = g3_in_frame() > 0;
+	if(!in_frame)
+		g3_start_frame(0);
+	gr_set_screen_scale(base_w, base_h);
 
 	// calculate the dot product between the players forward vector and the vector connecting
 	// the player to the target. Normalize targ_to_player since we want the dot product
@@ -6312,8 +6302,8 @@ void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tp
 	}
 
 	// calculate these values only once, since it will be used in several places
-	half_triangle_sep = 0.5f * triangle_sep;
-	half_gauge_length = half_triangle_sep + Offscreen_tri_base;
+	*half_triangle_sep = 0.5f * triangle_sep;
+	half_gauge_length = *half_triangle_sep + Offscreen_tri_base;
 
 	// We need to find the screen (x,y) for where to draw the offscreen indicator
 	//
@@ -6359,13 +6349,12 @@ void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tp
 	// we need it unsized here and it will be fixed when things are acutally drawn
 	gr_unsize_screen_posf(&xpos, &ypos);
 
-	on_left = on_right = on_top = on_bottom = 0;
 	xpos = (xpos<1) ? 0 : xpos;
 	ypos = (ypos<1) ? 0 : ypos;
 
-	if ( xpos <= gr_screen.clip_left_unscaled ) {
-		xpos = i2fl(gr_screen.clip_left_unscaled);
-		on_left = TRUE;
+	if ( xpos >= gr_screen.clip_right_unscaled) {
+		xpos = i2fl(gr_screen.clip_right_unscaled);
+		*dir = 0;
 
 		if ( ypos < (half_gauge_length - gr_screen.clip_top_unscaled) )
 			ypos = half_gauge_length;
@@ -6373,9 +6362,9 @@ void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tp
 		if ( ypos > (gr_screen.clip_bottom_unscaled - half_gauge_length) ) 
 			ypos = gr_screen.clip_bottom_unscaled - half_gauge_length;
 
-	} else if ( xpos >= gr_screen.clip_right_unscaled) {
-		xpos = i2fl(gr_screen.clip_right_unscaled);
-		on_right = TRUE;
+	} else if ( xpos <= gr_screen.clip_left_unscaled ) {
+		xpos = i2fl(gr_screen.clip_left_unscaled);
+		*dir = 1;
 
 		if ( ypos < (half_gauge_length - gr_screen.clip_top_unscaled) )
 			ypos = half_gauge_length;
@@ -6385,7 +6374,7 @@ void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tp
 
 	} else if ( ypos <= gr_screen.clip_top_unscaled ) {
 		ypos = i2fl(gr_screen.clip_top_unscaled);
-		on_top = TRUE;
+		*dir = 2;
 
 		if ( xpos < ( half_gauge_length - gr_screen.clip_left_unscaled) )
 			xpos = half_gauge_length;
@@ -6395,7 +6384,7 @@ void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tp
 
 	} else if ( ypos >= gr_screen.clip_bottom_unscaled ) {
 		ypos = i2fl(gr_screen.clip_bottom_unscaled);
-		on_bottom = TRUE;
+		*dir = 3;
 
 		if ( xpos < ( half_gauge_length - gr_screen.clip_left_unscaled) )
 			xpos = half_gauge_length;
@@ -6408,36 +6397,80 @@ void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tp
 		return;
 	}
 
-	//	The offscreen target triangles are drawn according the the diagram below
+	// The offscreen target triangles are drawn according the the diagram below
 	//
 	//
 	//
-	//			  x3				x3
-	//		   /	|				| \.
-	//		 /		|				|   \.
-	//		x1___x2				x2___x1
-	//				|				|
-	//		......|...........|...............(xpos,ypos)
-	//				|				|
-	//		x4___x5				x5___x4
-	//		 \		|				|	  /
-	//		   \ 	|				|	/
-	//			  x6				x6
+	//              x3                x3
+	//            /  |                |  \.
+	//          /    |                |    \.
+	//        x1____x2                x2____x1
+	//               |                |
+	//        .......|................|............(xpos,ypos)
+	//               |                |
+	//        x4____x5                x5____x4
+	//         \     |                |     /
+	//           \   |                |   /
+	//              x6                x6
 	//
 	//
 
 	xpos = (float)floor(xpos);
 	ypos = (float)floor(ypos);
 
+	if (outcoords != NULL) {
+		outcoords->x = xpos;
+		outcoords->y = ypos;
+	}
+
+	gr_reset_screen_scale();
+
+	if(!in_frame)
+		g3_end_frame();
+}
+
+void HudGaugeOffscreen::renderOffscreenIndicator(vec2d *coords, int dir, float distance, float half_triangle_sep, bool draw_solid)
+{
+	float xpos, ypos;
+	float displayed_distance;
+	char buf[32];
+	int w = 0, h = 0;
+
+	// points to draw triangles
+	float x1=0.0f;
+	float y1=0.0f;
+	float x2=0.0f;
+	float y2=0.0f;
+	float x3=0.0f;
+	float y3=0.0f;
+	float x4=0.0f;
+	float y4=0.0f;
+	float x5=0.0f;
+	float y5=0.0f;
+	float x6=0.0f;
+	float y6=0.0f;
+
+	// scale by distance modifier from hud_guages.tbl for display purposes
+	displayed_distance = distance * Hud_unit_multiplier;
+
+	bool in_frame = g3_in_frame() > 0;
+	if(!in_frame)
+		g3_start_frame(0);
+
+	gr_set_screen_scale(base_w, base_h);
+
 	if (displayed_distance > 0.0f) {
 		sprintf(buf, "%d", fl2i(displayed_distance + 0.5f));
-		hud_num_make_mono(buf);
+		hud_num_make_mono(buf, font_num);
 		gr_get_string_size(&w, &h, buf);	
 	} else {
 		buf[0] = 0;
 	}
 
-	if (on_right) {
+	xpos = coords->x;
+	ypos = coords->y;
+
+	if (dir == 0) {
 		x1 = x4 = (xpos+2);
 			
 		x2 = x3 = x5 = x6 = x1 - Offscreen_tri_height;
@@ -6450,7 +6483,7 @@ void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tp
 		if ( buf[0] ) {
 			gr_string( fl2i(xpos - w - 10), fl2i(ypos - h/2.0f+0.5f), buf);
 		}
-	} else if (on_left) {
+	} else if (dir == 1) {
 		x1 = x4 = (xpos-1);
 			
 		x2 = x3 = x5 = x6 = x1 + Offscreen_tri_height;
@@ -6463,7 +6496,7 @@ void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tp
 		if ( buf[0] ) {
 			gr_string(fl2i(xpos + 10), fl2i(ypos - h/2.0f+0.5f), buf);
 		}
-	} else if (on_top) {
+	} else if (dir == 2) {
 		y1 = y4 = (ypos-1);
 			
 		y2 = y3 = y5 = y6 = y1 + Offscreen_tri_height;
@@ -6476,7 +6509,7 @@ void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tp
 		if ( buf[0] ) {
 			gr_string(fl2i(xpos - w/2.0f+0.5f), fl2i(ypos+10), buf);
 		}
-	} else if (on_bottom) {
+	} else if (dir == 3) {
 		y1 = y4 = (ypos+2);
 			
 		y2 = y3 = y5 = y6 = y1 - Offscreen_tri_height;
@@ -6499,13 +6532,18 @@ void HudGaugeOffscreen::renderOffscreenIndicator(vertex* target_point, vec3d *tp
 		hud_tri_empty(x4,y4,x5,y5,x6,y6);
 	}
 
-	if (on_right || on_bottom){
+	if (dir == 0 || dir == 3){
 		gr_line(fl2i(x2),fl2i(y2),fl2i(x5),fl2i(y5));
-	} else if (on_left) {
+	} else if (dir == 1) {
 		gr_line(fl2i(x2-1),fl2i(y2),fl2i(x5-1),fl2i(y5));
 	} else {
 		gr_line(fl2i(x2),fl2i(y2-1),fl2i(x5),fl2i(y5-1));
 	}
+
+	gr_reset_screen_scale();
+
+	if(!in_frame)
+		g3_end_frame();
 }
 
 HudGaugeWarheadCount::HudGaugeWarheadCount():
@@ -6608,7 +6646,7 @@ void HudGaugeWarheadCount::render(float frametime)
 		char ammo_str[32];
 
 		sprintf(ammo_str, "%d", ammo);
-		hud_num_make_mono(ammo_str);
+		hud_num_make_mono(ammo_str, font_num);
 
 		if ( Text_align ) {
 			int w, h;
@@ -6817,7 +6855,7 @@ void HudGaugePrimaryWeapons::render(float frametime)
 		strcpy_s(name, (Weapon_info[sw->primary_bank_weapons[i]].alt_name[0]) ? Weapon_info[sw->primary_bank_weapons[i]].alt_name : Weapon_info[sw->primary_bank_weapons[i]].name);
 		
 		if (Lcl_gr) {
-			lcl_translate_wep_name(name);
+			lcl_translate_wep_name_gr(name);
 		}
 
 		if (HudGauge::maybeFlashSexp() == i ) {
@@ -6846,7 +6884,7 @@ void HudGaugePrimaryWeapons::render(float frametime)
 			// get rid of #
 			end_string_at_first_hash_symbol(ammo_str);
 
-			hud_num_make_mono(ammo_str);
+			hud_num_make_mono(ammo_str, font_num);
 			gr_get_string_size(&w, &h, ammo_str);
 
 			renderString(position[0] + _pammo_offset_x - w, position[1] + text_y_offset, EG_NULL, ammo_str);
@@ -6969,7 +7007,7 @@ void HudGaugeSecondaryWeapons::render(float frametime)
 
 		// print out the ammo right justified
 		sprintf(ammo_str, "%d", ammo);
-		hud_num_make_mono(ammo_str);
+		hud_num_make_mono(ammo_str, font_num);
 		gr_get_string_size(&w, &h, ammo_str);
 
 		renderString(position[0] + _sammo_offset_x - w, position[1] + text_y_offset, EG_NULL, ammo_str);
@@ -7073,7 +7111,7 @@ void HudGaugeHardpoints::render(float frametime)
 	gr_set_color_buffer(0);
 
 	ship_model_start(objp);
-	model_render( sip->model_num, &object_orient, &vmd_zero_vector, MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_TEXTURING | MR_NO_CULL);
+	model_immediate_render( sip->model_num, &object_orient, &vmd_zero_vector, MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_TEXTURING | MR_NO_CULL);
 
 	gr_set_color_buffer(1);
 	gr_stencil_set(GR_STENCIL_READ);
@@ -7083,7 +7121,7 @@ void HudGaugeHardpoints::render(float frametime)
 	//model_set_alpha( gr_screen.current_color.alpha / 255.0f );
 	//model_set_forced_texture(0);
 
-	model_render( 
+	model_immediate_render( 
 		sip->model_num, 
 		&object_orient, 
 		&vmd_zero_vector, 
@@ -7121,7 +7159,7 @@ void HudGaugeHardpoints::render(float frametime)
 
 			if (Weapon_info[swp->secondary_bank_weapons[i]].wi_flags2 & WIF2_EXTERNAL_WEAPON_LNCH) {
 				for(k = 0; k < bank->num_slots; k++) {
-					model_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
+					model_immediate_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
 				}
 			} else {
 				num_secondaries_rendered = 0;
@@ -7147,7 +7185,7 @@ void HudGaugeHardpoints::render(float frametime)
 
 					vm_vec_scale_add2(&secondary_weapon_pos, &vmd_z_vector, -(1.0f-sp->secondary_point_reload_pct[i][k]) * model_get(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num)->rad);
 
-					model_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos, render_flags);
+					model_immediate_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos, render_flags);
 				}
 			}
 		}
@@ -7182,7 +7220,7 @@ void HudGaugeHardpoints::render(float frametime)
 				} else {
 					polymodel* pm = model_get(Weapon_info[swp->primary_bank_weapons[i]].external_model_num);
 					pm->gun_submodel_rotation = sp->primary_rotate_ang[i];
-					model_render(Weapon_info[swp->primary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
+					model_immediate_render(Weapon_info[swp->primary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
 					pm->gun_submodel_rotation = 0.0f;
 				}
 			}

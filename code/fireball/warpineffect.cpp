@@ -133,7 +133,7 @@ void warpin_render(object *obj, matrix *orient, vec3d *pos, int texture_bitmap_n
 		float dist = vm_vec_dist_quick( pos, &Eye_position );
 		model_set_detail_level((int)(dist / (radius * 10.0f)));
 
-		model_render( Warp_model, orient, pos, MR_LOCK_DETAIL | MR_NO_LIGHTING | MR_NORMAL | MR_NO_FOGGING | MR_NO_CULL );
+		model_immediate_render( Warp_model, orient, pos, MR_LOCK_DETAIL | MR_NO_LIGHTING | MR_NORMAL | MR_NO_FOGGING | MR_NO_CULL );
 
 		model_set_warp_globals();
 	} else {

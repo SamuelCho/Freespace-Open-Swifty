@@ -95,6 +95,9 @@ struct interp_data
 
 	bool draw_distortion;
 
+	bool team_color_set;
+	team_color current_team_color;
+
 	interp_data() 
 	{
 		tmap_flags = 0;
@@ -164,6 +167,8 @@ struct interp_data
 		render_box_max = vmd_zero_vector;
 		render_sphere_radius = 0.0f;
 		render_sphere_offset = vmd_zero_vector;
+
+		team_color_set = false;
 	}
 };
 

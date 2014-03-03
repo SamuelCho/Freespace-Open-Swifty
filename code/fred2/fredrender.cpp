@@ -407,7 +407,7 @@ void render_waypoints(void)
 	vertex v;
 
 	SCP_list<waypoint_list>::iterator ii;
-	SCP_list<waypoint>::iterator jj;
+	SCP_vector<waypoint>::iterator jj;
 
 	for (ii = Waypoint_lists.begin(); ii != Waypoint_lists.end(); ++ii)
 	{
@@ -769,9 +769,9 @@ void render_one_model_nohtl(object *objp)
 		{
 			if (Fred_outline)	{
 				model_set_outline_color(Fred_outline >> 16, (Fred_outline >> 8) & 0xff, Fred_outline & 0xff);
-				model_render(Ship_info[Ships[z].ship_info_index].model_num, &objp->orient, &objp->pos, j | MR_SHOW_OUTLINE, -1, -1, Ships[z].ship_replacement_textures);
+				model_immediate_render(Ship_info[Ships[z].ship_info_index].model_num, &objp->orient, &objp->pos, j | MR_SHOW_OUTLINE, -1, -1, Ships[z].ship_replacement_textures);
 			} else {
-				model_render(Ship_info[Ships[z].ship_info_index].model_num, &objp->orient, &objp->pos, j, -1, -1, Ships[z].ship_replacement_textures);
+				model_immediate_render(Ship_info[Ships[z].ship_info_index].model_num, &objp->orient, &objp->pos, j, -1, -1, Ships[z].ship_replacement_textures);
 			}
 		}
 	
@@ -910,7 +910,7 @@ void render_one_model_htl(object *objp)
 		}
 
 		g3_done_instance(0);
-	  	model_render(Ship_info[Ships[z].ship_info_index].model_num, &objp->orient, &objp->pos, j, -1, -1, Ships[z].ship_replacement_textures);
+	  	model_immediate_render(Ship_info[Ships[z].ship_info_index].model_num, &objp->orient, &objp->pos, j, -1, -1, Ships[z].ship_replacement_textures);
 	} else {
 		int r = 0, g = 0, b = 0;
 
@@ -1857,6 +1857,7 @@ void draw_asteroid_field()
 int object_check_collision(object *objp, vec3d *p0, vec3d *p1, vec3d *hitpos)
 {
 	mc_info mc;
+	mc_info_init(&mc);
 
 	if ((objp->type == OBJ_NONE) || (objp->type == OBJ_POINT))
 		return 0;

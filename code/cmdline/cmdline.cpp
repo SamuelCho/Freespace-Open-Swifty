@@ -41,7 +41,7 @@ public:
 	char *name;						// name of parameter, must start with '-' char
 	char *help;						// help text for this parameter
 	bool stacks;					// whether this arg stacks with each use or is replaced by newest use (should only be used for strings!!)
-	char *args;						// string value for parameter arguements (NULL if no arguements)
+	char *args;						// string value for parameter arguments (NULL if no arguments)
 	int name_found;				// true if parameter on command line, otherwise false
 
 	cmdline_parm(char *name, char *help, bool stacks = false);
@@ -126,6 +126,7 @@ Flag exe_params[] =
 	{ "-fxaa",				"Enable FXAA anti-aliasing",				true,	0,					EASY_DEFAULT,		"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-fxaa" },
 	{ "-nolightshafts",		"Disable lightshafts",						true,	0,					EASY_DEFAULT,		"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-flightshaftsoff"},
 
+	{ "-img2dds",			"Compress non-compressed images",			true,	0,					EASY_DEFAULT,		"Game Speed",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-img2dds", },
 	{ "-no_vsync",			"Disable vertical sync",					true,	0,					EASY_DEFAULT,		"Game Speed",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-no_vsync", },
 	{ "-cache_bitmaps",		"Cache bitmaps between missions",			true,	0,					EASY_DEFAULT_MEM,	"Game Speed",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-cache_bitmaps", },
 
@@ -200,7 +201,8 @@ Flag exe_params[] =
  #ifdef SCP_UNIX
 	{ "-nograb",			"Don't grab mouse/keyboard in a window",	true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-nograb", },
  #endif
-	{ "-reparse_mainhall", "Reparse mainhall.tbl when loading halls", false, 0, EASY_DEFAULT, "Dev Tool", "http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-reparse_mainhall", },
+	{ "-reparse_mainhall",	"Reparse mainhall.tbl when loading halls",	false,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-reparse_mainhall", },
+	{ "-profile_frame_time","Profile engine subsystems",				true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-profile_frame_timings", },
 };
 
 // here are the command line parameters that we will be using for FreeSpace
@@ -306,10 +308,12 @@ int Cmdline_shadow_quality = 2;
 
 // Game Speed related
 cmdline_parm cache_bitmaps_arg("-cache_bitmaps", NULL);	// Cmdline_cache_bitmaps
+cmdline_parm img2dds_arg("-img2dds", NULL);			// Cmdline_img2dds
 cmdline_parm no_fpscap("-no_fps_capping", NULL);	// Cmdline_NoFPSCap
 cmdline_parm no_vsync_arg("-no_vsync", NULL);		// Cmdline_no_vsync
 
 int Cmdline_cache_bitmaps = 0;	// caching of bitmaps between missions (faster loads, can hit swap on reload with <512 Meg RAM though) - taylor
+int Cmdline_img2dds = 0;
 int Cmdline_NoFPSCap = 0; // Disable FPS capping - kazan
 int Cmdline_no_vsync = 0;
 
@@ -351,7 +355,7 @@ int Cmdline_voice_recognition = 0;
 // MOD related
 cmdline_parm mod_arg("-mod", NULL, true);	// Cmdline_mod  -- DTP modsupport
 
-char *Cmdline_mod = NULL; //DTP for mod arguement
+char *Cmdline_mod = NULL; //DTP for mod argument
 
 // Multiplayer/Network related
 cmdline_parm almission_arg("-almission", NULL);		// Cmdline_almission  -- DTP for autoload Multi mission
@@ -425,6 +429,7 @@ cmdline_parm parse_cmdline_only(PARSE_COMMAND_LINE_STRING, NULL);
 cmdline_parm no_grab("-nograb", NULL);				// Cmdline_no_grab
 #endif
 cmdline_parm reparse_mainhall_arg("-reparse_mainhall", NULL); //Cmdline_reparse_mainhall
+cmdline_parm frame_profile_arg("-profile_frame_time", NULL); //Cmdline_frame_profile
 
 char *Cmdline_start_mission = NULL;
 int Cmdline_old_collision_sys = 0;
@@ -448,6 +453,7 @@ int Cmdline_verify_vps = 0;
 int Cmdline_no_grab = 0;
 #endif
 int Cmdline_reparse_mainhall = 0;
+bool Cmdline_frame_profile = false;
 
 // Other
 cmdline_parm get_flags_arg("-get_flags", NULL);
@@ -624,7 +630,7 @@ void parm_stuff_args(cmdline_parm *parm, char *cmdline)
 }
 
 
-// internal function - parse the command line, extracting parameter arguements if they exist
+// internal function - parse the command line, extracting parameter arguments if they exist
 // cmdline - command line string passed to the application
 void os_parse_parms(char *cmdline)
 {
@@ -694,7 +700,7 @@ void os_validate_parms(char *cmdline)
 #ifdef _WIN32
 				// Changed this to MessageBox, this is a user error not a developer
 				char buffer[128];
-				sprintf(buffer,"Unrecogzined command line parameter %s, continue?",token);
+				sprintf(buffer,"Unrecognized command line parameter %s, continue?",token);
 				if( MessageBox(NULL, buffer, "Warning", MB_OKCANCEL | MB_ICONQUESTION) == IDCANCEL)
 					exit(0);
 #elif defined(APPLE_APP)
@@ -770,19 +776,12 @@ void os_init_cmdline(char *cmdline)
 #ifdef _WIN32
 	fp = fopen("data\\cmdline_fso.cfg", "rt");
 #elif defined(APPLE_APP)
-	extern char full_path[1024];
-	char *c = NULL, data_path[1024];
+	char resolved_path[MAX_PATH], data_path[MAX_PATH_LEN];
+     
+	GetCurrentDirectory(MAX_PATH_LEN-1, data_path);
+	snprintf(resolved_path, MAX_PATH, "%s/data/cmdline_fso.cfg", data_path);
 
-	c = strstr(full_path, ".app");
-	if ( c != NULL ) {
-		while (c && (*c != '/'))
-			c--;
-		
-		*c = '\0';
-	}
-	snprintf(data_path, 1024, "%s/data/cmdline_fso.cfg", full_path);
-
-	fp = fopen(data_path, "rt");
+	fp = fopen(resolved_path, "rt");
 #else
 	fp = fopen("data/cmdline_fso.cfg", "rt");
 #endif
@@ -909,7 +908,7 @@ int cmdline_parm::found()
 	return name_found;
 }
 
-// returns - the interger representation for the parameter arguement
+// returns - the interger representation for the parameter argument
 int cmdline_parm::get_int()
 {
 	check_if_args_is_valid();
@@ -920,7 +919,7 @@ int cmdline_parm::get_int()
 		// first off, DON'T STACK NON-STRINGS!!
 		Int3();
 
-		// secondly, we still need to get it right for the users sake...
+		// secondly, we still need to get it right for the user's sake...
 		char *moron = strstr(args, ",");
 
 		if ( moron && ((strlen(moron) + 1) < strlen(args)) ) {
@@ -933,7 +932,7 @@ int cmdline_parm::get_int()
 }
 
 
-// returns - the float representation for the parameter arguement
+// returns - the float representation for the parameter argument
 float cmdline_parm::get_float()
 {
 	check_if_args_is_valid();
@@ -944,7 +943,7 @@ float cmdline_parm::get_float()
 		// first off, DON'T STACK NON-STRINGS!!
 		Int3();
 
-		// secondly, we still need to get it right for the users sake
+		// secondly, we still need to get it right for the user's sake
 		char *moron = strstr(args, ",");
 
 		if ( moron && ((strlen(moron) + 1) < strlen(args)) ) {
@@ -957,7 +956,7 @@ float cmdline_parm::get_float()
 }
 
 
-// returns - the string value for the parameter arguement
+// returns - the string value for the parameter argument
 char *cmdline_parm::str()
 {
 	check_if_args_is_valid();
@@ -1383,6 +1382,9 @@ bool SetCmdlineParams()
 		Cmdline_no_di_mouse = 1;
 	}
 
+	if ( img2dds_arg.found() )
+		Cmdline_img2dds = 1;
+
 	if ( glow_arg.found() )
 		Cmdline_glow = 0;
 
@@ -1540,6 +1542,11 @@ bool SetCmdlineParams()
 	if( shadow_quality_arg.found() )
 	{
 		Cmdline_shadow_quality = shadow_quality_arg.get_int();
+	}
+
+	if (frame_profile_arg.found() )
+	{
+		Cmdline_frame_profile = true;
 	}
 
 	//Deprecated flags - CommanderDJ

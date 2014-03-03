@@ -16,10 +16,11 @@
 #include "graphics/grbatch.h"
 #include "model/modelrender.h"
 
-struct object;
-struct ship;
-struct ship_info;
-struct ship_subsys;
+class object;
+class ship;
+class ship_info;
+class game_snd;
+class ship_subsys;
 struct shockwave_create_info;
 struct vec3d;
 struct matrix;
@@ -266,9 +267,9 @@ private:
 	//Sound
 	float snd_range_factor;
 	int snd_start;
-	struct game_snd *snd_start_gs;
+	game_snd *snd_start_gs;
 	int snd_end;
-	struct game_snd *snd_end_gs;
+	game_snd *snd_end_gs;
 
 public:
 	WE_BSG(object *n_objp, int n_direction);
@@ -311,7 +312,7 @@ private:
 	//sound
 	int snd;
 	float snd_range_factor;
-	struct game_snd *snd_gs;
+	game_snd *snd_gs;
 
 	//sweeper polygon and clip effect
 	vec3d	pos;

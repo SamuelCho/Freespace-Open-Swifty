@@ -223,7 +223,7 @@ int Main_hall_notify_stamp = -1;
 char Main_hall_notify_text[300]="";
 
 // set the current notification string and the associated timestamp
-void main_hall_set_notify_string(char *str);
+void main_hall_set_notify_string(const char *str);
 
 // handle any drawing, culling, etc of notification messages
 void main_hall_notify_do();
@@ -388,7 +388,7 @@ void main_hall_campaign_cheat()
 /**
  * Initialize the main hall proper
  *
- * @param main_hall_num Main hall index
+ * @param main_hall_name Name of main hall to initialise
  */
 void main_hall_init(SCP_string main_hall_name)
 {
@@ -713,12 +713,12 @@ void main_hall_do(float frametime)
 						main_hall_set_notify_string(XSTR( "Quick Start not valid for multiplayer pilots", 369));
 					} else {
 						if (Num_recent_missions > 0) {
-							strncpy(Game_current_mission_filename, Recent_missions[0], MAX_FILENAME_LEN);
+							strcpy_s(Game_current_mission_filename, Recent_missions[0]);
 						} else {
 							if (mission_load_up_campaign()) {
 								main_hall_set_notify_string(XSTR( "Campaign file is currently unavailable", 1606));
 							}
-							strncpy(Game_current_mission_filename, Campaign.missions[0].name, MAX_FILENAME_LEN);
+							strcpy_s(Game_current_mission_filename, Campaign.missions[0].name);
 						}
 						Campaign.current_mission = -1;
 						gameseq_post_event(GS_EVENT_START_GAME_QUICK);
@@ -1409,7 +1409,7 @@ void main_hall_handle_random_intercom_sounds()
  * Set the notification string with its decay timeout
  * @param str Notification string
  */
-void main_hall_set_notify_string(char *str)
+void main_hall_set_notify_string(const char *str)
 {
 	strcpy_s(Main_hall_notify_text,str);
 	Main_hall_notify_stamp = timestamp(MAIN_HALL_NOTIFY_TIME);
@@ -1824,7 +1824,7 @@ void main_hall_table_init()
 }
 
 // read in main hall table
-void parse_main_hall_table(char* filename)
+void parse_main_hall_table(const char* filename)
 {
 	SCP_vector<main_hall_defines> temp_vector;
 	main_hall_defines *m, temp;

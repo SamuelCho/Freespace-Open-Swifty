@@ -42,6 +42,7 @@
 #define LAB_FLAG_LIGHTNING_ARCS		(1<<4)	// show damage lightning
 #define LAB_FLAG_UNUSED				(1<<5)	// feel free to change that to something you need - Valathil
 #define LAB_FLAG_SHOW_WEAPONS		(1<<6)	// determines if external weapons models are displayed
+#define LAB_FLAG_INITIAL_ROTATION	(1<<7)	// initial rotation setting
 
 // modes
 #define LAB_MODE_NONE		0	// not showing anything
@@ -72,6 +73,7 @@ static ubyte Lab_mode = LAB_MODE_NONE;
 static int Lab_selected_index = -1;
 static int Lab_last_selected_ship = -1;
 static int Lab_selected_object = -1;
+static int Lab_last_selected_weapon = -1;
 
 static int Lab_model_num = -1;
 static int Lab_weaponmodel_num[MAX_SHIP_WEAPONS];
@@ -127,7 +129,7 @@ void labviewer_update_flags_window();
 void labviewer_setup_subsys_rotation()
 {
 	if (Lab_ship_subsys != NULL) {
-		vm_free(Lab_ship_subsys);
+		delete[] Lab_ship_subsys;
 		Lab_ship_subsys = NULL;
 	}
 
@@ -154,14 +156,14 @@ void labviewer_setup_subsys_rotation()
 
 	uint n_subsystems = Ship_info[Lab_selected_index].n_subsystems;
 
-	Lab_ship_subsys = (ship_subsys *) vm_malloc( n_subsystems * sizeof(ship_subsys) );
-	memset( Lab_ship_subsys, 0, n_subsystems * sizeof(ship_subsys) );
+	Lab_ship_subsys = new ship_subsys[n_subsystems];
+	for (uint i = 0; i < n_subsystems; i++)
+		Lab_ship_subsys[i].clear();
 
 	Lab_ship_model_subsys.reserve(n_subsystems);
 	for (uint idx = 0; idx < n_subsystems; idx++) {
 		Lab_ship_model_subsys.push_back( Ship_info[Lab_selected_index].subsystems[idx] );
 	}
-//	memcpy( &Lab_ship_model_subsys[0], Ship_info[Lab_selected_index].subsystems, n_subsystems * sizeof(model_subsystem) );
 }
 
 void labviewer_change_bitmap(int ship_index = -1, int weapon_index = -1)
@@ -169,7 +171,11 @@ void labviewer_change_bitmap(int ship_index = -1, int weapon_index = -1)
 	if ( (ship_index < 0) && (weapon_index < 0) ) {
 		if (Lab_bitmap_id >= 0) {
 			bm_release(Lab_bitmap_id);
+			if (Lab_last_selected_weapon >= 0) {
+				Weapon_info[Lab_last_selected_weapon].laser_bitmap.first_frame = -1;
+			}
 			Lab_bitmap_id = -1;
+			Lab_last_selected_weapon = -1;
 		}
 
 		return;
@@ -179,6 +185,13 @@ void labviewer_change_bitmap(int ship_index = -1, int weapon_index = -1)
 		if (ship_index >= 0) {
 			// TODO:  Ship stuff!!
 		} else if (weapon_index >= 0) {
+			// release old bitmap if required
+			if ( (Lab_last_selected_weapon >= 0) && (Lab_last_selected_weapon != weapon_index)) {
+				Weapon_info[Lab_last_selected_weapon].laser_bitmap.first_frame = -1;
+				if (Lab_bitmap_id >= 0) {
+					bm_release(Lab_bitmap_id);
+				}
+			}
 			// load up the weapon bitmaps
 			extern void weapon_load_bitmaps(int);
 			weapon_load_bitmaps(weapon_index);
@@ -699,7 +712,7 @@ void light_set_all_relevent();
 
 void labviewer_render_model(float frametime)
 {
-	int i;
+	int i, j;
 	float rev_rate;
 	angles rot_angles, view_angles;
 	ship_info *sip = NULL;
@@ -722,11 +735,8 @@ void labviewer_render_model(float frametime)
 		if (sip->uses_team_colors && !Teamcolor_override) {
 			team_color color;
 
-			if ( model_set_team_color(&color, Lab_team_color, "<none>", 0, 0) ) {
-				gr_set_team_color(&color);
-			} else {
-				gr_disable_team_color();
-			}
+			Interp_team_color_set = model_set_team_color(&color, Lab_team_color, "<none>", 0, 0);
+			Interp_team_color = color;
 		}
 	}
 
@@ -870,6 +880,29 @@ void labviewer_render_model(float frametime)
 		// ship/weapon thrusters
 		if (Lab_model_flags & MR_SHOW_THRUSTERS) {
 			labviewer_add_model_thrusters(sip);
+		}
+
+		// do initial rotation
+		if (sip != NULL) {
+			if (Lab_viewer_flags & LAB_FLAG_INITIAL_ROTATION) {
+				for (i = 0; i < sip->n_subsystems; i++) {
+					if (Lab_ship_model_subsys[i].type == SUBSYSTEM_TURRET) {
+												
+						for (j = 0; j < Lab_ship_model_subsys[i].n_triggers; j++) {
+						
+							// special case for turrets
+							Lab_ship_subsys[i].submodel_info_2.angs.p = Lab_ship_model_subsys[i].triggers[j].angle.xyz.x;
+							Lab_ship_subsys[i].submodel_info_1.angs.h = Lab_ship_model_subsys[i].triggers[j].angle.xyz.y;
+						}
+						if ( Lab_ship_model_subsys[i].subobj_num >= 0 )	{
+							model_set_instance(Lab_model_num, Lab_ship_model_subsys[i].subobj_num, &Lab_ship_subsys[i].submodel_info_1 );
+						}
+						if ( (Lab_ship_model_subsys[i].subobj_num != Lab_ship_model_subsys[i].turret_gun_sobj) && (Lab_ship_model_subsys[i].turret_gun_sobj >= 0) )		{
+							model_set_instance(Lab_model_num, Lab_ship_model_subsys[i].turret_gun_sobj, &Lab_ship_subsys[i].submodel_info_2 );
+						}
+					}
+				} 
+			}
 		}
 
 		// rotate submodels if wanted
@@ -1924,6 +1957,7 @@ void labviewer_make_render_options_window(Button *caller)
 	ADD_RENDER_FLAG("Show Shields", Lab_model_flags, MR_SHOW_SHIELDS);
 	ADD_RENDER_FLAG("Show Thrusters", Lab_model_flags, MR_SHOW_THRUSTERS);
 	ADD_RENDER_FLAG("Show Ship Weapons", Lab_viewer_flags, LAB_FLAG_SHOW_WEAPONS);
+	ADD_RENDER_FLAG("Initial Rotation", Lab_viewer_flags, LAB_FLAG_INITIAL_ROTATION);
 
 	// start tree
 	cmp = (Tree*)Lab_render_options_window->AddChild(new Tree("Detail Options Tree", 0, y + 2, NULL, Lab_render_options_window->GetWidth()));
@@ -2211,6 +2245,7 @@ void labviewer_change_weapon(Tree *caller)
 	}
 
 	Lab_selected_index = weap_index;
+	Lab_last_selected_weapon = Lab_selected_index;
 
 	labviewer_update_desc_window();
 	labviewer_update_flags_window();
@@ -2389,6 +2424,7 @@ void lab_init()
 	PostProcessing_override = true;
 	// disable model rotation by default in the lab
 	Lab_viewer_flags |= LAB_FLAG_NO_ROTATION;
+	Lab_viewer_flags |= LAB_FLAG_INITIAL_ROTATION;
 }
 
 #include "controlconfig/controlsconfig.h"
@@ -2613,7 +2649,7 @@ void lab_close()
 	Lab_ship_model_subsys.clear();
 
 	if (Lab_ship_subsys != NULL) {
-		vm_free(Lab_ship_subsys);
+		delete[] Lab_ship_subsys;
 		Lab_ship_subsys = NULL;
 	}
 

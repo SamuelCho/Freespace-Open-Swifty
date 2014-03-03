@@ -16,6 +16,8 @@
 #include "nebula/neb.h"
 #include "ship/ship.h"
 #include <list>
+#include <vector>
+#include <algorithm>
 #include "jumpnode/jumpnode.h"
 #include "weapon/weapon.h"
 #include "debris/debris.h"
@@ -25,7 +27,9 @@
 #include "graphics/gropengldraw.h"
 #include "parse/scripting.h"
 
-typedef struct sorted_obj {
+class sorted_obj
+{
+public:
 	object			*obj;					// a pointer to the original object
 	float			z, min_z, max_z;		// The object's z values relative to viewer
 
@@ -34,10 +38,10 @@ typedef struct sorted_obj {
 	{
 	}
 
-	bool operator < (const sorted_obj &other);
-} sorted_obj;
+	bool operator < (const sorted_obj &other) const;
+};
 
-inline bool sorted_obj::operator < (const sorted_obj &other)
+inline bool sorted_obj::operator < (const sorted_obj &other) const
 {
 	int model_num_a = -1;
 	int model_num_b = -1;
@@ -102,7 +106,7 @@ inline bool sorted_obj::operator < (const sorted_obj &other)
 }
 
 
-SCP_list<sorted_obj> Sorted_objects;
+SCP_vector<sorted_obj> Sorted_objects;
 SCP_vector<object*> effect_ships; 
 SCP_vector<object*> transparent_objects;
 bool object_had_transparency = false;
@@ -224,7 +228,7 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 	if ( Sorted_objects.empty() )
 		return;
 
-	Sorted_objects.sort();
+	std::sort(Sorted_objects.begin(), Sorted_objects.end());
 
 #ifdef DYN_CLIP_DIST
 	if (!Cmdline_nohtl)
@@ -245,7 +249,7 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 
 	// now draw them
 	// only render models in this loop in order to minimize state changes
-	SCP_list<sorted_obj>::iterator os;
+	SCP_vector<sorted_obj>::iterator os;
 	for (os = Sorted_objects.begin(); os != Sorted_objects.end(); ++os) {
 		object *obj = os->obj;
 

@@ -41,8 +41,10 @@ SCP_vector<cutscene_info> Cutscenes;
 void cutscene_close()
 {
 	for(SCP_vector<cutscene_info>::iterator cut = Cutscenes.begin(); cut != Cutscenes.end(); ++cut)
-		if(cut->description)
+		if(cut->description != NULL) {
 			vm_free(cut->description);
+			cut->description = NULL;
+		}
 }
 
 // initialization stuff for cutscenes
@@ -74,8 +76,6 @@ void cutscene_init()
 
 	while ( required_string_either("#End", "$Filename:") ) 
     {
-        memset(&cutinfo, 0, sizeof(cutscene_info));
-
 		required_string("$Filename:");
 		stuff_string( cutinfo.filename, F_PATHNAME, MAX_FILENAME_LEN );
 
@@ -91,6 +91,8 @@ void cutscene_init()
 		required_string("$cd:");
 		stuff_int( &cutinfo.cd );
 
+		cutinfo.viewable = false;
+
 		if (isFirstCutscene) {
 			isFirstCutscene = false;
 			// The original code assumes the first movie is the intro, so always viewable
@@ -100,7 +102,6 @@ void cutscene_init()
 		if (optional_string("$Always Viewable:")) {
 			stuff_boolean(&cutinfo.viewable);
 		}
-
 
         Cutscenes.push_back(cutinfo);
 	}
@@ -252,7 +253,7 @@ int Cutscene_max_text_lines[GR_NUM_RESOLUTIONS] = {
 static int Text_size;
 static int Text_offset = 0;
 static int Text_line_size[MAX_TEXT_LINES];
-static char *Text_lines[MAX_TEXT_LINES];
+static const char *Text_lines[MAX_TEXT_LINES];
 
 
 int cutscenes_validate_cd(char *mve_name, int prompt_for_cd)

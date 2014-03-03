@@ -1113,7 +1113,7 @@ void wss_maybe_restore_loadout()
 		Wss_slots[i].ship_class = slot->ship_class;
 
 		for ( j = 0; j < MAX_SHIP_WEAPONS; j++ ) {
-			if ((slot->wep[j] >= 0) && (slot->wep[j] < MAX_WEAPON_TYPES)) {
+			if ((slot->ship_class >= 0) && (slot->wep[j] >= 0) && (slot->wep[j] < MAX_WEAPON_TYPES)) {
 				this_loadout_weapons[slot->wep[j]] -= slot->wep_count[j];
 				Assertion((this_loadout_weapons[slot->wep[j]] >= 0), "Attempting to restore the previous missions loadout has resulted in an invalid number of weapons available");
 			}
@@ -1577,7 +1577,7 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 
 	Glowpoint_override = true;
 	model_clear_instance(model_id);
-	model_render(model_id, &object_orient, &vmd_zero_vector, flags, -1, -1);
+	model_immediate_render(model_id, &object_orient, &vmd_zero_vector, flags, -1, -1);
 	Glowpoint_override = false;
 
 	if (!Cmdline_nohtl) 
@@ -1729,10 +1729,30 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
             {
 				gr_end_view_matrix();
 				gr_end_proj_matrix();
-				gr_start_shadow_map(-closeup_pos->xyz.z + pm->rad, 5000.0f, 20000.0f);
-                model_render(model_id, &model_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
-                gr_set_clip(x1, y1, x2, y2, resize);
-                gr_end_shadow_map();
+
+				gr_reset_clip();
+
+				float fov = Proj_fov;
+				matrix eye_orient = Eye_matrix;
+				vec3d eye_pos = Eye_position;
+
+				// create light matrix using orient up vec and light vector
+				matrix light_matrix;
+				vec3d light_dir;
+
+				light *lp = *(Static_light.begin());
+
+				vm_vec_copy_normalize(&light_dir, &lp->vec);
+				vm_vector_2_matrix(&light_matrix, &light_dir, &eye_orient.vec.uvec, NULL);
+
+				shadows_start_render(&light_matrix, &eye_orient, &eye_pos, fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, 200.0f, 5000.0f, 5000.0f);
+
+				//gr_start_shadow_map(-sip->closeup_pos.xyz.z + pm->rad, 1000.0f, 5000.0f);
+				model_immediate_render(model_id, &model_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
+				shadows_end_render();
+
+				gr_set_clip(x1, y1, x2, y2, resize);
+
 				gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
 				gr_set_view_matrix(&Eye_position, &Eye_matrix);
             }
@@ -1745,14 +1765,14 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 				if (time >= 1.5f) // Just clip the wireframe after Phase 1
 					g3_start_user_clip_plane(&plane_point,&wire_normal);
 				
-				model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_ANIMATED_SHADER);
+				model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_ANIMATED_SHADER);
 				if(time >= 1.5f)
 				g3_stop_user_clip_plane();
 			}
 
 			if (time >= 1.5f) { // Render the ship in Phase 2 onwards
 				g3_start_user_clip_plane(&plane_point,&ship_normal);
-				model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
+				model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
 				g3_stop_user_clip_plane();
 			}
 
@@ -1827,9 +1847,9 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		if (effect == 1) { // FS1 effect
 			opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS1);
 			opengl_shader_set_animated_timer(MIN(time*0.5f,2.0f));
-			model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
+			model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
 		} else {
-			model_render(model_id, &model_orient, &vmd_zero_vector, flags);
+			model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags);
 		}
 
 		batch_render_all();

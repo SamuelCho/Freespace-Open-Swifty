@@ -14,7 +14,7 @@
 
 #include "globalincs/pstypes.h"
 
-struct object;
+class object;
 struct CFILE;
 class DrawList;
 

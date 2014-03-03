@@ -51,7 +51,7 @@
 
 
 extern int Multi_debrief_stats_accept_code;
-extern void HUD_printf(char *format, ...);
+extern void HUD_printf(const char *format, ...);
 extern int game_hacked_data();
 
 
@@ -725,7 +725,7 @@ static void fs2netd_handle_messages()
 
 			case PCKT_SLIST_REPLY: {
 				int numServers = 0;
-				int svr_flags;
+				int svr_flags __attribute__((__unused__)); // gcc [-Wunused-but-set-variable] doesn't like MACROs
 				ushort svr_port;
 				char svr_ip[16];
 				active_game ag;
@@ -1539,7 +1539,7 @@ int fs2netd_update_valid_tables()
 	return hacked;
 }
 
-void fs2netd_add_table_validation(char *tblname)
+void fs2netd_add_table_validation(const char *tblname)
 {
 	uint chksum = 0;
 
@@ -1560,7 +1560,7 @@ void fs2netd_add_table_validation(char *tblname)
 
 	crc_valid_status tbl_crc;
 
-	strncpy(tbl_crc.name, tblname, NAME_LENGTH);
+	strcpy_s(tbl_crc.name, tblname);
 	tbl_crc.crc32 = chksum;
 	tbl_crc.valid = 0;
 
@@ -1582,9 +1582,6 @@ int fs2netd_get_pilot_info(const char *callsign, player *out_plr, bool first_cal
 	if (first_call) {
 		new_plr.reset();
 		strncpy( new_plr.callsign, callsign, CALLSIGN_LEN );
-
-		// initialize the stats to default values
-		init_scoring_element( &new_plr.stats );
 
 		out_plr->reset();
 
@@ -1612,7 +1609,7 @@ int fs2netd_get_pilot_info(const char *callsign, player *out_plr, bool first_cal
 	}
 
 	if (rc == 0) {
-		memcpy( out_plr, &new_plr, sizeof(player) );
+		out_plr->assign(&new_plr);
 		In_process = false;
 		Local_timeout = -1;
 	}
@@ -1637,7 +1634,7 @@ void fs2netd_close()
 	FS2NetD_ban_list.clear();
 }
 
-void fs2netd_update_game_count(char *chan_name)
+void fs2netd_update_game_count(const char *chan_name)
 {
 	if ( !Logged_in ) {
 		return;
@@ -1653,7 +1650,6 @@ void fs2netd_update_game_count(char *chan_name)
 void fs2netd_spew_table_checksums(char *outfile)
 {
 	char full_name[MAX_PATH_LEN];
-	int count;
 	FILE *out = NULL;
 	char description[512] = { 0 };
 	char filename[65] = { 0 };
@@ -1676,7 +1672,7 @@ void fs2netd_spew_table_checksums(char *outfile)
 	p = Cmdline_spew_table_crcs;
 
 	while (*p && (offset < sizeof(description))) {
-		if (*p == '"') {
+		if (*p == '"' && offset < sizeof(description)-1) {
 			description[offset++] = '"';
 			description[offset++] = '"';
 		} else {
@@ -1689,15 +1685,13 @@ void fs2netd_spew_table_checksums(char *outfile)
 	// header
 	fprintf(out, "filename,CRC32,description\r\n");
 
-	count = (int)Table_valid_status.size();
-
 	// do all the checksums
 	for (SCP_vector<crc_valid_status>::iterator tvs = Table_valid_status.begin(); tvs != Table_valid_status.end(); ++tvs) {
 		offset = 0;
 		p = tvs->name;
 
 		while (*p && (offset < sizeof(filename))) {
-			if (*p == '"') {
+			if (*p == '"' && offset < sizeof(filename)-1) {
 				filename[offset++] = '"';
 				filename[offset++] = '"';
 			} else {
@@ -1707,7 +1701,11 @@ void fs2netd_spew_table_checksums(char *outfile)
 			p++;
 		}
 
-		filename[offset] = '\0';
+		if (offset < sizeof(filename)) {
+			filename[offset] = '\0';
+		} else {
+			filename[sizeof(filename)-1] = '\0';
+		}
 
 		fprintf(out, "\"%s\",%u,\"%s\"\r\n", filename, tvs->crc32, description);
 	}

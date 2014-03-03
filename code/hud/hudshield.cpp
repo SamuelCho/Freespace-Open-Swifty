@@ -542,7 +542,7 @@ void hud_shield_quadrant_hit(object *objp, int quadrant)
 
 	if ( quadrant >= 0 ) {
 		num = Quadrant_xlate[quadrant];
-		shi->shield_hit_timers[num] = timestamp(300);
+		shi->shield_hit_timers[num] = timestamp(SHIELD_HIT_DURATION_SHORT);
 	} else {
 		shi->shield_hit_timers[HULL_HIT_OFFSET] = timestamp(SHIELD_HIT_DURATION_SHORT);
 		hud_targetbox_start_flash(TBOX_FLASH_HULL); 
@@ -654,7 +654,7 @@ void HudGaugeShield::showShields(object *objp, int mode)
 		ship_model_start(objp);
 		//if(!digitus_improbus)
 		{
-			model_render( sip->model_num, &object_orient, &vmd_zero_vector, MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1, sp->ship_replacement_textures);
+			model_immediate_render( sip->model_num, &object_orient, &vmd_zero_vector, MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1, sp->ship_replacement_textures);
 		}
 		/*else
 		{
@@ -1046,7 +1046,7 @@ void HudGaugeShieldMini::showIntegrity(float p_target_integrity)
 
 	sprintf(text_integrity, "%d", numeric_integrity);
 	if ( numeric_integrity < 100 ) {
-		hud_num_make_mono(text_integrity);
+		hud_num_make_mono(text_integrity, font_num);
 	}	
 
 	renderString(final_pos[0], final_pos[1], text_integrity);

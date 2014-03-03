@@ -174,5 +174,6 @@ extern float Scene_texture_v_scale;
 
 extern bool Deferred_lighting;
 
+extern bool Use_Shaders_for_effect_rendering;
 
 #endif	// !GR_OPENGLDRAW_H

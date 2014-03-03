@@ -25,7 +25,7 @@
 #include "parse/parselo.h"
 #include "hud/hud.h"
 #include "hud/hudtarget.h"
-
+#include "model/modelrender.h"
 
 #define MAX_DEBRIS_VCLIPS			4
 #define DEBRIS_ROT_MIN				10000
@@ -399,7 +399,7 @@ static void starfield_bitmap_entry_init(starfield_bitmap *sbm)
 	}	\
 }
 
-void parse_startbl(char *filename)
+void parse_startbl(const char *filename)
 {
 	char name[MAX_FILENAME_LEN], tempf[16];
 	starfield_bitmap sbm;
@@ -1400,7 +1400,7 @@ void subspace_render()
 	if (!Cmdline_nohtl)
 		gr_set_texture_panning(Interp_subspace_offset_v, Interp_subspace_offset_u, true);
 
-	model_render( Subspace_model_outer, &tmp, &Eye_position, render_flags );	//MR_NO_CORRECT|MR_SHOW_OUTLINE
+	model_immediate_render( Subspace_model_outer, &tmp, &Eye_position, render_flags );	//MR_NO_CORRECT|MR_SHOW_OUTLINE
 
 	if (!Cmdline_nohtl)
 		gr_set_texture_panning(0, 0, false);
@@ -1420,7 +1420,7 @@ void subspace_render()
 	if (!Cmdline_nohtl)
 		gr_set_texture_panning(Interp_subspace_offset_v, Interp_subspace_offset_u, true);
 
-	model_render( Subspace_model_inner, &tmp, &Eye_position, render_flags  );	//MR_NO_CORRECT|MR_SHOW_OUTLINE
+	model_immediate_render( Subspace_model_inner, &tmp, &Eye_position, render_flags  );	//MR_NO_CORRECT|MR_SHOW_OUTLINE
 
 	if (!Cmdline_nohtl)
 		gr_set_texture_panning(0, 0, false);
@@ -2119,11 +2119,11 @@ void stars_draw_background()
 	// draw the model at the player's eye with no z-buffering
 	model_set_alpha(1.0f);
 
-	model_render(Nmodel_num, &Nmodel_orient, &Eye_position, Nmodel_flags);
+	model_immediate_render(Nmodel_num, &Nmodel_orient, &Eye_position, Nmodel_flags);
 
 	if (Nmodel_bitmap >= 0) {
 		model_set_forced_texture(-1);
-		Nmodel_flags &= !MR_FORCE_TEXTURE;
+		Nmodel_flags &= ~MR_FORCE_TEXTURE;
 	}
 }
 
@@ -2687,24 +2687,8 @@ void stars_load_background(int background_idx)
 // Goober5000
 void stars_copy_background(background_t *dest, background_t *src)
 {
-	uint i;
-
-	dest->suns.clear();
-	dest->bitmaps.clear();
-
-	for (i = 0; i < src->suns.size(); i++)
-	{
-		starfield_list_entry sle;
-		memcpy(&sle, &src->suns[i], sizeof(starfield_list_entry));
-		dest->suns.push_back(sle);
-	}
-
-	for (i = 0; i < src->bitmaps.size(); i++)
-	{
-		starfield_list_entry sle;
-		memcpy(&sle, &src->bitmaps[i], sizeof(starfield_list_entry));
-		dest->bitmaps.push_back(sle);
-	}
+	dest->suns.assign(src->suns.begin(), src->suns.end());
+	dest->bitmaps.assign(src->bitmaps.begin(), src->bitmaps.end());
 }
 
 // Goober5000

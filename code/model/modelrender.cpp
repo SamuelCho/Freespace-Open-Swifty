@@ -1556,6 +1556,10 @@ void model_queue_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, 
 			}
 		}
 
+		//Only continue if there actually is a glowpoint bitmap available
+		if (bank->glow_bitmap == -1)
+			continue;
+
 		if (pm->submodel[bank->submodel_parent].blown_off)
 			continue;
 
@@ -2131,6 +2135,13 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 		interp->flags |= MR_NO_LIGHTING;
 	} else {
 		scene->setFillMode(GR_FILL_MODE_SOLID);
+	}
+
+	// set team colors
+	if ( interp->team_color_set ) {
+		scene->setTeamColor(&interp->current_team_color);
+	} else {
+		scene->setTeamColor(NULL);
 	}
 	
 	if ( interp->flags & MR_EDGE_ALPHA ) {

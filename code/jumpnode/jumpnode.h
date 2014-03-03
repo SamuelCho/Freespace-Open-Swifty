@@ -18,7 +18,7 @@
 #include "graphics/2d.h"
 
 struct vec3d;
-struct object;
+class object;
 
 class DrawList;
 
