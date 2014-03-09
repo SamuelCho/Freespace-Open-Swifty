@@ -3668,7 +3668,6 @@ extern SCP_vector<object*> effect_ships;
 extern SCP_vector<object*> transparent_objects;
 void game_render_frame( camid cid )
 {
-
 	g3_start_frame(game_zbuffer);
 
 	camera *cam = cid.getCamera();
@@ -3719,7 +3718,7 @@ void game_render_frame( camid cid )
 		}
 	}
 	gr_zbuffer_clear(TRUE);
-	
+
 	gr_scene_texture_begin();
 
 	neb2_render_setup(cid);
@@ -3736,19 +3735,21 @@ void game_render_frame( camid cid )
 	} else {
 		stars_draw(1,1,1,0,0);
 	}
-	render_shadow_maps();
-	gr_deferred_lighting_begin();
-	bool draw_viewer_last = false;
-	extern int ship_render_mode;
-	ship_render_mode = MODEL_RENDER_OPAQUE;
-	obj_render_all(obj_render, &draw_viewer_last);
-	ship_render_mode = MODEL_RENDER_ALL;
-	gr_deferred_lighting_end();
-	gr_deferred_lighting_finish();
-	//	Why do we not show the shield effect in these modes?  Seems ok.
-	//if (!(Viewer_mode & (VM_EXTERNAL | VM_SLEWED | VM_CHASE | VM_DEAD_VIEW))) {
+
+	shadows_render_all(Proj_fov, &Eye_matrix, &Eye_position);
+//	obj_render_queue_shadow_maps();
+//	render_shadow_maps();
+	obj_render_queue_all();
+// 	gr_deferred_lighting_begin();
+// 	bool draw_viewer_last = false;
+// 	extern int ship_render_mode;
+// 	ship_render_mode = MODEL_RENDER_OPAQUE;
+// 	obj_render_all(obj_render, &draw_viewer_last);
+// 	ship_render_mode = MODEL_RENDER_ALL;
+//	gr_deferred_lighting_end();
+// 	gr_deferred_lighting_finish();
+
 	render_shields();
-	//}
 
 	PROFILE("Particles", particle_render_all());					// render particles after everything else.
 	
@@ -3771,7 +3772,7 @@ void game_render_frame( camid cid )
 
 	// render local player nebula
 	neb2_render_player();
-	
+
 	gr_copy_effect_texture();
 
 	// render all ships with shader effects on them
@@ -3782,19 +3783,15 @@ void game_render_frame( camid cid )
 	}
 	effect_ships.clear();
 
-	ship_render_mode = MODEL_RENDER_TRANS;
-	obji = transparent_objects.begin();
-	for(;obji != transparent_objects.end();++obji)
-	{
-		obj_render(*obji);
-	}
-	transparent_objects.clear();
 	batch_render_distortion_map_bitmaps();
-	ship_render_mode = MODEL_RENDER_ALL;
+
 	Shadow_override = true;
 	//Draw the viewer 'cause we didn't before.
 	//This is so we can change the minimum clipping distance without messing everything up.
-	if(draw_viewer_last && Viewer_obj)
+	if ( Viewer_obj
+		&& (Viewer_obj->type == OBJ_SHIP)
+		&& (Ship_info[Ships[Viewer_obj->instance].ship_info_index].flags2 & SIF2_SHOW_SHIP_MODEL)
+		&& (!Viewer_mode || (Viewer_mode & VM_PADLOCK_ANY) || (Viewer_mode & VM_OTHER_SHIP) || (Viewer_mode & VM_TRACK)) )
 	{
 		gr_post_process_save_zbuffer();
 		ship_render_show_ship_cockpit(Viewer_obj);
@@ -3813,7 +3810,7 @@ void game_render_frame( camid cid )
 		gr_end_view_matrix();
 	}
 
-	
+
 	//Draw viewer cockpit
 	if(Viewer_obj != NULL && Viewer_mode != VM_TOPDOWN && Ship_info[Ships[Viewer_obj->instance].ship_info_index].cockpit_model_num > 0)
 	{
@@ -3854,7 +3851,7 @@ void game_render_frame( camid cid )
 	extern void oo_display();
 	oo_display();			
 #endif
-	
+
 	g3_end_frame();
 }
 
