@@ -6569,8 +6569,6 @@ void ship_render(object * obj)
 		shipp->warpin_effect->warpShipRender();
 	else if(shipp->flags & SF_DEPART_WARP)
 		shipp->warpout_effect->warpShipRender();
-
-	gr_disable_team_color();
 }
 
 void ship_render_cockpit(object *objp)
@@ -17976,7 +17974,7 @@ void ship_set_thruster_info(mst_info *mst, object *obj, ship *shipp, ship_info *
 	mst->draw_distortion = sip->draw_distortion;
 }
 
-void ship_queue_thrusters(object *obj)
+void ship_render_set_thrusters(object *obj)
 {
 	int num = obj->instance;
 	ship *shipp = &Ships[num];
@@ -18108,73 +18106,144 @@ void ship_queue_thrusters(object *obj)
 	}
 }
 
-void ship_queue_weapon_models(interp_data *interp, DrawList *scene, object *obj, int render_flags)
+void ship_render_weapon_models(interp_data *interp, DrawList *scene, object *obj, int render_flags)
 {
 	int num = obj->instance;
 	ship *shipp = &Ships[num];
 	ship_info *sip = &Ship_info[Ships[num].ship_info_index];
 
-	if ( sip->draw_models && !(shipp->flags2 & SF2_CLOAKED) ) {
-		int i,k;
-		ship_weapon *swp = &shipp->weapons;
+	if ( !sip->draw_models || (shipp->flags2 & SF2_CLOAKED) ) {
+		return;
+	}
 
-		g3_start_instance_matrix(&obj->pos, &obj->orient, false);
+	int i,k;
+	ship_weapon *swp = &shipp->weapons;
 
-		render_flags &= ~MR_SHOW_THRUSTERS;
+	scene->pushTransform(&obj->pos, &obj->orient);
 
-		//primary weapons
-		for ( i = 0; i < swp->num_primary_banks; i++ ) {
-			if ( Weapon_info[swp->primary_bank_weapons[i]].external_model_num == -1 || !sip->draw_primary_models[i] ) {
-				continue;
-			}
+	render_flags &= ~MR_SHOW_THRUSTERS;
 
-			w_bank *bank = &model_get(sip->model_num)->gun_banks[i];
-			for ( k = 0; k < bank->num_slots; k++ ) {	
-				polymodel* pm = model_get(Weapon_info[swp->primary_bank_weapons[i]].external_model_num);
-				pm->gun_submodel_rotation = shipp->primary_rotate_ang[i];
-				model_queue_render(interp, scene, Weapon_info[swp->primary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &bank->pnt[k], render_flags, -1, NULL);
-				pm->gun_submodel_rotation = 0.0f;
-			}
+	//primary weapons
+	for ( i = 0; i < swp->num_primary_banks; i++ ) {
+		if ( Weapon_info[swp->primary_bank_weapons[i]].external_model_num == -1 || !sip->draw_primary_models[i] ) {
+			continue;
 		}
 
-		//secondary weapons
-		int num_secondaries_rendered = 0;
-		vec3d secondary_weapon_pos;
-		w_bank* bank;
+		w_bank *bank = &model_get(sip->model_num)->gun_banks[i];
+		for ( k = 0; k < bank->num_slots; k++ ) {	
+			polymodel* pm = model_get(Weapon_info[swp->primary_bank_weapons[i]].external_model_num);
+			pm->gun_submodel_rotation = shipp->primary_rotate_ang[i];
+			model_queue_render(interp, scene, Weapon_info[swp->primary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &bank->pnt[k], render_flags, -1, NULL);
+			pm->gun_submodel_rotation = 0.0f;
+		}
+	}
 
-		for (i = 0; i < swp->num_secondary_banks; i++) {
-			if ( Weapon_info[swp->secondary_bank_weapons[i]].external_model_num == -1 || !sip->draw_secondary_models[i] ) {
-				continue;
+	//secondary weapons
+	int num_secondaries_rendered = 0;
+	vec3d secondary_weapon_pos;
+	w_bank* bank;
+
+	for (i = 0; i < swp->num_secondary_banks; i++) {
+		if ( Weapon_info[swp->secondary_bank_weapons[i]].external_model_num == -1 || !sip->draw_secondary_models[i] ) {
+			continue;
+		}
+
+		bank = &(model_get(sip->model_num))->missile_banks[i];
+
+		if (Weapon_info[swp->secondary_bank_weapons[i]].wi_flags2 & WIF2_EXTERNAL_WEAPON_LNCH) {
+			for(k = 0; k < bank->num_slots; k++) {
+				model_queue_render(interp, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &bank->pnt[k], render_flags, -1, NULL);
 			}
+		} else {
+			num_secondaries_rendered = 0;
 
-			bank = &(model_get(sip->model_num))->missile_banks[i];
+			for ( k = 0; k < bank->num_slots; k++ ) {
+				secondary_weapon_pos = bank->pnt[k];
 
-			if (Weapon_info[swp->secondary_bank_weapons[i]].wi_flags2 & WIF2_EXTERNAL_WEAPON_LNCH) {
-				for(k = 0; k < bank->num_slots; k++) {
-					model_queue_render(interp, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &bank->pnt[k], render_flags, -1, NULL);
+				if ( num_secondaries_rendered >= shipp->weapons.secondary_bank_ammo[i] ) {
+					break;
 				}
-			} else {
-				num_secondaries_rendered = 0;
 
-				for ( k = 0; k < bank->num_slots; k++ ) {
-					secondary_weapon_pos = bank->pnt[k];
-
-					if ( num_secondaries_rendered >= shipp->weapons.secondary_bank_ammo[i] ) {
-						break;
-					}
-
-					if ( shipp->secondary_point_reload_pct[i][k] <= 0.0 ) {
-						continue;
-					}
-
-					num_secondaries_rendered++;
-
-					vm_vec_scale_add2(&secondary_weapon_pos, &vmd_z_vector, -(1.0f-shipp->secondary_point_reload_pct[i][k]) * model_get(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num)->rad);
-					model_queue_render(interp, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &secondary_weapon_pos, render_flags, -1, NULL);
+				if ( shipp->secondary_point_reload_pct[i][k] <= 0.0 ) {
+					continue;
 				}
+
+				num_secondaries_rendered++;
+
+				vm_vec_scale_add2(&secondary_weapon_pos, &vmd_z_vector, -(1.0f-shipp->secondary_point_reload_pct[i][k]) * model_get(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num)->rad);
+				model_queue_render(interp, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &secondary_weapon_pos, render_flags, -1, NULL);
 			}
 		}
-		g3_done_instance(false);
+	}
+
+	scene->popTransform();
+}
+
+int ship_render_get_insignia(object* obj, ship* shipp)
+{
+	if ( in_shadow_map ) {
+		return -1;
+	}
+
+	if ( Game_mode & GM_MULTIPLAYER ) {
+		// if its any player's object
+		int np_index = multi_find_player_by_object( obj );
+		if ( (np_index >= 0) && (np_index < MAX_PLAYERS) && MULTI_CONNECTED(Net_players[np_index]) && (Net_players[np_index].m_player != NULL) ) {
+			return Net_players[np_index].m_player->insignia_texture;
+		}
+	} 
+
+	// in single player, we want to render model insignias on all ships in alpha beta and gamma
+	// Goober5000 - and also on wings that have their logos set
+
+	// if its an object in my squadron
+	if ( ship_in_my_squadron(shipp) ) {
+		return Player->insignia_texture;
+	}
+
+	// maybe it has a wing squad logo - Goober5000
+	if ( shipp->wingnum >= 0 ) {
+		// don't override the player's wing
+		if ( shipp->wingnum != Player_ship->wingnum ) {
+			// if we have a logo texture
+			if ( Wings[shipp->wingnum].wing_insignia_texture >= 0 ) {
+				return Wings[shipp->wingnum].wing_insignia_texture;
+			}
+		}
+	}
+
+	return -1;
+}
+
+void ship_render_set_animated_effect(DrawList *scene, ship *shipp, uint *render_flags)
+{
+	if ( !shipp->shader_effect_active || Use_GLSL <= 1 ) {
+		return;
+	}
+
+	float timer;
+	*render_flags |= (MR_ANIMATED_SHADER);
+
+	ship_effect* sep = &Ship_effects[shipp->shader_effect_num];
+	scene->setAnimatedEffect(sep->shader_effect);
+
+	if ( sep->invert_timer ) {
+		timer = 1.0f - ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
+		timer = MAX(timer,0.0f);
+	} else {
+		timer = ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
+	}
+
+	scene->setAnimatedTimer(timer);
+
+	if ( sep->disables_rendering && (timer_get_milliseconds() > shipp->shader_effect_start_time + shipp->shader_effect_duration) ) {
+		shipp->flags2 |= SF2_CLOAKED;
+		shipp->shader_effect_active = false;
+	} else {
+		shipp->flags2 &= ~SF2_CLOAKED;
+		if (timer_get_milliseconds() > shipp->shader_effect_start_time + shipp->shader_effect_duration) {
+			shipp->shader_effect_active = false;
+		}
 	}
 }
 
@@ -18263,14 +18332,14 @@ void ship_queue_render(object* obj, DrawList* scene)
 		return;
 	}
 
-	ship_queue_thrusters(obj);
+	ship_render_set_thrusters(obj);
 
 	if ( !(shipp->flags & SF_DISABLED) && !ship_subsys_disrupted(shipp, SUBSYSTEM_ENGINE) && show_thrusters) {
 		mst_info mst;
 
 		ship_set_thruster_info(&mst, obj, shipp, sip);
 
-		model_queue_render_set_thrust(&interp, sip->model_num, &mst);
+		model_render_set_thrust(&interp, sip->model_num, &mst);
 
 		render_flags |= MR_SHOW_THRUSTERS;
 	}
@@ -18293,63 +18362,10 @@ void ship_queue_render(object* obj, DrawList* scene)
 	}
 
 	// maybe set squad logo bitmap
-	interp.insignia_bitmap = -1;
-
-	if ( !in_shadow_map ) {
-		if ( Game_mode & GM_MULTIPLAYER ) {
-			// if its any player's object
-			int np_index = multi_find_player_by_object( obj );
-			if ( (np_index >= 0) && (np_index < MAX_PLAYERS) && MULTI_CONNECTED(Net_players[np_index]) && (Net_players[np_index].m_player != NULL) ) {
-				interp.insignia_bitmap = Net_players[np_index].m_player->insignia_texture;
-			}
-		} else {
-			// in single player, we want to render model insignias on all ships in alpha beta and gamma
-			// Goober5000 - and also on wings that have their logos set
-
-			// if its an object in my squadron
-			if ( ship_in_my_squadron(shipp) ) {
-				interp.insignia_bitmap = Player->insignia_texture;
-			}
-
-			// maybe it has a wing squad logo - Goober5000
-			if ( shipp->wingnum >= 0 ) {
-				// don't override the player's wing
-				if ( shipp->wingnum != Player_ship->wingnum ) {
-					// if we have a logo texture
-					if ( Wings[shipp->wingnum].wing_insignia_texture >= 0 ) {
-						interp.insignia_bitmap = Wings[shipp->wingnum].wing_insignia_texture;
-					}
-				}
-			}
-		}
-	}
+	interp.insignia_bitmap = ship_render_get_insignia(obj, shipp);
 
 	// Valathil - maybe do a scripting hook here to do some scriptable effects?
-	if ( shipp->shader_effect_active && Use_GLSL > 1 ) {
-		float timer;
-		render_flags |= (MR_ANIMATED_SHADER);
-
-		ship_effect* sep = &Ship_effects[shipp->shader_effect_num];
-		scene->setAnimatedEffect(sep->shader_effect);
-		if ( sep->invert_timer ) {
-			timer = 1.0f - ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
-			timer = MAX(timer,0.0f);
-		} else {
-			timer = ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
-		}
-
-		scene->setAnimatedTimer(timer);
-
-		if ( sep->disables_rendering && (timer_get_milliseconds() > shipp->shader_effect_start_time + shipp->shader_effect_duration) ) {
-			shipp->flags2 |= SF2_CLOAKED;
-			shipp->shader_effect_active = false;
-		} else {
-			shipp->flags2 &= ~SF2_CLOAKED;
-			if (timer_get_milliseconds() > shipp->shader_effect_start_time + shipp->shader_effect_duration) {
-				shipp->shader_effect_active = false;
-			}
-		}
-	}
+	ship_render_set_animated_effect(scene, shipp, &render_flags);
 
 	if ( sip->uses_team_colors ) {
 		team_color color;
@@ -18370,7 +18386,7 @@ void ship_queue_render(object* obj, DrawList* scene)
 	}
 
 	//draw weapon models
-	ship_queue_weapon_models(&interp, scene, obj, render_flags);
+	ship_render_weapon_models(&interp, scene, obj, render_flags);
 
 	// small ships
 	if ( !( shipp->flags2 & SF2_CLOAKED ) ) {

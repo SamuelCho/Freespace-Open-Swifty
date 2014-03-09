@@ -1554,8 +1554,6 @@ void ship_select_do(float frametime)
 				MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING,
 				true,
 				sip->selection_effect);
-
-			gr_disable_team_color();
 		}
 	}
 

@@ -6186,7 +6186,6 @@ ADE_FUNC(renderTechModel, l_Shipclass, "X1, Y1, X2, Y2, [Rotation %, Pitch %, Ba
 	//Bye!!
 	g3_end_frame();
 	gr_reset_clip();
-	gr_disable_team_color();
 
 	return ade_set_args(L, "b", true);
 }
@@ -6254,7 +6253,6 @@ ADE_FUNC(renderTechModel2, l_Shipclass, "X1, Y1, X2, Y2, orientation Orientation
 	//Bye!!
 	g3_end_frame();
 	gr_reset_clip();
-	gr_disable_team_color();
 
 	return ade_set_args(L, "b", true);
 }

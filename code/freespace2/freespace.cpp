@@ -3928,7 +3928,7 @@ void game_render_frame_new( camid cid )
 		stars_draw(1,1,1,0,0);
 	}
 
-	shadows_render_all();
+	shadows_render_all(Proj_fov, &Eye_matrix, &Eye_position);
 //	obj_render_queue_shadow_maps();
 //	render_shadow_maps();
 	obj_render_queue_all();

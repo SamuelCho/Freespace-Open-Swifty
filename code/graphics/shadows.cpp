@@ -608,36 +608,42 @@ void shadows_construct_light_frustum(light_frustum_info *shadow_data, matrix *li
 	shadows_construct_light_proj(shadow_data);
 }
 
-void shadows_start_render(matrix *light_orient, matrix *eye_orient, vec3d *eye_pos, float fov, float aspect, float veryneardist, float neardist, float middist, float fardist)
+matrix shadows_start_render(matrix *eye_orient, vec3d *eye_pos, float fov, float aspect, float veryneardist, float neardist, float middist, float fardist)
 {
 	extern bool Glowpoint_override_save;
 	extern bool Glowpoint_override;
 
 	if(Static_light.empty())
-		return; 
+		return vmd_identity_matrix; 
 	
 	light *lp = *(Static_light.begin());
 
 	if ( lp == NULL ) {
-		return;
+		return vmd_identity_matrix;
 	}
+
+	vec3d light_dir;
+	matrix light_matrix;
+
+	vm_vec_copy_normalize(&light_dir, &lp->vec);
+	vm_vector_2_matrix(&light_matrix, &light_dir, &eye_orient->vec.uvec, NULL);
 
 	shadow_veryneardist = veryneardist;
 	shadow_neardist = neardist;
 	shadow_middist = middist;
 	shadow_fardist = fardist;
 
-	matrix identity_mat = IDENTITY_MATRIX;
+	shadows_construct_light_frustum(&shadow_frustums[0], &light_matrix, eye_orient, eye_pos, fov, aspect, Min_draw_distance, veryneardist);
 
-	shadows_construct_light_frustum(&shadow_frustums[0], light_orient, eye_orient, eye_pos, fov, aspect, Min_draw_distance, veryneardist);
+	shadows_construct_light_frustum(&shadow_frustums[1], &light_matrix, eye_orient, eye_pos, fov, aspect, veryneardist, neardist);
 
-	shadows_construct_light_frustum(&shadow_frustums[1], light_orient, eye_orient, eye_pos, fov, aspect, veryneardist, neardist);
+	shadows_construct_light_frustum(&shadow_frustums[2], &light_matrix, eye_orient, eye_pos, fov, aspect, neardist, middist);
 
-	shadows_construct_light_frustum(&shadow_frustums[2], light_orient, eye_orient, eye_pos, fov, aspect, neardist, middist);
-
-	shadows_construct_light_frustum(&shadow_frustums[3], light_orient, eye_orient, eye_pos, fov, aspect, middist, fardist);
+	shadows_construct_light_frustum(&shadow_frustums[3], &light_matrix, eye_orient, eye_pos, fov, aspect, middist, fardist);
 	
-	gr_opengl_shadow_map_start(light_orient, &shadow_frustums[0], &shadow_frustums[1], &shadow_frustums[2], &shadow_frustums[3]);
+	gr_opengl_shadow_map_start(&light_matrix, &shadow_frustums[0], &shadow_frustums[1], &shadow_frustums[2], &shadow_frustums[3]);
+
+	return light_matrix;
 }
 
 void shadows_end_render()
@@ -645,7 +651,7 @@ void shadows_end_render()
 	gr_opengl_end_shadow_map();
 }
 
-void shadows_render_all()
+void shadows_render_all(float fov, matrix *eye_orient, vec3d *eye_pos)
 {
 	if ( Static_light.empty() ) {
 		return;
@@ -657,23 +663,9 @@ void shadows_render_all()
 		return;
 	}
 
-	float fov = Proj_fov;
-	matrix eye_orient = Eye_matrix;
-	vec3d eye_pos = Eye_position;
-
 	//shadows_debug_show_frustum(&Player_obj->orient, &Player_obj->pos, fov, gr_screen.clip_aspect, Min_draw_distance, 3000.0f);
 
-	gr_end_proj_matrix();
-	gr_end_view_matrix();
-
-	// create light matrix using orient up vec and light vector
-	matrix light_matrix;
-	vec3d light_dir;
-
-	vm_vec_copy_normalize(&light_dir, &lp->vec);
-	vm_vector_2_matrix(&light_matrix, &light_dir, &eye_orient.vec.uvec, NULL);
-
-	shadows_start_render(&light_matrix, &eye_orient, &eye_pos, fov, gr_screen.clip_aspect, 200.0f, 500.0f, 2000.0f, 10000.0f);
+	matrix light_matrix = shadows_start_render(eye_orient, eye_pos, fov, gr_screen.clip_aspect, 200.0f, 500.0f, 2000.0f, 10000.0f);
 
 	DrawList scene;
 	object *objp = Objects;

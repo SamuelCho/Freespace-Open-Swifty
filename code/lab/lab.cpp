@@ -857,17 +857,24 @@ void labviewer_render_model(float frametime)
 	// render special if we are showing debris
 	if (Lab_viewer_flags & LAB_FLAG_SHOW_DEBRIS) {
 		polymodel *pm = model_get(Lab_model_num);
+
 		if (!Cmdline_nohtl) {
 			gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, 1.0f, Max_draw_distance);
 			gr_set_view_matrix(&Eye_position, &Eye_matrix);
 		}
+
 		for (i = 0; i < pm->num_debris_objects; i++) {
 			vec3d world_point = ZERO_VECTOR;
 
 			model_find_world_point(&world_point, &pm->submodel[pm->debris_objects[i]].offset, Lab_model_num, -1, &Lab_viewer_orient, &vmd_zero_vector);
 			Shadow_override = true;
-			submodel_render(Lab_model_num, pm->debris_objects[i], &Lab_viewer_orient, &world_point, Lab_model_flags, -1);
+			submodel_immediate_render(Lab_model_num, pm->debris_objects[i], &Lab_viewer_orient, &world_point, Lab_model_flags, -1);
 			Shadow_override = false;
+		}
+
+		if ( !Cmdline_nohtl ) {
+			gr_end_view_matrix();
+			gr_end_proj_matrix();
 		}
 	}
 	// render normally otherwise
@@ -923,28 +930,17 @@ void labviewer_render_model(float frametime)
 			}
 		}
 		
-		if(!(flagggs & MR_NO_LIGHTING) && Cmdline_shadow_quality)
-		{
+		if( !( flagggs & MR_NO_LIGHTING ) && Cmdline_shadow_quality ) {
 			polymodel *pm = model_get(Lab_model_num);
-            //gr_start_shadow_map(-Lab_viewer_pos.xyz.z + pm->rad , 1000.0, 5000.0);
 
-			// create light matrix using orient up vec and light vector
-			matrix light_matrix;
-			vec3d light_dir;
-
-			light *lp = *(Static_light.begin());
-
-			vm_vec_copy_normalize(&light_dir, &lp->vec);
-			vm_vector_2_matrix(&light_matrix, &light_dir, &Eye_matrix.vec.uvec, NULL);
-
-			shadows_start_render(&light_matrix, &Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -Lab_viewer_pos.xyz.z + pm->rad, 200.0f, 5000.0f, 5000.0f);
+			shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -Lab_viewer_pos.xyz.z + pm->rad, 200.0f, 5000.0f, 5000.0f);
 
 			model_immediate_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
 
 			//render weapon models if selected
-			if (Lab_mode == LAB_MODE_SHIP && (Lab_viewer_flags & LAB_FLAG_SHOW_WEAPONS)) {
+			if ( Lab_mode == LAB_MODE_SHIP && ( Lab_viewer_flags & LAB_FLAG_SHOW_WEAPONS ) ) {
 				int j,k,l;
-				g3_start_instance_matrix(&vmd_zero_vector, &Lab_viewer_orient, false);
+				g3_start_instance_matrix(&vmd_zero_vector, &Lab_viewer_orient, true);
 				l = 0;
 
 				// no thrusters for attached missiles
@@ -985,11 +981,10 @@ void labviewer_render_model(float frametime)
 					}
 					l++;
 				}
-				g3_done_instance(false);
+				g3_done_instance(true);
 			}
 
 			shadows_end_render();
-			//gr_end_shadow_map();
 		}
 
 		if (!Cmdline_nohtl) {
@@ -1005,7 +1000,7 @@ void labviewer_render_model(float frametime)
 		//render weapon models if selected
 		if (Lab_mode == LAB_MODE_SHIP && (Lab_viewer_flags & LAB_FLAG_SHOW_WEAPONS)) {
 			int j,k,l;
-			g3_start_instance_matrix(&vmd_zero_vector, &Lab_viewer_orient, false);
+			g3_start_instance_matrix(&vmd_zero_vector, &Lab_viewer_orient, true);
 			l = 0;
 
 			// no thrusters for attached missiles
@@ -1047,7 +1042,7 @@ void labviewer_render_model(float frametime)
 				}
 				l++;
 			}
-			g3_done_instance(false);
+			g3_done_instance(true);
 		}
 		model_immediate_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, /*Lab_model_flags*/flagggs, Lab_selected_object, -1, NULL, MODEL_RENDER_OPAQUE);
 		gr_opengl_deferred_lighting_end();
@@ -1066,7 +1061,6 @@ void labviewer_render_model(float frametime)
 		gr_end_proj_matrix();
 	}
 
-	gr_disable_team_color();
 	g3_end_frame();
 }
 

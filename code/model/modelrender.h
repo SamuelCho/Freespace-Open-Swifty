@@ -241,6 +241,15 @@ struct render_state
 	}
 };
 
+struct Transform
+{
+	matrix basis;
+	vec3d origin;
+
+	Transform(): basis(vmd_identity_matrix), origin(vmd_zero_vector) {}
+	Transform(matrix *m, vec3d *v): basis(*m), origin(*v) {}
+};
+
 struct queued_buffer_draw
 {
 	int render_state_handle;
@@ -252,8 +261,7 @@ struct queued_buffer_draw
 	float alpha;
 	int depth_mode;
 
-	matrix orient;
-	vec3d pos;
+	Transform transformation;
 	vec3d scale;
 
 	vertex_buffer *buffer;
@@ -281,6 +289,9 @@ struct queued_buffer_draw
 
 class DrawList
 {
+	Transform CurrentTransform;
+	SCP_vector<Transform> TransformStack;
+
 	render_state current_render_state;
 	bool dirty_render_state;
 
@@ -294,7 +305,7 @@ class DrawList
 	int set_clip_plane;
 	SceneLights::LightIndexingInfo current_lights_set;
 
-	void drawRenderElement(queued_buffer_draw *render_elements);
+	void renderBuffer(queued_buffer_draw &render_elements);
 	uint determineShaderFlags(render_state *state, queued_buffer_draw *draw_info, vertex_buffer *buffer, int tmap_flags);
 	
 	SCP_vector<clip_plane_state> clip_planes;
@@ -326,8 +337,12 @@ public:
 	void setTeamColor(team_color *color);
 	void setAnimatedTimer(float time);
 	void setAnimatedEffect(int effect);
-	void addBufferDraw(matrix* orient, vec3d* pos, vec3d *scale, vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp);
+	void addBufferDraw(vec3d *scale, vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp);
 	
+	void clearTransforms();
+	void pushTransform(vec3d* pos, matrix* orient);
+	void popTransform();
+
 	void addArc(vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width);
 	void renderArc(arc_effect &arc);
 	void renderArcs();
@@ -352,6 +367,6 @@ void model_queue_render(interp_data *interp, DrawList* scene, int model_num, int
 void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int *replacement_textures = NULL);
 void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1, int *replacement_textures = NULL);
 void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel *pm, int mn, bool is_child = false);
-void model_queue_render_set_thrust(interp_data *interp, int model_num, mst_info *mst);
+void model_render_set_thrust(interp_data *interp, int model_num, mst_info *mst);
 
 #endif

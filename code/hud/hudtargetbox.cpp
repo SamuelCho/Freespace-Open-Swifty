@@ -614,7 +614,6 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 		Glowpoint_override = false;
 
 		ship_model_stop( target_objp );
-		gr_disable_team_color();
 
 		if ( Monitor_mask >= 0 ) {
 			gr_stencil_set(GR_STENCIL_NONE);
@@ -966,7 +965,6 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 			Glowpoint_override = false;
 
 			ship_model_stop( viewed_obj );
-			gr_disable_team_color();
 		}
 
 		if ( Monitor_mask >= 0 ) {

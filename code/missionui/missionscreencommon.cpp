@@ -1732,22 +1732,7 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 
 				gr_reset_clip();
 
-				float fov = Proj_fov;
-				matrix eye_orient = Eye_matrix;
-				vec3d eye_pos = Eye_position;
-
-				// create light matrix using orient up vec and light vector
-				matrix light_matrix;
-				vec3d light_dir;
-
-				light *lp = *(Static_light.begin());
-
-				vm_vec_copy_normalize(&light_dir, &lp->vec);
-				vm_vector_2_matrix(&light_matrix, &light_dir, &eye_orient.vec.uvec, NULL);
-
-				shadows_start_render(&light_matrix, &eye_orient, &eye_pos, fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, 200.0f, 5000.0f, 5000.0f);
-
-				//gr_start_shadow_map(-sip->closeup_pos.xyz.z + pm->rad, 1000.0f, 5000.0f);
+				shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, 200.0f, 5000.0f, 5000.0f);
 				model_immediate_render(model_id, &model_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
 				shadows_end_render();
 
@@ -1847,9 +1832,9 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		if (effect == 1) { // FS1 effect
 			opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS1);
 			opengl_shader_set_animated_timer(MIN(time*0.5f,2.0f));
-			model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
+			model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
 		} else {
-			model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags);
+			model_render(model_id, &model_orient, &vmd_zero_vector, flags);
 		}
 
 		batch_render_all();
