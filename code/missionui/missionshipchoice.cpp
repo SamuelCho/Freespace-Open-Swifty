@@ -1536,10 +1536,7 @@ void ship_select_do(float frametime)
 			}
 
 			if (sip->uses_team_colors) {
-				team_color color;
-
-				Interp_team_color_set = model_set_team_color(&color, sip->default_team_name, "<none>", 0, 0);
-				Interp_team_color = color;
+				model_interp_set_team_color(sip->default_team_name, "<none>", 0, 0);
 			}
 
 			draw_model_rotating(ShipSelectModelNum,

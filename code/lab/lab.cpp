@@ -733,10 +733,7 @@ void labviewer_render_model(float frametime)
 		}
 
 		if (sip->uses_team_colors && !Teamcolor_override) {
-			team_color color;
-
-			Interp_team_color_set = model_set_team_color(&color, Lab_team_color, "<none>", 0, 0);
-			Interp_team_color = color;
+			model_interp_set_team_color(Lab_team_color, "<none>", 0, 0);
 		}
 	}
 
@@ -994,8 +991,10 @@ void labviewer_render_model(float frametime)
 
 		gr_opengl_deferred_lighting_begin();
 			
-		opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS1);
-		opengl_shader_set_animated_timer(MIN((timer_get_milliseconds()-anim_timer_start)/1500.0f,2.0f));
+		model_interp_set_animated_effect_and_timer(
+			ANIMATED_SHADER_LOADOUTSELECT_FS1, 
+			MIN((timer_get_milliseconds()-anim_timer_start)/1500.0f,2.0f)
+		);
 
 		//render weapon models if selected
 		if (Lab_mode == LAB_MODE_SHIP && (Lab_viewer_flags & LAB_FLAG_SHOW_WEAPONS)) {

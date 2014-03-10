@@ -6030,7 +6030,7 @@ man_thruster_renderer *man_thruster_get_slot(int bmap_frame)
 //WMC - used for FTL and maneuvering thrusters
 geometry_batcher fx_batcher;
 extern bool in_shadow_map;
-void ship_render(object * obj)
+void ship_render_DEPRECATED(object * obj)
 {
 	int num = obj->instance;
 	Assert( num >= 0);
@@ -6390,7 +6390,7 @@ void ship_render(object * obj)
 					render_flags |= (MR_ANIMATED_SHADER);
 
 					ship_effect* sep = &Ship_effects[shipp->shader_effect_num];
-					opengl_shader_set_animated_effect(sep->shader_effect);
+					
 					if (sep->invert_timer) {
 						timer = 1.0f - ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
 						timer = MAX(timer,0.0f);
@@ -6398,7 +6398,7 @@ void ship_render(object * obj)
 						timer = ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
 					}
 
-					opengl_shader_set_animated_timer(timer);
+					model_interp_set_animated_effect_and_timer(sep->shader_effect, timer);
 
 					if (sep->disables_rendering && (timer_get_milliseconds() > shipp->shader_effect_start_time + shipp->shader_effect_duration) ) {
 						shipp->flags2 |= SF2_CLOAKED;
@@ -6411,10 +6411,7 @@ void ship_render(object * obj)
 				}
 
 				if (sip->uses_team_colors) {
-					team_color color;
-
-					Interp_team_color_set = model_set_team_color(&color, shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
-					Interp_team_color = color;
+					model_interp_set_team_color(shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
 				}
 
 				if(sip->flags2 & SIF2_NO_LIGHTING)
@@ -6460,7 +6457,7 @@ void ship_render(object * obj)
 					
 					if (Weapon_info[swp->secondary_bank_weapons[i]].wi_flags2 & WIF2_EXTERNAL_WEAPON_LNCH) {
 						for(k = 0; k < bank->num_slots; k++) {
-							model_immediate_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
+							model_render_DEPRECATED(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
 						}
 					} else {
 						num_secondaries_rendered = 0;
@@ -6479,7 +6476,7 @@ void ship_render(object * obj)
 			
 							vm_vec_scale_add2(&secondary_weapon_pos, &vmd_z_vector, -(1.0f-shipp->secondary_point_reload_pct[i][k]) * model_get(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num)->rad);
 
-							model_immediate_render(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos, render_flags);
+							model_render_DEPRECATED(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos, render_flags);
 						}
 					}
 				}
@@ -6494,12 +6491,12 @@ void ship_render(object * obj)
  					float fog_val = neb2_get_fog_intensity(obj);
 					if(fog_val >= 0.6f){
 						model_set_detail_level(2);
-						model_immediate_render( sip->model_num, &obj->orient, &obj->pos, render_flags | MR_LOCK_DETAIL, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
+						model_render_DEPRECATED( sip->model_num, &obj->orient, &obj->pos, render_flags | MR_LOCK_DETAIL, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
 					} else {
-						model_immediate_render( sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
+						model_render_DEPRECATED( sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
 					}
 				} else {
-					model_immediate_render( sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
+					model_render_DEPRECATED( sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
 				}
 			}
 
@@ -18215,7 +18212,7 @@ int ship_render_get_insignia(object* obj, ship* shipp)
 	return -1;
 }
 
-void ship_render_set_animated_effect(DrawList *scene, ship *shipp, uint *render_flags)
+void ship_render_set_animated_effect(interp_data *interp, ship *shipp, uint *render_flags)
 {
 	if ( !shipp->shader_effect_active || Use_GLSL <= 1 ) {
 		return;
@@ -18225,7 +18222,7 @@ void ship_render_set_animated_effect(DrawList *scene, ship *shipp, uint *render_
 	*render_flags |= (MR_ANIMATED_SHADER);
 
 	ship_effect* sep = &Ship_effects[shipp->shader_effect_num];
-	scene->setAnimatedEffect(sep->shader_effect);
+	interp->animated_effect = sep->shader_effect;
 
 	if ( sep->invert_timer ) {
 		timer = 1.0f - ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
@@ -18234,7 +18231,7 @@ void ship_render_set_animated_effect(DrawList *scene, ship *shipp, uint *render_
 		timer = ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
 	}
 
-	scene->setAnimatedTimer(timer);
+	interp->animated_timer = 0.0f;
 
 	if ( sep->disables_rendering && (timer_get_milliseconds() > shipp->shader_effect_start_time + shipp->shader_effect_duration) ) {
 		shipp->flags2 |= SF2_CLOAKED;
@@ -18353,32 +18350,22 @@ void ship_queue_render(object* obj, DrawList* scene)
 	// warp... either this ship or the ship it is docked with.
 	if ( warp_shipp != NULL ) {
 		if ( warp_shipp->flags & SF_ARRIVING ) {
-			clip_started = warp_shipp->warpin_effect->warpQueueShipClip(scene);
+			clip_started = warp_shipp->warpin_effect->warpQueueShipClip(&interp);
 		} else if ( warp_shipp->flags & SF_DEPART_WARP ) {
-			clip_started = warp_shipp->warpout_effect->warpQueueShipClip(scene);
+			clip_started = warp_shipp->warpout_effect->warpQueueShipClip(&interp);
 		}
 	} else {
-		scene->setClipPlane();
+		model_render_set_clip_plane(&interp);
 	}
 
 	// maybe set squad logo bitmap
 	interp.insignia_bitmap = ship_render_get_insignia(obj, shipp);
 
 	// Valathil - maybe do a scripting hook here to do some scriptable effects?
-	ship_render_set_animated_effect(scene, shipp, &render_flags);
+	ship_render_set_animated_effect(&interp, shipp, &render_flags);
 
 	if ( sip->uses_team_colors ) {
-		team_color color;
-
-		bool set_team_color = model_set_team_color(&color, shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
-		
-		if ( set_team_color ) {
-			scene->setTeamColor(&color);
-		} else {
-			scene->setTeamColor(NULL);
-		}
-	} else {
-		scene->setTeamColor(NULL);
+		model_interp_set_team_color(shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
 	}
 
 	if ( in_shadow_map ) {

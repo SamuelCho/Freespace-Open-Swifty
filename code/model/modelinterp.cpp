@@ -176,8 +176,19 @@ static int FULLCLOAK = -1;
 int Interp_transform_texture = -1;
 int Interp_transparent_textures_only = 0;
 
+// clip planes
+bool Interp_clip_plane;
+vec3d Interp_clip_pos;
+vec3d Interp_clip_normal;
+
+// team colors
 team_color Interp_team_color;
 bool Interp_team_color_set = false;
+
+// animated shader effects
+int Interp_animated_effect = 0;
+float Interp_animated_timer = 0.0f;
+
 int Interp_no_flush = 0;
 
 // forward references
@@ -375,6 +386,11 @@ void interp_clear_instance()
 	Interp_render_sphere_offset = vmd_zero_vector;
 
 	Interp_team_color_set = false;
+
+	Interp_clip_plane = false;
+
+	Interp_animated_effect = 0;
+	Interp_animated_timer = 0.0f;
 }
 
 /**
@@ -1963,7 +1979,7 @@ DCF(model_darkening,"Makes models darker with distance")
 	}
 }
 
-void model_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures, int render)
+void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures, int render)
 {
 	int cull = 0;
 	// replacement textures - Goober5000
@@ -3253,7 +3269,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 }
 
 
-void submodel_render(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures, int render)
+void submodel_render_DEPRECATED(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures, int render)
 {
 	// replacement textures - Goober5000
 	model_set_replacement_textures(replacement_textures);
@@ -5174,11 +5190,13 @@ void model_mix_two_team_colors(team_color* dest, team_color* a, team_color* b, f
 	dest->stripe.b = a->stripe.b * (1.0f - mix_factor) + b->stripe.b * mix_factor;
 }
 
-bool model_set_team_color(team_color *color, const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime)
+bool model_get_team_color( team_color *clr, const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime )
 {
+	Assert(clr != NULL);
+
 	if (secondaryteam == "<none>") {
 		if (Team_Colors.find(team) != Team_Colors.end()) {
-			*color = Team_Colors[team];
+			*clr = Team_Colors[team];
 			return true;
 		} else
 			return false;
@@ -5204,14 +5222,40 @@ bool model_set_team_color(team_color *color, const SCP_string &team, const SCP_s
 			CLAMP(time_remaining, 0.0f, 1.0f);
 			model_mix_two_team_colors(&temp_color, &start, &end, time_remaining);
 
-			*color = temp_color;
+			*clr = temp_color;
 			return true;
 		} else
 			return false;
 	}
 }
 
-void model_interp_load_global_interp_data(interp_data *interp)
+// temporary until we can unify the global Interp_* variables into the interp_data struct
+void model_interp_set_team_color(const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime)
+{
+	Interp_team_color_set = model_get_team_color(&Interp_team_color, team, secondaryteam, timestamp, fadetime);
+}
+
+// temporary until we can unify the global Interp_* variables into the interp_data struct
+void model_interp_set_clip_plane(vec3d* pos, vec3d* normal)
+{
+	if ( pos == NULL || normal == NULL ) {
+		Interp_clip_plane = false;
+		return;
+	}
+
+	Interp_clip_normal = *normal;
+	Interp_clip_pos = *pos;
+	Interp_clip_plane = true;
+}
+
+// temporary until we can unify the global Interp_* variables into the interp_data struct
+void model_interp_set_animated_effect_and_timer(int effect_num, float effect_timer)
+{
+	Interp_animated_effect = effect_num;
+	Interp_animated_timer = effect_timer;
+}
+
+void model_interp_load_global_data(interp_data *interp)
 {
 	interp->afterburner = Interp_afterburner;
 	interp->base_frametime = Interp_base_frametime;
@@ -5269,6 +5313,13 @@ void model_interp_load_global_interp_data(interp_data *interp)
 	
 	interp->current_team_color = Interp_team_color;
 	interp->team_color_set = Interp_team_color_set;
+
+	interp->clip_plane = Interp_clip_plane;
+	interp->clip_normal = Interp_clip_normal;
+	interp->clip_pos = Interp_clip_pos;
+
+	interp->animated_effect = Interp_animated_effect;
+	interp->animated_timer = Interp_animated_timer;
 }
 
 //********************-----CLASS: texture_info-----********************//

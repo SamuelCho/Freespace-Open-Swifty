@@ -1669,7 +1669,7 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		float start_scale = MIN(time,0.5f)*2.5f;
 		float offset = size*0.5f*MIN(MAX(time-3.0f,0.0f),0.6f)*1.66667f;
 		if ( (time < 1.5f) && (time >= 0.5f) )  // Clip the grid if were in phase 1
-			g3_start_user_clip_plane(&plane_point,&wire_normal);
+			model_interp_set_clip_plane(&plane_point,&wire_normal);
 
 		g3_start_instance_angles(&vmd_zero_vector,&view_angles);
 
@@ -1743,22 +1743,21 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
             }
 			gr_zbuffer_set(false);
 			gr_set_color(80,49,160);
-			opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS2);
-			opengl_shader_set_animated_timer(-clip);
+			model_interp_set_animated_effect_and_timer(ANIMATED_SHADER_LOADOUTSELECT_FS2, -clip);
 
 			if ( (time < 2.5f) && (time >= 0.5f) ) { // Phase 1 and 2 render the wireframe
 				if (time >= 1.5f) // Just clip the wireframe after Phase 1
-					g3_start_user_clip_plane(&plane_point,&wire_normal);
+					model_interp_set_clip_plane(&plane_point,&wire_normal);
 				
 				model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_ANIMATED_SHADER);
 				if(time >= 1.5f)
-				g3_stop_user_clip_plane();
+				model_interp_set_clip_plane();
 			}
 
 			if (time >= 1.5f) { // Render the ship in Phase 2 onwards
-				g3_start_user_clip_plane(&plane_point,&ship_normal);
+				model_interp_set_clip_plane(&plane_point,&ship_normal);
 				model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
-				g3_stop_user_clip_plane();
+				model_interp_set_clip_plane();
 			}
 
 			if (time < 2.5f) { // Render the scanline in Phase 1 and 2
@@ -1830,11 +1829,10 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		gr_set_color(0,128,0);
 
 		if (effect == 1) { // FS1 effect
-			opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS1);
-			opengl_shader_set_animated_timer(MIN(time*0.5f,2.0f));
-			model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
+			model_interp_set_animated_effect_and_timer(ANIMATED_SHADER_LOADOUTSELECT_FS1, MIN(time*0.5f,2.0f));
+			model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
 		} else {
-			model_render(model_id, &model_orient, &vmd_zero_vector, flags);
+			model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags);
 		}
 
 		batch_render_all();

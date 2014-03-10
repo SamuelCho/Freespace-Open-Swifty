@@ -1835,7 +1835,7 @@ static void half_ship_render_ship_and_debris(clip_ship* half_ship,ship *shipp)
 			// Draw debris, but not live debris
 			if ( !is_live_debris ) {
 				model_find_world_point(&tmp, &tmp1, pm->id, -1, &half_ship->orient, &temp_pos);
-				submodel_render(pm->id, pm->debris_objects[i], &half_ship->orient, &tmp, render_flags, -1, shipp->ship_replacement_textures);
+				submodel_render_DEPRECATED(pm->id, pm->debris_objects[i], &half_ship->orient, &tmp, render_flags, -1, shipp->ship_replacement_textures);
 			}
 
 			// make free piece of debris
@@ -1879,7 +1879,7 @@ static void half_ship_render_ship_and_debris(clip_ship* half_ship,ship *shipp)
 	vm_vec_unrotate(&model_clip_plane_pt, &temp, &half_ship->orient);
 	vm_vec_add2(&model_clip_plane_pt, &orig_ship_world_center);
 	g3_start_user_clip_plane( &model_clip_plane_pt, &clip_plane_norm );
-	model_immediate_render(pm->id, &half_ship->orient, &orig_ship_world_center, render_flags, -1, -1, shipp->ship_replacement_textures);
+	model_render_DEPRECATED(pm->id, &half_ship->orient, &orig_ship_world_center, render_flags, -1, -1, shipp->ship_replacement_textures);
 }
 
 void shipfx_queue_render_ship_halves_and_debris(DrawList *scene, interp_data *interp, clip_ship* half_ship, ship *shipp)
@@ -1895,7 +1895,7 @@ void shipfx_queue_render_ship_halves_and_debris(DrawList *scene, interp_data *in
 	// get debris clip plane pt and draw debris
 	vm_vec_unrotate(&debris_clip_plane_pt, &half_ship->model_center_disp_to_orig_center, &half_ship->orient);
 	vm_vec_add2(&debris_clip_plane_pt, &half_ship->local_pivot);
-	scene->setClipPlane(&debris_clip_plane_pt, &clip_plane_norm);
+	model_render_set_clip_plane(interp, &debris_clip_plane_pt, &clip_plane_norm);
 
 	// set up render flags
 	uint render_flags = MR_NORMAL;
@@ -1969,7 +1969,7 @@ void shipfx_queue_render_ship_halves_and_debris(DrawList *scene, interp_data *in
 	vm_vec_make(&temp, 0.0f, 0.0f, half_ship->cur_clip_plane_pt);
 	vm_vec_unrotate(&model_clip_plane_pt, &temp, &half_ship->orient);
 	vm_vec_add2(&model_clip_plane_pt, &orig_ship_world_center);
-	scene->setClipPlane(&model_clip_plane_pt, &clip_plane_norm);
+	model_render_set_clip_plane(interp, &model_clip_plane_pt, &clip_plane_norm);
 	model_queue_render(interp, scene, pm->id, shipp->model_instance_num, &half_ship->orient, &orig_ship_world_center, render_flags, -1, shipp->ship_replacement_textures);
 }
 
@@ -3452,7 +3452,7 @@ int WarpEffect::warpShipClip()
 	return 0;
 }
 
-int WarpEffect::warpQueueShipClip(DrawList *scene)
+int WarpEffect::warpQueueShipClip(interp_data *interp)
 {
 	return 0;
 }
@@ -3741,13 +3741,12 @@ int WE_Default::warpShipClip()
 	return 1;
 }
 
-int WE_Default::warpQueueShipClip(DrawList *scene)
+int WE_Default::warpQueueShipClip(interp_data *interp)
 {
 	if(!this->isValid())
 		return 0;
 
-	//g3_start_user_clip_plane( &pos, &fvec );
-	scene->setClipPlane(&pos, &fvec);
+	model_render_set_clip_plane(interp, &pos, &fvec);
 	return 1;
 }
 
@@ -4034,7 +4033,7 @@ int WE_BSG::warpShipClip()
 	return 1;
 }
 
-int WE_BSG::warpQueueShipClip(DrawList *scene)
+int WE_BSG::warpQueueShipClip(interp_data *interp)
 {
 	if(!this->isValid())
 		return 0;
@@ -4043,8 +4042,9 @@ int WE_BSG::warpQueueShipClip(DrawList *scene)
 	{
 		vec3d position;
 		vm_vec_scale_add(&position, &objp->pos, &objp->orient.vec.fvec, objp->radius);
-		//g3_start_user_clip_plane( &position, &objp->orient.vec.fvec );
-		scene->setClipPlane(&position, &objp->orient.vec.fvec);
+		model_render_set_clip_plane(interp, &position, &objp->orient.vec.fvec);
+	} else {
+		model_render_set_clip_plane(interp);
 	}
 	return 1;
 }
@@ -4354,13 +4354,12 @@ int WE_Homeworld::warpShipClip()
 	return 1;
 }
 
-int WE_Homeworld::warpQueueShipClip(DrawList *scene)
+int WE_Homeworld::warpQueueShipClip(interp_data *interp)
 {
 	if(!this->isValid())
 		return 0;
 
-	//g3_start_user_clip_plane( &pos, &fvec );
-	scene->setClipPlane(&pos, &fvec);
+	model_render_set_clip_plane(interp, &pos, &fvec);
 	return 1;
 }
 

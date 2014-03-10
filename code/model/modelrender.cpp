@@ -1069,6 +1069,18 @@ float model_queue_render_determine_light(interp_data* interp, vec3d *pos, uint f
 	}
 }
 
+void model_render_set_clip_plane(interp_data *interp, vec3d *pos, vec3d *normal)
+{
+	if ( pos == NULL || normal == NULL ) {
+		interp->clip_plane = false;
+		return;
+	}
+
+	interp->clip_plane = true;
+	interp->clip_pos = *pos;
+	interp->clip_normal = *normal;
+}
+
 void model_render_set_thrust(interp_data *interp, int model_num, mst_info *mst)
 {
 	if (mst == NULL) {
@@ -1112,7 +1124,7 @@ void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, 
 	DrawList model_list;
 	interp_data interp;
 
-	model_interp_load_global_interp_data(&interp);
+	model_interp_load_global_data(&interp);
 
 	for ( int i = 0; i < Num_lights; ++i ) {
 		if ( Lights[i].type == LT_DIRECTIONAL || !Deferred_lighting ) {
@@ -1979,7 +1991,7 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 		}	
 	}
 
-	model_interp_load_global_interp_data(&interp);
+	model_interp_load_global_data(&interp);
 
 	model_queue_render(&interp, &model_list, model_num, -1, orient, pos, flags, objnum, replacement_textures);
 
@@ -2019,6 +2031,21 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 	polymodel_instance * pmi = NULL;
 
 	model_do_dumb_rotation(model_num);
+
+	if ( interp->clip_plane ) {
+		scene->setClipPlane(&interp->clip_pos, &interp->clip_normal);
+	} else {
+		scene->setClipPlane();
+	}
+
+	if ( interp->team_color_set ) {
+		scene->setTeamColor(&interp->current_team_color);
+	} else {
+		scene->setTeamColor();
+	}
+
+	scene->setAnimatedEffect(interp->animated_effect);
+	scene->setAnimatedTimer(interp->animated_timer);
 
 	if ( flags & MR_FORCE_CLAMP ) {
 		scene->setTextureAddressing(TMAP_ADDRESS_CLAMP);

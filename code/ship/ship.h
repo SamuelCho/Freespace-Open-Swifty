@@ -1561,7 +1561,7 @@ extern void change_ship_type(int n, int ship_type, int by_sexp = 0);
 extern void ship_model_change(int n, int ship_type);
 extern void ship_process_pre( object * objp, float frametime );
 extern void ship_process_post( object * objp, float frametime );
-extern void ship_render( object * objp );
+extern void ship_render_DEPRECATED( object * objp );
 extern void ship_queue_render( object * obj, DrawList * scene );
 extern void ship_render_cockpit( object * objp);
 extern void ship_render_show_ship_cockpit( object * objp);

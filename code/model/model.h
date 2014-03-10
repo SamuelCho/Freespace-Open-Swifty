@@ -898,11 +898,11 @@ void model_set_detail_level(int n);
 
 // Renders a model and all it's submodels.
 // See MR_? defines for values for flags
-void model_render(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL, int render = MODEL_RENDER_ALL);
+void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL, int render = MODEL_RENDER_ALL);
 
 // Renders just one particular submodel on a model.
 // See MR_? defines for values for flags
-void submodel_render(int model_num,int submodel_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int *replacement_textures = NULL, int render = MODEL_RENDER_ALL);
+void submodel_render_DEPRECATED(int model_num,int submodel_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int *replacement_textures = NULL, int render = MODEL_RENDER_ALL);
 
 // Returns the radius of a model
 float model_get_radius(int modelnum);
@@ -1315,9 +1315,15 @@ void model_do_dumb_rotation(int modelnum); //Bobboau
 
 int model_should_render_engine_glow(int objnum, int bank_obj);
 
-bool model_set_team_color(team_color *color, const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime);
+void model_interp_load_global_data(interp_data *interp);
 
-void model_interp_load_global_interp_data(interp_data *interp);
+void model_interp_set_clip_plane(vec3d* pos = NULL, vec3d* normal = NULL);
+
+void model_interp_set_animated_effect_and_timer(int effect_num = 0, float effect_timer = 0.0f);
+
+bool model_get_team_color(team_color *clr, const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime);
+
+void model_interp_set_team_color(const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime);
 
 void moldel_calc_facing_pts( vec3d *top, vec3d *bot, vec3d *fvec, vec3d *pos, float w, float z_add, vec3d *Eyeposition );
 
@@ -1326,8 +1332,5 @@ void interp_render_arc(vec3d *v1, vec3d *v2, color *primary, color *secondary, f
 void glowpoint_init();
 SCP_vector<glow_point_bank_override>::iterator get_glowpoint_bank_override_by_name(const char* name);
 extern SCP_vector<glow_point_bank_override> glowpoint_bank_overrides;
-
-extern team_color Interp_team_color;
-extern bool Interp_team_color_set;
 
 #endif // _MODEL_H

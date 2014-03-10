@@ -98,6 +98,13 @@ struct interp_data
 	bool team_color_set;
 	team_color current_team_color;
 
+	bool clip_plane;
+	vec3d clip_normal;
+	vec3d clip_pos;
+
+	int animated_effect;
+	float animated_timer;
+
 	interp_data() 
 	{
 		tmap_flags = 0;
@@ -169,6 +176,13 @@ struct interp_data
 		render_sphere_offset = vmd_zero_vector;
 
 		team_color_set = false;
+
+		clip_plane = false;
+		clip_normal = vmd_zero_vector;
+		clip_pos = vmd_zero_vector;
+
+		animated_effect = 0;
+		animated_timer = 0.0f;
 	}
 };
 
@@ -334,7 +348,7 @@ public:
 	void setCenterAlpha(int center_alpha);
 	void setLighting(bool mode);
 	void setBuffer(int buffer);
-	void setTeamColor(team_color *color);
+	void setTeamColor(team_color *color = NULL);
 	void setAnimatedTimer(float time);
 	void setAnimatedEffect(int effect);
 	void addBufferDraw(vec3d *scale, vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp);
@@ -368,5 +382,6 @@ void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, 
 void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1, int *replacement_textures = NULL);
 void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel *pm, int mn, bool is_child = false);
 void model_render_set_thrust(interp_data *interp, int model_num, mst_info *mst);
+void model_render_set_clip_plane(interp_data *interp, vec3d *pos = NULL, vec3d *normal = NULL);
 
 #endif

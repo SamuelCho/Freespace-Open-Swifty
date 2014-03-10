@@ -1544,10 +1544,10 @@ void obj_render(object *obj)
 			break;
 		case OBJ_WEAPON:
 			if(Cmdline_dis_weapons) return;
-			weapon_render(obj);
+			weapon_render_DEPRECATED(obj);
 			break;
 		case OBJ_SHIP:
-			ship_render(obj);
+			ship_render_DEPRECATED(obj);
 			break;
 		case OBJ_FIREBALL:
 			fireball_render(obj);

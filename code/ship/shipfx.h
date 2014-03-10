@@ -182,7 +182,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
-	virtual int warpQueueShipClip(DrawList *scene);
+	virtual int warpQueueShipClip(interp_data *interp);
 	virtual int warpShipRender();
 	virtual int warpShipQueueRender(DrawList *scene);
 	virtual int warpEnd();
@@ -222,7 +222,7 @@ public:
 	int warpStart();
 	int warpFrame(float frametime);
 	int warpShipClip();
-	int warpQueueShipClip(DrawList *scene);
+	int warpQueueShipClip(interp_data *interp);
 	int warpShipRender();
 
 	int getWarpPosition(vec3d *output);
@@ -280,7 +280,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
-	virtual int warpQueueShipClip(DrawList *scene);
+	virtual int warpQueueShipClip(interp_data *interp);
 	virtual int warpShipRender();
 	virtual int warpEnd();
 
@@ -330,7 +330,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
-	virtual int warpQueueShipClip(DrawList *scene);
+	virtual int warpQueueShipClip(interp_data *interp);
 	virtual int warpShipRender();
 	virtual int warpEnd();
 

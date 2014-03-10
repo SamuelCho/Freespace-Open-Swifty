@@ -555,11 +555,8 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 				else
 					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, 1, target_objp));
 
-				if (Ship_info[Ships[target_objp->instance].ship_info_index].uses_team_colors) {
-					team_color color;
-
-					Interp_team_color_set = model_set_team_color(&color, Ships[target_objp->instance].team_name, Ships[target_objp->instance].secondary_team_name, Ships[target_objp->instance].team_change_timestamp, Ships[target_objp->instance].team_change_time);
-					Interp_team_color = color;
+				if (target_sip->uses_team_colors) {
+					model_interp_set_team_color(target_shipp->team_name, target_shipp->secondary_team_name, target_shipp->team_change_timestamp, target_shipp->team_change_time);
 				}
 
 				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
@@ -586,7 +583,7 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 		if(Targetbox_shader_effect > -1) {
 			flags |= MR_ANIMATED_SHADER;
 
-			opengl_shader_set_animated_effect(Targetbox_shader_effect);
+			model_interp_set_animated_effect_and_timer(Targetbox_shader_effect);
 		}
 
 		if ( Monitor_mask >= 0 ) {
@@ -724,7 +721,7 @@ void HudGaugeTargetBox::renderTargetDebris(object *target_objp)
 		if(Targetbox_shader_effect > -1) {
 			flags |= MR_ANIMATED_SHADER;
 
-			opengl_shader_set_animated_effect(Targetbox_shader_effect);
+			model_interp_set_animated_effect_and_timer(Targetbox_shader_effect);
 		}
 
 		if ( Monitor_mask >= 0 ) {
@@ -897,10 +894,7 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 						model_set_outline_color_fast(iff_get_color_by_team_and_object(homing_shipp->team, Player_ship->team, 1, viewed_obj));
 
 					if (homing_sip->uses_team_colors) {
-						team_color color;
-
-						Interp_team_color_set = model_set_team_color(&color, homing_shipp->team_name, homing_shipp->secondary_team_name, homing_shipp->team_change_timestamp, homing_shipp->team_change_time);
-						Interp_team_color = color;
+						model_interp_set_team_color(homing_shipp->team_name, homing_shipp->secondary_team_name, homing_shipp->team_change_timestamp, homing_shipp->team_change_time);
 					}
 
 					flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
@@ -928,7 +922,7 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 		if(Targetbox_shader_effect > -1) {
 			flags |= MR_ANIMATED_SHADER;
 
-			opengl_shader_set_animated_effect(Targetbox_shader_effect);
+			model_interp_set_animated_effect_and_timer(Targetbox_shader_effect);
 		}
 
 		if ( Monitor_mask >= 0 ) {
@@ -1090,7 +1084,7 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 		if(Targetbox_shader_effect > -1) {
 			flags |= MR_ANIMATED_SHADER;
 
-			opengl_shader_set_animated_effect(Targetbox_shader_effect);
+			model_interp_set_animated_effect_and_timer(Targetbox_shader_effect);
 		}
 
 		if ( Monitor_mask >= 0 ) {

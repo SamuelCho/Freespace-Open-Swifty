@@ -3367,7 +3367,7 @@ const float weapon_glow_scale_r = 2.3f;
 const float weapon_glow_scale_l = 1.5f;
 const int weapon_glow_alpha = 217; // (0.85 * 255);
 
-void weapon_render(object *obj)
+void weapon_render_DEPRECATED(object *obj)
 {
 	int num;
 	weapon_info *wip;
@@ -3550,7 +3550,7 @@ void weapon_render(object *obj)
 			}
 
 
-			model_immediate_render(wip->model_num, &obj->orient, &obj->pos, render_flags);
+			model_render_DEPRECATED(wip->model_num, &obj->orient, &obj->pos, render_flags);
 			wp->weapon_flags |= WF_CONSIDER_FOR_FLYBY_SOUND;
 			if (clip_plane)
 			{
@@ -6825,9 +6825,9 @@ void weapon_queue_render(object* obj, DrawList *scene)
 				object *wobj=&Objects[wp->lssm_warp_idx];		//warphole object
 				clip_plane=1;
 
-				scene->setClipPlane(&wobj->pos, &wobj->orient.vec.fvec);
+				model_render_set_clip_plane(&interp, &wobj->pos, &wobj->orient.vec.fvec);
 			} else {
-				scene->setClipPlane();
+				model_render_set_clip_plane(&interp);
 			}
 
 

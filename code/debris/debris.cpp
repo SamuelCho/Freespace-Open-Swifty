@@ -191,10 +191,10 @@ void debris_render(object * obj)
 
 	if ( db->is_hull )	{
 		MONITOR_INC(NumHullDebrisRend,1);
-		submodel_render( db->model_num, db->submodel_num, &obj->orient, &obj->pos );
+		submodel_render_DEPRECATED( db->model_num, db->submodel_num, &obj->orient, &obj->pos );
 	} else {
 		MONITOR_INC(NumSmallDebrisRend,1);
-		submodel_render( db->model_num, db->submodel_num, &obj->orient, &obj->pos, MR_NO_LIGHTING );
+		submodel_render_DEPRECATED( db->model_num, db->submodel_num, &obj->orient, &obj->pos, MR_NO_LIGHTING );
 	}
 
 	if (tbase != NULL && (swapped!=-1) && pm)	{

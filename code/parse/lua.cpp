@@ -6135,10 +6135,7 @@ ADE_FUNC(renderTechModel, l_Shipclass, "X1, Y1, X2, Y2, [Rotation %, Pitch %, Ba
 	ship_info *sip = &Ship_info[idx];
 
 	if (sip->uses_team_colors) {
-		team_color color;
-
-		Interp_team_color_set = model_set_team_color(&color, sip->default_team_name, "<none>", 0, 0);
-		Interp_team_color = color;
+		model_interp_set_team_color(sip->default_team_name, "<none>", 0, 0);
 	}
 
 	//Make sure model is loaded
@@ -6209,10 +6206,7 @@ ADE_FUNC(renderTechModel2, l_Shipclass, "X1, Y1, X2, Y2, orientation Orientation
 	ship_info *sip = &Ship_info[idx];
 
 	if (sip->uses_team_colors) {
-		team_color color;
-
-		Interp_team_color_set = model_set_team_color(&color, sip->default_team_name, "<none>", 0, 0);
-		Interp_team_color = color;
+		model_interp_set_team_color(sip->default_team_name, "<none>", 0, 0);
 	}
 
 	//Make sure model is loaded
