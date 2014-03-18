@@ -6647,7 +6647,7 @@ void weapon_unpause_sounds()
 	beam_unpause_sounds();
 }
 
-void weapon_queue_render(object* obj, DrawList *scene)
+void weapon_render(object* obj, DrawList *scene)
 {
 	int num;
 	weapon_info *wip;

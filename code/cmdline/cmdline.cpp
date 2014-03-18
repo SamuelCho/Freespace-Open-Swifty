@@ -125,6 +125,8 @@ Flag exe_params[] =
 	{ "-soft_particles",	"Enable soft particles",					true,	0,					EASY_DEFAULT,		"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-soft_particles" },
 	{ "-fxaa",				"Enable FXAA anti-aliasing",				true,	0,					EASY_DEFAULT,		"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-fxaa" },
 	{ "-nolightshafts",		"Disable lightshafts",						true,	0,					EASY_DEFAULT,		"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-flightshaftsoff"},
+	{ "-no_deferred",		"Disable Deferred Lighting",				true,	0,					EASY_DEFAULT,		"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-no_deferred"},
+	{ "-disable_shadows",	"Disable Shadows",							true,	0,					EASY_DEFAULT,		"Graphics",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-no_shadows"},
 
 	{ "-img2dds",			"Compress non-compressed images",			true,	0,					EASY_DEFAULT,		"Game Speed",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-img2dds", },
 	{ "-no_vsync",			"Disable vertical sync",					true,	0,					EASY_DEFAULT,		"Game Speed",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-no_vsync", },
@@ -270,6 +272,7 @@ cmdline_parm noemissive_arg("-no_emissive_light", NULL);		// Cmdline_no_emissive
 cmdline_parm normal_arg("-nonormal", NULL);						// Cmdline_normal  -- disable normal mapping
 cmdline_parm height_arg("-noheight", NULL);						// Cmdline_height  -- enable support for parallax mapping
 cmdline_parm enable_3d_shockwave_arg("-3dshockwave", NULL);
+cmdline_parm no_deferred_lighting_arg("-no_deferred", NULL);	// Cmdline_no_deferred
 cmdline_parm softparticles_arg("-soft_particles", NULL);
 cmdline_parm postprocess_arg("-post_process", NULL);
 cmdline_parm bloom_intensity_arg("-bloom_intensity", NULL);
@@ -279,6 +282,7 @@ cmdline_parm fb_explosions_arg("-fb_explosions", NULL);
 cmdline_parm flightshaftsoff_arg("-nolightshafts", NULL);
 cmdline_parm merged_ibos("-merged_ibos", NULL);
 cmdline_parm shadow_quality_arg("-shadow_quality", NULL);
+cmdline_parm disable_shadows_arg("-disable_shadows", NULL);
 
 float Cmdline_clip_dist = Default_min_draw_distance;
 float Cmdline_fov = 0.75f;
@@ -305,6 +309,7 @@ bool Cmdline_fb_explosions = 0;
 bool Cmdline_merged_ibos = false;
 extern bool ls_force_off;
 int Cmdline_shadow_quality = 2;
+int Cmdline_no_deferred_lighting = 0;
 
 // Game Speed related
 cmdline_parm cache_bitmaps_arg("-cache_bitmaps", NULL);	// Cmdline_cache_bitmaps
@@ -1542,6 +1547,16 @@ bool SetCmdlineParams()
 	if( shadow_quality_arg.found() )
 	{
 		Cmdline_shadow_quality = shadow_quality_arg.get_int();
+	}
+
+	if( disable_shadows_arg.found() )
+	{
+		Cmdline_shadow_quality = 0;
+	}
+
+	if( no_deferred_lighting_arg.found() )
+	{
+		Cmdline_no_deferred_lighting = 1;
 	}
 
 	if (frame_profile_arg.found() )

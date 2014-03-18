@@ -344,70 +344,6 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 	batch_render_all();
 }
 
-void obj_queue_render(object* obj, DrawList* scene)
-{
-	if ( obj->flags & OF_SHOULD_BE_DEAD ) return;
-
-	// need to figure out what to do with this hook. 
-	// maybe save an array of these and run the script conditions after we finish drawing
-	Script_system.SetHookObject("Self", obj);
-
-	if ( Script_system.IsConditionOverride(CHA_OBJECTRENDER, obj) ) {
-		Script_system.RunCondition(CHA_OBJECTRENDER, '\0', NULL, obj);
-		Script_system.RemHookVar("Self");
-		return;
-	}
-
-	switch ( obj->type ) {
-	case OBJ_NONE:
-#ifndef NDEBUG
-		mprintf(( "ERROR!!!! Bogus obj %d is rendering!\n", obj-Objects ));
-		Int3();
-#endif
-		break;
-	case OBJ_WEAPON:
-		if ( Cmdline_dis_weapons ) return;
-		weapon_queue_render(obj, scene);
-		break;
-	case OBJ_SHIP:
-		ship_queue_render(obj, scene);
-		break;
- 	case OBJ_FIREBALL:
- 		fireball_queue_render(obj, scene);
- 		break;
-	case OBJ_SHOCKWAVE:
-		shockwave_queue_render(obj, scene);
-		break;
-	case OBJ_DEBRIS:
-		debris_queue_render(obj, scene);
-		break;
-	case OBJ_ASTEROID:
-		asteroid_queue_render(obj, scene);
-		break;
-	case OBJ_JUMP_NODE:
-		for ( SCP_list<CJumpNode>::iterator jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp ) {
-			if ( jnp->GetSCPObject() != obj ) {
-				continue;
-			}
-
-			//jnp->QueueRender(scene, &obj->pos, &Eye_position);
-		}
-		break;
-	case OBJ_WAYPOINT:
-// 		if (Show_waypoints)	{
-// 			gr_set_color( 128, 128, 128 );
-// 			g3_draw_sphere_ez( &obj->pos, 5.0f );
-// 		}
-		break;
-	case OBJ_GHOST:
-		break;
-	case OBJ_BEAM:
-		break;
-	default:
-		Error( LOCATION, "Unhandled obj type %d in obj_render", obj->type );
-	}
-}
-
 void obj_render_queue_all()
 {
 	object *objp;
@@ -485,6 +421,7 @@ void obj_render_queue_all()
 	gr_zbias(0);
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);
 	gr_set_cull(0);
+	gr_set_fill_mode(GR_FILL_MODE_SOLID);
 
 	gr_flush_data_states();
 	gr_set_buffer(-1);

@@ -58,6 +58,8 @@ DrawList::DrawList()
 	current_textures[TM_NORMAL_TYPE] = -1;
 	current_textures[TM_HEIGHT_TYPE] = -1;
 	current_textures[TM_MISC_TYPE] = -1;
+
+	clearTransforms();
 }
 
 void DrawList::reset()
@@ -79,6 +81,8 @@ void DrawList::reset()
 	render_states.clear();
 	render_elements.clear();
 	render_keys.clear();
+
+	clearTransforms();
 }
 
 void DrawList::sortDraws()
@@ -315,6 +319,22 @@ void DrawList::renderBuffer(queued_buffer_draw &render_elements)
 	g3_done_instance(true);
 }
 
+vec3d DrawList::getViewPosition()
+{
+	matrix basis_world;
+
+	// get the world basis of our current local space.
+	vm_matrix_x_matrix(&basis_world, &Object_matrix, &CurrentTransform.basis);
+
+	vec3d eye_pos_local;
+	vm_vec_sub(&eye_pos_local, &Eye_position, &CurrentTransform.origin);
+
+	vec3d return_val;
+	vm_vec_rotate(&return_val, &eye_pos_local, &basis_world);
+
+	return return_val;
+}
+
 void DrawList::clearTransforms()
 {
 	CurrentTransform = Transform();
@@ -366,7 +386,7 @@ void DrawList::popTransform()
 	TransformStack.pop_back();
 
 	if ( TransformStack.size() > 0 ) {
-		CurrentTransform = *TransformStack.end();
+		CurrentTransform = TransformStack.back();
 	} else {
 		CurrentTransform = Transform();
 	}
@@ -724,7 +744,9 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 			vm_vec_copy_scale(&interp->render_box_min, &model->render_box_min, interp->box_scale);
 			vm_vec_copy_scale(&interp->render_box_max, &model->render_box_max, interp->box_scale);
 
-			if ( (-model->use_render_box + in_box(&interp->render_box_min, &interp->render_box_max, &model->offset)) )
+			vec3d view_pos = scene->getViewPosition();
+
+			if ( (-model->use_render_box + in_box(&interp->render_box_min, &interp->render_box_max, &model->offset, &view_pos)) )
 				return;
 		}
 		if ( !is_child && !( interp->flags & MR_FULL_DETAIL ) && model->use_render_sphere ) {
@@ -735,7 +757,9 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 			model_find_submodel_offset(&offset, pm->id, mn);
 			vm_vec_add2(&offset, &model->render_sphere_offset);
 
-			if ( -model->use_render_sphere + in_sphere(&offset, interp->render_sphere_radius) ) {
+			vec3d view_pos = scene->getViewPosition();
+
+			if ( -model->use_render_sphere + in_sphere(&offset, interp->render_sphere_radius, &view_pos) ) {
 				return;
 			}
 		}
@@ -964,7 +988,9 @@ void model_queue_render_children_buffers(DrawList* scene, interp_data* interp, p
 		vm_vec_copy_scale(&interp->render_box_min, &model->render_box_min, interp->box_scale);
 		vm_vec_copy_scale(&interp->render_box_max, &model->render_box_max, interp->box_scale);
 
-		if ( (-model->use_render_box + in_box(&interp->render_box_min, &interp->render_box_max, &model->offset)) ) {
+		vec3d view_pos = scene->getViewPosition();
+
+		if ( (-model->use_render_box + in_box(&interp->render_box_min, &interp->render_box_max, &model->offset, &view_pos)) ) {
 			return;
 		}
 	}
@@ -977,7 +1003,9 @@ void model_queue_render_children_buffers(DrawList* scene, interp_data* interp, p
 		model_find_submodel_offset(&offset, pm->id, mn);
 		vm_vec_add2(&offset, &model->render_sphere_offset);
 
-		if ( (-model->use_render_sphere + in_sphere(&offset, interp->render_sphere_radius)) ) {
+		vec3d view_pos = scene->getViewPosition();
+
+		if ( (-model->use_render_sphere + in_sphere(&offset, interp->render_sphere_radius, &view_pos)) ) {
 			return;
 		}
 	}
@@ -1139,6 +1167,7 @@ void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, 
 	gr_zbias(0);
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);
 	gr_set_cull(0);
+	gr_set_fill_mode(GR_FILL_MODE_SOLID);
 
 	gr_flush_data_states();
 	gr_set_buffer(-1);
@@ -1164,6 +1193,21 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 	if ( !Model_texturing ) {
 		flags |= MR_NO_TEXTURING;
 	}
+
+	if ( interp->clip_plane ) {
+		scene->setClipPlane(&interp->clip_pos, &interp->clip_normal);
+	} else {
+		scene->setClipPlane();
+	}
+
+	if ( interp->team_color_set ) {
+		scene->setTeamColor(&interp->current_team_color);
+	} else {
+		scene->setTeamColor();
+	}
+
+	scene->setAnimatedEffect(interp->animated_effect);
+	scene->setAnimatedTimer(interp->animated_timer);
 
 	interp->flags = flags;
 	interp->pos = *pos;
@@ -1195,7 +1239,7 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 	bool is_outlines_only_htl = !Cmdline_nohtl && (flags & MR_NO_POLYS) && (flags & MR_SHOW_OUTLINE_HTL);
 
 	//set to true since D3d and OGL need the api matrices set
-	g3_start_instance_matrix(pos, orient, false);
+	scene->pushTransform(pos, orient);
 
 	bool set_autocen = false;
 	vec3d auto_back = ZERO_VECTOR;
@@ -1215,7 +1259,7 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 		}
 
 		if ( set_autocen ) {
-			g3_start_instance_matrix(&auto_back, NULL, false);
+			scene->pushTransform(&auto_back, NULL);
 		}
 	}
 
@@ -1286,10 +1330,10 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 	}
 
 	if ( set_autocen ) {
-		g3_done_instance(false);
+		scene->popTransform();
 	}
 
-	g3_done_instance(false);
+	scene->popTransform();
 }
 
 void model_queue_render_glowpoint(int point_num, vec3d *pos, matrix *orient, glow_point_bank *bank, glow_point_bank_override *gpo, polymodel *pm, ship* shipp, bool use_depth_buffer)
@@ -2012,6 +2056,7 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 	gr_zbias(0);
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);
 	gr_set_cull(0);
+	gr_set_fill_mode(GR_FILL_MODE_SOLID);
 
 	gr_flush_data_states();
 	gr_set_buffer(-1);

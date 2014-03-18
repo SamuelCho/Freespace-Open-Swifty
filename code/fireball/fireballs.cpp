@@ -373,7 +373,7 @@ void fireball_init()
 
 MONITOR( NumFireballsRend )
 
-void fireball_render(object * obj)
+void fireball_render_DEPRECATED(object * obj)
 {
 	int		num;
 	vertex	p;
@@ -1049,7 +1049,7 @@ float fireball_wormhole_intensity( object *obj )
 	return rad;
 } 
 
-void fireball_queue_render(object* obj, DrawList *scene)
+void fireball_render(object* obj, DrawList *scene)
 {
 	int		num;
 	vertex	p;

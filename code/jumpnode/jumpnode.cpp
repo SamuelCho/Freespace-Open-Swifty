@@ -246,7 +246,7 @@ bool CJumpNode::IsSpecialModel()
  * @param pos		World position
  * @param view_pos	Viewer's world position, can be NULL
  */
-void CJumpNode::Render(vec3d *pos, vec3d *view_pos)
+void CJumpNode::RenderDEPRECATED(vec3d *pos, vec3d *view_pos)
 {
 	Assert(pos != NULL);
     // Assert(view_pos != NULL); - view_pos can be NULL
@@ -266,7 +266,7 @@ void CJumpNode::Render(vec3d *pos, vec3d *view_pos)
 	
 	if ( Fred_running ) {
 		gr_set_color_fast(&m_display_color);		
-		model_immediate_render(m_modelnum, &node_orient, pos, mr_flags );
+		model_render_DEPRECATED(m_modelnum, &node_orient, pos, mr_flags );
 	} else {
 		if (m_flags & JN_USE_DISPLAY_COLOR) {
 			gr_set_color_fast(&m_display_color);
@@ -297,12 +297,19 @@ void CJumpNode::Render(vec3d *pos, vec3d *view_pos)
 			gr_set_color(HUD_color_red, HUD_color_green, HUD_color_blue);
 		}
 		
-		model_immediate_render(m_modelnum, &node_orient, pos, mr_flags );
+		model_render_DEPRECATED(m_modelnum, &node_orient, pos, mr_flags );
 	}
 	
 }
 
-void CJumpNode::QueueRender(DrawList* scene, vec3d *pos, vec3d *view_pos)
+void CJumpNode::Render(vec3d *pos, vec3d *view_pos)
+{
+	DrawList scene;
+
+	Render(&scene, pos, view_pos);
+}
+
+void CJumpNode::Render(DrawList* scene, vec3d *pos, vec3d *view_pos)
 {
 	Assert(pos != NULL);
 	// Assert(view_pos != NULL); - view_pos can be NULL

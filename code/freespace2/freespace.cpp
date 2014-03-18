@@ -3629,7 +3629,7 @@ void render_shadow_maps()
 					//ship_model_start(objp);
 					//model_render( Ship_info[Ships[objp->instance].ship_info_index].model_num, &objp->orient, &objp->pos,MR_NO_TEXTURING | MR_NO_LIGHTING, OBJ_INDEX(objp));
 					//ship_model_stop(objp);
-					obj_render(objp);
+					obj_render_DEPRECATED(objp);
 				break;
 
 				case OBJ_ASTEROID:
@@ -3779,7 +3779,7 @@ void game_render_frame( camid cid )
 	SCP_vector<object*>::iterator obji = effect_ships.begin();
 	for(;obji != effect_ships.end();++obji)
 	{
-		obj_render(*obji);
+		obj_render_DEPRECATED(*obji);
 	}
 	effect_ships.clear();
 

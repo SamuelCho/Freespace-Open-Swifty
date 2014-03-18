@@ -147,7 +147,7 @@ MONITOR(NumHullDebrisRend)
 /**
  * Render debris
  */
-void debris_render(object * obj)
+void debris_render_DEPRECATED(object * obj)
 {
 	int			i, num, swapped;
 	polymodel	*pm;
@@ -1095,7 +1095,7 @@ void calc_debris_physics_properties( physics_info *pi, vec3d *mins, vec3d *maxs 
 	pi->I_body_inv.vec.fvec.xyz.z = 12.0f / (pi->mass *  (dx*dx + dy*dy));
 }
 
-void debris_queue_render(object * obj, DrawList *scene)
+void debris_render(object * obj, DrawList *scene)
 {
 	int			i, num, swapped;
 	polymodel	*pm;

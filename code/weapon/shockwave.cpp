@@ -378,7 +378,7 @@ void shockwave_move(object *shockwave_objp, float frametime)
  *
  * @param objp	pointer to shockwave object
  */
-void shockwave_render(object *objp)
+void shockwave_render_DEPRECATED(object *objp)
 {
 	shockwave		*sw;
 	vertex			p;
@@ -451,7 +451,7 @@ void shockwave_render(object *objp)
 	}
 }
 
-void shockwave_queue_render(object *objp, DrawList *scene)
+void shockwave_render(object *objp, DrawList *scene)
 {
 	shockwave		*sw;
 	vertex			p;
@@ -723,7 +723,7 @@ void shockwave_render_all()
 	while ( sw != &Shockwave_list ) {
 		next = sw->next;
 		Assert(sw->objnum != -1);
-		shockwave_render(&Objects[sw->objnum]);
+		shockwave_render_DEPRECATED(&Objects[sw->objnum]);
 		sw = next;
 	}
 }

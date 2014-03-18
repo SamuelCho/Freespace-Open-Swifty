@@ -136,6 +136,7 @@ typedef struct obj_flag_name {
 extern obj_flag_name Object_flag_names[];
 
 struct dock_instance;
+class DrawList;
 
 class object
 {
@@ -241,7 +242,11 @@ void obj_init();
 int obj_create(ubyte type,int parent_obj, int instance, matrix * orient, vec3d * pos, float radius, uint flags );
 
 //Render an object.  Calls one of several routines based on type
-void obj_render(object *obj);
+void obj_render_DEPRECATED(object *obj);
+
+void obj_render(object* obj);
+
+void obj_queue_render(object* obj, DrawList* scene);
 
 //Sorts and renders all the ojbects
 void obj_render_all(void (*render_function)(object *objp), bool* render_viewer_last );

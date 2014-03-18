@@ -1161,7 +1161,7 @@ int asteroid_check_collision(object *pasteroid, object *other_obj, vec3d *hitpos
 	}
 }
 
-void asteroid_render(object * obj)
+void asteroid_render_DEPRECATED(object * obj)
 {
 	if (Asteroids_enabled) {
 		int			num;
@@ -1179,7 +1179,7 @@ void asteroid_render(object * obj)
 	}
 }
 
-void asteroid_queue_render(object * obj, DrawList *scene)
+void asteroid_render(object * obj, DrawList *scene)
 {
 	if (Asteroids_enabled) {
 		int			num;

@@ -475,6 +475,7 @@ void opengl_extensions_init()
 		Cmdline_height = 0;
 		Cmdline_postprocess = 0;
 		Cmdline_shadow_quality = 0;
+		Cmdline_no_deferred_lighting = 1;
 	}
 
 	if ( Use_GLSL < 3 ) {

@@ -18244,7 +18244,7 @@ void ship_render_set_animated_effect(interp_data *interp, ship *shipp, uint *ren
 	}
 }
 
-void ship_queue_render(object* obj, DrawList* scene)
+void ship_render(object* obj, DrawList* scene)
 {
 	int num = obj->instance;
 	ship *shipp = &Ships[num];

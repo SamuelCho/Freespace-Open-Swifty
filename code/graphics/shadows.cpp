@@ -21,8 +21,6 @@
 #include "asteroid/asteroid.h"
 #include "graphics/gropengldraw.h"
 
-extern void obj_queue_render(object* obj, DrawList* scene);
-
 extern vec3d check_offsets[8];
 
 light_frustum_info shadow_frustums[4];
@@ -664,6 +662,9 @@ void shadows_render_all(float fov, matrix *eye_orient, vec3d *eye_pos)
 	}
 
 	//shadows_debug_show_frustum(&Player_obj->orient, &Player_obj->pos, fov, gr_screen.clip_aspect, Min_draw_distance, 3000.0f);
+
+	gr_end_proj_matrix();
+	gr_end_view_matrix();
 
 	matrix light_matrix = shadows_start_render(eye_orient, eye_pos, fov, gr_screen.clip_aspect, 200.0f, 500.0f, 2000.0f, 10000.0f);
 

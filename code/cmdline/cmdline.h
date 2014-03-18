@@ -78,6 +78,7 @@ extern int Cmdline_fxaa_preset;
 extern bool Cmdline_fb_explosions;
 extern bool Cmdline_merged_ibos;
 extern int Cmdline_shadow_quality;
+extern int Cmdline_no_deferred_lighting;
 
 // Game Speed related
 extern int Cmdline_cache_bitmaps;

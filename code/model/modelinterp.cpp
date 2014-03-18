@@ -4585,11 +4585,11 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 	}
 }
 
-inline int in_box(vec3d *min, vec3d *max, vec3d *pos)
+inline int in_box(vec3d *min, vec3d *max, vec3d *pos, vec3d *view_pos)
 {
 	vec3d point;
 
-	vm_vec_sub(&point, &View_position, pos);
+	vm_vec_sub(&point, view_pos, pos);
 
 	if ( (point.xyz.x >= min->xyz.x) && (point.xyz.x <= max->xyz.x)
 		&& (point.xyz.y >= min->xyz.y) && (point.xyz.y <= max->xyz.y)
@@ -4601,14 +4601,13 @@ inline int in_box(vec3d *min, vec3d *max, vec3d *pos)
 	return -1;
 }
 
-inline int in_sphere(vec3d *pos, float radius)
+inline int in_sphere(vec3d *pos, float radius, vec3d *view_pos)
 {
-	if ( vm_vec_dist(&View_position, pos) <= radius )
+	if ( vm_vec_dist(view_pos, pos) <= radius )
 		return 1;
 	else
 		return -1;
 }
-
 
 void model_render_children_buffers(polymodel *pm, int mn, int detail_level, int render)
 {
@@ -4642,7 +4641,7 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level, int 
 		vm_vec_copy_scale(&Interp_render_box_min, &model->render_box_min, Interp_box_scale);
 		vm_vec_copy_scale(&Interp_render_box_max, &model->render_box_max, Interp_box_scale);
 
-		if ( (-model->use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &model->offset)) )
+		if ( (-model->use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &model->offset, &View_position)) )
 			return;
 	}
 	if ( !(Interp_flags & MR_FULL_DETAIL) && model->use_render_sphere ) {
@@ -4653,7 +4652,7 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level, int 
 		model_find_submodel_offset(&offset, pm->id, mn);
 		vm_vec_add2(&offset, &model->render_sphere_offset);
 
-		if ( (-model->use_render_sphere + in_sphere(&offset, Interp_render_sphere_radius)) )
+		if ( (-model->use_render_sphere + in_sphere(&offset, Interp_render_sphere_radius, &View_position)) )
 			return;
 	}
 
@@ -4737,7 +4736,7 @@ void model_render_buffers(polymodel *pm, int mn, int render, bool is_child)
 		vm_vec_copy_scale(&Interp_render_box_min, &model->render_box_min, Interp_box_scale);
 		vm_vec_copy_scale(&Interp_render_box_max, &model->render_box_max, Interp_box_scale);
 
-		if ( (-model->use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &model->offset)) )
+		if ( (-model->use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &model->offset, &View_position)) )
 			return;
 	}
 	if ( !is_child && !(Interp_flags & MR_FULL_DETAIL) && model->use_render_sphere ) {
@@ -4748,7 +4747,7 @@ void model_render_buffers(polymodel *pm, int mn, int render, bool is_child)
 		model_find_submodel_offset(&offset, pm->id, mn);
 		vm_vec_add2(&offset, &model->render_sphere_offset);
 
-		if ( (-model->use_render_sphere + in_sphere(&offset, Interp_render_sphere_radius)) )
+		if ( (-model->use_render_sphere + in_sphere(&offset, Interp_render_sphere_radius, &View_position)) )
 			return;
 	}
 
@@ -5148,12 +5147,12 @@ void model_interp_update_transforms(object *objp, int detail_num)
 			vm_vec_copy_scale(&Interp_render_box_min, &pm->submodel[i].render_box_min, Interp_box_scale);
 			vm_vec_copy_scale(&Interp_render_box_max, &pm->submodel[i].render_box_max, Interp_box_scale);
 
-			if ( (-pm->submodel[i].use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &pm->submodel[i].offset)) )
+			if ( (-pm->submodel[i].use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &pm->submodel[i].offset, &View_position)) )
 				do_not_render = true;
 		} else if ( !(Interp_flags & MR_FULL_DETAIL) && pm->submodel[i].use_render_sphere ) {
 			Interp_render_sphere_radius = pm->submodel[i].render_sphere_radius * Interp_box_scale;
 
-			if ( (-pm->submodel[i].use_render_sphere + in_sphere(&pm->submodel[i].offset, Interp_render_sphere_radius)) )
+			if ( (-pm->submodel[i].use_render_sphere + in_sphere(&pm->submodel[i].offset, Interp_render_sphere_radius, &View_position)) )
 				do_not_render = true;
 		}
 

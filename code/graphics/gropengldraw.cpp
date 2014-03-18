@@ -2929,7 +2929,7 @@ void gr_opengl_copy_effect_texture()
 
 void gr_opengl_deferred_lighting_begin()
 {
-	if (Use_GLSL < 2)
+	if (Use_GLSL < 2 || Cmdline_no_deferred_lighting)
 		return;
 
 	Deferred_lighting = true;

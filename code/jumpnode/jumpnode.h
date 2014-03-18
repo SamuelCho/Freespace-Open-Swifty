@@ -68,8 +68,9 @@ public:
     bool IsSpecialModel();
 
     //Rendering
-    void Render(vec3d *pos, vec3d *view_pos = NULL);
-	void QueueRender(DrawList *scene, vec3d *pos, vec3d *view_pos = NULL);
+    void RenderDEPRECATED(vec3d *pos, vec3d *view_pos = NULL);
+	void Render(vec3d *pos, vec3d *view_pos = NULL);
+	void Render(DrawList *scene, vec3d *pos, vec3d *view_pos = NULL);
 };
 
 //-----Globals------

@@ -1944,7 +1944,7 @@ char *Default_main_fragment_shader =
 "	baseColor.rgb += lightSpecular.rgb * specData.rgb;																																		\n"
 "#ifdef FLAG_SPEC_MAP\n"
 " #ifndef FLAG_DEFERRED\n"
-"	//baseColor.a += (dot(lightSpecular.a, lightSpecular.a) * SPECULAR_ALPHA);\n"
+"	baseColor.a += (dot(lightSpecular.a, lightSpecular.a) * SPECULAR_ALPHA);\n"
 " #endif\n"
 "#endif"
 "  																																																	\n"

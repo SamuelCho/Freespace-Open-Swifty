@@ -25,8 +25,8 @@ extern vec3d Object_position;
 
 extern team_color* Current_team_color;
 
-extern inline int in_sphere(vec3d *pos, float radius);
-extern inline int in_box(vec3d *min, vec3d *max, vec3d *pos);
+extern inline int in_sphere(vec3d *pos, float radius, vec3d *view_pos);
+extern inline int in_box(vec3d *min, vec3d *max, vec3d *pos, vec3d *view_pos);
 extern int model_interp_get_texture(texture_info *tinfo, fix base_frametime);
 
 struct interp_data
@@ -353,6 +353,7 @@ public:
 	void setAnimatedEffect(int effect);
 	void addBufferDraw(vec3d *scale, vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp);
 	
+	vec3d getViewPosition();
 	void clearTransforms();
 	void pushTransform(vec3d* pos, matrix* orient);
 	void popTransform();
