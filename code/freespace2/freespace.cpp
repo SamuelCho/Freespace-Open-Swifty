@@ -902,6 +902,7 @@ void game_level_close()
 		mission_brief_common_reset();		// close out parsed briefing/mission stuff
 		cam_close();
 		subtitles_close();
+		particle_close();
 		trail_level_close();
 		ship_clear_cockpit_displays();
 		hud_level_close();
@@ -1690,6 +1691,8 @@ void game_init()
 
 	Game_current_mission_filename[0] = 0;
 
+	// Moved from rand32, if we're gonna break, break immediately.
+	Assert(RAND_MAX == 0x7fff || RAND_MAX >= 0x7ffffffd);
 	// seed the random number generator
 	Game_init_seed = (int) time(NULL);
 	srand( Game_init_seed );
@@ -1713,6 +1716,9 @@ void game_init()
 	// init os stuff next
 	if ( !Is_standalone ) {		
 		os_init( Osreg_class_name, Osreg_app_name );
+	}
+	else {
+		std_init_os();
 	}
 
 #ifndef NDEBUG
@@ -4751,6 +4757,7 @@ void game_set_frametime(int state)
 
 	Last_time = thistime;
 	//mprintf(("Frame %i, Last_time = %7.3f\n", Framecount, f2fl(Last_time)));
+	Last_frame_timestamp = timestamp();
 
 	flFrametime = f2fl(Frametime);
 	timestamp_inc(flFrametime);
@@ -4865,16 +4872,18 @@ int game_poll()
 {
 	int k, state;
 
-	if (!os_foreground()) {		
-		game_stop_time();
-//		os_sleep(100);
-		os_sleep(1);
-		game_start_time();
+	if (!Cmdline_no_unfocus_pause)
+	{
+		if (!os_foreground()) {
+			game_stop_time();
+			os_sleep(1);
+			game_start_time();
 
-		// If we're in a single player game, pause it.
-		if (!(Game_mode & GM_MULTIPLAYER)){
-			if ( (gameseq_get_state() == GS_STATE_GAME_PLAY) && (!popup_active()) && (!popupdead_is_active()) )	{
-				game_process_pause_key();
+			// If we're in a single player game, pause it.
+			if (!(Game_mode & GM_MULTIPLAYER)){
+				if ((gameseq_get_state() == GS_STATE_GAME_PLAY) && (!popup_active()) && (!popupdead_is_active()))	{
+					game_process_pause_key();
+				}
 			}
 		}
 	}
@@ -5188,7 +5197,7 @@ void game_process_event( int current_state, int event )
 			break;
 
 		case GS_EVENT_QUIT_GAME:
-			main_hall_stop_music();
+			main_hall_stop_music(true);
 			main_hall_stop_ambient();
 			gameseq_set_state(GS_STATE_QUIT_GAME);
 			break;
@@ -5792,7 +5801,7 @@ void game_leave_state( int old_state, int new_state )
 				Game_mode |= GM_IN_MISSION;
 			}
 
-			main_hall_stop_music();
+			main_hall_stop_music(true);
 			main_hall_stop_ambient();		
 			break;		
    
@@ -5933,7 +5942,7 @@ void game_enter_state( int old_state, int new_state )
 			break;
 
 		case GS_STATE_START_GAME:
-			main_hall_stop_music();
+			main_hall_stop_music(true);
 			main_hall_stop_ambient();
 			
 			if (Game_mode & GM_NORMAL) {
@@ -6068,6 +6077,20 @@ void game_enter_state( int old_state, int new_state )
 				Sexp_hud_display_warpout = 0;
 			}
 
+			// Goober5000 - people may not have realized that pausing causes this state to be re-entered
+			if ((old_state != GS_STATE_GAME_PAUSED) && (old_state != GS_STATE_MULTI_PAUSED) && (old_state != GS_STATE_MAIN_MENU))
+			{
+				if ( !Is_standalone )
+					radar_mission_init();
+
+				//Set the current hud
+				set_current_hud();
+
+				if ( !Is_standalone ) {
+					ship_init_cockpit_displays(Player_ship);
+				}
+			}
+
 			// coming from the gameplay state or the main menu, we might need to load the mission
 			if ( (Game_mode & GM_NORMAL) && ((old_state == GS_STATE_MAIN_MENU) || (old_state == GS_STATE_GAME_PLAY) || (old_state == GS_STATE_DEATH_BLEW_UP)) ) {
 				if ( !game_start_mission() )		// this should put us into a new state.
@@ -6088,7 +6111,7 @@ void game_enter_state( int old_state, int new_state )
 					//XSTR:ON
 					#endif
 
-					main_hall_stop_music();
+					main_hall_stop_music(true);
 					main_hall_stop_ambient();
 					event_music_first_pattern();	// start the first pattern
 			}
@@ -6107,18 +6130,8 @@ void game_enter_state( int old_state, int new_state )
 
 			if ( !(Game_mode & GM_STANDALONE_SERVER) && ((old_state != GS_STATE_GAME_PAUSED) && (old_state != GS_STATE_MULTI_PAUSED)) ) {
 				event_music_first_pattern();	// start the first pattern
-			}			
-			player_restore_target_and_weapon_link_prefs();
-
-			if ( !Is_standalone )
-				radar_mission_init();
-
-			//Set the current hud
-			set_current_hud();
-
-			if ( !Is_standalone ) {
-				ship_init_cockpit_displays(Player_ship);
 			}
+			player_restore_target_and_weapon_link_prefs();
 
 			Game_mode |= GM_IN_MISSION;
 
@@ -6275,7 +6288,7 @@ void mouse_force_pos(int x, int y);
 			break;
 
 		case GS_STATE_CREDITS:
-			main_hall_stop_music();
+			main_hall_stop_music(true);
 			main_hall_stop_ambient();
 			credits_init();
 			break;
@@ -7252,7 +7265,7 @@ void game_launch_launcher_on_exit()
 void game_shutdown(void)
 {
 	gTirDll_TrackIR.Close( );
-
+	profile_deinit();
 
 	fsspeech_deinit();
 #ifdef FS2_VOICER
@@ -8764,7 +8777,7 @@ void game_pause()
 			case GS_STATE_TECH_MENU:
 			case GS_STATE_BARRACKS_MENU:
 				main_hall_stop_ambient();
-				main_hall_stop_music(); // not an instant shutoff
+				main_hall_stop_music(true); // not an instant shutoff
 				break;
 
 			// things that would get music except if they are called while in-mission
@@ -8772,7 +8785,7 @@ void game_pause()
 			case GS_STATE_HUD_CONFIG:
 				if ( !(Game_mode & GM_IN_MISSION) ) {
 					main_hall_stop_ambient();
-					main_hall_stop_music(); // not an instant shutoff
+					main_hall_stop_music(true); // not an instant shutoff
 				}
 				break;
 

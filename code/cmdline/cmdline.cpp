@@ -163,6 +163,7 @@ Flag exe_params[] =
 	{ "-noibx",				"Don't use cached index buffers (IBX)",		true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-noibx", },
 	{ "-loadallweps",		"Load all weapons, even those not used",	true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-loadallweps", },
 	{ "-disable_fbo",		"Disable OpenGL RenderTargets",				true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-disable_fbo", },
+	{ "-disable_pbo",		"Disable OpenGL Pixel Buffer Objects",		true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-disable_pbo", },
 	{ "-no_glsl",			"Disable GLSL (shader) support",			true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-no_glsl", },
 	{ "-ati_swap",			"Fix colour issues on some ATI cards",		true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://scp.indiegames.us/mantis/view.php?id=1669", },
 	{ "-no_3d_sound",		"Use only 2D/stereo for sound effects",		true,	0,					EASY_DEFAULT,		"Troubleshoot",	"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-no_3d_sound", },
@@ -201,7 +202,9 @@ Flag exe_params[] =
 	{ "-nograb",			"Don't grab mouse/keyboard in a window",	true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-nograb", },
  #endif
 	{ "-reparse_mainhall",	"Reparse mainhall.tbl when loading halls",	false,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-reparse_mainhall", },
-	{ "-profile_frame_time","Profile engine subsystems",				true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-profile_frame_timings", },
+	{ "-profile_frame_time", "Profile engine subsystems",				true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-profile_frame_timings", },
+	{ "-profile_write_file", "Write profiling information to file",		true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-profile_write_file", },
+	{ "-no_unfocused_pause","Don't pause if the window isn't focused",	true,	0,					EASY_DEFAULT,		"Dev Tool",		"http://www.hard-light.net/wiki/index.php/Command-Line_Reference#-no_unfocused_pause", },
 };
 
 // here are the command line parameters that we will be using for FreeSpace
@@ -375,6 +378,7 @@ cmdline_parm nomovies_arg("-nomovies", NULL);		// Cmdline_nomovies  -- Allows vi
 cmdline_parm no_set_gamma_arg("-no_set_gamma", NULL);	// Cmdline_no_set_gamma
 cmdline_parm no_vbo_arg("-novbo", NULL);			// Cmdline_novbo
 cmdline_parm no_fbo_arg("-disable_fbo", NULL);		// Cmdline_no_fbo
+cmdline_parm no_pbo_arg("-disable_pbo", NULL);		// Cmdline_no_pbo
 cmdline_parm noglsl_arg("-no_glsl", NULL);			// Cmdline_noglsl  -- disable GLSL support in OpenGL
 cmdline_parm mipmap_arg("-mipmap", NULL);			// Cmdline_mipmap
 cmdline_parm atiswap_arg("-ati_swap", NULL);        // Cmdline_atiswap - Fix ATI color swap issue for screenshots.
@@ -391,6 +395,7 @@ int Cmdline_nomovies = 0;
 int Cmdline_no_set_gamma = 0;
 int Cmdline_novbo = 0; // turn off OGL VBO support, troubleshooting
 int Cmdline_no_fbo = 0;
+int Cmdline_no_pbo = 0;
 int Cmdline_noglsl = 0;
 int Cmdline_ati_color_swap = 0;
 int Cmdline_no_3d_sound = 0;
@@ -425,6 +430,8 @@ cmdline_parm no_grab("-nograb", NULL);				// Cmdline_no_grab
 #endif
 cmdline_parm reparse_mainhall_arg("-reparse_mainhall", NULL); //Cmdline_reparse_mainhall
 cmdline_parm frame_profile_arg("-profile_frame_time", NULL); //Cmdline_frame_profile
+cmdline_parm frame_profile_write_file("-profile_write_file", NULL); // Cmdline_profile_write_file
+cmdline_parm no_unfocused_pause_arg("-no_unfocused_pause", NULL); //Cmdline_no_unfocus_pause
 
 char *Cmdline_start_mission = NULL;
 int Cmdline_old_collision_sys = 0;
@@ -449,6 +456,8 @@ int Cmdline_no_grab = 0;
 #endif
 int Cmdline_reparse_mainhall = 0;
 bool Cmdline_frame_profile = false;
+bool Cmdline_profile_write_file = false;
+bool Cmdline_no_unfocus_pause = false;
 
 // Other
 cmdline_parm get_flags_arg("-get_flags", NULL);
@@ -1417,6 +1426,11 @@ bool SetCmdlineParams()
 		Cmdline_novbo = 1;
 	}
 
+	if ( no_pbo_arg.found() )
+	{
+		Cmdline_no_pbo = 1;
+	}
+
 	if ( no_drawrangeelements.found() )
 	{
 		Cmdline_drawelements = 1;
@@ -1532,6 +1546,17 @@ bool SetCmdlineParams()
 	if (frame_profile_arg.found() )
 	{
 		Cmdline_frame_profile = true;
+	}
+
+	if (frame_profile_write_file.found())
+	{
+		Cmdline_frame_profile = true;
+		Cmdline_profile_write_file = true;
+	}
+
+	if (no_unfocused_pause_arg.found())
+	{
+		Cmdline_no_unfocus_pause = true;
 	}
 
 	//Deprecated flags - CommanderDJ

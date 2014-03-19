@@ -332,11 +332,30 @@ void common_music_close()
 	if ( Num_music_files <= 0 )
 		return;
 
-	briefing_stop_music();
+	briefing_stop_music(true);
 }
 
-void common_maybe_play_cutscene(int movie_type)
+int common_num_cutscenes_valid(int movie_type)
 {
+	int num_valid_cutscenes = 0; 
+
+	for (uint i = 0; i < The_mission.cutscenes.size(); i++) {
+		if (movie_type == The_mission.cutscenes[i].type) {
+			if (!eval_sexp( The_mission.cutscenes[i].formula )) {
+				continue; 
+			}
+
+			num_valid_cutscenes++;
+		}
+	}
+
+	return num_valid_cutscenes;
+}
+
+void common_maybe_play_cutscene(int movie_type, bool restart_music, int music)
+{
+	bool music_off = false;
+
 	for (uint i = 0; i < The_mission.cutscenes.size(); i++) {
 		if (movie_type == The_mission.cutscenes[i].type) {
 			if (!eval_sexp( The_mission.cutscenes[i].formula )) {
@@ -345,10 +364,15 @@ void common_maybe_play_cutscene(int movie_type)
 
 			if ( strlen(The_mission.cutscenes[i].cutscene_name) ) {
 				common_music_close(); 
+				music_off = true;
 				movie_play( The_mission.cutscenes[i].cutscene_name );	//Play the movie!
 				cutscene_mark_viewable( The_mission.cutscenes[i].cutscene_name );
 			}
 		}
+	}
+
+	if (music_off && restart_music) {
+		common_music_init(music);
 	}
 }
 
@@ -1723,7 +1747,7 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 			model_set_detail_level(0);
 			gr_set_color(80,49,160);
 			opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS2);
-			opengl_shader_set_animated_timer(-clip);
+			opengl_shader_set_animated_timer(clip);
 
 			if ( (time < 2.5f) && (time >= 0.5f) ) { // Phase 1 and 2 render the wireframe
 				if (time >= 1.5f) // Just clip the wireframe after Phase 1
