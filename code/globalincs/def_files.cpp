@@ -2017,10 +2017,6 @@ char* Default_main_geometry_shader =
 
 "uniform mat4 shadow_proj_matrix[4];\n"
 
-"#ifdef FLAG_CLIP\n"
-"uniform int use_clip_plane;\n"
-"#endif\n"
-
 "varying in float Instance[3];\n"
 
 "varying out vec4 position;\n"
@@ -2034,9 +2030,6 @@ char* Default_main_geometry_shader =
 "		if(gl_Position.z < -1.0)\n"
 "			gl_Position.z = -1.0;\n"
 "       position = gl_PositionIn[vert];\n"
-"#ifdef FLAG_CLIP\n"
-"		gl_ClipDistance[0] = gl_ClipDistanceIn[vert][0];\n"
-"#endif\n"
 "		gl_ClipVertex = gl_ClipVertexIn[vert];\n"
 "		gl_Layer = instanceID;\n"
 "		EmitVertex();\n"
