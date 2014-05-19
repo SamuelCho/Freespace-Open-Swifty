@@ -233,11 +233,13 @@ class opengl_array_state
 
 		GLuint array_buffer;
 		GLuint element_array_buffer;
-		GLuint uniform_buffers[MAX_UNIFORM_BUFFERS];
+		GLuint uniform_buffer;
+
+		GLuint uniform_buffer_index_bindings[MAX_UNIFORM_BUFFERS];
 	public:
 		opengl_array_state(): active_client_texture_unit(0), client_texture_units(NULL) {
 			for ( int i = 0; i < MAX_UNIFORM_BUFFERS; ++i ) {
-				uniform_buffers[i] = 0;
+				uniform_buffer_index_bindings[i] = 0;
 			}
 		}
 		~opengl_array_state();
@@ -270,7 +272,8 @@ class opengl_array_state
 
 		void BindArrayBuffer(GLuint id);
 		void BindElementBuffer(GLuint id);
-		void BindUniformBuffer(GLuint id, GLuint index);
+		void BindUniformBuffer(GLuint id);
+		void BindUniformBufferBindingIndex(GLuint id, GLuint index);
 };
 
 class opengl_state

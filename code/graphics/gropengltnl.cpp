@@ -544,7 +544,7 @@ void opengl_tnl_init()
 		//glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
 		//glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_DEPTH_TEXTURE_MODE_ARB, GL_INTENSITY);
 		int size = (Cmdline_shadow_quality == 2 ? 1024 : 512);
-		vglTexImage3D(GL_TEXTURE_2D_ARRAY_EXT, 0, GL_DEPTH_COMPONENT32, size, size, 4, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+		vglTexImage3D(GL_TEXTURE_2D_ARRAY_EXT, 0, GL_DEPTH_COMPONENT16, size, size, 4, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 		//glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, size, size, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 
 		vglFramebufferTextureEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, Shadow_map_depth_texture, 0);
@@ -567,7 +567,7 @@ void opengl_tnl_init()
 // 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 // 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 // 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		vglTexImage3D(GL_TEXTURE_2D_ARRAY_EXT, 0, GL_RGBA32F_ARB, size, size, 4, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+		vglTexImage3D(GL_TEXTURE_2D_ARRAY_EXT, 0, GL_RGB32F_ARB, size, size, 4, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 		//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F_ARB, size, size, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 
 		vglFramebufferTextureEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, Shadow_map_texture, 0);
@@ -2329,7 +2329,7 @@ void gr_opengl_end_shadow_map()
 		gr_end_view_matrix();
 		in_shadow_map = false;
 
-		gr_post_process_shadow_map();
+		//gr_post_process_shadow_map();
 
 		gr_zbuffer_set(ZBUFFER_TYPE_FULL);
 		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, saved_fb);
@@ -2508,7 +2508,7 @@ void gr_opengl_tnl_set_uniforms(int flags, uint shader_flags, int tmap_type)
 		modelmatrix[14] = Object_position.xyz.z;
 		modelmatrix[15] = 1.0f;
 		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_mv_matrix"), 1, GL_FALSE, lmatrix);
-		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_proj_matrix"), 3, GL_FALSE, &lprojmatrix[0][0]);
+		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_proj_matrix"), 4, GL_FALSE, &lprojmatrix[0][0]);
 		vglUniformMatrix4fvARB( opengl_shader_get_uniform("model_matrix"), 1, GL_FALSE, modelmatrix );
 		vglUniform1fARB( opengl_shader_get_uniform("neardist"), shadow_neardist );
 		vglUniform1fARB( opengl_shader_get_uniform("middist"), shadow_middist );
@@ -2522,7 +2522,7 @@ void gr_opengl_tnl_set_uniforms(int flags, uint shader_flags, int tmap_type)
 
 	if(shader_flags & SDR_FLAG_GEOMETRY)
 	{
-		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_proj_matrix"), 3, GL_FALSE, &lprojmatrix[0][0]);
+		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_proj_matrix"), 4, GL_FALSE, &lprojmatrix[0][0]);
 	}
 
 	if ((shader_flags & SDR_FLAG_ANIMATED))
@@ -2541,8 +2541,10 @@ void gr_opengl_tnl_set_uniforms(int flags, uint shader_flags, int tmap_type)
 	}
 
 	if ( shader_flags & SDR_FLAG_TRANSFORM ) {
-		GL_state.Array.BindUniformBuffer(Interp_transform_texture, 0);
-		vglUniformBlockBindingARB(Current_shader->program_id, 0, opengl_shader_get_uniform_block("transform_data"));
+		const uint BUFFER_BLOCK_BINDING_INDEX = 0;
+
+		GL_state.Array.BindUniformBufferBindingIndex(Interp_transform_texture, BUFFER_BLOCK_BINDING_INDEX);
+		vglUniformBlockBindingARB(Current_shader->program_id, opengl_shader_get_uniform_block("transform_data"), BUFFER_BLOCK_BINDING_INDEX);
 // 		GL_state.Texture.SetActiveUnit(render_pass);
 // 		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 // 		GL_state.Texture.Enable(Interp_transform_texture);
@@ -3088,22 +3090,8 @@ void uniform_handler::generateUniforms(int texture_slots[], int flags, uint sdr_
 			}
 		}
 
-		memset( modelmatrix, 0, sizeof(modelmatrix) );
-		modelmatrix[0]  = Object_matrix.vec.rvec.xyz.x;   modelmatrix[4]  = Object_matrix.vec.uvec.xyz.x;   modelmatrix[8]  = Object_matrix.vec.fvec.xyz.x;
-		modelmatrix[1]  = Object_matrix.vec.rvec.xyz.y;   modelmatrix[5]  = Object_matrix.vec.uvec.xyz.y;   modelmatrix[9]  = Object_matrix.vec.fvec.xyz.y;
-		modelmatrix[2]  = Object_matrix.vec.rvec.xyz.z;   modelmatrix[6]  = Object_matrix.vec.uvec.xyz.z;   modelmatrix[10] = Object_matrix.vec.fvec.xyz.z;
-		modelmatrix[12] = Object_position.xyz.x;
-		modelmatrix[13] = Object_position.xyz.y;
-		modelmatrix[14] = Object_position.xyz.z;
-		modelmatrix[15] = 1.0f;
-// 
-// 		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_mv_matrix"), 1, GL_FALSE, lmatrix);
-// 		vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_proj_matrix"), 3, GL_FALSE, &lprojmatrix[0][0]);
-// 		vglUniformMatrix4fvARB( opengl_shader_get_uniform("model_matrix"), 1, GL_FALSE, modelmatrix );
-//		queueUniform4fv("shadow_mv_matrix", 1, GL_FALSE, &l_matrix);
 		queueUniformMatrix4f("shadow_mv_matrix", GL_FALSE, l_matrix);
 		queueUniform4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
-//		queueUniform4fv("model_matrix", 1, GL_FALSE, &model_matrix);
 		queueUniformMatrix4f("model_matrix", GL_FALSE, model_matrix);
 		queueUniformf("veryneardist", shadow_veryneardist);
 		queueUniformf("neardist", shadow_neardist);
@@ -3125,7 +3113,7 @@ void uniform_handler::generateUniforms(int texture_slots[], int flags, uint sdr_
 
 		queueUniformi("shadow_map_num", Current_shadow_frustum);
 		queueUniform4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
-		//vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_proj_matrix"), 3, GL_FALSE, &lprojmatrix[0][0]);
+		//vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_proj_matrix"), 4, GL_FALSE, &lprojmatrix[0][0]);
 	}
 
 	if ( sdr_flags & SDR_FLAG_ANIMATED ) {
@@ -3135,8 +3123,8 @@ void uniform_handler::generateUniforms(int texture_slots[], int flags, uint sdr_
 	}
 
 	if ( sdr_flags & SDR_FLAG_TRANSFORM ) {
-		GL_state.Array.BindUniformBuffer(Interp_transform_texture, 0);
-		vglUniformBlockBindingARB(Current_shader->program_id, 0, opengl_shader_get_uniform_block("transform_data"));
+		GL_state.Array.BindUniformBufferBindingIndex(Interp_transform_texture, 0);
+		vglUniformBlockBindingARB(Current_shader->program_id, opengl_shader_get_uniform_block("transform_data"), 0);
 // 		queueUniformi("transform_tex", render_pass);
 // 		texture_slots[TEX_SLOT_TRANSFORM] = render_pass;
 // 		++render_pass;

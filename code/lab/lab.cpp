@@ -930,7 +930,7 @@ void labviewer_render_model(float frametime)
 		if( !( flagggs & MR_NO_LIGHTING ) && Cmdline_shadow_quality ) {
 			polymodel *pm = model_get(Lab_model_num);
 
-			shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -Lab_viewer_pos.xyz.z + pm->rad, 200.0f, 5000.0f, 5000.0f);
+			shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect,  -Lab_viewer_pos.xyz.z + pm->rad, -Lab_viewer_pos.xyz.z + pm->rad + 200.0f, -Lab_viewer_pos.xyz.z + pm->rad + 2000.0f, -Lab_viewer_pos.xyz.z + pm->rad + 10000.0f);
 
 			model_immediate_render(Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
 

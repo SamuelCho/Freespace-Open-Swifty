@@ -395,8 +395,29 @@ void obj_render_queue_all()
 
 	gr_flush_data_states();
 	gr_set_buffer(-1);
+	gr_set_fill_mode(GR_FILL_MODE_SOLID);
 
  	gr_deferred_lighting_end();
+	PROFILE("Apply Lights", gr_deferred_lighting_finish());
+
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+
+	gr_reset_lighting();
+	gr_set_lighting(false, false);
+
+	// now render transparent meshes
+	scene.renderAll(GR_ALPHABLEND_FILTER);
+
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+	gr_zbias(0);
+	gr_set_cull(0);
+	gr_set_fill_mode(GR_FILL_MODE_SOLID);
+
+	gr_flush_data_states();
+	gr_set_buffer(-1);
+
+	gr_reset_lighting();
+	gr_set_lighting(false, false);
 
 	//WMC - draw maneuvering thrusters
  	extern void batch_render_man_thrusters();
@@ -408,15 +429,6 @@ void obj_render_queue_all()
 	}
 
 	batch_render_all();
-
-	gr_reset_lighting();
-	gr_set_lighting(false, false);
-
-	gr_deferred_lighting_finish();
-
-	gr_zbuffer_set(ZBUFFER_TYPE_READ);
-
-	scene.renderAll(GR_ALPHABLEND_FILTER);
 
 	gr_zbias(0);
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);

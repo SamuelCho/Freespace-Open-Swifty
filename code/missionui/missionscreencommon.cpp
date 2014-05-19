@@ -1756,7 +1756,7 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 
 				gr_reset_clip();
 
-				shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, 200.0f, 5000.0f, 5000.0f);
+				shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 2000.0f, -closeup_pos->xyz.z + pm->rad + 10000.0f);
 				model_immediate_render(model_id, &model_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
 				shadows_end_render();
 

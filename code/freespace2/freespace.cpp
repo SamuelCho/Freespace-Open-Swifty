@@ -2122,7 +2122,7 @@ void game_show_framerate()
 		gr_set_color_fast(&HUD_color_debug);
 
 		if (Cmdline_frame_profile) {
-			gr_string(20, 110, profile_output);
+			gr_string(20, 110, profile_output.c_str());
 		}
 
 		if (Show_framerate) {
@@ -3742,8 +3742,8 @@ void game_render_frame( camid cid )
 		stars_draw(1,1,1,0,0);
 	}
 
-	shadows_render_all(Proj_fov, &Eye_matrix, &Eye_position);
-	obj_render_queue_all();
+	PROFILE("Build Shadow Map", shadows_render_all(Proj_fov, &Eye_matrix, &Eye_position));
+	PROFILE("Render Scene", obj_render_queue_all());
 
 //	render_shadow_maps();
 // 	gr_deferred_lighting_begin();

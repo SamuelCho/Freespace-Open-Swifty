@@ -1968,7 +1968,8 @@ void gr_opengl_destroy_transformation_tex(uint texture_id)
 {
 	GLuint tex_id = (GLuint)texture_id;
 
-	glDeleteTextures(1, &tex_id);
+	//glDeleteTextures(1, &tex_id);
+	vglDeleteBuffersARB(1, &tex_id);
 }
 
 void gr_opengl_update_transformation_tex(uint texture_id, int n_entries, float *data)
@@ -1976,7 +1977,8 @@ void gr_opengl_update_transformation_tex(uint texture_id, int n_entries, float *
 // 	GL_state.Texture.SetActiveUnit(0);
 // 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 // 	GL_state.Texture.Enable(texture_id);
-	GL_state.Array.BindUniformBuffer(texture_id, 0);
+//	GL_state.Array.BindUniformBuffer(texture_id);
+	GL_state.Array.BindUniformBufferBindingIndex(texture_id, 0);
 
 	vglBufferDataARB(GL_UNIFORM_BUFFER, n_entries*16*sizeof(float), data, GL_STREAM_DRAW);
 	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F_ARB, 4, n_entries, 0, GL_RGBA, GL_FLOAT, data);

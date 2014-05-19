@@ -1155,9 +1155,12 @@ NoHit:
 		// or if it's set to no collision
 		if ( !blown_off && !collision_checked && !csm->no_collisions )	{
 			if ( Mc_pmi ) {
-				Mc_orient = Mc_pmi->submodel[i].mc_orient;
+				vm_matrix_x_matrix(&Mc_orient, Mc->orient, &Mc_pmi->submodel[i].mc_orient);
+				//Mc_orient = Mc_pmi->submodel[i].mc_orient;
 				Mc_base = Mc_pmi->submodel[i].mc_base;
 				vm_vec_add2(&Mc_base, Mc->pos);
+				//Mc_base = Mc_pmi->submodel[i].mc_base;
+				//vm_vec_sub(&Mc_base, &Mc_pmi->submodel[i].mc_base, Mc->pos);
 			} else {
 				//instance for this subobject
 				matrix tm = IDENTITY_MATRIX;

@@ -564,7 +564,7 @@ void techroom_ships_render(float frametime)
     {
         gr_reset_clip();
 
-		shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -sip->closeup_pos.xyz.z + pm->rad, 200.0f, 5000.0f, 5000.0f);
+		shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -sip->closeup_pos.xyz.z + pm->rad, -sip->closeup_pos.xyz.z + pm->rad + 200.0f, -sip->closeup_pos.xyz.z + pm->rad + 2000.0f, -sip->closeup_pos.xyz.z + pm->rad + 10000.0f);
         model_immediate_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
         shadows_end_render();
 
