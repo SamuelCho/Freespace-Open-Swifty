@@ -389,6 +389,9 @@ typedef struct weapon_info {
 	int max_seeking;						// how many seekers can be active at a time if multilock is enabled. A value of one will lock stuff up one by one.
 	int max_seekers_per_target;			// how many seekers can be attached to a target.
 
+	SCP_vector<int> ship_type_restrict;
+	SCP_vector<SCP_string> ship_type_restrict_temp;
+
 	bool trigger_lock;						// Trigger must be held down and released to lock and fire.
 	bool launch_reset_locks;				// Lock indicators reset after firing
 
@@ -671,5 +674,8 @@ void weapon_unpause_sounds();
 
 // Swifty - return number of max simultaneous locks 
 int weapon_get_max_missile_seekers(weapon_info *wip);
+
+// return if this weapon can lock on this ship type
+bool weapon_can_lock_on_ship_type(weapon_info *wip, int ship_type);
 
 #endif

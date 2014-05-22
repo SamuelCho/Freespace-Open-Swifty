@@ -904,10 +904,7 @@ void hud_lock_acquire_uncaged_target(lock_info *current_lock, weapon_info *wip)
 			continue;
 		}
 
-		if ( !hud_lock_world_pos_in_range(&A->pos, &vec_to_target) ) {
-			continue;
-		}
-
+		int in_range = hud_lock_world_pos_in_range(&A->pos, &vec_to_target);
 		vm_vec_normalize(&vec_to_target);
 		dot = vm_vec_dot(&Player_obj->orient.vec.fvec, &vec_to_target);
 
@@ -918,6 +915,10 @@ void hud_lock_acquire_uncaged_target(lock_info *current_lock, weapon_info *wip)
 
 		sp = &Ships[A->instance];
 		ss = NULL;
+
+		if ( !weapon_can_lock_on_ship_type(wip, Ship_info[sp->ship_info_index].class_type) ) {
+			continue;
+		}
 
 		if ( Ship_info[sp->ship_info_index].flags & (SIF_BIG_SHIP|SIF_HUGE_SHIP) ) {
 			lock_info temp_lock;
@@ -937,6 +938,10 @@ void hud_lock_acquire_uncaged_target(lock_info *current_lock, weapon_info *wip)
 				least_num_locks = ss_num_locks;
 			}
 		} else {
+			if ( !in_range ) {
+				continue;
+			}
+
 			if ( dot < wip->lock_fov ) {
 				continue;
 			}
@@ -1029,6 +1034,11 @@ void hud_lock_determine_lock_target(lock_info *lock_slot, weapon_info *wip)
 			return;
 		}
 
+		if ( !weapon_can_lock_on_ship_type(wip, Ship_info[Ships[lock_slot->obj->instance].ship_info_index].class_type) ) {
+			ship_clear_lock(lock_slot);
+			return;
+		}
+
 		if ( lock_slot->obj->type == OBJ_SHIP && Ship_info[Ships[lock_slot->obj->instance].ship_info_index].flags & (SIF_BIG_SHIP|SIF_HUGE_SHIP) ) {
 			float dot = 0.0f;
 			int num_locks = INT_MAX;
@@ -1088,6 +1098,11 @@ void hud_lock_determine_lock_target(lock_info *lock_slot, weapon_info *wip)
 
 		// Allow locking on ships and bombs (only targeted weapon allowed is a bomb, so don't bother checking flags)
 		if ( lock_slot->obj->type != OBJ_SHIP && lock_slot->obj->type != OBJ_WEAPON ) {
+			ship_clear_lock(lock_slot);
+			return;
+		}
+
+		if ( !weapon_can_lock_on_ship_type(wip, Ship_info[Ships[lock_slot->obj->instance].ship_info_index].class_type) ) {
 			ship_clear_lock(lock_slot);
 			return;
 		}

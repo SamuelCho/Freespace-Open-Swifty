@@ -876,6 +876,8 @@ void init_weapon_entry(int weap_info_index)
 
 	wip->max_seeking = 1;
 	wip->max_seekers_per_target = 1;
+	wip->ship_type_restrict.clear();
+	wip->ship_type_restrict_temp.clear();
 
 	wip->acquire_method = WLOCK_PIXEL;
 
@@ -1656,6 +1658,10 @@ int parse_weapon(int subtype, bool replace)
 
 			if ( optional_string("+Max Active Seekers:") ) {
 				stuff_int(&wip->max_seeking);
+			}
+
+			if ( optional_string("+Ship Types:") ) {
+				stuff_string_list(wip->ship_type_restrict_temp);
 			}
 
 			if (wip->wi_flags & WIF_LOCKED_HOMING) {
@@ -3381,6 +3387,17 @@ void weapon_level_init()
 	for (i=0; i<MAX_WEAPON_TYPES; i++)	{
 		Weapon_info[i].damage_type_idx = Weapon_info[i].damage_type_idx_sav;
 		Weapon_info[i].shockwave.damage_type_idx = Weapon_info[i].shockwave.damage_type_idx_sav;
+
+		// populate ship type lock restrictions
+		for ( int j = 0; j < Weapon_info[i].ship_type_restrict_temp.size(); ++j ) {
+			int idx = ship_type_name_lookup((char*)Weapon_info[i].ship_type_restrict_temp[j].c_str());
+
+			if ( idx >= 0 ) {
+				Weapon_info[i].ship_type_restrict.push_back(idx);
+			}
+		}
+
+		Weapon_info[i].ship_type_restrict_temp.clear();
 	}
 
 	trail_level_init();		// reset all missile trails
@@ -6708,4 +6725,21 @@ int weapon_get_max_missile_seekers(weapon_info *wip)
 	}
 
 	return max_target_locks;
+}
+
+bool weapon_can_lock_on_ship_type(weapon_info *wip, int ship_type)
+{
+	if ( wip->ship_type_restrict.size() == 0 ) {
+		// no restrictions since this list wasn't even populated
+		return true; 
+	}
+
+	for ( size_t i = 0; i < wip->ship_type_restrict.size(); ++i ) {
+		if ( wip->ship_type_restrict[i] == ship_type ) {
+			return true; 
+		}
+	}
+
+	// can't lock this weapon on this ship type
+	return false; 
 }
