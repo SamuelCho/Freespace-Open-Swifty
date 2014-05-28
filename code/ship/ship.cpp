@@ -11085,7 +11085,7 @@ int ship_fire_secondary( object *obj, int allow_swarm )
 
 	// Ensure if this is a "require-lock" missile, that a lock actually exists
 	if ( wip->wi_flags & WIF_NO_DUMBFIRE ) {
-		if ( aip->current_target_is_locked <= 0 || ( obj->flags & OF_PLAYER_SHIP && !ship_lock_present(shipp) ) ) {
+		if ( ( obj->flags & OF_PLAYER_SHIP && !ship_lock_present(shipp) ) || ( !(obj->flags & OF_PLAYER_SHIP) && aip->current_target_is_locked <= 0 ) ) {
 			if ( obj == Player_obj ) {			
 				if ( !Weapon_energy_cheat ) {
 					float max_dist;
