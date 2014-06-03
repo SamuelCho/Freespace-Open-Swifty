@@ -177,11 +177,62 @@ public:
 			i_last = j;
 	}
 
+	// Constructor
 	buffer_data(int n_vrts) :
 		flags(0), texture(-1), n_verts(n_vrts), index_offset(0),
 		i_first(1), i_last(0)
 	{
 		index = new(std::nothrow) uint[n_verts];
+	}
+    
+	// Copy-constructor
+	buffer_data(const buffer_data& other)
+	{
+		index = new(std::nothrow) uint[other.n_verts];
+		for (size_t i=0; i < (size_t) other.n_verts; i++)
+		{
+			index[i] = other.index[i];
+		}
+        
+		flags   = other.flags;
+		texture = other.texture;
+		n_verts = other.n_verts;
+
+		i_first = other.i_first;
+		i_last  = other.i_last;
+        
+		index_offset = other.index_offset;
+	}
+    
+	// Copy-assignment operator
+	buffer_data& operator=(const buffer_data& rhs)
+	{
+		if (this != &rhs)
+		{
+			delete [] index;
+            
+			index = new(std::nothrow) uint[rhs.n_verts];
+			for (size_t i=0; i < (size_t) rhs.n_verts; i++)
+			{
+				index[i] = rhs.index[i];
+			}
+            
+			flags   = rhs.flags;
+			texture = rhs.texture;
+			n_verts = rhs.n_verts;
+            
+			i_first = rhs.i_first;
+			i_last  = rhs.i_last;
+            
+			index_offset = rhs.index_offset;
+		}
+		return *this;
+	}
+    
+	// Destructor
+	~buffer_data()
+	{
+		release();
 	}
 
 private:
@@ -308,7 +359,7 @@ typedef struct screen {
 	void (*gf_flash_alpha)(int r, int g, int b, int a);
 
 	// sets the clipping region
-	void (*gf_set_clip)(int x, int y, int w, int h, bool resize);
+	void (*gf_set_clip)(int x, int y, int w, int h, int resize_mode);
 
 	// resets the clipping region to entire screen
 	void (*gf_reset_clip)();
@@ -316,22 +367,24 @@ typedef struct screen {
 	// clears entire clipping region to current color
 	void (*gf_clear)();
 
-	// void (*gf_bitmap)(int x, int y, bool resize);
-	void (*gf_bitmap_ex)(int x, int y, int w, int h, int sx, int sy, bool resize);
+	// void (*gf_bitmap)(int x, int y, int resize_mode);
+	void (*gf_bitmap_ex)(int x, int y, int w, int h, int sx, int sy, int resize_mode);
 
-	void (*gf_aabitmap)(int x, int y, bool resize, bool mirror);
-	void (*gf_aabitmap_ex)(int x, int y, int w, int h, int sx, int sy, bool resize, bool mirror);
+	void (*gf_aabitmap)(int x, int y, int resize_mode, bool mirror);
+	void (*gf_aabitmap_ex)(int x, int y, int w, int h, int sx, int sy, int resize_mode, bool mirror);
 
-	void (*gf_string)(int x, int y, const char * text,bool resize);
+	void (*gf_string)(int x, int y, const char * text,int resize_mode);
 
 	// Draw a gradient line... x1,y1 is bright, x2,y2 is transparent.
-	void (*gf_gradient)(int x1, int y1, int x2, int y2, bool resize);
+	void (*gf_gradient)(int x1, int y1, int x2, int y2, int resize_mode);
  
-	void (*gf_circle)(int x, int y, int r, bool resize);
-	void (*gf_curve)(int x, int y, int r, int direction);
+	void (*gf_circle)(int x, int y, int r, int resize_mode);
+	void (*gf_unfilled_circle)(int x, int y, int r, int resize_mode);
+	void (*gf_arc)(int x, int y, float r, float angle_start, float angle_end, bool fill, int resize_mode);
+	void (*gf_curve)(int x, int y, int r, int direction, int resize_mode);
 
 	// Integer line. Used to draw a fast but pixely line.  
-	void (*gf_line)(int x1, int y1, int x2, int y2, bool resize);
+	void (*gf_line)(int x1, int y1, int x2, int y2, int resize_mode);
 
 	// Draws an antialiased line is the current color is an 
 	// alphacolor, otherwise just draws a fast line.  This
@@ -340,7 +393,7 @@ typedef struct screen {
 	// not this if you have two 3d points.
 	void (*gf_aaline)(vertex *v1, vertex *v2);
 
-	void (*gf_pixel)( int x, int y, bool resize );
+	void (*gf_pixel)( int x, int y, int resize_mode );
 
 	// Scales current bitmap between va and vb with clipping
 	void (*gf_scaler)(vertex *va, vertex *vb, bool bw_bitmap );
@@ -422,7 +475,7 @@ typedef struct screen {
 	int (*gf_set_color_buffer)(int mode);
 
 	// cross fade
-	void (*gf_cross_fade)(int bmap1, int bmap2, int x1, int y1, int x2, int y2, float pct);
+	void (*gf_cross_fade)(int bmap1, int bmap2, int x1, int y1, int x2, int y2, float pct, int resize_mode);
 
 	// set a texture into cache. for sectioned bitmaps, pass in sx and sy to set that particular section of the bitmap
 	int (*gf_tcache_set)(int bitmap_id, int bitmap_type, float *u_scale, float *v_scale, int stage);	
@@ -568,19 +621,26 @@ extern screen gr_screen;
 #define GR_STENCIL_READ		1
 #define GR_STENCIL_WRITE	2
 
+#define GR_RESIZE_NONE				0
+#define GR_RESIZE_FULL				1
+#define GR_RESIZE_MENU				2
+#define GR_RESIZE_MENU_NO_OFFSET	3
+
 void gr_set_screen_scale(int x, int y);
 void gr_set_screen_scale(int x, int y, int max_x, int max_y);
 void gr_reset_screen_scale();
-bool gr_unsize_screen_pos(int *x, int *y);
-bool gr_resize_screen_pos(int *x, int *y);
-bool gr_unsize_screen_posf(float *x, float *y);
-bool gr_resize_screen_posf(float *x, float *y);
+bool gr_unsize_screen_pos(int *x, int *y, int *w = NULL, int *h = NULL, int resize_mode = GR_RESIZE_FULL);
+bool gr_resize_screen_pos(int *x, int *y, int *w = NULL, int *h = NULL, int resize_mode = GR_RESIZE_FULL);
+bool gr_unsize_screen_posf(float *x, float *y, float *w = NULL, float *h = NULL, int resize_mode = GR_RESIZE_FULL);
+bool gr_resize_screen_posf(float *x, float *y, float *w = NULL, float *h = NULL, int resize_mode = GR_RESIZE_FULL);
 
 // Does formatted printing.  This calls gr_string after formatting,
 // so if you don't need to format the string, then call gr_string
 // directly.
 extern void _cdecl gr_printf( int x, int y, const char * format, ... );
-// same as above but doesn't resize for non-standard resolutions
+// same as gr_printf but positions text correctly in menus
+extern void _cdecl gr_printf_menu( int x, int y, const char * format, ... );
+// same as gr_printf but doesn't resize for non-standard resolutions
 extern void _cdecl gr_printf_no_resize( int x, int y, const char * format, ... );
 
 // Returns the size of the string in pixels in w and h
@@ -618,55 +678,66 @@ extern void gr_activate(int active);
 void gr_flip();
 
 //#define gr_set_clip			GR_CALL(gr_screen.gf_set_clip)
-__inline void gr_set_clip(int x, int y, int w, int h, bool resize=true)
+__inline void gr_set_clip(int x, int y, int w, int h, int resize_mode=GR_RESIZE_FULL)
 {
-	(*gr_screen.gf_set_clip)(x,y,w,h,resize);
+	(*gr_screen.gf_set_clip)(x,y,w,h,resize_mode);
 }
 #define gr_reset_clip		GR_CALL(gr_screen.gf_reset_clip)
 
 void gr_set_bitmap(int bitmap_num, int alphablend = GR_ALPHABLEND_NONE, int bitbltmode = GR_BITBLT_MODE_NORMAL, float alpha = 1.0f);
 
 #define gr_clear				GR_CALL(gr_screen.gf_clear)
-__inline void gr_aabitmap(int x, int y, bool resize = true, bool mirror = false)
+__inline void gr_aabitmap(int x, int y, int resize_mode = GR_RESIZE_FULL, bool mirror = false)
 {
-	(*gr_screen.gf_aabitmap)(x,y,resize,mirror);
+	(*gr_screen.gf_aabitmap)(x,y,resize_mode,mirror);
 }
 
-__inline void gr_aabitmap_ex(int x, int y, int w, int h, int sx, int sy, bool resize = true, bool mirror = false)
+__inline void gr_aabitmap_ex(int x, int y, int w, int h, int sx, int sy, int resize_mode = GR_RESIZE_FULL, bool mirror = false)
 {
-	(*gr_screen.gf_aabitmap_ex)(x,y,w,h,sx,sy,resize,mirror);
+	(*gr_screen.gf_aabitmap_ex)(x,y,w,h,sx,sy,resize_mode,mirror);
 }
 
-__inline void gr_bitmap_ex(int x, int y, int w, int h, int sx, int sy, bool resize = true)
+__inline void gr_bitmap_ex(int x, int y, int w, int h, int sx, int sy, int resize_mode = GR_RESIZE_FULL)
 {
-	(*gr_screen.gf_bitmap_ex)(x, y, w, h, sx, sy, resize);
+	(*gr_screen.gf_bitmap_ex)(x, y, w, h, sx, sy, resize_mode);
 }
 
-void gr_shield_icon(coord2d coords[6], const bool resize = true);
-void gr_rect(int x, int y, int w, int h, bool resize = true);
-void gr_shade(int x, int y, int w, int h, bool resize = true);
+void gr_shield_icon(coord2d coords[6], const int resize_mode = GR_RESIZE_FULL);
+void gr_rect(int x, int y, int w, int h, int resize_mode = GR_RESIZE_FULL);
+void gr_shade(int x, int y, int w, int h, int resize_mode = GR_RESIZE_FULL);
 
-__inline void gr_string(int x, int y, const char* string, bool resize = true)
+__inline void gr_string(int x, int y, const char* string, int resize_mode = GR_RESIZE_FULL)
 {
-	(*gr_screen.gf_string)(x,y,string,resize);
+	(*gr_screen.gf_string)(x,y,string,resize_mode);
 }
 
-__inline void gr_circle(int xc, int yc, int d, bool resize = true)
+__inline void gr_circle(int xc, int yc, int d, int resize_mode = GR_RESIZE_FULL)
 {
-	(*gr_screen.gf_circle)(xc,yc,d,resize);
+	(*gr_screen.gf_circle)(xc,yc,d,resize_mode);
 }
+
+__inline void gr_unfilled_circle(int xc, int yc, int d, int resize_mode = GR_RESIZE_FULL)
+{
+	(*gr_screen.gf_unfilled_circle)(xc,yc,d,resize_mode);
+}
+
+__inline void gr_arc(int xc, int yc, float r, float angle_start, float angle_end, bool fill, int resize_mode = GR_RESIZE_FULL)
+{
+	(*gr_screen.gf_arc)(xc,yc,r,angle_start,angle_end,fill,resize_mode);
+}
+
 #define gr_curve				GR_CALL(gr_screen.gf_curve)
 
-__inline void gr_line(int x1, int y1, int x2, int y2, bool resize = true)
+__inline void gr_line(int x1, int y1, int x2, int y2, int resize_mode = GR_RESIZE_FULL)
 {
-	(*gr_screen.gf_line)(x1, y1, x2, y2, resize);
+	(*gr_screen.gf_line)(x1, y1, x2, y2, resize_mode);
 }
 
 #define gr_aaline				GR_CALL(gr_screen.gf_aaline)
 
-__inline void gr_pixel(int x, int y, bool resize = true)
+__inline void gr_pixel(int x, int y, int resize_mode = GR_RESIZE_FULL)
 {
-	(*gr_screen.gf_pixel)(x, y, resize);
+	(*gr_screen.gf_pixel)(x, y, resize_mode);
 }
 #define gr_scaler				GR_CALL(gr_screen.gf_scaler)
 #define gr_aascaler			GR_CALL(gr_screen.gf_aascaler)
@@ -674,9 +745,9 @@ __inline void gr_pixel(int x, int y, bool resize = true)
 #define gr_render			GR_CALL(gr_screen.gf_render)
 #define gr_render_effect	GR_CALL(gr_screen.gf_render_effect)
 
-__inline void gr_gradient(int x1, int y1, int x2, int y2, bool resize = true)
+__inline void gr_gradient(int x1, int y1, int x2, int y2, int resize_mode = GR_RESIZE_FULL)
 {
-	(*gr_screen.gf_gradient)(x1, y1, x2, y2, resize);
+	(*gr_screen.gf_gradient)(x1, y1, x2, y2, resize_mode);
 }
 
 #define gr_fade_in			GR_CALL(gr_screen.gf_fade_in)
@@ -839,10 +910,10 @@ void gr_create_shader(shader *shade, ubyte r, ubyte g, ubyte b, ubyte c);
 void gr_set_shader(shader *shade);
 
 // new bitmap functions
-void gr_bitmap(int x, int y, bool resize = true);
-void gr_bitmap_uv(int _x, int _y, int _w, int _h, float _u0, float _v0, float _u1, float _v1, bool resize = true);
-void gr_bitmap_list(bitmap_2d_list* list, int n_bm, bool allow_scaling);
-void gr_bitmap_list(bitmap_rect_list* list, int n_bm, bool allow_scaling);
+void gr_bitmap(int x, int y, int resize_mode = GR_RESIZE_FULL);
+void gr_bitmap_uv(int _x, int _y, int _w, int _h, float _u0, float _v0, float _u1, float _v1, int resize_mode = GR_RESIZE_FULL);
+void gr_bitmap_list(bitmap_2d_list* list, int n_bm, int resize_mode);
+void gr_bitmap_list(bitmap_rect_list* list, int n_bm, int resize_mode);
 
 // texture update functions
 ubyte* gr_opengl_get_texture_update_pointer(int bitmap_handle);
@@ -851,7 +922,7 @@ void gr_opengl_update_texture(int bitmap_handle, int bpp, ubyte* data, int width
 // special function for drawing polylines. this function is specifically intended for
 // polylines where each section is no more than 90 degrees away from a previous section.
 // Moreover, it is _really_ intended for use with 45 degree angles. 
-void gr_pline_special(vec3d **pts, int num_pts, int thickness,bool resize=true);
+void gr_pline_special(vec3d **pts, int num_pts, int thickness,int resize_mode=GR_RESIZE_FULL);
 
 #define VB_FLAG_POSITION	(1<<0)	
 #define VB_FLAG_RHW			(1<<1)	//incompatable with the next normal

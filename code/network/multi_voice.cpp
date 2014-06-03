@@ -22,7 +22,7 @@
 #include "menuui/optionsmenumulti.h"
 #include "network/multi.h"
 #include "playerman/player.h"
-
+#include "debugconsole/console.h"
 
 
 // --------------------------------------------------------------------------------------------------
@@ -483,16 +483,17 @@ void multi_voice_process()
 // voice settings debug console function
 void multi_voice_dcf()
 {
-	dc_get_arg(ARG_STRING);
+	SCP_string arg;
+	int value;
+
+	dc_stuff_string_white(arg);
 
 	// set the quality of sound
-	if (strcmp(Dc_arg, NOX("qos")) == 0) {
-		dc_get_arg(ARG_INT);
-		if(Dc_arg_type & ARG_INT){
-			if((Dc_arg_int >= 1) && (Dc_arg_int <= 10) && (Net_player->flags & NETINFO_FLAG_AM_MASTER)){
-				multi_voice_set_vars(Dc_arg_int,-1);
-				dc_printf("Quality of sound : %d\n",Dc_arg_int);
-			}
+	if (arg == NOX("qos")) {
+		dc_stuff_int(&value);
+		if((value >= 1) && (value <= 10) && (Net_player->flags & NETINFO_FLAG_AM_MASTER)){
+			multi_voice_set_vars(value,-1);
+			dc_printf("Quality of sound : %d\n", value);
 		}
 	}
 }
@@ -888,7 +889,8 @@ void multi_voice_release_token()
 	if(Net_player->flags & NETINFO_FLAG_AM_MASTER){
 		// mark the token as being released
 		int stream_index = multi_voice_find_token(MY_NET_PLAYER_NUM);
-		Multi_voice_stream[stream_index].token_status = MULTI_VOICE_TOKEN_INDEX_RELEASED;
+		if (stream_index != -1)
+			Multi_voice_stream[stream_index].token_status = MULTI_VOICE_TOKEN_INDEX_RELEASED;
 				
 		// timestamp this guy so that he can't get the token back immediately
 		Net_player->s_info.voice_token_timestamp = timestamp(Netgame.options.voice_token_wait);
@@ -1585,16 +1587,17 @@ int multi_voice_process_data_dummy(ubyte *data)
 	GET_DATA(stream_id);
 
 	// get the proper stream index
-	stream_index = multi_voice_get_stream((int)stream_id);
+	if ( (stream_index = multi_voice_get_stream((int)stream_id) ) != -1 ) {
 
-	// set the token timestamp
-	Multi_voice_stream[stream_index].token_stamp = timestamp(MULTI_VOICE_TOKEN_TIMEOUT);
+		// set the token timestamp
+		Multi_voice_stream[stream_index].token_stamp = timestamp(MULTI_VOICE_TOKEN_TIMEOUT);
 
-	// set the last heard time
-	Multi_voice_stream[stream_index].stream_last_heard = timer_get_fixed_seconds();
+		// set the last heard time
+		Multi_voice_stream[stream_index].stream_last_heard = timer_get_fixed_seconds();
 
-	// set the timeout timestamp
-	Multi_voice_stamps[stream_index] = timestamp(MV_ALG_TIMEOUT);	
+		// set the timeout timestamp
+		Multi_voice_stamps[stream_index] = timestamp(MV_ALG_TIMEOUT);
+	}
 
 	// return bytes processed
 	return offset;

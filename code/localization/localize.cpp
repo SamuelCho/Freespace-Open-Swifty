@@ -58,7 +58,7 @@ int Lcl_english = 1;
 // the english version (in the code) to a foreign version (in the table).  Thus, if you
 // add a new string to the code, you must assign it a new index.  Use the number below for
 // that index and increase the number below by one.
-#define XSTR_SIZE	1636
+#define XSTR_SIZE	1637
 
 
 // struct to allow for strings.tbl-determined x offset
@@ -307,8 +307,10 @@ void parse_stringstbl(const char *filename)
 	strcpy_s(language_tag, "#");
 	strcat_s(language_tag, Lcl_languages[Lcl_current_lang].lang_name);
 
-	if ( skip_to_string(language_tag) != 1 )
-		Error(LOCATION, "%s is corrupt", filename);
+	if ( skip_to_string(language_tag) != 1 ) {
+		mprintf(("Current language not found in %s\n", filename));
+		return;
+	}
 
 	// parse all the strings in this section of the table
 	while ( !check_for_string("#") ) {
@@ -468,6 +470,19 @@ void lcl_set_language(int lang)
 
 	// flag the proper language as being active
 	Lcl_special_chars = Lcl_languages[Lcl_current_lang].special_char_indexes[0];
+	Lcl_fr = 0;
+	Lcl_gr = 0;
+	Lcl_pl = 0;
+	Lcl_english = 0;
+	if (!strcmp(Lcl_languages[Lcl_current_lang].lang_name, Lcl_builtin_languages[LCL_ENGLISH].lang_name)) {
+		Lcl_english = 1;
+	} else if (!strcmp(Lcl_languages[Lcl_current_lang].lang_name, Lcl_builtin_languages[LCL_FRENCH].lang_name)) {
+		Lcl_fr = 1;
+	} else if (!strcmp(Lcl_languages[Lcl_current_lang].lang_name, Lcl_builtin_languages[LCL_GERMAN].lang_name)) {
+		Lcl_gr = 1;
+	} else if (!strcmp(Lcl_languages[Lcl_current_lang].lang_name, Lcl_builtin_languages[LCL_POLISH].lang_name)) {
+		Lcl_pl = 1;
+	}
 
 	// set to 0, so lcl_ext_open() knows to reset file pointers
 	Lcl_pointer_count = 0;

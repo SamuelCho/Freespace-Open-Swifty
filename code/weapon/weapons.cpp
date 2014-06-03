@@ -47,6 +47,7 @@
 #include "parse/scripting.h"
 #include "stats/scoring.h"
 #include "mod_table/mod_table.h"
+#include "debugconsole/console.h"
 
 
 #ifndef NDEBUG
@@ -648,6 +649,21 @@ void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2, int wi_fl
 			weaponp->wi_flags3 |= WIF3_NOLINK;
 		else if (!stricmp(NOX("same emp time for capships"), weapon_strings[i]))
 			weaponp->wi_flags3 |= WIF3_USE_EMP_TIME_FOR_CAPSHIP_TURRETS;
+		else if (!stricmp(NOX("no primary linked penalty"), weapon_strings[i]))
+			weaponp->wi_flags3 |= WIF3_NO_LINKED_PENALTY;
+		else if (!stricmp(NOX("no homing speed ramp"), weapon_strings[i]))
+			weaponp->wi_flags3 |= WIF3_NO_HOMING_SPEED_RAMP;
+		else if (!stricmp(NOX("pulls aspect seekers"), weapon_strings[i]))
+		{
+			if (!(weaponp->wi_flags & WIF_CMEASURE))
+			{
+				Warning(LOCATION, "\"pulls aspect seekers\" may only be used for countermeasures!");
+			}
+			else
+			{
+				weaponp->wi_flags3 |= WIF3_CMEASURE_ASPECT_HOME_ON;
+			}
+		}
 		else
 			Warning(LOCATION, "Bogus string in weapon flags: %s\n", weapon_strings[i]);
 	}
@@ -837,6 +853,8 @@ void init_weapon_entry(int weap_info_index)
 	
 	wip->mass = 1.0f;
 	wip->max_speed = 10.0f;
+	wip->acceleration_time = 0.0f;
+	wip->vel_inherit_amount = 1.0f;
 	wip->free_flight_time = 0.0f;
 	wip->fire_wait = 1.0f;
 	wip->damage = 0.0f;
@@ -1703,6 +1721,15 @@ int parse_weapon(int subtype, bool replace)
 		}
 	}
 
+	if(optional_string("$Acceleration Time:")) {
+		stuff_float(&wip->acceleration_time);
+	}
+
+	if(optional_string("$Velocity Inherit:")) {
+		stuff_float(&wip->vel_inherit_amount);
+		wip->vel_inherit_amount /= 100.0f; // % -> 0..1
+	}
+
 	if(optional_string("$Free Flight Time:")) {
 		stuff_float(&(wip->free_flight_time));
 	} else if(first_time && is_homing) {
@@ -1891,7 +1918,7 @@ int parse_weapon(int subtype, bool replace)
 			ti->stamp = fl2i(1000.0f*ti->max_life)/(NUM_TRAIL_SECTIONS+1);
 		}
 
-		if ( optional_string("+Bitmap:") ) {
+		if ( required_string("+Bitmap:") ) {
 			stuff_string(fname, F_NAME, NAME_LENGTH);
 			generic_bitmap_init(&ti->texture, fname);
 		}
@@ -2335,7 +2362,13 @@ int parse_weapon(int subtype, bool replace)
 			// texture
 			if ( optional_string("+Texture:") ) {
 				stuff_string(fname, F_NAME, NAME_LENGTH);
-				generic_anim_init(&bsip->texture, fname);
+
+				// invisible textures are okay
+				if (!stricmp(fname, "invisible")) {
+					generic_anim_init(&bsip->texture);
+				} else {
+					generic_anim_init(&bsip->texture, fname);
+				}
 			}
 
 			// The E -- Dummied out due to not being used anywhere
@@ -2665,20 +2698,88 @@ int parse_weapon(int subtype, bool replace)
 	if (wip->burst_delay >= wip->fire_wait)
 		wip->burst_shots = 0;
 
-	// vestigial parsing support for a feature that never worked
+	/* Generate a substitution pattern for this weapon.
+	This pattern is very naive such that it calculates the lowest common denominator as being all of
+	the periods multiplied together.
+	*/
 	while ( optional_string("$substitute:") ) {
-		nprintf(("Weapons", "Ignoring $substitute field for weapon '%s'!\n", wip->name));
-
-		char temp_name[NAME_LENGTH];
-		int  temp_int;
-		stuff_string(temp_name, F_NAME, NAME_LENGTH);
+		char subname[NAME_LENGTH];
+		int period = 0;
+		int index = 0;
+		int offset = 0;
+		stuff_string(subname, F_NAME, NAME_LENGTH);
 		if ( optional_string("+period:") ) {
-			stuff_int(&temp_int);
+			stuff_int(&period);
+			if ( period <= 0 ) {
+				Warning(LOCATION, "Substitution '%s' for weapon '%s' requires a period greater than 0. Setting period to 1.", subname, wip->name);
+				period = 1;
+			}
 			if ( optional_string("+offset:") ) {
-				stuff_int(&temp_int);
+				stuff_int(&offset);
+				if ( offset <= 0 ) {
+					Warning(LOCATION, "Period offset for substitution '%s' of weapon '%s' has to be greater than 0. Setting offset to 1.", subname, wip->name);
+					offset = 1;
+				}
 			}
 		} else if ( optional_string("+index:") ) {
-			stuff_int(&temp_int);
+			stuff_int(&index);
+			if ( index < 0 ) {
+				Warning(LOCATION, "Substitution '%s' for weapon '%s' requires an index greater than 0. Setting index to 0.", subname, wip->name);
+				index = 0;
+			}
+		}
+
+		// we are going to use weapon substition so, make sure that the pattern array has at least one element
+		if ( wip->num_substitution_patterns == 0 ) {
+			// pattern is empty, initialize pattern with the weapon being currently parsed.
+			strcpy_s(wip->weapon_substitution_pattern_names[0], wip->name);
+			wip->num_substitution_patterns++;
+		}
+
+		// if tbler specifies a period then determine if we can fit the resulting pattern
+		// neatly into the pattern array.
+		if ( period > 0 ) {
+			if ( (wip->num_substitution_patterns % period) > 0 ) {
+				// not neat, need to expand the pattern so that our frequency pattern fits completly.
+				size_t current_size = wip->num_substitution_patterns;
+				size_t desired_size = current_size*period;
+				if (desired_size > MAX_SUBSTITUTION_PATTERNS) {
+					Warning(LOCATION, "The period is too large for the number of substitution patterns!  desired size=%d, max size=%d", desired_size, MAX_SUBSTITUTION_PATTERNS);
+				}
+				else {
+					wip->num_substitution_patterns = desired_size;
+
+					// now duplicate the current pattern into the new area so the current pattern holds
+					for ( size_t i = current_size; i < desired_size; i++ ) {
+						strcpy_s(wip->weapon_substitution_pattern_names[i], wip->weapon_substitution_pattern_names[i%current_size]);
+					}
+				}
+			}
+
+			/* Apply the substituted weapon at the requested period, barrel
+			shifted by offset if needed.*/
+			for ( size_t pos = (period + offset - 1) % period;
+				pos < wip->num_substitution_patterns; pos += period )
+			{
+				strcpy_s(wip->weapon_substitution_pattern_names[pos], subname);
+			}
+		} else {
+			// assume that tbler wanted to specify a index for the new weapon.
+
+			// make sure that there is enough room
+			if (index >= MAX_SUBSTITUTION_PATTERNS) {
+				Warning(LOCATION, "Substitution pattern index exceeds the maximum size!  Index=%d, max size=%d", index, MAX_SUBSTITUTION_PATTERNS);
+			} else {
+				if ( (size_t)index >= wip->num_substitution_patterns ) {
+					// need to make the pattern bigger by filling the extra with the current weapon.
+					for ( size_t i = wip->num_substitution_patterns; i < (size_t)index; i++ ) {
+						strcpy_s(wip->weapon_substitution_pattern_names[i], subname);
+					}
+					wip->num_substitution_patterns = index+1;
+				}
+
+				strcpy_s(wip->weapon_substitution_pattern_names[index], subname);
+			}
 		}
 	}
 
@@ -3245,6 +3346,33 @@ void weapon_load_bitmaps(int weapon_index)
 		used_weapons[weapon_index]++;
 }
 
+/**
+ * Checks all of the weapon infos for substitution patterns and caches the weapon_index of any that it finds. 
+ */
+void weapon_generate_indexes_for_substitution() {
+	for (int i = 0; i < MAX_WEAPON_TYPES; i++) {
+		weapon_info *wip = &(Weapon_info[i]);
+
+		if ( wip->num_substitution_patterns > 0 ) {
+			for ( size_t j = 0; j < wip->num_substitution_patterns; j++ ) {
+				int weapon_index = -1;
+				if ( stricmp("none", wip->weapon_substitution_pattern_names[j]) != 0 ) {
+					weapon_index = weapon_info_lookup(wip->weapon_substitution_pattern_names[j]);
+					if ( weapon_index == -1 ) { // invalid sub weapon
+						Warning(LOCATION, "Weapon '%s' requests substitution with '%s' which does not seem to exist",
+							wip->name, wip->weapon_substitution_pattern_names[j]);
+						continue;
+					}
+				}
+
+				wip->weapon_substitution_pattern[j] = weapon_index;
+			}
+
+			memset(wip->weapon_substitution_pattern_names, 0, sizeof(char) * MAX_SUBSTITUTION_PATTERNS * NAME_LENGTH);
+		}
+	}
+}
+
 void weapon_do_post_parse()
 {
 	weapon_info *wip;
@@ -3253,6 +3381,7 @@ void weapon_do_post_parse()
 
 	weapon_sort_by_type();	// NOTE: This has to be first thing!
 	weapon_clean_entries();
+	weapon_generate_indexes_for_substitution();
 
 	Default_cmeasure_index = -1;
 
@@ -3276,7 +3405,22 @@ void weapon_do_post_parse()
 	if (Default_cmeasure_index < 0)
 		Default_cmeasure_index = first_cmeasure_index;
 
-	// translate all spawn type weapons to referrence the appropriate spawned weapon entry
+	// now we want to resolve the countermeasures by species
+	for (SCP_vector<species_info>::iterator ii = Species_info.begin(); ii != Species_info.end(); ++ii)
+	{
+		if (*ii->cmeasure_name)
+		{
+			int index = weapon_info_lookup(ii->cmeasure_name);
+			if (index < 0)
+				Warning(LOCATION, "Could not find weapon type '%s' to use as countermeasure on species '%s'", ii->cmeasure_name, ii->species_name);
+			else if (Weapon_info[index].wi_flags & WIF_BEAM)
+				Warning(LOCATION, "Attempt made to set a beam weapon as a countermeasure on species '%s'", ii->species_name);
+			else
+				ii->cmeasure_index = index;
+		}
+	}
+
+	// translate all spawn type weapons to referrnce the appropriate spawned weapon entry
 	translate_spawn_types();
 }
 
@@ -3993,6 +4137,32 @@ void find_homing_object_by_sig(object *weapon_objp, int sig)
 	}
 }
 
+bool aspect_should_lose_target(weapon* wp)
+{
+	Assert(wp != NULL);
+	
+	if (wp->homing_object->signature != wp->target_sig) {
+		if (wp->homing_object->type == OBJ_WEAPON)
+		{
+			weapon_info* target_info = &Weapon_info[Weapons[wp->homing_object->instance].weapon_info_index];
+
+			if (target_info->wi_flags & WIF_CMEASURE)
+			{
+				// Check if we can home on this countermeasure
+				bool home_on_cmeasure = The_mission.ai_profile->flags2 & AIPF2_ASPECT_LOCK_COUNTERMEASURE
+					|| target_info->wi_flags3 & WIF3_CMEASURE_ASPECT_HOME_ON;
+
+				if (!home_on_cmeasure)
+				{
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
 /**
  * Make weapon num home.  It's also object *obj.
  */
@@ -4047,6 +4217,16 @@ void weapon_home(object *obj, int num, float frame_time)
 		else {
 			obj->phys_info.speed = max_speed;
 		}
+
+		if (wip->acceleration_time > 0.0f) {
+			if (Missiontime - wp->creation_time < fl2f(wip->acceleration_time)) {
+				float	t;
+
+				t = f2fl(Missiontime - wp->creation_time) / wip->acceleration_time;
+				obj->phys_info.speed = wp->launch_speed + (wp->weapon_max_vel - wp->launch_speed) * t;
+			}
+		}
+
 		// set velocity using whatever speed we have
 		vm_vec_copy_scale( &obj->phys_info.desired_vel, &obj->orient.vec.fvec, obj->phys_info.speed);
 
@@ -4057,7 +4237,8 @@ void weapon_home(object *obj, int num, float frame_time)
 	// WCS - or javelin
 	if (wip->wi_flags & WIF_LOCKED_HOMING) {
 		if ( wp->target_sig > 0 ) {
-			if ( wp->homing_object->signature != wp->target_sig ) {
+			if (aspect_should_lose_target(wp))
+			{ 
 				wp->homing_object = &obj_used_list;
 				return;
 			}
@@ -4089,8 +4270,11 @@ void weapon_home(object *obj, int num, float frame_time)
 		(wp->target_sig > 0) &&
 		(wp->homing_subsys != NULL) &&
 		(wp->homing_subsys->system_info->type != SUBSYSTEM_ENGINE)) {
-			ship *enemy = &Ships[ship_get_by_signature(wp->target_sig)];
-			wp->homing_subsys = ship_get_closest_subsys_in_sight(enemy, SUBSYSTEM_ENGINE, &Objects[wp->objnum].pos);
+			int sindex = ship_get_by_signature(wp->target_sig);
+			if (sindex >= 0) {
+				ship *enemy = &Ships[sindex];
+				wp->homing_subsys = ship_get_closest_subsys_in_sight(enemy, SUBSYSTEM_ENGINE, &Objects[wp->objnum].pos);
+			}
 	}
 
 	// If Javelin HS missile doesn't home in on a subsystem but homing in on a
@@ -4108,7 +4292,8 @@ void weapon_home(object *obj, int num, float frame_time)
 	case OBJ_NONE:
 		if (wip->wi_flags & WIF_LOCKED_HOMING) {
 			find_homing_object_by_sig(obj, wp->target_sig);
-		} else {
+		}
+		else {
 			find_homing_object(obj, num);
 		}
 		return;
@@ -4117,23 +4302,36 @@ void weapon_home(object *obj, int num, float frame_time)
 		if (hobjp->signature != wp->target_sig) {
 			if (wip->wi_flags & WIF_LOCKED_HOMING) {
 				find_homing_object_by_sig(obj, wp->target_sig);
-			} else {
+			}
+			else {
 				find_homing_object(obj, num);
 			}
 			return;
 		}
 		break;
 	case OBJ_WEAPON:
+	{
+		bool home_on_cmeasure = The_mission.ai_profile->flags2 & AIPF2_ASPECT_LOCK_COUNTERMEASURE
+			|| Weapon_info[Weapons[hobjp->instance].weapon_info_index].wi_flags3 & WIF3_CMEASURE_ASPECT_HOME_ON;
+
 		// don't home on countermeasures or non-bombs, that's handled elsewhere
-		if ( ((Weapon_info[Weapons[hobjp->instance].weapon_info_index].wi_flags & WIF_CMEASURE) && !(The_mission.ai_profile->flags2 & AIPF2_ASPECT_LOCK_COUNTERMEASURE)) || !(Weapon_info[Weapons[hobjp->instance].weapon_info_index].wi_flags & WIF_BOMB) )
+		if (((Weapon_info[Weapons[hobjp->instance].weapon_info_index].wi_flags & WIF_CMEASURE) && !home_on_cmeasure))
+		{
 			break;
+		}
+		else if (!(Weapon_info[Weapons[hobjp->instance].weapon_info_index].wi_flags & WIF_BOMB))
+		{
+			break;
+		}
 
 		if (wip->wi_flags & WIF_LOCKED_HOMING) {
 			find_homing_object_by_sig(obj, wp->target_sig);
-		} else {
+		}
+		else {
 			find_homing_object(obj, num);
 		}
 		break;
+	}
 	default:
 		return;
 	}
@@ -4169,7 +4367,7 @@ void weapon_home(object *obj, int num, float frame_time)
 		// world coordinates of that subsystem so the homing missile can seek it out.
 		//	For now, March 7, 1997, MK, heat seeking homing missiles will be able to home on
 		//	any subsystem.  Probably makes sense for them to only home on certain kinds of subsystems.
-		if ( (wp->homing_subsys != NULL) && !(wip->wi_flags2 & WIF2_NON_SUBSYS_HOMING) ) {
+		if ( (wp->homing_subsys != NULL) && !(wip->wi_flags2 & WIF2_NON_SUBSYS_HOMING) && hobjp->type == OBJ_SHIP) {
 			get_subsystem_world_pos(hobjp, Weapons[num].homing_subsys, &target_pos);
 			wp->homing_pos = target_pos;	// store the homing position in weapon data
 			Assert( !vm_is_vec_nan(&wp->homing_pos) );
@@ -4321,8 +4519,18 @@ void weapon_home(object *obj, int num, float frame_time)
 		} else
 			obj->phys_info.speed = max_speed;
 
-		//	For first second of weapon's life, it doesn't fly at top speed.  It ramps up.
-		if (Missiontime - wp->creation_time < i2f(1)) {
+
+		if (wip->acceleration_time > 0.0f) {
+			// Ramp up speed linearly for the given duration
+			if (Missiontime - wp->creation_time < fl2f(wip->acceleration_time)) {
+				float t;
+
+				t = f2fl(Missiontime - wp->creation_time) / wip->acceleration_time;
+				obj->phys_info.speed = wp->launch_speed + (wp->weapon_max_vel - wp->launch_speed) * t;
+			}
+		} else if (!(wip->wi_flags3 & WIF3_NO_HOMING_SPEED_RAMP) && Missiontime - wp->creation_time < i2f(1)) {
+			// Default behavior:
+			// For first second of weapon's life, it doesn't fly at top speed.  It ramps up.
 			float	t;
 
 			t = f2fl(Missiontime - wp->creation_time);
@@ -4652,7 +4860,15 @@ void weapon_process_post(object * obj, float frame_time)
 		
 			//get the position of the target, and estimate its position when it warps out
 			//so we have an idea of where it will be.
-			vm_vec_scale_add(&wp->lssm_target_pos,&Objects[wp->target_num].pos,&Objects[wp->target_num].phys_info.vel,(float)wip->lssm_warpin_delay/1000.0f);
+			if (wp->target_num >= 0)
+			{
+				vm_vec_scale_add(&wp->lssm_target_pos, &Objects[wp->target_num].pos, &Objects[wp->target_num].phys_info.vel, (float)wip->lssm_warpin_delay / 1000.0f);
+			}
+			else
+			{
+				// Our target is invalid, just jump to our position
+				wp->lssm_target_pos = obj->pos;
+			}
 
 			wp->lssm_stage=3;
 
@@ -4834,6 +5050,32 @@ void weapon_set_tracking_info(int weapon_objnum, int parent_objnum, int target_o
 	}
 }
 
+size_t* get_pointer_to_weapon_fire_pattern_index(int weapon_type, ship* shipp, ship_subsys * src_turret)
+{
+	Assert( shipp != NULL );
+	ship_weapon* ship_weapon_p = &(shipp->weapons);
+	if(src_turret)
+	{
+		ship_weapon_p = &src_turret->weapons;
+	}
+	Assert( ship_weapon_p != NULL );
+
+	// search for the corresponding bank pattern index for the weapon_type that is being fired.
+	// Note: Because a weapon_type may not be unique to a weapon bank per ship this search may attribute
+	// the weapon to the wrong bank.  Hopefully this isn't a problem.
+	for ( int pi = 0; pi < MAX_SHIP_PRIMARY_BANKS; pi++ ) {
+		if ( ship_weapon_p->primary_bank_weapons[pi] == weapon_type ) {
+			return &(ship_weapon_p->primary_bank_pattern_index[pi]);
+		}
+	}
+	for ( int si = 0; si < MAX_SHIP_SECONDARY_BANKS; si++ ) {
+		if ( ship_weapon_p->secondary_bank_weapons[si] == weapon_type ) {
+			return &(ship_weapon_p->secondary_bank_pattern_index[si]);
+		}
+	}
+	return NULL;
+}
+
 /**
  * Create a weapon object
  *
@@ -4857,6 +5099,36 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 	{
 		Warning(LOCATION, "An attempt to fire a beam ('%s') through weapon_create() was made.\n", wip->name);
 		return -1;
+	}
+
+	parent_objp = NULL;
+	if(parent_objnum >= 0){
+		parent_objp = &Objects[parent_objnum];
+	}
+
+	if ( (wip->num_substitution_patterns > 0) && (parent_objp != NULL)) {
+		// using substitution
+
+		// get to the instance of the gun
+		Assertion( parent_objp->type == OBJ_SHIP, "Expected type OBJ_SHIP, got %d", parent_objp->type );
+		Assertion( (parent_objp->instance < MAX_SHIPS) && (parent_objp->instance >= 0),
+			"Ship index is %d, which is out of range [%d,%d)", parent_objp->instance, 0, MAX_SHIPS);
+		ship* parent_shipp = &(Ships[parent_objp->instance]);
+		Assert( parent_shipp != NULL );
+
+		size_t *position = get_pointer_to_weapon_fire_pattern_index(weapon_type, parent_shipp, src_turret);
+		Assertion( position != NULL, "'%s' is trying to fire a weapon that is not selected", Ships[parent_objp->instance].ship_name );
+
+		++(*position);
+		*position = (*position) % wip->num_substitution_patterns;
+
+		if ( wip->weapon_substitution_pattern[*position] == -1 ) {
+			// weapon doesn't want any sub
+			return -1;
+		} else if ( wip->weapon_substitution_pattern[*position] != weapon_type ) {
+			// weapon wants to sub with weapon other than me
+			return weapon_create(pos, porient, wip->weapon_substitution_pattern[*position], parent_objnum, group_id, is_locked, is_spawned, fof_cooldown);
+		}
 	}
 
 	num_deleted = 0;
@@ -4933,11 +5205,6 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 	objnum = obj_create( OBJ_WEAPON, parent_objnum, n, orient, pos, 2.0f, OF_RENDERS | OF_COLLIDES | OF_PHYSICS );
 	Assert(objnum >= 0);
 	objp = &Objects[objnum];
-
-	parent_objp = NULL;
-	if(parent_objnum >= 0){
-		parent_objp = &Objects[parent_objnum];
-	}
 
 	// Create laser n!
 	wp = &Weapons[n];
@@ -5105,12 +5372,19 @@ int weapon_create( vec3d * pos, matrix * porient, int weapon_type, int parent_ob
 
 	wp->weapon_max_vel = objp->phys_info.max_vel.xyz.z;
 
+	if (wip->acceleration_time > 0.0f)
+		wp->launch_speed = 0.0f;
+
 	// Turey - maybe make the initial speed of the weapon take into account the velocity of the parent.
 	// Improves aiming during gliding.
 	if ((parent_objp != NULL) && (The_mission.ai_profile->flags & AIPF_USE_ADDITIVE_WEAPON_VELOCITY)) {
-		vm_vec_add2( &objp->phys_info.vel, &parent_objp->phys_info.vel );
-		wp->weapon_max_vel += vm_vec_mag( &parent_objp->phys_info.vel );
+		float pspeed = vm_vec_mag( &parent_objp->phys_info.vel );
+		vm_vec_scale_add2( &objp->phys_info.vel, &parent_objp->phys_info.vel, wip->vel_inherit_amount );
+		wp->weapon_max_vel += pspeed * wip->vel_inherit_amount;
 		objp->phys_info.speed = vm_vec_mag(&objp->phys_info.vel);
+
+		if (wip->acceleration_time > 0.0f)
+			wp->launch_speed += pspeed;
 	}
 
 	// create the corkscrew
@@ -6509,75 +6783,137 @@ void weapon_maybe_spew_particle(object *obj)
 /**
  * Debug console functionality
  */
-void pspew_display_dcf()
-{
-	dc_printf("Particle spew settings\n\n");
-	dc_printf("Particle spew count (pspew_count) : %d\n", Weapon_particle_spew_count);
-	dc_printf("Particle spew time (pspew_time) : %d\n", Weapon_particle_spew_time);
-	dc_printf("Particle spew velocity (pspew_vel) : %f\n", Weapon_particle_spew_vel);
-	dc_printf("Particle spew size (pspew_size) : %f\n", Weapon_particle_spew_radius);
-	dc_printf("Particle spew lifetime (pspew_life) : %f\n", Weapon_particle_spew_lifetime);
-	dc_printf("Particle spew scale (psnew_scale) : %f\n", Weapon_particle_spew_scale);
-}
-
+void dcf_pspew();
 DCF(pspew_count, "Number of particles spewed at a time")
-{	
-	dc_get_arg(ARG_INT);
-	if(Dc_arg_type & ARG_INT){
-		Weapon_particle_spew_count = Dc_arg_int;
+{
+	if (dc_optional_string_either("help", "--help")) {
+		dcf_pspew();
+		return;
 	}
 
-	pspew_display_dcf();
+	if (dc_optional_string_either("status", "--status") || dc_optional_string_either("?", "--?")) {
+			dc_printf("Partical count is %i\n", Weapon_particle_spew_count);
+			return;
+	}
+
+	dc_stuff_int(&Weapon_particle_spew_count);
+	
+	dc_printf("Partical count set to %i\n", Weapon_particle_spew_count);
 }
 
 DCF(pspew_time, "Time between particle spews")
-{	
-	dc_get_arg(ARG_INT);
-	if(Dc_arg_type & ARG_INT){
-		Weapon_particle_spew_time = Dc_arg_int;
+{
+	if (dc_optional_string_either("help", "--help")) {
+		dcf_pspew();
+		return;
 	}
 
-	pspew_display_dcf();
+	if (dc_optional_string_either("status", "--status") || dc_optional_string_either("?", "--?")) {
+		dc_printf("Particle spawn period is %i\n", Weapon_particle_spew_time);
+		return;
+	}
+
+	dc_stuff_int(&Weapon_particle_spew_time);
+
+	dc_printf("Particle spawn period set to %i\n", Weapon_particle_spew_time);
 }
 
 DCF(pspew_vel, "Relative velocity of particles (0.0 - 1.0)")
-{	
-	dc_get_arg(ARG_FLOAT);
-	if(Dc_arg_type & ARG_FLOAT){
-		Weapon_particle_spew_vel = Dc_arg_float;
+{
+	if (dc_optional_string_either("help", "--help")) {
+		dcf_pspew();
+		return;
 	}
 
-	pspew_display_dcf();
+	if (dc_optional_string_either("status", "--status") || dc_optional_string_either("?", "--?")) {
+		dc_printf("Particle relative velocity is %f\n", Weapon_particle_spew_vel);
+		return;
+	}
+
+	dc_stuff_float(&Weapon_particle_spew_vel);
+
+	dc_printf("Particle relative velocity set to %f\n", Weapon_particle_spew_vel);
 }
 
 DCF(pspew_size, "Size of spewed particles")
-{	
-	dc_get_arg(ARG_FLOAT);
-	if(Dc_arg_type & ARG_FLOAT){
-		Weapon_particle_spew_radius = Dc_arg_float;
+{
+	if (dc_optional_string_either("help", "--help")) {
+		dcf_pspew();
+		return;
 	}
 
-	pspew_display_dcf();
+	if (dc_optional_string_either("status", "--status") || dc_optional_string_either("?", "--?")) {
+		dc_printf("Particle size is %f\n", Weapon_particle_spew_radius);
+		return;
+	}
+
+	dc_stuff_float(&Weapon_particle_spew_radius);
+
+	dc_printf("Particle size set to %f\n", Weapon_particle_spew_radius);
 }
 
 DCF(pspew_life, "Lifetime of spewed particles")
-{	
-	dc_get_arg(ARG_FLOAT);
-	if(Dc_arg_type & ARG_FLOAT){
-		Weapon_particle_spew_lifetime = Dc_arg_float;
+{
+	if (dc_optional_string_either("help", "--help")) {
+		dcf_pspew();
+		return;
 	}
 
-	pspew_display_dcf();
+	if (dc_optional_string_either("status", "--status") || dc_optional_string_either("?", "--?")) {
+		dc_printf("Particle lifetime is %f\n", Weapon_particle_spew_lifetime);
+		return;
+	}
+
+	dc_stuff_float(&Weapon_particle_spew_lifetime);
+
+	dc_printf("Particle lifetime set to %f\n", Weapon_particle_spew_lifetime);
 }
 
 DCF(pspew_scale, "How far away particles are from the weapon path")
-{	
-	dc_get_arg(ARG_FLOAT);
-	if(Dc_arg_type & ARG_FLOAT){
-		Weapon_particle_spew_scale = Dc_arg_float;
+{
+	if (dc_optional_string_either("help", "--help")) {
+		dcf_pspew();
+		return;
 	}
 
-	pspew_display_dcf();
+	if (dc_optional_string_either("status", "--status") || dc_optional_string_either("?", "--?")) {
+		dc_printf("Particle scale is %f\n", Weapon_particle_spew_scale);
+	}
+
+	dc_stuff_float(&Weapon_particle_spew_scale);
+
+	dc_printf("Particle scale set to %f\n", Weapon_particle_spew_scale);
+}
+
+// Help and Status provider
+DCF(pspew, "Particle spew help and status provider")
+{
+	if (dc_optional_string_either("status", "--status") || dc_optional_string_either("?", "--?")) {
+		dc_printf("Particle spew settings\n\n");
+
+		dc_printf(" Count   (pspew_count) : %d\n", Weapon_particle_spew_count);
+		dc_printf(" Time     (pspew_time) : %d\n", Weapon_particle_spew_time);
+		dc_printf(" Velocity  (pspew_vel) : %f\n", Weapon_particle_spew_vel);
+		dc_printf(" Size     (pspew_size) : %f\n", Weapon_particle_spew_radius);
+		dc_printf(" Lifetime (pspew_life) : %f\n", Weapon_particle_spew_lifetime);
+		dc_printf(" Scale   (psnew_scale) : %f\n", Weapon_particle_spew_scale);
+		return;
+	}
+
+	dc_printf("Available particlar spew commands:\n");
+	dc_printf("pspew_count : %s\n", dcmd_pspew_count.help);
+	dc_printf("pspew_time  : %s\n", dcmd_pspew_time.help);
+	dc_printf("pspew_vel   : %s\n", dcmd_pspew_vel.help);
+	dc_printf("pspew_size  : %s\n", dcmd_pspew_size.help);
+	dc_printf("pspew_life  : %s\n", dcmd_pspew_life.help);
+	dc_printf("pspew_scale : %s\n\n", dcmd_pspew_scale.help);
+
+	dc_printf("To view status of all pspew settings, type in 'pspew --status'.\n");
+	dc_printf("Passing '--status' as an argument to any of the individual spew commands will show the status of that variable only.\n\n");
+
+	dc_printf("These commands adjust the various properties of the particle spew system, which is used by weapons when they are fired, are in-flight, and die (either by impact or by end of life time.\n");
+	dc_printf("Generally, a large particle count with small size and scale will result in a nice dense particle spew.\n");
+	dc_printf("Be advised, this effect is applied to _ALL_ weapons, and as such may drastically reduce framerates on lower powered platforms.\n");
 }
 
 /**

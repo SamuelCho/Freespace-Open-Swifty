@@ -157,6 +157,9 @@ typedef struct ship_weapon {
 
 	int	burst_counter[MAX_SHIP_PRIMARY_BANKS + MAX_SHIP_SECONDARY_BANKS];
 	int external_model_fp_counter[MAX_SHIP_PRIMARY_BANKS + MAX_SHIP_SECONDARY_BANKS];
+
+	size_t primary_bank_pattern_index[MAX_SHIP_PRIMARY_BANKS];
+	size_t secondary_bank_pattern_index[MAX_SHIP_SECONDARY_BANKS];
 } ship_weapon;
 
 //**************************************************************
@@ -453,7 +456,7 @@ typedef struct ship_flag_name {
 	int flag_list;						// is this flag in the 1st or 2nd ship flags list?
 } ship_flag_name;
 
-#define MAX_SHIP_FLAG_NAMES					15
+#define MAX_SHIP_FLAG_NAMES					16
 extern ship_flag_name Ship_flag_names[];
 
 // states for the flags variable within the ship structure
@@ -533,6 +536,7 @@ extern ship_flag_name Ship_flag_names[];
 #define SF2_SHIP_LOCKED						(1<<24)		// Karajorma - Prevents the player from changing the ship class on loadout screen
 #define SF2_WEAPONS_LOCKED					(1<<25)		// Karajorma - Prevents the player from changing the weapons on the ship on the loadout screen
 #define SF2_SHIP_SELECTIVE_LINKING			(1<<26)		// RSAXVC - Allow pilot to pick firing configuration
+#define SF2_SCRAMBLE_MESSAGES				(1<<27)		// Goober5000 - all messages sent from this ship appear scrambled
 
 // If any of these bits in the ship->flags are set, ignore this ship when targeting
 extern int TARGET_SHIP_IGNORE_FLAGS;
@@ -680,6 +684,8 @@ public:
 	ship_weapon	weapons;
 
 	int	shield_hits;						//	Number of hits on shield this frame.
+
+	SCP_vector<vec3d>	shield_points;
 
 	float		wash_intensity;
 	vec3d	wash_rot_axis;
@@ -936,7 +942,8 @@ extern int ship_find_exited_ship_by_signature( int signature);
 
 #define	SIF_NO_FRED					(1 << 31)	// not available in fred
 
-// flags2 list. If this is updated MAX_SHIP_FLAGS must also be updated!
+
+// flags2 list.
 #define SIF2_DEFAULT_IN_TECH_DATABASE		(1 << 0)	// default in tech database - Goober5000
 #define SIF2_DEFAULT_IN_TECH_DATABASE_M		(1 << 1)	// ditto - Goober5000
 #define SIF2_FLASH							(1 << 2)	// makes a flash when it explodes
@@ -954,8 +961,9 @@ extern int ship_find_exited_ship_by_signature( int signature);
 #define SIF2_NO_LIGHTING					(1 << 14)	// Valathil - No lighting for this ship
 #define SIF2_DYN_PRIMARY_LINKING			(1 << 15)	// RSAXVC - Dynamically generate weapon linking options
 #define SIF2_AUTO_SPREAD_SHIELDS			(1 << 16)	// zookeeper - auto spread shields
-// !!! IF YOU ADD A FLAG HERE BUMP MAX_SHIP_FLAGS !!!
-#define	MAX_SHIP_FLAGS	17		//	Number of distinct flags for flags field in ship_info struct
+#define SIF2_DRAW_WEAPON_MODELS				(1 << 17)	// the ship draws weapon models of any sort (used to be a boolean)
+#define SIF2_MODEL_POINT_SHIELDS			(1 << 18)	// zookeeper - uses model-defined shield points instead of quadrants
+
 #define	SIF_DEFAULT_VALUE		0
 #define SIF2_DEFAULT_VALUE		0
 
@@ -973,7 +981,7 @@ extern int ship_find_exited_ship_by_signature( int signature);
 
 // masks for preventing only non flag entry SIF flags from being cleared
 #define SIF_MASK				SIF_AFTERBURNER
-#define SIF2_MASK				0
+#define SIF2_MASK				SIF2_DRAW_WEAPON_MODELS
 
 #define REGULAR_WEAPON	(1<<0)
 #define DOGFIGHT_WEAPON (1<<1)
@@ -1211,13 +1219,11 @@ public:
 	float		rotdamp;								// rotational drag
 	float		delta_bank_const;
 	vec3d	max_vel;								//	max velocity of the ship in the linear directions -- read from ships.tbl
-	vec3d	afterburner_max_vel;				//	max velocity of the ship in the linear directions when afterburners are engaged -- read from ships.tbl
 	vec3d	max_rotvel;							// maximum rotational velocity
 	vec3d	rotation_time;						// time to rotate in x/y/z dimension traveling at max rotvel
 	float		srotation_time;					//	scalar, computed at runtime as (rotation_time.x + rotation_time.y)/2
 	float		max_rear_vel;						// max speed ship can go backwards.
 	float		forward_accel;
-	float		afterburner_forward_accel;		// forward acceleration with afterburner engaged
 	float		forward_decel;
 	float		slide_accel;
 	float		slide_decel;
@@ -1297,6 +1303,8 @@ public:
 	float		max_weapon_regen_per_second;	// Goober5000 - max percent/100 of weapon energy regenerated per second
 
 	// Afterburner fields
+	vec3d		afterburner_max_vel;				//	max velocity of the ship in the linear directions when afterburners are engaged -- read from ships.tbl
+	float		afterburner_forward_accel;		// forward acceleration with afterburner engaged
 	float		afterburner_fuel_capacity;		// maximum afterburner fuel that can be stored
 	float		afterburner_burn_rate;			// rate in fuel/second that afterburner consumes fuel
 	float		afterburner_recover_rate;		//	rate in fuel/second that afterburner recovers fuel
@@ -1308,20 +1316,25 @@ public:
 	int		cmeasure_max;						//	Number of charges of countermeasures this ship can hold.
 
 	int num_primary_banks;										// Actual number of primary banks (property of model)
-	int num_secondary_banks;									//	Actual number of secondary banks (property of model)
-	int primary_bank_weapons[MAX_SHIP_PRIMARY_BANKS];			// Weapon_info[] index for the weapon in the bank
-	
+	int primary_bank_weapons[MAX_SHIP_PRIMARY_BANKS];			// Weapon_info[] index for the weapon in the bank	
 	// Goober5000's ballistic conversion
 	int primary_bank_ammo_capacity[MAX_SHIP_PRIMARY_BANKS];	// Capacity of primary ballistic bank
-	
+
+	int num_secondary_banks;									//	Actual number of secondary banks (property of model)
 	int secondary_bank_weapons[MAX_SHIP_SECONDARY_BANKS];	// Weapon_info[] index for the weapon in the bank
 	int secondary_bank_ammo_capacity[MAX_SHIP_SECONDARY_BANKS];	// Capacity of bank (not number of missiles)
+
+	bool draw_primary_models[MAX_SHIP_PRIMARY_BANKS];
+	bool draw_secondary_models[MAX_SHIP_SECONDARY_BANKS];
+	float weapon_model_draw_distance;
 
 	float	max_hull_strength;				// Max hull strength of this class of ship.
 	float	max_shield_strength;
 	float	auto_shield_spread;
 	bool	auto_shield_spread_bypass;
 	int		auto_shield_spread_from_lod;
+
+	int		shield_point_augment_ctrls[4];	// Re-mapping of shield augmentation controls for model point shields
 
 	float	hull_repair_rate;				//How much of the hull is repaired every second
 	float	subsys_repair_rate;		//How fast 
@@ -1347,7 +1360,9 @@ public:
 	int 	selection_effect;
 
 	int bii_index_ship;						// if this ship has a briefing icon that overrides the normal icon set
+	int bii_index_ship_with_cargo;
 	int bii_index_wing;
+	int bii_index_wing_with_cargo;
 
 	int	score;								// default score for this ship
 
@@ -1389,8 +1404,8 @@ public:
 	float		thruster01_glow_rad_factor;
 	float		thruster02_glow_rad_factor;
 	float		thruster03_glow_rad_factor;
-	float		thruster_dist_rad_factor;
 	float		thruster02_glow_len_factor;
+	float		thruster_dist_rad_factor;
 	float		thruster_dist_len_factor;
 
 	bool		draw_distortion;
@@ -1398,10 +1413,6 @@ public:
 	int splodeing_texture;
 	char splodeing_texture_name[MAX_FILENAME_LEN];
 
-	bool draw_primary_models[MAX_SHIP_PRIMARY_BANKS];
-	bool draw_secondary_models[MAX_SHIP_SECONDARY_BANKS];
-	bool draw_models; //any weapon mode will be drawn
-	float weapon_model_draw_distance;
 	
 	int armor_type_idx;
 	int shield_armor_type_idx;
@@ -1509,6 +1520,7 @@ typedef struct wing {
 
 	int	wave_count;								// max ships per wave (as defined by the number of ships in the ships list)
 	int	total_arrived_count;					// count of number of ships that we have created, regardless of wave
+	int red_alert_skipped_ships;				// Goober5000 - if we skipped over any indexes while creating red-alert ships
 	int	current_count;							// count of number of ships actually in this wing -- used for limit in next array
 	int	ship_index[MAX_SHIPS_PER_WING];	// index into ships array of all ships currently in the wing
 
@@ -1645,14 +1657,14 @@ extern int get_subsystem_pos(vec3d *pos, object *objp, ship_subsys *subsysp);
 
 //Template stuff, here's as good a place as any.
 int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool replace);
-extern int ship_template_lookup(char *name = NULL);
+extern int ship_template_lookup(const char *name = NULL);
 void parse_ship_particle_effect(ship_info* sip, particle_effect* pe, char *id_string);
 
-extern int ship_info_lookup(char *name = NULL);
-extern int ship_name_lookup(char *name, int inc_players = 0);	// returns the index into Ship array of name
-extern int ship_type_name_lookup(char *name);
+extern int ship_info_lookup(const char *name = NULL);
+extern int ship_name_lookup(const char *name, int inc_players = 0);	// returns the index into Ship array of name
+extern int ship_type_name_lookup(const char *name);
 
-extern int wing_lookup(char *name);
+extern int wing_lookup(const char *name);
 
 // returns 0 if no conflict, 1 if conflict, -1 on some kind of error with wing struct
 extern int wing_has_conflicting_teams(int wing_index);
@@ -1660,7 +1672,10 @@ extern int wing_has_conflicting_teams(int wing_index);
 // next function takes optional second parameter which says to ignore the current count of ships
 // in the wing -- used to tell is the wing exists or not, not whether it exists and has ships currently
 // present.
-extern int wing_name_lookup(char *name, int ignore_count = 0);
+extern int wing_name_lookup(const char *name, int ignore_count = 0);
+
+// for generating a ship name for arbitrary waves/indexes of that wing... correctly handles the # character
+extern void wing_bash_ship_name(char *ship_name, const char *wing_name, int index);
 
 extern int Player_ship_class;
 
@@ -1748,7 +1763,7 @@ extern int ship_query_general_type(int ship);
 extern int ship_class_query_general_type(int ship_class);
 extern int ship_query_general_type(ship *shipp);
 extern int ship_docking_valid(int docker, int dockee);
-extern int get_quadrant(vec3d *hit_pnt);						//	Return quadrant num of last hit ponit.
+extern int get_quadrant(vec3d *hit_pnt, object *shipobjp = NULL);	//	Return quadrant num of given hit point.
 
 extern void ship_obj_list_rebuild();	// only called by save/restore code
 extern int ship_query_state(char *name);
@@ -1928,19 +1943,18 @@ extern void ship_subsystem_set_new_ai_class(int ship_num, char *subsystem, int n
 extern void wing_load_squad_bitmap(wing *w);
 
 // Goober5000 - needed by new hangar depart code
-extern int ship_has_dock_bay(int shipnum);
-
-// Goober5000 - needed by new hangar depart code
-extern int ship_get_ship_with_dock_bay(int team);
+extern bool ship_has_dock_bay(int shipnum);
+extern bool ship_useful_for_departure(int shipnum, int path_mask = 0);
+extern int ship_get_ship_for_departure(int team);
 
 // Goober5000 - moved here from hudbrackets.cpp
-extern int ship_subsys_is_fighterbay(ship_subsys *ss);
+extern bool ship_subsys_is_fighterbay(ship_subsys *ss);
 
 // Goober5000
-extern int ship_fighterbays_all_destroyed(ship *shipp);
+extern bool ship_fighterbays_all_destroyed(ship *shipp);
 
 // Goober5000
-extern int ship_subsys_takes_damage(ship_subsys *ss);
+extern bool ship_subsys_takes_damage(ship_subsys *ss);
 
 //phreak
 extern int ship_fire_tertiary(object *objp);
@@ -1964,9 +1978,9 @@ void ship_end_render_cockpit_display(int cockpit_display_num);
 int warptype_match(char *p);
 
 // Goober5000
-int ship_starting_wing_lookup(char *wing_name);
-int ship_squadron_wing_lookup(char *wing_name);
-int ship_tvt_wing_lookup(char *wing_name);
+int ship_starting_wing_lookup(const char *wing_name);
+int ship_squadron_wing_lookup(const char *wing_name);
+int ship_tvt_wing_lookup(const char *wing_name);
 
 // Goober5000
 int ship_class_compare(int ship_class_1, int ship_class_2);

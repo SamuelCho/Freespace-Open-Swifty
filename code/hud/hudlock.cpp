@@ -26,6 +26,7 @@
 #include "mission/missionparse.h"
 #include "iff_defs/iff_defs.h"
 #include "network/multi.h"
+#include "debugconsole/console.h"
 
 
 vec3d lock_world_pos;
@@ -380,7 +381,9 @@ void hud_lock_reset(float lock_time_scale)
 
 	swp = &Player_ship->weapons;
     
-	if (swp->current_secondary_bank > 0) {
+	if ((swp->current_secondary_bank >= 0) && (swp->secondary_bank_weapons[swp->current_secondary_bank] >= 0)) {
+		Assert(swp->current_secondary_bank < MAX_SHIP_SECONDARY_BANKS);
+		Assert(swp->secondary_bank_weapons[swp->current_secondary_bank] < MAX_WEAPON_TYPES);
 		wip = &Weapon_info[swp->secondary_bank_weapons[swp->current_secondary_bank]];
 		Player->lock_time_to_target = i2fl(wip->min_lock_time*lock_time_scale);
 	} else {
@@ -418,7 +421,7 @@ int hud_lock_has_homing_point()
 }
 
 int Nebula_sec_range = 0;
-DCF_BOOL(nebula_sec_range, Nebula_sec_range)
+DCF_BOOL(nebula_sec_range, Nebula_sec_range);
 
 int hud_lock_world_pos_in_range(vec3d *target_world_pos, vec3d *vec_to_target)
 {

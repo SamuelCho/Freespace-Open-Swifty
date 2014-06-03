@@ -254,11 +254,13 @@ int ship_weapon_check_collision(object *ship_objp, object *weapon_objp, float ti
 
 				mc_shield.radius = sip->auto_shield_spread;
 
-				mc_shield.flags = MC_CHECK_MODEL | MC_CHECK_SPHERELINE;
-
 				if (sip->auto_shield_spread_from_lod > -1) {
 					polymodel *pm = model_get(sip->model_num);
 					mc_shield.submodel_num = pm->detail[sip->auto_shield_spread_from_lod];
+
+					mc_shield.flags = MC_CHECK_MODEL | MC_SUBMODEL_INSTANCE | MC_CHECK_SPHERELINE;
+				} else {
+					mc_shield.flags = MC_CHECK_MODEL | MC_CHECK_SPHERELINE;
 				}
 
 				shield_collision = model_collide(&mc_shield);
@@ -292,15 +294,24 @@ int ship_weapon_check_collision(object *ship_objp, object *weapon_objp, float ti
 				vm_vec_rotate(&mc_shield.hit_point, &tempv, &ship_objp->orient);
 			}
 		} else if (sip->flags2 & SIF2_SURFACE_SHIELDS) {
-			mc_shield.flags = MC_CHECK_MODEL;
-			shield_collision = model_collide(&mc_shield);
+			if (pm->shield.ntris > 0) {
+				// If there is a shield mesh, we need to check that first
+				mc_shield.flags = MC_CHECK_SHIELD;
+				shield_collision = model_collide(&mc_shield);
+			}
 
-			// Because we used MC_CHECK_MODEL, the returned hit position might be
-			// in a submodel's frame of reference, so we need to ensure we end up
-			// in the ship's frame of reference
-			vec3d local_pos;
-			vm_vec_sub(&local_pos, &mc_shield.hit_point_world, &ship_objp->pos);
-			vm_vec_rotate(&mc_shield.hit_point, &local_pos, &ship_objp->orient);
+			if (!shield_collision) {
+				// But if no shield mesh or it was missed, check for a hull collision
+				mc_shield.flags = MC_CHECK_MODEL;
+				shield_collision = model_collide(&mc_shield);
+
+				// Because we used MC_CHECK_MODEL, the returned hit position might be
+				// in a submodel's frame of reference, so we need to ensure we end up
+				// in the ship's frame of reference
+				vec3d local_pos;
+				vm_vec_sub(&local_pos, &mc_shield.hit_point_world, &ship_objp->pos);
+				vm_vec_rotate(&mc_shield.hit_point, &local_pos, &ship_objp->orient);
+			}
 		} else {
 			// Normal collision check against a shield mesh
 			mc_shield.flags = MC_CHECK_SHIELD;
@@ -326,7 +337,7 @@ int ship_weapon_check_collision(object *ship_objp, object *weapon_objp, float ti
 
 	if (shield_collision) {
 		// pick out the shield quadrant
-		quadrant_num = get_quadrant(&mc_shield.hit_point);
+		quadrant_num = get_quadrant(&mc_shield.hit_point, ship_objp);
 
 		// make sure that the shield is active in that quadrant
 		if (shipp->flags & SF_DYING || !ship_is_shield_up(ship_objp, quadrant_num))
@@ -405,7 +416,7 @@ int ship_weapon_check_collision(object *ship_objp, object *weapon_objp, float ti
 
 		Script_system.SetHookObjects(2, "Self",ship_objp, "Object", weapon_objp);
 		if(!(weapon_override && !ship_override))
-			Script_system.RunCondition(CHA_COLLIDEWEAPON, '\0', NULL, ship_objp);
+			Script_system.RunCondition(CHA_COLLIDEWEAPON, '\0', NULL, ship_objp, wp->weapon_info_index);
 
 		Script_system.SetHookObjects(2, "Self",weapon_objp, "Object", ship_objp);
 		if((weapon_override && !ship_override) || (!weapon_override && !ship_override))

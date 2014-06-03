@@ -28,6 +28,8 @@
 #include "globalincs/alphacolors.h"
 #include "network/multi_pmsg.h"
 #include "network/multiutil.h"
+#include "parse/scripting.h"
+#include "debugconsole/console.h"
 
 
 #ifndef NDEBUG
@@ -135,6 +137,7 @@ struct config_item_undo {
 	int size;
 	int *index;  // array (size) of Control_config indices of replaced elements
 	config_item *list;  // array (size) of original elements
+	int reset_to_preset; // if >=0, then we ignore the above list and simply reset to the given preset instead
 	config_item_undo *next;
 };
 
@@ -174,6 +177,9 @@ static int Background_bitmap;
 static int Conflicts_tabs[NUM_TABS];
 static UI_BUTTON List_buttons[LIST_BUTTONS_MAX];  // buttons for each line of text in list
 static UI_WINDOW Ui_window;
+static unsigned int Defaults_cycle_pos; // the controls preset that was last selected
+
+int Control_config_overlay_id;
 
 static struct {
 	int key;  // index of other control in conflict with this one
@@ -345,7 +351,7 @@ int Config_allowed[] = {
 #ifndef NDEBUG
 int Show_controls_info = 0;
 
-DCF_BOOL(show_controls_info, Show_controls_info)
+DCF_BOOL(show_controls_info, Show_controls_info);
 #endif
 
 static int Axes_origin[JOY_NUM_AXES];
@@ -534,6 +540,8 @@ config_item_undo *get_undo_block(int size)
 		ptr->list = NULL;
 	}
 
+	ptr->reset_to_preset = -1;
+
 	return ptr;
 }
 
@@ -566,41 +574,45 @@ int control_config_undo_last()
 		return -1;
 	}
 
-	if (Config_item_undo->index[0] & JOY_AXIS) {
-		tab = SHIP_TAB;
+	if (Config_item_undo->reset_to_preset > -1) {
+		control_config_reset_defaults(Config_item_undo->reset_to_preset);
 	} else {
-		tab = Control_config[Config_item_undo->index[0]].tab;
-	}
-
-	for (i=1; i<Config_item_undo->size; i++) {
-		if (Config_item_undo->index[i] & JOY_AXIS) {
-			if (tab != SHIP_TAB) {
-				tab = -1;
-			}
-
+		if (Config_item_undo->index[0] & JOY_AXIS) {
+			tab = SHIP_TAB;
 		} else {
-			if (Control_config[Config_item_undo->index[i]].tab != tab) {
-				tab = -1;
+			tab = Control_config[Config_item_undo->index[0]].tab;
+		}
+
+		for (i=1; i<Config_item_undo->size; i++) {
+			if (Config_item_undo->index[i] & JOY_AXIS) {
+				if (tab != SHIP_TAB) {
+					tab = -1;
+				}
+
+			} else {
+				if (Control_config[Config_item_undo->index[i]].tab != tab) {
+					tab = -1;
+				}
 			}
 		}
-	}
 
-	if (tab >= 0) {
-		Tab = tab;
-	}
+		if (tab >= 0) {
+			Tab = tab;
+		}
 
-	for (i=0; i<Config_item_undo->size; i++) {
-		z = Config_item_undo->index[i];
-		if (z & JOY_AXIS) {
-			config_item *ptr;
+		for (i=0; i<Config_item_undo->size; i++) {
+			z = Config_item_undo->index[i];
+			if (z & JOY_AXIS) {
+				config_item *ptr;
 
-			z &= ~JOY_AXIS;
-			ptr = &Config_item_undo->list[i];
-			Axis_map_to[z] = ptr->joy_id;
-			Invert_axis[z] = ptr->used;
+				z &= ~JOY_AXIS;
+				ptr = &Config_item_undo->list[i];
+				Axis_map_to[z] = ptr->joy_id;
+				Invert_axis[z] = ptr->used;
 
-		} else {
-			Control_config[z] = Config_item_undo->list[i];
+			} else {
+				Control_config[z] = Config_item_undo->list[i];
+			}
 		}
 	}
 
@@ -860,10 +872,25 @@ int control_config_do_reset()
 	int i, j, total = 0;
 	config_item_undo *ptr;
 	config_item item;
-
+	config_item *preset;
+	bool cycling_presets = false;
+	
+	// If there are presets, then we'll cycle to the next preset and reset to that
+	if (Control_config_presets.size() >= 1) {
+		cycling_presets = true;
+		
+		if (++Defaults_cycle_pos >= Control_config_presets.size())
+			Defaults_cycle_pos = 0;
+		
+		preset = Control_config_presets[Defaults_cycle_pos];
+	} else {
+		// If there are no presets, then we'll always reset to the hardcoded defaults
+		preset = Control_config;
+	}
+	
 	// first, determine how many bindings need to be changed
 	for (i=0; i<CCFG_MAX; i++) {
-		if ((Control_config[i].key_id != Control_config[i].key_default) || (Control_config[i].joy_id != Control_config[i].joy_default)) {
+		if ((Control_config[i].key_id != preset[i].key_default) || (Control_config[i].joy_id != preset[i].joy_default)) {
 			total++;
 		}
 	}
@@ -874,7 +901,7 @@ int control_config_do_reset()
 		}
 	}
 
-	if (!total) {
+	if (!total && !cycling_presets) {
 		gamesnd_play_iface(SND_GENERAL_FAIL);
 		return -1;
 	}
@@ -882,7 +909,7 @@ int control_config_do_reset()
 	// now, back up the old bindings so we can undo if we want to
 	ptr = get_undo_block(total);
 	for (i=j=0; i<CCFG_MAX; i++) {
-		if ((Control_config[i].key_id != Control_config[i].key_default) || (Control_config[i].joy_id != Control_config[i].joy_default)) {
+		if ((Control_config[i].key_id != preset[i].key_default) || (Control_config[i].joy_id != preset[i].joy_default)) {
 			ptr->index[j] = i;
 			ptr->list[j] = Control_config[i];
 			j++;
@@ -901,23 +928,43 @@ int control_config_do_reset()
 			j++;
 		}
 	}
+
 	Assert(j == total);
-	control_config_reset_defaults();
+
+	if (cycling_presets)
+		control_config_reset_defaults(Defaults_cycle_pos);
+	else
+		control_config_reset_defaults();
+
 	control_config_conflict_check();
 	control_config_list_prepare();
 	gamesnd_play_iface(SND_RESET_PRESSED);
 	return 0;
 }
 
-// This sets all the controls to their default values
-void control_config_reset_defaults()
+// This sets all the controls to the default values in the given preset
+// If no preset is given, the hardcoded defaults of Control_config are used
+void control_config_reset_defaults(int presetnum)
 {
 	int i;
+	config_item *preset;
+
+	if (presetnum >= 0)
+		preset = Control_config_presets[presetnum];
+	else
+		preset = Control_config;
 
 	// Reset keyboard defaults
 	for (i=0; i<CCFG_MAX; i++) {
-		Control_config[i].key_id = Control_config[i].key_default;
-		Control_config[i].joy_id = Control_config[i].joy_default;
+		// Note that key_default and joy_default are NOT overwritten here;
+		// they should retain the values of the first preset because
+		// for example the key-pressed SEXP works off the defaults of the first preset
+		Control_config[i].key_id = preset[i].key_default;
+		Control_config[i].joy_id = preset[i].joy_default;
+		Control_config[i].tab = preset[i].tab;
+		Control_config[i].hasXSTR = preset[i].hasXSTR;
+		Control_config[i].type = preset[i].type;
+		Control_config[i].disabled = preset[i].disabled;
 	}
 
 	for (i=0; i<NUM_JOY_AXIS_ACTIONS; i++) {
@@ -1241,14 +1288,16 @@ void control_config_init()
 		Control_config_backup[i] = Control_config[i];
 	}
 
+	Defaults_cycle_pos = 0;
+
 	common_set_interface_palette(NOX("ControlConfigPalette"));  // set the interface palette
 	Ui_window.create(0, 0, gr_screen.max_w_unscaled, gr_screen.max_h_unscaled, 0);
 	Ui_window.set_mask_bmap(Conflict_background_bitmap_mask_fname[gr_screen.res]);
 	Ui_window.tooltip_handler = control_config_tooltip_handler;
 
 	// load in help overlay bitmap	
-	help_overlay_load(CONTROL_CONFIG_OVERLAY);
-	help_overlay_set_state(CONTROL_CONFIG_OVERLAY,0);
+	Control_config_overlay_id = help_overlay_get_index(CONTROL_CONFIG_OVERLAY);
+	help_overlay_set_state(Control_config_overlay_id,0);
 
 	// reset conflict flashing
 	Conflict_stamp = -1;
@@ -1338,9 +1387,6 @@ void control_config_close()
 	while (Config_item_undo){
 		free_undo_block();
 	}
-
-	// unload the overlay bitmap
-	help_overlay_unload(CONTROL_CONFIG_OVERLAY);
 	
 	if (Background_bitmap){
 		bm_release(Background_bitmap);
@@ -1452,7 +1498,7 @@ void control_config_do_frame(float frametime)
 			}
 
 		} else {
-			if (help_overlay_active(CONTROL_CONFIG_OVERLAY)) {
+			if (help_overlay_active(Control_config_overlay_id)) {
 				CC_Buttons[gr_screen.res][HELP_BUTTON].button.reset_status();
 				Ui_window.set_ignore_gadgets(1);
 			}
@@ -1462,14 +1508,14 @@ void control_config_do_frame(float frametime)
 			Ui_window.process(0);
 
 			if ( (k > 0) || B1_JUST_RELEASED ) {
-				if (help_overlay_active(CONTROL_CONFIG_OVERLAY)) {
-					help_overlay_set_state(CONTROL_CONFIG_OVERLAY, 0);
+				if (help_overlay_active(Control_config_overlay_id)) {
+					help_overlay_set_state(Control_config_overlay_id, 0);
 					Ui_window.set_ignore_gadgets(0);
 					k = 0;
 				}
 			}
 
-			if ( !help_overlay_active(CONTROL_CONFIG_OVERLAY) ) {
+			if ( !help_overlay_active(Control_config_overlay_id) ) {
 				Ui_window.set_ignore_gadgets(0);
 			}
 
@@ -1496,7 +1542,7 @@ void control_config_do_frame(float frametime)
 				}
 
 				if ((k > 0) && !Config_allowed[k & KEY_MASK]) {
-					popup(0, 1, POPUP_OK, XSTR( "That is a non-bindable key.  Please try again.", 207));
+					popup(PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, XSTR( "That is a non-bindable key.  Please try again.", 207));
 					k = 0;
 				}
 
@@ -1563,7 +1609,7 @@ void control_config_do_frame(float frametime)
 		}
 
 	} else if (Search_mode) {
-		if (help_overlay_active(CONTROL_CONFIG_OVERLAY)) {
+		if (help_overlay_active(Control_config_overlay_id)) {
 			CC_Buttons[gr_screen.res][HELP_BUTTON].button.reset_status();
 			Ui_window.set_ignore_gadgets(1);
 		}
@@ -1573,14 +1619,14 @@ void control_config_do_frame(float frametime)
 		Ui_window.process(0);
 
 		if ( (k > 0) || B1_JUST_RELEASED ) {
-			if ( help_overlay_active(CONTROL_CONFIG_OVERLAY) ) {
-				help_overlay_set_state(CONTROL_CONFIG_OVERLAY, 0);
+			if ( help_overlay_active(Control_config_overlay_id) ) {
+				help_overlay_set_state(Control_config_overlay_id, 0);
 				Ui_window.set_ignore_gadgets(0);
 				k = 0;
 			}
 		}
 
-		if ( !help_overlay_active(CONTROL_CONFIG_OVERLAY) ) {
+		if ( !help_overlay_active(Control_config_overlay_id) ) {
 			Ui_window.set_ignore_gadgets(0);
 		}
 
@@ -1674,7 +1720,7 @@ void control_config_do_frame(float frametime)
 
 		CC_Buttons[gr_screen.res][UNDO_BUTTON].button.enable(Config_item_undo != NULL);
 
-		if ( help_overlay_active(CONTROL_CONFIG_OVERLAY) ) {
+		if ( help_overlay_active(Control_config_overlay_id) ) {
 			CC_Buttons[gr_screen.res][HELP_BUTTON].button.reset_status();
 			Ui_window.set_ignore_gadgets(1);
 		}
@@ -1682,14 +1728,14 @@ void control_config_do_frame(float frametime)
 		k = Ui_window.process();
 
 		if ( (k > 0) || B1_JUST_RELEASED ) {
-			if ( help_overlay_active(CONTROL_CONFIG_OVERLAY) ) {
-				help_overlay_set_state(CONTROL_CONFIG_OVERLAY, 0);
+			if ( help_overlay_active(Control_config_overlay_id) ) {
+				help_overlay_set_state(Control_config_overlay_id, 0);
 				Ui_window.set_ignore_gadgets(0);
 				k = 0;
 			}
 		}
 
-		if ( !help_overlay_active(CONTROL_CONFIG_OVERLAY) ) {
+		if ( !help_overlay_active(Control_config_overlay_id) ) {
 			Ui_window.set_ignore_gadgets(0);
 		}
 
@@ -1795,7 +1841,7 @@ void control_config_do_frame(float frametime)
 	GR_MAYBE_CLEAR_RES(Background_bitmap);
 	if (Background_bitmap >= 0) {
 		gr_set_bitmap(Background_bitmap);
-		gr_bitmap(0, 0);
+		gr_bitmap(0, 0, GR_RESIZE_MENU);
 	} 
 
 	// highlight tab with conflict
@@ -1829,7 +1875,7 @@ void control_config_do_frame(float frametime)
 		int sw, sh;
 		gr_get_string_size(&sw, &sh, conflict_str);
 
-		gr_string((gr_screen.max_w / 2) - (sw / 2), Conflict_warning_coords[gr_screen.res][1], conflict_str);
+		gr_string((gr_screen.max_w / 2) - (sw / 2), Conflict_warning_coords[gr_screen.res][1], conflict_str, GR_RESIZE_MENU);
 
 		gr_set_font(FONT1);
 	} else {
@@ -1885,7 +1931,7 @@ void control_config_do_frame(float frametime)
 		if (t % 2) {
 			gr_set_color_fast(&Color_text_normal);
 			gr_get_string_size(&w, NULL, XSTR( "?", 208));
-			gr_printf(x - w / 2, y - font_height / 2, XSTR( "?", 208));
+			gr_printf_menu(x - w / 2, y - font_height / 2, XSTR( "?", 208));
 		}
 
 	} else if (!(z & JOY_AXIS) && ((Conflicts[z].key >= 0) || (Conflicts[z].joy >= 0))) {
@@ -1897,7 +1943,7 @@ void control_config_do_frame(float frametime)
 		gr_set_color_fast(&Color_text_normal);
 		str = XSTR( "Control conflicts with:", 209);
 		gr_get_string_size(&w, NULL, str);
-		gr_printf(x - w / 2, y - font_height, str);
+		gr_printf_menu(x - w / 2, y - font_height, str);
 
 		if (Control_config[i].hasXSTR) {
 			strcpy_s(buf, XSTR(Control_config[i].text, CONTROL_CONFIG_XSTR + i));
@@ -1907,12 +1953,12 @@ void control_config_do_frame(float frametime)
 
 		gr_force_fit_string(buf, 255, Conflict_wnd_coords[gr_screen.res][CONTROL_W_COORD]);
 		gr_get_string_size(&w, NULL, buf);
-		gr_printf(x - w / 2, y, buf);
+		gr_printf_menu(x - w / 2, y, buf);
 
 	} else if (*bound_string) {
 		gr_set_color_fast(&Color_text_normal);
 		gr_get_string_size(&w, NULL, bound_string);
-		gr_printf(x - w / 2, y - font_height / 2, bound_string);
+		gr_printf_menu(x - w / 2, y - font_height / 2, bound_string);
 		if (timestamp_elapsed(bound_timestamp)) {
 			*bound_string = 0;
 		}
@@ -1920,7 +1966,7 @@ void control_config_do_frame(float frametime)
 
 	if (Cc_lines[Num_cc_lines - 1].y + font_height > Cc_lines[Scroll_offset].y + Control_list_coords[gr_screen.res][CONTROL_H_COORD]) {
 		gr_set_color_fast(&Color_white);
-		gr_printf(Control_more_coords[gr_screen.res][CONTROL_X_COORD], Control_more_coords[gr_screen.res][CONTROL_Y_COORD], XSTR( "More...", 210));
+		gr_printf_menu(Control_more_coords[gr_screen.res][CONTROL_X_COORD], Control_more_coords[gr_screen.res][CONTROL_Y_COORD], XSTR( "More...", 210));
 	}
 
 	conflict = 0;
@@ -1946,7 +1992,7 @@ void control_config_do_frame(float frametime)
 		if (Cc_lines[line].label) {
 			strcpy_s(buf, Cc_lines[line].label);
 			gr_force_fit_string(buf, 255, Control_list_ctrl_w[gr_screen.res]);
-			gr_printf(Control_list_coords[gr_screen.res][CONTROL_X_COORD], y, buf);
+			gr_printf_menu(Control_list_coords[gr_screen.res][CONTROL_X_COORD], y, buf);
 		}
 
 		if (!(z & JOY_AXIS)) {
@@ -1958,7 +2004,7 @@ void control_config_do_frame(float frametime)
 
 			if ((k < 0) && (j < 0)) {
 				gr_set_color_fast(&Color_grey);
-				gr_printf(x, y, XSTR( "None", 211));
+				gr_printf_menu(x, y, XSTR( "None", 211));
 
 			} else {
 				if (k >= 0) {
@@ -1978,7 +2024,7 @@ void control_config_do_frame(float frametime)
 						gr_set_color_fast(c);
 					}
 
-					gr_printf(x, y, buf);
+					gr_printf_menu(x, y, buf);
 
 					len = strlen(buf);
 					Cc_lines[line].kx = x - Control_list_coords[gr_screen.res][CONTROL_X_COORD];
@@ -1988,7 +2034,7 @@ void control_config_do_frame(float frametime)
 
 					if (j >= 0) {
 						gr_set_color_fast(&Color_text_normal);
-						gr_printf(x, y, XSTR( ", ", 212));
+						gr_printf_menu(x, y, XSTR( ", ", 212));
 						gr_get_string_size(&w, NULL, XSTR( ", ", 212));
 						x += w;
 					}
@@ -2012,7 +2058,7 @@ void control_config_do_frame(float frametime)
 					}
 
 					gr_force_fit_string(buf, 255, Control_list_key_w[gr_screen.res] + Control_list_key_x[gr_screen.res] - x);
-					gr_printf(x, y, buf);
+					gr_printf_menu(x, y, buf);
 
 					Cc_lines[line].jx = x - Control_list_coords[gr_screen.res][CONTROL_X_COORD];
 					gr_get_string_size(&Cc_lines[line].jw, NULL, buf);
@@ -2028,7 +2074,7 @@ void control_config_do_frame(float frametime)
 
 			if (j < 0) {
 				gr_set_color_fast(&Color_grey);
-				gr_printf(x, y, XSTR( "None", 211));
+				gr_printf_menu(x, y, XSTR( "None", 211));
 
 			} else {
 				if (Conflicts_axes[z & ~JOY_AXIS] >= 0) {
@@ -2047,7 +2093,7 @@ void control_config_do_frame(float frametime)
 					gr_set_color_fast(c);
 				}
 
-				gr_string(x, y, Joy_axis_text[j]);
+				gr_string(x, y, Joy_axis_text[j], GR_RESIZE_MENU);
 			}
 		}
 
@@ -2062,7 +2108,7 @@ void control_config_do_frame(float frametime)
 	}
 
 	// blit help overlay if active
-	help_overlay_maybe_blit(CONTROL_CONFIG_OVERLAY);
+	help_overlay_maybe_blit(Control_config_overlay_id);
 
 	gr_flip();
 }
@@ -2087,6 +2133,8 @@ float check_control_timef(int id)
 
 	// first, see if control actually used (makes sure modifiers match as well)
 	if (!check_control(id)) {
+		Control_config[id].continuous_ongoing = false;
+
 		return 0.0f;
 	}
 
@@ -2101,6 +2149,11 @@ float check_control_timef(int id)
 	}
 
 	if (t1 + t2) {
+		// We want to set this to true only after visiting control_used() (above)
+		// to allow it to tell the difference between an ongoing continuous action
+		// started before and a continuous action being started right now.
+		Control_config[id].continuous_ongoing = true;
+
 		return t1 + t2;
 	}
 
@@ -2112,7 +2165,7 @@ void control_check_indicate()
 #ifndef NDEBUG
 	if (Show_controls_info) {
 		gr_set_color_fast(&HUD_color_debug);
-		gr_printf(490, 15, NOX("Ctrls checked: %d"), Control_check_count);
+		gr_printf_no_resize(gr_screen.max_w - 154, 5, NOX("Ctrls checked: %d"), Control_check_count);
 	}
 #endif
 
@@ -2206,6 +2259,17 @@ int check_control(int id, int key)
 		return 1;
 	}
 
+	if (Control_config[id].continuous_ongoing) {
+		// If we reach this point, then it means this is a continuous control
+		// which has just been released
+
+		Script_system.SetHookVar("Action", 's', Control_config[id].text);
+		Script_system.RunCondition(CHA_ONACTIONSTOPPED, '\0', NULL, NULL, id);
+		Script_system.RemHookVar("Action");
+
+		Control_config[id].continuous_ongoing = false;
+	}
+
 	return 0;
 }
 
@@ -2261,6 +2325,7 @@ void control_get_axes_readings(int *h, int *p, int *b, int *ta, int *tr)
 	return;
 }
 
+int Last_frame_timestamp;
 void control_used(int id)
 {
 	// if we have set this key to be ignored, ignore it
@@ -2268,7 +2333,20 @@ void control_used(int id)
 		return;
 	}
 
-	Control_config[id].used = timestamp();
+	// This check needs to be done because the control code might call this function more than once per frame,
+	// and we don't want to run the hooks more than once per frame
+	if (Control_config[id].used < Last_frame_timestamp) {
+		if (!Control_config[id].continuous_ongoing) {
+			Script_system.SetHookVar("Action", 's', Control_config[id].text);
+			Script_system.RunCondition(CHA_ONACTION, '\0', NULL, NULL, id);
+			Script_system.RemHookVar("Action");
+
+			if (Control_config[id].type == CC_TYPE_CONTINUOUS)
+				Control_config[id].continuous_ongoing = true;
+		}
+
+		Control_config[id].used = timestamp();
+	}
 }
 
 void control_config_clear_used_status()

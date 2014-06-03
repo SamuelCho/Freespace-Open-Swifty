@@ -73,6 +73,8 @@ hud_anim		Fade_anim;
 int	Briefing_music_handle = -1;
 int	Briefing_music_begin_timestamp = 0;
 
+int Briefing_overlay_id = -1;
+
 // --------------------------------------------------------------------------------------
 // Module scope globals
 // --------------------------------------------------------------------------------------
@@ -389,9 +391,14 @@ void brief_do_prev_pressed()
 	Current_brief_stage--;
 	if ( Current_brief_stage < 0 ) {
 		Current_brief_stage = 0;
-		gamesnd_play_iface(SND_GENERAL_FAIL);
-		if ( Quick_transition_stage != -1 )
-			brief_transition_reset();
+		if (common_num_cutscenes_valid(MOVIE_PRE_BRIEF)) {
+			common_maybe_play_cutscene(MOVIE_PRE_BRIEF, true, SCORE_BRIEFING);
+		}
+		else {
+			gamesnd_play_iface(SND_GENERAL_FAIL);
+			if ( Quick_transition_stage != -1 )
+				brief_transition_reset();
+		}
 	} else {
 		gamesnd_play_iface(SND_BRIEF_STAGE_CHG);
 	}
@@ -405,7 +412,11 @@ void brief_do_prev_pressed()
 //
 void brief_do_start_pressed()
 {
-	if ( Current_brief_stage != 0 ) {
+	if (common_num_cutscenes_valid(MOVIE_PRE_BRIEF)) {
+			common_maybe_play_cutscene(MOVIE_PRE_BRIEF, true, SCORE_BRIEFING);
+		Current_brief_stage = 0;
+	}
+	else if ( Current_brief_stage != 0 ) {
 		gamesnd_play_iface(SND_BRIEF_STAGE_CHG);
 		Current_brief_stage = 0;
 		if ( Quick_transition_stage != -1 )
@@ -861,7 +872,8 @@ void brief_init()
 	common_flash_button_init();
 	common_music_init(SCORE_BRIEFING);
 
-	help_overlay_set_state(BR_OVERLAY,0);
+	Briefing_overlay_id = help_overlay_get_index(BR_OVERLAY);
+	help_overlay_set_state(Briefing_overlay_id,0);
 
 	if ( Brief_inited == TRUE ) {
 		common_buttons_maybe_reload(&Brief_ui_window);	// AL 11-21-97: this is necessary since we may returning from the hotkey
@@ -871,10 +883,10 @@ void brief_init()
 		return;
 	}
 
-	if (The_mission.game_type & MISSION_TYPE_TRAINING)
-		Num_brief_stages = Briefing->num_stages;
-	else
+	if (The_mission.flags & MISSION_FLAG_ALWAYS_SHOW_GOALS || !(The_mission.game_type & MISSION_TYPE_TRAINING))
 		Num_brief_stages = Briefing->num_stages + 1;
+	else
+		Num_brief_stages = Briefing->num_stages;
 
 	Current_brief_stage = 0;
 	Last_brief_stage = 0;
@@ -887,8 +899,6 @@ void brief_init()
 
 	nprintf(("Alan","Entering brief_init()\n"));
 	common_select_init();
-
-	help_overlay_load(BR_OVERLAY);
 
 	// Set up the mask regions
    // initialize the different regions of the menu that will react when the mouse moves over it
@@ -986,7 +996,7 @@ void brief_render_closeup_text()
 	render_x = Closeup_region[0];
 	render_y = Closeup_region[1] + CLOSEUP_IMG_H;
 	
-	gr_set_clip(render_x+CLOSEUP_TEXT_OFFSET, render_y, CLOSEUP_W,CLOSEUP_TEXT_H);
+	gr_set_clip(render_x+CLOSEUP_TEXT_OFFSET, render_y, CLOSEUP_W,CLOSEUP_TEXT_H, GR_RESIZE_MENU);
 	gr_set_color_fast(&Color_white);
 
 //	n_lines = split_str(bi->text, CLOSEUP_W - 2*CLOSEUP_TEXT_OFFSET, n_chars, p_str, MAX_ICON_TEXT_LINES);
@@ -996,7 +1006,7 @@ void brief_render_closeup_text()
 		Assert(n_chars[i] < MAX_ICON_TEXT_LINE_LEN);
 		strncpy(line, p_str[i], n_chars[i]);
 		line[n_chars[i]] = 0;
-		gr_printf(0,0+i*Closeup_font_height,line);
+		gr_printf_menu(0,0+i*Closeup_font_height,line);
 	}
 */
 }
@@ -1030,7 +1040,7 @@ void brief_render_closeup(int ship_class, float frametime)
 
 	w = Closeup_region[gr_screen.res][2];
 	h = Closeup_region[gr_screen.res][3];
-	gr_set_clip(Closeup_region[gr_screen.res][0], Closeup_region[gr_screen.res][1], w, h);
+	gr_set_clip(Closeup_region[gr_screen.res][0], Closeup_region[gr_screen.res][1], w, h, GR_RESIZE_MENU);
 
 	g3_start_frame(1);
 	g3_set_view_matrix(&Closeup_cam_pos, &view_orient, Closeup_zoom);
@@ -1075,7 +1085,7 @@ void brief_render_closeup(int ship_class, float frametime)
 
 	gr_set_color_fast(&Color_bright_white);
 
-	gr_string(0x8000,2,Closeup_icon->closeup_label,false);
+	gr_string(0x8000,2,Closeup_icon->closeup_label,GR_RESIZE_MENU);
 //	brief_render_closeup_text();
 
 	Closeup_close_button.enable();
@@ -1095,25 +1105,25 @@ void brief_render(float frametime)
 	if ( Num_brief_stages <= 0 ) {
 		gr_set_color_fast(&Color_white);
 		Assert( Game_current_mission_filename != NULL );
-		gr_printf(0x8000,200,XSTR( "No Briefing exists for mission: %s", 430), Game_current_mission_filename);
+		gr_printf_menu(0x8000,200,XSTR( "No Briefing exists for mission: %s", 430), Game_current_mission_filename);
 
 		#ifndef NDEBUG
 		gr_get_string_size(&w, &h, The_mission.name);
 		gr_set_color_fast(&Color_normal);
-		gr_printf(0x8000, 230, NOX("[filename: %s, last mod: %s]"), Mission_filename, The_mission.modified);
+		gr_printf_menu(0x8000, 230, NOX("[filename: %s, last mod: %s]"), Mission_filename, The_mission.modified);
 		#endif
 
 		return;
 	}
 
 	gr_set_bitmap(Brief_grid_bitmap);
-	gr_bitmap(Brief_bmap_coords[gr_screen.res][0], Brief_bmap_coords[gr_screen.res][1]);
+	gr_bitmap(Brief_bmap_coords[gr_screen.res][0], Brief_bmap_coords[gr_screen.res][1], GR_RESIZE_MENU);
 
 	brief_render_map(Current_brief_stage, frametime);
 
 	// draw the frame bitmaps
 	gr_set_bitmap(Brief_text_bitmap);
-	gr_bitmap(Brief_infobox_coords[gr_screen.res][0], Brief_infobox_coords[gr_screen.res][1]);
+	gr_bitmap(Brief_infobox_coords[gr_screen.res][0], Brief_infobox_coords[gr_screen.res][1], GR_RESIZE_MENU);
 	brief_blit_stage_num(Current_brief_stage, Num_brief_stages);
 
 	// only try to render text and play audio if there is really something here - taylor
@@ -1137,9 +1147,9 @@ void brief_render(float frametime)
 
 			gr_get_string_size(&w, &h, XSTR("more", 1469), strlen(XSTR("more", 1469)));
 			gr_set_color_fast(&Color_black);
-			gr_rect(more_txt_x-2, more_txt_y, w+3, h);
+			gr_rect(more_txt_x-2, more_txt_y, w+3, h, GR_RESIZE_MENU);
 			gr_set_color_fast(&Color_red);
-			gr_string(more_txt_x, more_txt_y, XSTR("more", 1469));  // base location on the input x and y?
+			gr_string(more_txt_x, more_txt_y, XSTR("more", 1469), GR_RESIZE_MENU);  // base location on the input x and y?
 		}
 	}
 
@@ -1148,7 +1158,7 @@ void brief_render(float frametime)
 #if !defined(NDEBUG)
 	gr_set_color_fast(&Color_normal);
 	int title_y_offset = (Game_mode & GM_MULTIPLAYER) ? 20 : 10;
-	gr_printf(Brief_bmap_coords[gr_screen.res][0], Brief_bmap_coords[gr_screen.res][1]-title_y_offset, NOX("[name: %s, mod: %s]"), Mission_filename, The_mission.modified);
+	gr_printf_menu(Brief_bmap_coords[gr_screen.res][0], Brief_bmap_coords[gr_screen.res][1]-title_y_offset, NOX("[name: %s, mod: %s]"), Mission_filename, The_mission.modified);
 #endif
 
 	// output mission title
@@ -1158,10 +1168,10 @@ void brief_render(float frametime)
 		char buf[256];
 		strncpy(buf, The_mission.name, 256);
 		gr_force_fit_string(buf, 255, Title_coords_multi[gr_screen.res][2]);
-		gr_string(Title_coords_multi[gr_screen.res][0], Title_coords_multi[gr_screen.res][1], buf);
+		gr_string(Title_coords_multi[gr_screen.res][0], Title_coords_multi[gr_screen.res][1], buf, GR_RESIZE_MENU);
 	} else {
 		gr_get_string_size(&w, NULL, The_mission.name);
-		gr_string(Title_coords[gr_screen.res][0] - w, Title_coords[gr_screen.res][1], The_mission.name);
+		gr_string(Title_coords[gr_screen.res][0] - w, Title_coords[gr_screen.res][1], The_mission.name, GR_RESIZE_MENU);
 	}
 
 	// maybe do objectives
@@ -1471,7 +1481,7 @@ void brief_do_frame(float frametime)
 		Brief_mouse_up_flag = 0;
 	}
 
-	if ( help_overlay_active(BR_OVERLAY) ) {
+	if ( help_overlay_active(Briefing_overlay_id) ) {
 		common_flash_button_init();
 		brief_turn_off_closeup_icon();
 	}
@@ -1619,7 +1629,7 @@ void brief_do_frame(float frametime)
 	common_render(frametime);
 
 	if ( Current_brief_stage < (Num_brief_stages-1) ) {
-		if ( !help_overlay_active(BR_OVERLAY) && brief_time_to_advance(Current_brief_stage) ) {
+		if ( !help_overlay_active(Briefing_overlay_id) && brief_time_to_advance(Current_brief_stage) ) {
 			brief_do_next_pressed(0);
 			common_flash_button_init();
 			Brief_last_auto_advance = timer_get_milliseconds();
@@ -1705,7 +1715,7 @@ void brief_do_frame(float frametime)
 		if (Closeup_icon && (Closeup_bitmap >= 0)) {
 			// blit closeup background
 			gr_set_bitmap(Closeup_bitmap);
-			gr_bitmap(Closeup_coords[gr_screen.res][BRIEF_X_COORD], Closeup_coords[gr_screen.res][BRIEF_Y_COORD]);
+			gr_bitmap(Closeup_coords[gr_screen.res][BRIEF_X_COORD], Closeup_coords[gr_screen.res][BRIEF_Y_COORD], GR_RESIZE_MENU);
 		}
 
 		Brief_ui_window.draw();
@@ -1745,7 +1755,7 @@ void brief_do_frame(float frametime)
 	brief_maybe_flash_button();
 
 	// blit help overlay if active
-	help_overlay_maybe_blit(BR_OVERLAY);	
+	help_overlay_maybe_blit(Briefing_overlay_id);
 
 	gr_flip();	
 
@@ -1788,8 +1798,6 @@ void brief_unload_bitmaps()
 		bm_release(Brief_background_bitmap);
 		Brief_background_bitmap = -1;
 	}
-
-	help_overlay_unload(BR_OVERLAY);
 }
 
 // ------------------------------------------------------------------------------------
@@ -1825,10 +1833,10 @@ void brief_close()
 	Brief_inited = FALSE;
 }
 
-void briefing_stop_music()
+void briefing_stop_music(bool fade)
 {
 	if ( Briefing_music_handle != -1 ) {
-		audiostream_close_file(Briefing_music_handle, 1);
+		audiostream_close_file(Briefing_music_handle, fade);
 		Briefing_music_handle = -1;
 	}
 }
@@ -1926,7 +1934,7 @@ void brief_maybe_blit_scene_cut(float frametime)
 
 		// Blit the bitmap for this frame
 		gr_set_bitmap(Fade_anim.first_frame + framenum);
-		gr_bitmap(Fade_anim.sx, Fade_anim.sy);
+		gr_bitmap(Fade_anim.sx, Fade_anim.sy, GR_RESIZE_MENU);
 	}
 
 
@@ -1952,7 +1960,7 @@ void brief_maybe_blit_scene_cut(float frametime)
 
 		// Blit the bitmap for this frame
 		gr_set_bitmap(Fade_anim.first_frame + (Fade_anim.num_frames-1) - framenum);
-		gr_bitmap(Fade_anim.sx, Fade_anim.sy);
+		gr_bitmap(Fade_anim.sx, Fade_anim.sy, GR_RESIZE_MENU);
 	}
 }
 

@@ -11,6 +11,8 @@
 #include "mod_table/mod_table.h"
 #include "localization/localize.h"
 #include "parse/parselo.h"
+#include "sound/sound.h"
+#include "gamesnd/eventmusic.h"
 
 int Directive_wait_time = 3000;
 bool True_loop_argument_sexps = false;
@@ -25,6 +27,7 @@ int Default_detail_level = 3; // "very high" seems a reasonable default in 2012 
 bool Full_color_head_anis = false;
 bool Weapons_inherit_parent_collision_group = false;
 bool Flight_controls_follow_eyepoint_orientation = false;
+int FS2NetD_port = 0;
 
 
 void parse_mod_table(const char *filename)
@@ -160,6 +163,28 @@ void parse_mod_table(const char *filename)
 		}
 	}
 	
+	optional_string("#NETWORK SETTINGS"); 
+
+	if (optional_string("$FS2NetD port:")) {
+		stuff_int(&FS2NetD_port);
+		if (FS2NetD_port)
+			mprintf(("Game Settings Table: FS2NetD connecting to port %i\n", FS2NetD_port));
+	}
+
+	optional_string("#SOUND SETTINGS"); 
+
+	if (optional_string("$Default Sound Volume:")) {
+		stuff_float(&Master_sound_volume);
+	}
+
+	if (optional_string("$Default Music Volume:")) {
+		stuff_float(&Master_event_music_volume);
+	}
+
+	if (optional_string("$Default Voice Volume:")) {
+		stuff_float(&Master_voice_volume);
+	}
+
 	optional_string("#OTHER SETTINGS"); 
 
 	if (optional_string("$Fixed Turret Collisions:")) { 

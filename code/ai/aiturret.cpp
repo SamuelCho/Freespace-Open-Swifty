@@ -22,6 +22,7 @@
 #include "iff_defs/iff_defs.h"
 #include "weapon/muzzleflash.h"
 #include "parse/scripting.h"
+#include "debugconsole/console.h"
 
 #include <limits.h>
 
@@ -38,8 +39,7 @@
 float Lethality_range_const = 2.0f;
 DCF(lethality_range, "N for modifying range: 1 / (1+N) at 100")
 {
-	dc_get_arg(ARG_FLOAT);
-	Lethality_range_const = Dc_arg_float;
+	dc_stuff_float(&Lethality_range_const);
 }
 
 float Player_lethality_bump[NUM_SKILL_LEVELS] = {
@@ -1365,7 +1365,7 @@ int aifft_rotate_turret(ship *shipp, int parent_objnum, ship_subsys *ss, object 
 
 		//Try to guess where the enemy will be, and store that spot in predicted_enemy_pos
 		if (The_mission.ai_profile->flags & AIPF_USE_ADDITIVE_WEAPON_VELOCITY) {
-			vm_vec_sub2(&target_moving_direction, &objp->phys_info.vel);
+			vm_vec_scale_sub2(&target_moving_direction, &objp->phys_info.vel, wip->vel_inherit_amount);
 		}
 
 		set_predicted_enemy_pos_turret(predicted_enemy_pos, &gun_pos, objp, &enemy_point, &target_moving_direction, wip->max_speed, ss->turret_time_enemy_in_range * (weapon_system_strength + 1.0f)/2.0f);
@@ -1466,10 +1466,16 @@ ship_subsys *aifft_list[MAX_AIFFT_TURRETS];
 float aifft_rank[MAX_AIFFT_TURRETS];
 int aifft_list_size = 0;
 int aifft_max_checks = 5;
-DCF(mf, "")
+DCF(mf, "Adjusts the maximum number of tries an AI may do when trying to pick a subsystem to attack (Default is 5)")
 {
-	dc_get_arg(ARG_INT);
-	aifft_max_checks = Dc_arg_int;
+	dc_stuff_int(&aifft_max_checks);
+
+	if (aifft_max_checks <= 0) {
+		dc_printf("Value must be a non-negative, non-zero integer\n");
+		dc_printf("aifft_max_checks set to default value of 5\n");
+
+		aifft_max_checks = 5;
+	}
 }
 
 
