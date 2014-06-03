@@ -1638,6 +1638,8 @@ int parse_weapon(int subtype, bool replace)
 				} else {
 					wip->target_restrict = LR_CURRENT_TARGET;
 				}
+			} else {
+				wip->target_restrict = LR_CURRENT_TARGET;
 			}
 
 			if ( optional_string("+Independent Seekers:") ) {
