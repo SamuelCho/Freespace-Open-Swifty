@@ -22,6 +22,7 @@
 #include "io/timer.h"
 #include "ddsutils/ddsutils.h"
 #include "model/model.h"
+#include "debugconsole/console.h"
 #include "debugconsole/timerbar.h"
 #include "graphics/gropenglbmpman.h"
 #include "graphics/gropengllight.h"
@@ -346,7 +347,7 @@ void gr_opengl_flip()
 
 		if (Gr_cursor != -1 && bm_is_valid(Gr_cursor)) {
 			gr_set_bitmap(Gr_cursor);
-			gr_bitmap( mx, my, false);
+			gr_bitmap( mx, my, GR_RESIZE_NONE);
 		}
 	}
 
@@ -367,7 +368,7 @@ void gr_opengl_flip()
 #endif
 }
 
-void gr_opengl_set_clip(int x, int y, int w, int h, bool resize)
+void gr_opengl_set_clip(int x, int y, int w, int h, int resize_mode)
 {
 	// check for sanity of parameters
 	if (x < 0) {
@@ -378,7 +379,7 @@ void gr_opengl_set_clip(int x, int y, int w, int h, bool resize)
 		y = 0;
 	}
 
-	int to_resize = (resize && (gr_screen.custom_size || (gr_screen.rendering_to_texture != -1)));
+	int to_resize = (resize_mode != GR_RESIZE_NONE && (gr_screen.custom_size || (gr_screen.rendering_to_texture != -1)));
 
 	int max_w = ((to_resize) ? gr_screen.max_w_unscaled : gr_screen.max_w);
 	int max_h = ((to_resize) ? gr_screen.max_h_unscaled : gr_screen.max_h);
@@ -417,8 +418,7 @@ void gr_opengl_set_clip(int x, int y, int w, int h, bool resize)
 	gr_screen.clip_height_unscaled = h;
 
 	if (to_resize) {
-		gr_resize_screen_pos(&x, &y);
-		gr_resize_screen_pos(&w, &h);
+		gr_resize_screen_pos(&x, &y, &w, &h, resize_mode);
 	} else {
 		gr_unsize_screen_pos( &gr_screen.offset_x_unscaled, &gr_screen.offset_y_unscaled );
 		gr_unsize_screen_pos( &gr_screen.clip_right_unscaled, &gr_screen.clip_bottom_unscaled );
@@ -1130,7 +1130,7 @@ void gr_opengl_restore_screen(int bmp_id)
 		return;
 
 	gr_set_bitmap(GL_saved_screen_id);
-	gr_bitmap(0, 0, false);	// don't scale here since we already have real screen size
+	gr_bitmap(0, 0, GR_RESIZE_NONE);	// don't scale here since we already have real screen size
 }
 
 void gr_opengl_free_screen(int bmp_id)
@@ -2078,56 +2078,61 @@ bool gr_opengl_init()
 
 DCF(ogl_minimize, "Minimizes opengl")
 {
+	bool minimize_ogl = false;
+
 	if ( gr_screen.mode != GR_OPENGL ) {
 		dc_printf("Command only available in OpenGL mode.\n");
 		return;
 	}
 
-	if (Dc_command) {
-		dc_get_arg(ARG_TRUE);
-
-		if ( Dc_arg_type & ARG_TRUE ) {
-			opengl_minimize();
-		}
+	if (dc_optional_string_either("help", "--help")) {
+		dc_printf("[bool] If true is passed, then the OpenGL window will minimize.\n");
+		return;
 	}
+	dc_stuff_boolean(&minimize_ogl);
 
-	if (Dc_help)
-		dc_printf("If set to true then the OpenGL window will minimize.\n");
+	if (minimize_ogl) {
+		opengl_minimize();
+	}
 }
 
 DCF(ogl_anisotropy, "toggles anisotropic filtering")
 {
+	bool process = true;
+	int value;
+
 	if ( gr_screen.mode != GR_OPENGL ) {
 		dc_printf("Can only set anisotropic filter in OpenGL mode.\n");
 		return;
 	}
 
-	if ( Dc_command && !Is_Extension_Enabled(OGL_EXT_TEXTURE_FILTER_ANISOTROPIC) ) {
+	if (dc_optional_string_either("help", "--help")) {
+		dc_printf("Sets OpenGL anisotropic filtering level.\n");
+		dc_printf("GL_anisotropy [int]  Valid values are 0 to %i. 0 turns off anisotropic filtering.\n", (int)opengl_get_max_anisotropy());
+		process = false;
+	}
+
+	if (dc_optional_string_either("status", "--status") || dc_optional_string_either("?", "--?")) {
+		dc_printf("Current anisotropic filter value is %i\n", (int)GL_anisotropy);
+		process = false;
+	}
+
+	if (!process) {
+		return;
+	}
+
+	if ( !Is_Extension_Enabled(OGL_EXT_TEXTURE_FILTER_ANISOTROPIC) ) {
 		dc_printf("Error: Anisotropic filter is not settable!\n");
 		return;
 	}
 
-	if ( Dc_command ) {
-		dc_get_arg(ARG_INT | ARG_NONE);
-
-		if ( Dc_arg_type & ARG_NONE ) {
+	if (!dc_maybe_stuff_int(&value)) {
+		// No arg passed, set to default
 			GL_anisotropy = 1.0f;
 		//	opengl_set_anisotropy();
 			dc_printf("Anisotropic filter value reset to default level.\n");
-		}
-
-		if ( Dc_arg_type & ARG_INT ) {
-			GL_anisotropy = (GLfloat)Dc_arg_float;
+	} else {
+		GL_anisotropy = (GLfloat)value;
 		//	opengl_set_anisotropy( (float)Dc_arg_float );
-		}
-	}
-
-	if ( Dc_status ) {
-		dc_printf("Current anisotropic filter value is %i\n", (int)GL_anisotropy);
-	}
-
-	if (Dc_help) {
-		dc_printf("Sets OpenGL anisotropic filtering level.\n");
-		dc_printf("Valid values are 1 to %i, or 0 to turn off.\n", (int)opengl_get_max_anisotropy());
 	}
 }

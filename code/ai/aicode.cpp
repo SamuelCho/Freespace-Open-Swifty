@@ -18,6 +18,7 @@
 
 
 #include "ai/ai.h"
+#include "debugconsole/console.h"
 #include "globalincs/linklist.h"
 #include "object/object.h"
 #include "physics/physics.h"
@@ -6135,7 +6136,9 @@ void render_all_ship_bay_paths(object *objp)
 	if ( pm->ship_bay == NULL )
 		return;
 
-	for ( i = 0; i < pm->ship_bay->num_paths; i++ ) {
+	memset(&v, 0, sizeof(v));
+    
+    for ( i = 0; i < pm->ship_bay->num_paths; i++ ) {
 		mp = &pm->paths[pm->ship_bay->path_indexes[i]];
 
 		for ( j = 0; j < mp->nverts; j++ ) {
@@ -6177,6 +6180,8 @@ void render_all_subsys_paths(object *objp)
 
 	if ( pm->ship_bay == NULL )
 		return;
+    
+    memset(&v, 0, sizeof(v));
 
 	for ( i = 0; i < pm->n_paths; i++ ) {
 		mp = &pm->paths[i];
@@ -6238,6 +6243,8 @@ void render_path_points(object *objp)
 
 		for (i=0; i<num_points; i++) {
 			vertex	v0;
+            
+            memset(&v0, 0, sizeof(v0));
 
 			g3_rotate_vertex( &v0, &pp->pos );
 
@@ -11367,16 +11374,14 @@ float get_wing_largest_radius(object *objp, int formation_object_flag)
 
 float Wing_y_scale = 2.0f;
 float Wing_scale = 1.0f;
-DCF(wing_y_scale, "")
+DCF(wing_y_scale, "Adjusts the wing formation scale along the Y axis (Default is 2.0)")
 {
-	dc_get_arg(ARG_FLOAT);
-	Wing_y_scale = Dc_arg_float;
+	dc_stuff_float(&Wing_y_scale);
 }
 
-DCF(wing_scale, "")
+DCF(wing_scale, "Adjusts the wing formation scale. (Default is 1.0f)")
 {
-	dc_get_arg(ARG_FLOAT);
-	Wing_scale = Dc_arg_float;
+	dc_stuff_float(&Wing_scale);
 }
 
 /**
@@ -12644,6 +12649,8 @@ int ai_acquire_emerge_path(object *pl_objp, int parent_objnum, int allowed_path_
 	{
 		int i, num_allowed_paths = 0, allowed_bay_paths[MAX_SHIP_BAY_PATHS];
 
+		memset(allowed_bay_paths, 0, sizeof(allowed_bay_paths));
+        
 		for (i = 0; i < bay->num_paths; i++)
 		{
 			if (allowed_path_mask & (1 << i))
@@ -14014,8 +14021,12 @@ void ai_frame(int objnum)
 				if (target_objnum != -1) {
 					if (aip->target_objnum != target_objnum)
 						aip->aspect_locked_time = 0.0f;
-					set_target_objnum(aip, target_objnum);
-					En_objp = &Objects[target_objnum];
+					target_objnum = set_target_objnum(aip, target_objnum);
+
+					if (target_objnum >= 0)
+					{
+						En_objp = &Objects[target_objnum];
+					}
 				}
 			}
 		}
@@ -14778,14 +14789,17 @@ int firing_aspect_seeking_bomb(object *objp)
 
 	bank_index = swp->current_secondary_bank;
 
-	if (bank_index != -1)
-		if (swp->secondary_bank_ammo[bank_index] > 0) {
-			if (Weapon_info[swp->secondary_bank_weapons[bank_index]].wi_flags & WIF_BOMB) {
-				if (Weapon_info[swp->secondary_bank_weapons[bank_index]].wi_flags & WIF_HOMING_ASPECT) {
-					return 1;
+	if (bank_index != -1) {
+		if (swp->secondary_bank_weapons[bank_index] > 0) {
+			if (swp->secondary_bank_ammo[bank_index] > 0) {
+				if (Weapon_info[swp->secondary_bank_weapons[bank_index]].wi_flags & WIF_BOMB) {
+					if (Weapon_info[swp->secondary_bank_weapons[bank_index]].wi_flags & WIF_HOMING_ASPECT) {
+						return 1;
+					}
 				}
 			}
 		}
+	}
 
 	return 0;
 }
