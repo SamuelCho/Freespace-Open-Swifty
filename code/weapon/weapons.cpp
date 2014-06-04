@@ -3522,6 +3522,7 @@ void weapon_close()
 void weapon_level_init()
 {
 	int i;
+	extern int ships_inited;
 
 	// Reset everything between levels
 	Num_weapons = 0;
@@ -3534,16 +3535,18 @@ void weapon_level_init()
 		Weapon_info[i].damage_type_idx = Weapon_info[i].damage_type_idx_sav;
 		Weapon_info[i].shockwave.damage_type_idx = Weapon_info[i].shockwave.damage_type_idx_sav;
 
-		// populate ship type lock restrictions
-		for ( int j = 0; j < Weapon_info[i].ship_type_restrict_temp.size(); ++j ) {
-			int idx = ship_type_name_lookup((char*)Weapon_info[i].ship_type_restrict_temp[j].c_str());
+		if ( ships_inited ) {
+			// populate ship type lock restrictions
+			for ( int j = 0; j < Weapon_info[i].ship_type_restrict_temp.size(); ++j ) {
+				int idx = ship_type_name_lookup((char*)Weapon_info[i].ship_type_restrict_temp[j].c_str());
 
-			if ( idx >= 0 ) {
-				Weapon_info[i].ship_type_restrict.push_back(idx);
+				if ( idx >= 0 ) {
+					Weapon_info[i].ship_type_restrict.push_back(idx);
+				}
 			}
-		}
 
-		Weapon_info[i].ship_type_restrict_temp.clear();
+			Weapon_info[i].ship_type_restrict_temp.clear();
+		}
 	}
 
 	trail_level_init();		// reset all missile trails
