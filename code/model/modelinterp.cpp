@@ -35,6 +35,7 @@
 #include "gamesequence/gamesequence.h"
 #include "globalincs/alphacolors.h"
 #include "model/modelrender.h"
+#include "debugconsole/console.h"
 
 #include <limits.h>
 
@@ -1963,19 +1964,20 @@ float Interp_depth_scale = 1500.0f;
 
 DCF(model_darkening,"Makes models darker with distance")
 {
-	if ( Dc_command )	{
-		dc_get_arg(ARG_FLOAT);
-		Interp_depth_scale = Dc_arg_float;
+	if (dc_optional_string_either("help", "--help")) {
+		dc_printf( "Usage: model_darkening <float>\n" );
+		dc_printf("Sets the distance at which to start blacking out models (namely asteroids).\n");
+		return;
 	}
 
-	if ( Dc_help )	{
-		dc_printf( "Usage: model_darkening float\n" );
-		Dc_status = 0;	// don't print status if help is printed.  Too messy.
-	}
-
-	if ( Dc_status )	{
+	if (dc_optional_string_either("status", "--status") || dc_optional_string_either("?", "--?")) {
 		dc_printf( "model_darkening = %.1f\n", Interp_depth_scale );
+		return;
 	}
+
+	dc_stuff_float(&Interp_depth_scale);
+
+	dc_printf("model_darkening set to %.1f\n", Interp_depth_scale);
 }
 
 void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures, int render)
@@ -1995,7 +1997,7 @@ void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint fl
 	int time = timestamp();
 	glow_point_bank_override *gpo = NULL;
 	bool override_all = false;
-	SCP_unordered_map<int, void*>::iterator gpoi;
+	SCP_hash_map<int, void*>::iterator gpoi;
 	ship_info *sip = NULL;
 	ship *shipp = NULL;
 	
@@ -2004,7 +2006,7 @@ void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint fl
 		{
 			shipp = &Ships[Objects[objnum].instance];
 			sip = &Ship_info[shipp->ship_info_index];
-			SCP_unordered_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
+			SCP_hash_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
 		
 			if(gpoi != sip->glowpoint_bank_override_map.end()) {
 				override_all = true;
@@ -2170,8 +2172,13 @@ float model_find_closest_point( vec3d *outpnt, int model_num, int submodel_num, 
 }
 
 int tiling = 1;
-DCF(tiling, "")
+DCF(tiling, "Toggles rendering of tiled textures (default is on)")
 {
+	if (dc_optional_string_either("status", "--status") || dc_optional_string_either("?", "--?")) {
+		dc_printf("Tiled textures are %s", tiling ? "ON" : "OFF");
+		return;
+	}
+
 	tiling = !tiling;
 	if(tiling){
 		dc_printf("Tiled textures\n");
@@ -2543,13 +2550,13 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 	
 	glow_point_bank_override *gpo = NULL;
 	bool override_all = false;
-	SCP_unordered_map<int, void*>::iterator gpoi;
+	SCP_hash_map<int, void*>::iterator gpoi;
 	ship_info *sip = NULL;
 
 	if(shipp)
 	{
 		sip = &Ship_info[shipp->ship_info_index];
-		SCP_unordered_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
+		SCP_hash_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
 		
 		if(gpoi != sip->glowpoint_bank_override_map.end()) {
 			override_all = true;
@@ -2761,6 +2768,8 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 						{
 							vertex verts[4];
 							vec3d fvec, top1, bottom1, top2, bottom2, start, end;
+                            
+							memset(verts, 0, sizeof(verts));
 
 							vm_vec_add2(&loc_norm, &loc_offset);
 
@@ -5362,7 +5371,7 @@ int texture_info::LoadTexture(char *filename, char *dbg_name = "<UNKNOWN>")
 {
 	if (strlen(filename) + 4 >= NAME_LENGTH) //Filenames are passed in without extension
 	{
-		mprintf(("Generated texture name %s is too long. Skipping...\n"));
+		mprintf(("Generated texture name %s is too long. Skipping...\n", filename));
 		return -1;
 	}
 	this->original_texture = bm_load_either(filename, NULL, NULL, NULL, 1, CF_TYPE_MAPS);

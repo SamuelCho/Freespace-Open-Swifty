@@ -21,6 +21,7 @@
 #include "globalincs/alphacolors.h"
 #include "localization/localize.h"
 #include "parse/parselo.h"
+#include "debugconsole/console.h"
 
 #ifndef NDEBUG
 #include "cmdline/cmdline.h"
@@ -437,78 +438,17 @@ void parse_medal_tbl()
 DCF(medals, "Grant or revoke medals")
 {
 	int i;
+	int idx;
 
-	if (Dc_command)
+	if (dc_optional_string_either("help", "--help"))
 	{
-		dc_get_arg(ARG_STRING | ARG_INT | ARG_NONE);
-
-		if (Dc_arg_type & ARG_INT)
-		{
-			int idx = Dc_arg_int;
-
-			if (idx < 0 || idx >= Num_medals)
-			{
-				dc_printf("Medal index %d is out of range\n", idx);
-				return;
-			}
-
-			dc_printf("Granted %s\n", Medals[idx].name);
-			Player->stats.medal_counts[idx]++;
-		}
-		else if (Dc_arg_type & ARG_STRING)
-		{
-			if (!strcmp(Dc_arg, "all"))
-			{
-				for (i = 0; i < Num_medals; i++)
-					Player->stats.medal_counts[i]++;
-
-				dc_printf("Granted all medals\n");
-			}
-			else if (!strcmp(Dc_arg, "clear"))
-			{
-				for (i = 0; i < Num_medals; i++)
-					Player->stats.medal_counts[i] = 0;
-
-				dc_printf("Cleared all medals\n");
-			}
-			else if (!strcmp(Dc_arg, "demote"))
-			{
-				if (Player->stats.rank > 0)
-					Player->stats.rank--;
-
-				dc_printf("Demoted to %s\n", Ranks[Player->stats.rank].name);
-			}
-			else if (!strcmp(Dc_arg, "promote"))
-			{
-				if (Player->stats.rank < MAX_FREESPACE2_RANK)
-					Player->stats.rank++;
-
-				dc_printf("Promoted to %s\n", Ranks[Player->stats.rank].name);
-			}
-			else
-			{
-				Dc_help = 1;
-			}
-		}
-		else
-		{
-			dc_printf("The following medals are available:\n");
-			for (i = 0; i < Num_medals; i++)
-				dc_printf("%d: %s\n", i, Medals[i].name);
-		}
-
-		Dc_status = 0;
-	}
-
-	if (Dc_help)
-	{
-		dc_printf ("Usage: gimmemedals all | clear | promote | demote | [index]\n");
+		dc_printf ("Usage: medals all | clear | promote | demote | [index]\n");
 		dc_printf ("       [index] --  index of medal to grant\n");
 		dc_printf ("       with no parameters, displays the available medals\n");
-		Dc_status = 0;
+		return;
 	}
 
-	if (Dc_status)
+	if (dc_optional_string_either("status", "--status") || dc_optional_string_either("?", "--?"))
 	{
 		dc_printf("You have the following medals:\n");
 
@@ -518,6 +458,53 @@ DCF(medals, "Grant or revoke medals")
 				dc_printf("%d %s\n", Player->stats.medal_counts[i], Medals[i].name);
 		}
 		dc_printf("%s\n", Ranks[Player->stats.rank].name);
+		return;
+	}
+
+	if (dc_optional_string("all")) {
+		for (i = 0; i < Num_medals; i++) {
+			Player->stats.medal_counts[i]++;
+		}
+		dc_printf("Granted all medals\n");
+		return;
+
+	} else if (dc_optional_string("clear")) {
+		for (i = 0; i < Num_medals; i++) {
+			Player->stats.medal_counts[i] = 0;
+		}
+		dc_printf("Cleared all medals\n");
+		return;
+
+	} else if (dc_optional_string("promote")) {
+		if (Player->stats.rank < MAX_FREESPACE2_RANK) {
+			Player->stats.rank++;
+		}
+		dc_printf("Promoted to %s\n", Ranks[Player->stats.rank].name);
+		return;
+
+	} else if (dc_optional_string("demote")) {
+		if (Player->stats.rank > 0) {
+			Player->stats.rank--;
+		}
+		dc_printf("Demoted to %s\n", Ranks[Player->stats.rank].name);
+		return;
+	}
+
+	if (dc_maybe_stuff_int(&idx)) {
+		if (idx < 0 || idx >= Num_medals)
+		{
+			dc_printf("Medal index %d is out of range\n", idx);
+			return;
+		}
+
+		dc_printf("Granted %s\n", Medals[idx].name);
+		Player->stats.medal_counts[idx]++;
+		return;
+	}
+
+	dc_printf("The following medals are available:\n");
+	for (i = 0; i < Num_medals; i++) {
+		dc_printf("%d: %s\n", i, Medals[i].name);
 	}
 }
 
@@ -632,7 +619,7 @@ void blit_label(char *label, int num)
 	y = Medals_label_coords[gr_screen.res].y;
 
 	// do it
-	gr_string(x, y, text);
+	gr_string(x, y, text, GR_RESIZE_MENU);
 }
 
 void blit_callsign()
@@ -647,7 +634,7 @@ void blit_callsign()
 
 	// nothing special, just do it.
 	// Goober5000 - from previous code revisions, I assume 0x8000 means center it on-screen...
-	gr_string((x < 0) ? 0x8000 : x, y, Medals_player->callsign);
+	gr_string((x < 0) ? 0x8000 : x, y, Medals_player->callsign, GR_RESIZE_MENU);
 }
 
 int medal_main_do()
@@ -665,7 +652,7 @@ int medal_main_do()
 	GR_MAYBE_CLEAR_RES(Medals_bitmap);
 	if (Medals_bitmap != -1) {
 		gr_set_bitmap(Medals_bitmap);
-		gr_bitmap(0,0);
+		gr_bitmap(0,0,GR_RESIZE_MENU);
 	}
 
 	// check to see if a button was pressed
@@ -829,13 +816,13 @@ void blit_medals()
 			}
 #endif
 			gr_set_bitmap(Medal_display_info[idx].bitmap);
-			gr_bitmap(Medal_display_info[idx].coords[gr_screen.res].x, Medal_display_info[idx].coords[gr_screen.res].y);
+			gr_bitmap(Medal_display_info[idx].coords[gr_screen.res].x, Medal_display_info[idx].coords[gr_screen.res].y, GR_RESIZE_MENU);
 		}
 	}
 
 	// now blit rank, since that "medal" doesn't get loaded (or drawn) the normal way
 	gr_set_bitmap(Rank_bm);
-	gr_bitmap(Medal_display_info[Rank_medal_index].coords[gr_screen.res].x, Medal_display_info[Rank_medal_index].coords[gr_screen.res].y);
+	gr_bitmap(Medal_display_info[Rank_medal_index].coords[gr_screen.res].x, Medal_display_info[Rank_medal_index].coords[gr_screen.res].y, GR_RESIZE_MENU);
 }
 
 int medals_info_lookup(const char *name)

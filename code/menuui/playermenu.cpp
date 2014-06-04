@@ -31,6 +31,7 @@
 #include "parse/parselo.h"
 #include "cfile/cfile.h"
 #include "network/multi.h"
+#include "debugconsole/console.h"
 
 
 // --------------------------------------------------------------------------------------------------------
@@ -329,7 +330,7 @@ void player_select_do()
 	if ((Global_warning_count > 10 || Global_error_count > 0) && !Startup_warning_dialog_displayed) {
 		char text[512];
 		sprintf(text, "Warning!\n\nThe currently active mod has generated %d warnings and/or errors during program startup.  These could have been caused by anything from incorrectly formated table files to corrupt models.  While FreeSpace Open will attempt to compensate for these issues, it cannot guarantee a trouble-free gameplay experience.  Source Code Project staff cannot provide assistance or support for these problems, as they are caused by the mod's data files, not FreeSpace Open's source code.", Global_warning_count + Global_error_count);
-		popup(PF_TITLE_BIG | PF_TITLE_RED, 1, POPUP_OK, text);
+		popup(PF_TITLE_BIG | PF_TITLE_RED | PF_USE_AFFIRMATIVE_ICON, 1, POPUP_OK, text);
 		Startup_warning_dialog_displayed = true;
 	}
 		
@@ -385,8 +386,9 @@ void player_select_do()
 	}
 
 	// draw the player select pseudo-dialog over it
+	GR_MAYBE_CLEAR_RES(Player_select_background_bitmap);
 	gr_set_bitmap(Player_select_background_bitmap);
-	gr_bitmap(0,0);
+	gr_bitmap(0,0,GR_RESIZE_MENU);
 
 	// press the accept button
 	if (Player_select_autoaccept) {
@@ -917,7 +919,7 @@ void player_select_draw_list()
 			gr_set_color_fast(&Color_text_normal);
 		}
 		// draw the actual callsign
-		gr_printf(Choose_list_coords[gr_screen.res][0], Choose_list_coords[gr_screen.res][1] + (idx * gr_get_font_height()), Pilots[idx + Player_select_list_start]);
+		gr_printf_menu(Choose_list_coords[gr_screen.res][0], Choose_list_coords[gr_screen.res][1] + (idx * gr_get_font_height()), Pilots[idx + Player_select_list_start]);
 	}
 }
 
@@ -1119,13 +1121,13 @@ void player_select_display_copyright()
 	gr_get_string_size(&w, NULL, Copyright_msg1);
 	sx = fl2i((gr_screen.max_w_unscaled / 2) - w/2.0f + 0.5f);
 	sy = (gr_screen.max_h_unscaled - 2) - 2*gr_get_font_height();
-	gr_string(sx, sy, Copyright_msg1);
+	gr_string(sx, sy, Copyright_msg1, GR_RESIZE_MENU);
 
 	gr_get_string_size(&w, NULL, Copyright_msg2);
 	sx = fl2i((gr_screen.max_w_unscaled / 2) - w/2.0f + 0.5f);
 	sy = (gr_screen.max_h_unscaled - 2) - gr_get_font_height();
 
-	gr_string(sx, sy, Copyright_msg2);
+	gr_string(sx, sy, Copyright_msg2, GR_RESIZE_MENU);
 }
 
 void player_select_display_all_text()
@@ -1138,7 +1140,7 @@ void player_select_display_all_text()
 
 		w = (gr_screen.max_w_unscaled - w) / 2;
 		gr_set_color_fast(&Color_bright_white);
-		gr_printf(w, Player_select_bottom_text_y[gr_screen.res], Player_select_bottom_text);
+		gr_printf_menu(w, Player_select_bottom_text_y[gr_screen.res], Player_select_bottom_text);
 	}
 
 	// only draw if we actually have a valid string
@@ -1147,7 +1149,7 @@ void player_select_display_all_text()
 
 		w = (gr_screen.max_w_unscaled - w) / 2;
 		gr_set_color_fast(&Color_bright_white);
-		gr_printf(w, Player_select_middle_text_y[gr_screen.res], Player_select_middle_text);
+		gr_printf_menu(w, Player_select_middle_text_y[gr_screen.res], Player_select_middle_text);
 	}
 }
 
@@ -1236,39 +1238,38 @@ void player_select_cancel_create()
 
 DCF(bastion,"Sets the player to be on the bastion (or any other main hall)")
 {
+	int idx;
+	
 	if(gameseq_get_state() != GS_STATE_INITIAL_PLAYER_SELECT) {
-		dc_printf("This command can only be run in the initial player select screen.\n");
+		dc_printf("This command can only be run while in the initial player select screen.\n");
 		return;
 	}
 
-	if (Dc_command) {
-		dc_get_arg(ARG_INT | ARG_NONE);
-
-		if (Dc_arg_type & ARG_INT) {
-			int idx = Dc_arg_int;
-
-			Assert(Main_hall_defines.at(gr_screen.res).size() < INT_MAX);
-			if (idx < 0 || idx >= (int) Main_hall_defines.at(gr_screen.res).size()) {
-				dc_printf("Main hall index out of range\n");
-			} else {
-				main_hall_get_name(Player_select_force_main_hall, idx);
-				dc_printf("Player is now on main hall '%d'\n", Player_select_force_main_hall.c_str());
-			}
-		} else {
-			Player_select_force_main_hall = "1";
-			dc_printf("Player is now on the Bastion... hopefully\n");
-		}
-		Dc_status = 0;
-	}
-
-	if (Dc_help) {
+	if (dc_optional_string_either("help", "--help")) {
 		dc_printf("Usage: bastion [index]\n");
-		dc_printf("       [index] -- optional main hall index; if not supplied, defaults to 1\n");
-		Dc_status = 0;
+		dc_printf("    [index] -- optional main hall index; if not supplied, defaults to 1\n");
+		return;
 	}
 
-	if (Dc_status) {
-		dc_printf("There is no current main hall, as the player has not been selected yet!\n");
+	if (dc_optional_string_either("status", "--status") || dc_optional_string_either("?", "--?")) {
+		dc_printf("Player is on main hall '%s'\n", Player_select_force_main_hall.c_str());
+		return;
+	}
+
+	if (dc_maybe_stuff_int(&idx)) {
+		Assert(Main_hall_defines.at(gr_screen.res).size() < INT_MAX);
+		if ((idx < 0) || (idx >= (int) Main_hall_defines.at(gr_screen.res).size())) {
+			dc_printf("Main hall index out of range\n");
+
+		} else {
+			main_hall_get_name(Player_select_force_main_hall, idx);
+			dc_printf("Player is now on main hall '%d'\n", Player_select_force_main_hall.c_str());
+		}
+	
+	} else {
+		// No argument passed
+		Player_select_force_main_hall = "1";
+		dc_printf("Player is now on the Bastion... hopefully\n");
 	}
 }
 

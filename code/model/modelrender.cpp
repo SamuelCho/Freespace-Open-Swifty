@@ -1577,7 +1577,7 @@ void model_queue_render_set_glow_points(polymodel *pm, int objnum)
 	int time = timestamp();
 	glow_point_bank_override *gpo = NULL;
 	bool override_all = false;
-	SCP_unordered_map<int, void*>::iterator gpoi;
+	SCP_hash_map<int, void*>::iterator gpoi;
 	ship_info *sip = NULL;
 	ship *shipp = NULL;
 
@@ -1588,7 +1588,7 @@ void model_queue_render_set_glow_points(polymodel *pm, int objnum)
 	if ( objnum > -1 ) {
 		shipp = &Ships[Objects[objnum].instance];
 		sip = &Ship_info[shipp->ship_info_index];
-		SCP_unordered_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
+		SCP_hash_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
 
 		if ( gpoi != sip->glowpoint_bank_override_map.end() ) {
 			override_all = true;
@@ -1641,12 +1641,12 @@ void model_queue_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, 
 
 	glow_point_bank_override *gpo = NULL;
 	bool override_all = false;
-	SCP_unordered_map<int, void*>::iterator gpoi;
+	SCP_hash_map<int, void*>::iterator gpoi;
 	ship_info *sip = NULL;
 
 	if ( shipp ) {
 		sip = &Ship_info[shipp->ship_info_index];
-		SCP_unordered_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
+		SCP_hash_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
 
 		if(gpoi != sip->glowpoint_bank_override_map.end()) {
 			override_all = true;

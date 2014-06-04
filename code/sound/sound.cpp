@@ -15,6 +15,7 @@
 #include "cmdline/cmdline.h"
 #include "osapi/osapi.h"
 #include "globalincs/vmallocator.h"
+#include "debugconsole/console.h"
 
 #include "gamesnd/gamesnd.h"
 #include "globalincs/alphacolors.h"
@@ -200,14 +201,15 @@ void snd_spew_info()
 }
 
 int Sound_spew = 0;
-DCF(show_sounds, "")
+DCF(show_sounds, "Toggles display of sound debug info")
 {
-	Sound_spew = !Sound_spew;
-	if(Sound_spew){
-		dc_printf("Sound debug info ON");
-	} else {
-		dc_printf("Sound debug info OFF");
+	if (dc_optional_string_either("status", "--status") || dc_optional_string_either("?", "--?")) {
+		dc_printf("Sound debug info is %s", (Sound_spew ? "ON" : "OFF"));
+		return;
 	}
+
+	Sound_spew = !Sound_spew;
+	dc_printf("Sound debug info is %s", (Sound_spew ? "ON" : "OFF"));
 }
 void snd_spew_debug_info()
 {
@@ -252,10 +254,10 @@ void snd_spew_debug_info()
 
 	// spew info
 	gr_set_color_fast(&Color_normal);
-	gr_printf(30, 100, "Game sounds : %d\n", game_sounds);
-	gr_printf(30, 110, "Interface sounds : %d\n", interface_sounds);
-	gr_printf(30, 120, "Message sounds : %d\n", message_sounds);
-	gr_printf(30, 130, "Total sounds : %d\n", game_sounds + interface_sounds + message_sounds);
+	gr_printf_no_resize(30, 100, "Game sounds : %d\n", game_sounds);
+	gr_printf_no_resize(30, 110, "Interface sounds : %d\n", interface_sounds);
+	gr_printf_no_resize(30, 120, "Message sounds : %d\n", message_sounds);
+	gr_printf_no_resize(30, 130, "Total sounds : %d\n", game_sounds + interface_sounds + message_sounds);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -310,7 +312,7 @@ int snd_load( game_snd *gs, int allow_hardware_load )
 	if ( n == Sounds.size() ) {
 		sound new_sound;
 		new_sound.sid = -1;
-		new_sound.flags &= ~SND_F_USED;
+		new_sound.flags = 0;
 
 		Sounds.push_back( new_sound );
 	}

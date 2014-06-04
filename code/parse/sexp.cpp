@@ -96,6 +96,8 @@
 #include "mod_table/mod_table.h"
 #include "ship/afterburner.h"
 #include "globalincs/alphacolors.h"
+#include "debugconsole/console.h"
+#include "debugconsole/console.h"
 
 #ifndef NDEBUG
 #include "hud/hudmessage.h"
@@ -12591,7 +12593,7 @@ void multi_sexp_deal_with_ship_flag()
 	multi_get_int(p_object_flag); 
 	multi_get_int(p_object_flag2); 
 	multi_get_bool(set_it);
- 
+
 	// if any of the above failed so will this loop
 	while (multi_get_bool(ship_arrived)) 
 	{
@@ -12602,7 +12604,10 @@ void multi_sexp_deal_with_ship_flag()
 				WarningEx(LOCATION, "Null ship pointer in multi_sexp_deal_with_ship_flag(), tell a coder.\n");
 				return;
 			}
-			
+
+			// save flags for state change comparisons
+			int object_flag_orig = Objects[shipp->objnum].flags;
+
 			if (set_it) {
 				Objects[shipp->objnum].flags |= object_flag;
 				// Objects[shipp->objnum].flags2 |= object_flag2;
@@ -12617,6 +12622,14 @@ void multi_sexp_deal_with_ship_flag()
 			}
 
 			// deal with side effects of these flags
+			if (object_flag == OF_NO_SHIELDS) {
+				if (set_it) {
+					zero_one_ets(&shipp->shield_recharge_index, &shipp->weapon_recharge_index, &shipp->engine_recharge_index);
+				} else if (object_flag_orig & OF_NO_SHIELDS) {
+					set_default_recharge_rates(&Objects[shipp->objnum]);
+				}
+			}
+
 			if (ship_flag2 == SF2_AFTERBURNER_LOCKED) {
 				if (set_it) {
 					afterburners_stop(&Objects[shipp->objnum], 1);
@@ -12987,13 +13000,12 @@ void sexp_alter_ship_flag(int node)
 	int ai_flag = 0;
 	int ai_flag2 = 0;
 	bool set_flag = false; 
-	bool send_multi = false;
 	bool future_ships = false; 
 	object_ship_wing_point_team oswpt;
 
 	flag_name = CTEXT(node); 
 
-	send_multi = sexp_check_flag_arrays(flag_name, object_flag, object_flag2, ship_flags, ship_flags2, parse_obj_flag, parse_obj_flag2, ai_flag, ai_flag2); 
+	sexp_check_flag_arrays(flag_name, object_flag, object_flag2, ship_flags, ship_flags2, parse_obj_flag, parse_obj_flag2, ai_flag, ai_flag2);
 
 	node = CDR(node); 
 	if (is_sexp_true(node)) {
@@ -13007,32 +13019,30 @@ void sexp_alter_ship_flag(int node)
 
 
 	// start the multiplayer packet
-	if (send_multi && MULTIPLAYER_MASTER) {
-		multi_start_callback(); 
-		multi_send_int(object_flag); 
-		/* Uncommenting this will break compatibility with earlier builds but it is pointless to send it until object_flag2
-		is actually used by the engine 
-		*/
-		// multi_send_int(object_flag2); 
-		multi_send_int(ship_flags); 
-		multi_send_int(ship_flags2); 
-		multi_send_int(parse_obj_flag); 
-		multi_send_int(parse_obj_flag2); 
-		multi_send_int(ai_flag); 
-		/* Uncommenting this will break compatibility with earlier builds but it is pointless to send it until ai_flag2
-		is actually used by the engine 
-		*/
-		// multi_send_int(ai_flag2); 
-		multi_send_bool(set_flag); 
-		multi_send_bool(future_ships); 
-	}
+	multi_start_callback();
+	multi_send_int(object_flag);
+	/* Uncommenting this will break compatibility with earlier builds but it is pointless to send it until object_flag2
+	is actually used by the engine
+	*/
+	// multi_send_int(object_flag2);
+	multi_send_int(ship_flags);
+	multi_send_int(ship_flags2);
+	multi_send_int(parse_obj_flag);
+	multi_send_int(parse_obj_flag2);
+	multi_send_int(ai_flag);
+	/* Uncommenting this will break compatibility with earlier builds but it is pointless to send it until ai_flag2
+	is actually used by the engine
+	*/
+	// multi_send_int(ai_flag2);
+	multi_send_bool(set_flag);
+	multi_send_bool(future_ships);
 
 	node = CDR(node);
 
 	// no 4th argument means do this to every ship in the mission (and if the flag is set, every ship that will be too).
 	if (node == -1) {
 		// send a message to the clients saying there were no more arguments
-		multi_send_bool(false); 
+		multi_send_bool(false);
 
 		alter_flag_for_all_ships(future_ships, object_flag, object_flag2, ship_flags, ship_flags2, parse_obj_flag, parse_obj_flag2, ai_flag, ai_flag2, set_flag);
 	}
@@ -13040,7 +13050,7 @@ void sexp_alter_ship_flag(int node)
 
 	else {
 		// send a message to the clients saying there are more arguments
-		multi_send_bool(true); 
+		multi_send_bool(true);
 
 		while (node != -1) {
 			sexp_get_object_ship_wing_point_team(&oswpt, CTEXT(node), future_ships); 
@@ -13126,7 +13136,12 @@ void multi_sexp_alter_ship_flag()
 
 			switch (oswpt.type) {
 				case OSWPT_TYPE_SHIP:
-					multi_get_ship(oswpt.shipp);
+					if (multi_get_ship(oswpt.shipp)) {
+						oswpt.objp = &Objects[oswpt.shipp->objnum];
+					} else {
+						Warning(LOCATION, "OSWPT had an invalid ship in multi_sexp_alter_ship_flag(), skipping");
+						continue;
+					}
 					break;
 
 				case OSWPT_TYPE_PARSE_OBJECT:
@@ -13139,6 +13154,16 @@ void multi_sexp_alter_ship_flag()
 					for (i = 0; i < Num_wings; i++) {
 						if (Wings[i].net_signature == wing_sig) {
 							oswpt.wingp = &Wings[i];
+
+							// wing leader handling taken from sexp_get_object_ship_wing_point_team
+							if ((oswpt.wingp->special_ship >= 0) && (oswpt.wingp->ship_index[oswpt.wingp->special_ship] >= 0)) {
+								oswpt.shipp = &Ships[oswpt.wingp->ship_index[oswpt.wingp->special_ship]];
+								oswpt.objp = &Objects[oswpt.shipp->objnum];
+							} else {
+								oswpt.shipp = &Ships[oswpt.wingp->ship_index[0]];
+								oswpt.objp = &Objects[oswpt.shipp->objnum];
+								Warning(LOCATION, "Substituting ship '%s' at index 0 for nonexistent wing leader at index %d!", oswpt.shipp->ship_name, oswpt.wingp->special_ship);
+							}
 							break;
 						}
 					}
@@ -14512,7 +14537,7 @@ void sexp_destroy_instantly(int n)
 
 void sexp_shields_off(int n, bool shields_off ) //-Sesquipedalian
 {
-	sexp_deal_with_ship_flag(n, true, OF_NO_SHIELDS, 0, 0, 0, P_OF_NO_SHIELDS, 0, shields_off);
+	sexp_deal_with_ship_flag(n, true, OF_NO_SHIELDS, 0, 0, 0, P_OF_NO_SHIELDS, 0, shields_off, true);
 }
 
 // Goober5000
@@ -19442,7 +19467,7 @@ int process_special_sexps(int index)
 
 	case 1:	//	Fired Interceptors
 		object	*objp;
-		for ( objp = GET_FIRST(&obj_used_list); objp !=END_OF_LIST(&obj_used_list); objp = GET_NEXT(objp) ) {
+		for (objp = GET_FIRST(&obj_used_list); objp != END_OF_LIST(&obj_used_list); objp = GET_NEXT(objp)) {
 			if (objp->type == OBJ_WEAPON) {
 				if (!stricmp(Weapon_info[Weapons[objp->instance].weapon_info_index].name, "Interceptor#weak")) {
 					int target = Weapons[objp->instance].target_num;
@@ -19471,7 +19496,7 @@ int process_special_sexps(int index)
 		break;
 
 	case 3:	//	Player ship suffering shield damage on front.
-		if (!(Player_ship->flags2 & SIF2_MODEL_POINT_SHIELDS)) {
+		if (!(Ship_info[Player_ship->ship_info_index].flags2 & SIF2_MODEL_POINT_SHIELDS)) {
 			apply_damage_to_shield(Player_obj, FRONT_QUAD, 10.0f);
 			hud_shield_quadrant_hit(Player_obj, FRONT_QUAD);
 			return SEXP_TRUE;
@@ -19482,7 +19507,7 @@ int process_special_sexps(int index)
 		break;
 
 	case 4:	//	Player ship suffering much damage.
-		if (!(Player_ship->flags2 & SIF2_MODEL_POINT_SHIELDS)) {
+		if (!(Ship_info[Player_ship->ship_info_index].flags2 & SIF2_MODEL_POINT_SHIELDS)) {
 			nprintf(("AI", "Frame %i\n", Framecount));
 			apply_damage_to_shield(Player_obj, FRONT_QUAD, 10.0f);
 			hud_shield_quadrant_hit(Player_obj, FRONT_QUAD);
@@ -19497,7 +19522,7 @@ int process_special_sexps(int index)
 		break;
 
 	case 5:	//	Player's shield is quick repaired
-		if (!(Player_ship->flags2 & SIF2_MODEL_POINT_SHIELDS)) {
+		if (!(Ship_info[Player_ship->ship_info_index].flags2 & SIF2_MODEL_POINT_SHIELDS)) {
 			nprintf(("AI", "Frame %i, recharged to %7.3f\n", Framecount, Player_obj->shield_quadrant[FRONT_QUAD]));
 
 			apply_damage_to_shield(Player_obj, FRONT_QUAD, -flFrametime*200.0f);
@@ -19516,7 +19541,7 @@ int process_special_sexps(int index)
 		break;
 
 	case 6:	//	3 of player's shield quadrants are reduced to 0.
-		if (!(Player_ship->flags2 & SIF2_MODEL_POINT_SHIELDS)) {
+		if (!(Ship_info[Player_ship->ship_info_index].flags2 & SIF2_MODEL_POINT_SHIELDS)) {
 			Player_obj->shield_quadrant[1] = 1.0f;
 			Player_obj->shield_quadrant[2] = 1.0f;
 			Player_obj->shield_quadrant[3] = 1.0f;
@@ -19528,7 +19553,7 @@ int process_special_sexps(int index)
 		return SEXP_TRUE;
 
 	case 7:	//	Make sure front quadrant has been maximized, or close to it.
-		if (!(Player_ship->flags2 & SIF2_MODEL_POINT_SHIELDS)) {
+		if (!(Ship_info[Player_ship->ship_info_index].flags2 & SIF2_MODEL_POINT_SHIELDS)) {
 			if (shield_quad_near_max(FRONT_QUAD)) return SEXP_TRUE; else return SEXP_FALSE;
 		} else {
 			nprintf(("Warning", "Shield-related Special-check SEXPs do not work on ship %s because it uses model point shields.\n", Player_ship->ship_name));
@@ -19537,7 +19562,7 @@ int process_special_sexps(int index)
 		break;
 
 	case 8:	//	Make sure rear quadrant has been maximized, or close to it.
-		if (!(Player_ship->flags2 & SIF2_MODEL_POINT_SHIELDS)) {
+		if (!(Ship_info[Player_ship->ship_info_index].flags2 & SIF2_MODEL_POINT_SHIELDS)) {
 			if (shield_quad_near_max(REAR_QUAD)) return SEXP_TRUE; else return SEXP_FALSE;
 		} else {
 			nprintf(("Warning", "Shield-related Special-check SEXPs do not work on ship %s because it uses model point shields.\n", Player_ship->ship_name));
@@ -19546,7 +19571,7 @@ int process_special_sexps(int index)
 		break;
 	
 	case 9:	//	Zero left and right quadrants in preparation for maximizing rear quadrant.
-		if (!(Player_ship->flags2 & SIF2_MODEL_POINT_SHIELDS)) {
+		if (!(Ship_info[Player_ship->ship_info_index].flags2 & SIF2_MODEL_POINT_SHIELDS)) {
 			Player_obj->shield_quadrant[LEFT_QUAD] = 0.0f;
 			Player_obj->shield_quadrant[RIGHT_QUAD] = 0.0f;
 			hud_shield_quadrant_hit(Player_obj, LEFT_QUAD);
@@ -19579,7 +19604,7 @@ int process_special_sexps(int index)
 		break;
 
 	case 13:	// Zero front shield quadrant.  Added for Jim Boone on August 26, 1999 by MK.
-		if (!(Player_ship->flags2 & SIF2_MODEL_POINT_SHIELDS)) {
+		if (!(Ship_info[Player_ship->ship_info_index].flags2 & SIF2_MODEL_POINT_SHIELDS)) {
 			Player_obj->shield_quadrant[FRONT_QUAD] = 0.0f;
 			hud_shield_quadrant_hit(Player_obj, FRONT_QUAD);
 			return SEXP_TRUE;
@@ -21457,7 +21482,7 @@ bool test_point_within_box(vec3d *test_point, vec3d *box_corner_1, vec3d *box_co
 	if (reference_ship_obj != NULL) 
 	{
 		vm_vec_sub(&tempv, test_point, &reference_ship_obj->pos);
-		vm_vec_unrotate(&test_point_buf, &tempv, &reference_ship_obj->orient);
+		vm_vec_rotate(&test_point_buf, &tempv, &reference_ship_obj->orient);
 
 		test_point = &test_point_buf;
 	}
@@ -21758,7 +21783,7 @@ int sexp_player_is_cheating_bastard() {
 }
 
 void sexp_set_motion_debris(int node) {
-	Motion_debris_override = is_sexp_true(node);
+	Motion_debris_override = is_sexp_true(node) != 0;
 }
 
 /**
@@ -24371,6 +24396,8 @@ void multi_sexp_eval()
 			case OP_UNLOCK_PRIMARY_WEAPON:
 			case OP_LOCK_SECONDARY_WEAPON:
 			case OP_UNLOCK_SECONDARY_WEAPON:
+			case OP_SHIELDS_ON:
+			case OP_SHIELDS_OFF:
 				multi_sexp_deal_with_ship_flag();
 				break;
 
@@ -24618,40 +24645,38 @@ int run_sexp(const char* sexpression)
 	return sexp_val;
 }
 
-DCF(sexpc, "Always runs the given sexp command ")
+DCF(sexpc, "Always runs the given sexp command (Warning! There is no undo for this!)")
 {
-	if ( Dc_command )       {
-		if (Dc_command_line != NULL) {
-			char buf[8192];
-			snprintf(buf, 8191, "( when ( true ) ( %s ) )", Dc_command_line);
-
-			int sexp_val = run_sexp( buf );
-			dc_printf("SEXP '%s' run, sexp_val = %d\n", buf, sexp_val);
-			do {
-				dc_get_arg(ARG_ANY);
-			} while (Dc_arg_type != ARG_NONE);
-		}
-	}
-	if ( Dc_help )  {
+	SCP_string sexp;
+	SCP_string sexp_always;
+	
+	if (dc_optional_string_either("help", "--help")) {
 		dc_printf( "Usage: sexpc sexpression\n. Always runs the given sexp as '( when ( true ) ( sexp ) )' .\n" );
+		return;
 	}
+
+	dc_stuff_string(sexp);
+
+	sexp_always = "( when ( true ) ( " + sexp + " ) )";
+
+	int sexp_val = run_sexp(sexp_always.c_str());
+	dc_printf("SEXP '%s' run, sexp_val = %d\n", sexp_always.c_str(), sexp_val);
 }
 
 
 DCF(sexp,"Runs the given sexp")
 {
-	if ( Dc_command )       {
-		if (Dc_command_line != NULL) {
-			int sexp_val = run_sexp( Dc_command_line );
-			dc_printf("SEXP '%s' run, sexp_val = %d\n", Dc_command_line, sexp_val);
-			do {
-				dc_get_arg(ARG_ANY);
-			} while (Dc_arg_type != ARG_NONE);
-		}
-	}
-	if ( Dc_help )  {
+	SCP_string sexp;
+
+	if (dc_optional_string_either("help", "--help")) {
 		dc_printf( "Usage: sexp 'sexpression'\n. Runs the given sexp.\n");
+		return;
 	}
+
+	dc_stuff_string(sexp);
+
+	int sexp_val = run_sexp(sexp.c_str());
+	dc_printf("SEXP '%s' run, sexp_val = %d\n", sexp.c_str(), sexp_val);
 }
 
 
