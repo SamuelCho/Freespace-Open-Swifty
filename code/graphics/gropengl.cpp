@@ -1898,6 +1898,7 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_end_clip_plane		= gr_opengl_end_clip_plane;
 
 	gr_screen.gf_lighting			= gr_opengl_set_lighting;
+	gr_screen.gf_set_light_factor	= gr_opengl_set_light_factor;
 
 	gr_screen.gf_set_proj_matrix	= gr_opengl_set_projection_matrix;
 	gr_screen.gf_end_proj_matrix	= gr_opengl_end_projection_matrix;
@@ -1908,6 +1909,7 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_push_scale_matrix	= gr_opengl_push_scale_matrix;
 	gr_screen.gf_pop_scale_matrix	= gr_opengl_pop_scale_matrix;
 	gr_screen.gf_center_alpha		= gr_opengl_center_alpha;
+	gr_screen.gf_set_thrust_scale	= gr_opengl_set_thrust_scale;
 
 	gr_screen.gf_setup_background_fog	= gr_opengl_setup_background_fog;
 

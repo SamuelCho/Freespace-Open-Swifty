@@ -408,6 +408,10 @@ void obj_render_queue_all()
 	// now render transparent meshes
 	scene.renderAll(GR_ALPHABLEND_FILTER);
 
+	// render electricity effects and insignias
+	scene.renderInsignias();
+	scene.renderArcs();
+
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);
 	gr_zbias(0);
 	gr_set_cull(0);

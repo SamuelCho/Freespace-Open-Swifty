@@ -6660,8 +6660,8 @@ void ship_render_cockpit(object *objp)
 	gr_zbuffer_set(GR_ZBUFF_NONE);
 
 	//Deal with the model
-	model_set_detail_level(0);
 	model_clear_instance(sip->cockpit_model_num);
+	model_set_detail_level(0);
 	model_immediate_render(sip->cockpit_model_num, &eye_ori, &pos, MR_LOCK_DETAIL | MR_NO_FOGGING, -1, -1, Player_cockpit_textures);
 
 	//Zbuffer
@@ -18469,7 +18469,7 @@ void ship_render(object* obj, DrawList* scene)
 	ship_render_set_animated_effect(&interp, shipp, &render_flags);
 
 	if ( sip->uses_team_colors ) {
-		model_interp_set_team_color(shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
+		interp.team_color_set = model_get_team_color(&interp.current_team_color, shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
 	}
 
 	if ( in_shadow_map ) {

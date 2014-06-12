@@ -37,7 +37,6 @@ extern bool Scene_framebuffer_in_frame;
 
 extern void interp_render_arc_segment( vec3d *v1, vec3d *v2, int depth );
 
-extern float Interp_light;
 extern int Interp_thrust_scale_subobj;
 extern float Interp_thrust_scale;
 extern int Interp_transform_texture;
@@ -109,8 +108,7 @@ void DrawList::addArc(vec3d *v1, vec3d *v2, color *primary, color *secondary, fl
 {
 	arc_effect new_arc;
 
-	new_arc.orient = Object_matrix;
-	new_arc.pos = Object_position;
+	new_arc.transformation = CurrentTransform;
 	new_arc.v1 = *v1;
 	new_arc.v2 = *v2;
 	new_arc.primary = *primary;
@@ -126,6 +124,11 @@ void DrawList::setLightFilter(int objnum, vec3d *pos, float rad)
 
 	dirty_render_state = true;
 	current_render_state.lights = Lights.bufferLights();
+}
+
+void DrawList::setLightFactor(float factor)
+{
+	current_render_state.light_factor = factor;
 }
 
 void DrawList::setClipPlane(vec3d *position, vec3d *normal)
@@ -181,8 +184,6 @@ void DrawList::addBufferDraw(vec3d *scale, vertex_buffer *buffer, int texi, uint
 	} else {
 		draw_data.thrust_scale = -1.0f;
 	}
-
-	draw_data.light_factor = interp->light;
 
 	draw_data.sdr_flags = determineShaderFlags(&current_render_state, &draw_data, buffer, tmap_flags);
 
@@ -269,10 +270,11 @@ void DrawList::renderBuffer(queued_buffer_draw &render_elements)
 
 	gr_center_alpha(draw_state.center_alpha);
 
-	Interp_light = render_elements.light_factor;
 	Interp_transform_texture = render_elements.transform_data;
 
 	gr_set_color_fast(&render_elements.clr);
+
+	gr_set_light_factor(draw_state.light_factor);
 
 	if ( draw_state.lighting ) {
 		Lights.setLights(&draw_state.lights);
@@ -286,6 +288,8 @@ void DrawList::renderBuffer(queued_buffer_draw &render_elements)
 
 	gr_zbias(draw_state.zbias);
 
+	gr_set_thrust_scale(render_elements.thrust_scale);
+
 	g3_start_instance_matrix(&render_elements.transformation.origin, &render_elements.transformation.basis);
 
 	gr_push_scale_matrix(&render_elements.scale);
@@ -297,13 +301,6 @@ void DrawList::renderBuffer(queued_buffer_draw &render_elements)
 	NORMMAP = render_elements.texture_maps[TM_NORMAL_TYPE];
 	HEIGHTMAP = render_elements.texture_maps[TM_HEIGHT_TYPE];
 	MISCMAP = render_elements.texture_maps[TM_MISC_TYPE];
-
-	if ( render_elements.thrust_scale > 0.0f ) {
-		Interp_thrust_scale_subobj = 1;
-		Interp_thrust_scale = render_elements.thrust_scale;
-	} else {
-		Interp_thrust_scale_subobj = 0;
-	}
 
 	gr_render_buffer(0, render_elements.buffer, render_elements.texi, render_elements.flags);
 
@@ -506,7 +503,7 @@ void DrawList::renderAll(int blend_filter)
 
 void DrawList::renderArc(arc_effect &arc)
 {
-	g3_start_instance_matrix(&arc.pos, &arc.orient);	
+	g3_start_instance_matrix(&arc.transformation.origin, &arc.transformation.basis);	
 
 	interp_render_arc(&arc.v1, &arc.v2, &arc.primary, &arc.secondary, arc.width);
 
@@ -521,6 +518,40 @@ void DrawList::renderArcs()
 		renderArc(arcs[i]);
 	}
 
+	gr_zbuffer_set(mode);
+}
+
+void DrawList::addInsignia(polymodel *pm, int detail_level, int bitmap_num)
+{
+	insignia_draw_data new_insignia;
+
+	new_insignia.transformation = CurrentTransform;
+	new_insignia.pm = pm;
+	new_insignia.detail_level = detail_level;
+	new_insignia.bitmap_num = bitmap_num;
+
+	insignias.push_back(new_insignia);
+}
+
+void DrawList::renderInsignia(insignia_draw_data &insignia_info)
+{
+	g3_start_instance_matrix(&insignia_info.transformation.origin, &insignia_info.transformation.basis);	
+
+	model_render_insignias(insignia_info.pm, insignia_info.detail_level, insignia_info.bitmap_num);
+
+	g3_done_instance(true);
+}
+
+void DrawList::renderInsignias()
+{
+	int mode = gr_zbuffer_set(GR_ZBUFF_READ);
+	gr_zbias(1);
+
+	for ( size_t i = 0; i < insignias.size(); ++i ) {
+		renderInsignia(insignias[i]);
+	}
+
+	gr_zbias(0);
 	gr_zbuffer_set(mode);
 }
 
@@ -1276,7 +1307,7 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 		scene->setFillMode(GR_FILL_MODE_SOLID);
 	}
 
-	interp->light = 1.0f;
+	scene->setLightFactor(1.0f);
 
 	if ( !( interp->flags & MR_NO_LIGHTING ) ) {
 		scene->setLightFilter(-1, pos, pm->submodel[submodel_num].rad);
@@ -2023,6 +2054,159 @@ void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum
 	}
 }
 
+void model_debug_render_children(polymodel *pm, int mn, int detail_level, uint flags)
+{
+	int i;
+
+	if ( (mn < 0) || (mn >= pm->n_models) ) {
+		Int3();
+		return;
+	}
+
+	bsp_info *model = &pm->submodel[mn];
+
+	if ( model->blown_off ) {
+		return;
+	}
+
+	// Get submodel rotation data and use submodel orientation matrix
+	// to put together a matrix describing the final orientation of
+	// the submodel relative to its parent
+	angles ang = model->angs;
+
+	// Add barrel rotation if needed
+	if ( model->gun_rotation ) {
+		if ( pm->gun_submodel_rotation > PI2 ) {
+			pm->gun_submodel_rotation -= PI2;
+		} else if ( pm->gun_submodel_rotation < 0.0f ) {
+			pm->gun_submodel_rotation += PI2;
+		}
+
+		ang.b += pm->gun_submodel_rotation;
+	}
+
+	// Compute final submodel orientation by using the orientation matrix
+	// and the rotation angles.
+	// By using this kind of computation, the rotational angles can always
+	// be computed relative to the submodel itself, instead of relative
+	// to the parent
+	matrix rotation_matrix = model->orientation;
+	vm_rotate_matrix_by_angles(&rotation_matrix, &ang);
+
+	matrix inv_orientation;
+	vm_copy_transpose_matrix(&inv_orientation, &model->orientation);
+
+	matrix submodel_matrix;
+	vm_matrix_x_matrix(&submodel_matrix, &rotation_matrix, &inv_orientation);
+
+	g3_start_instance_matrix(&model->offset, &submodel_matrix, true);
+
+	if ( flags & MR_SHOW_PIVOTS ) {
+		model_draw_debug_points( pm, &pm->submodel[mn], flags );
+	}
+
+	i = model->first_child;
+
+	while ( i >= 0 ) {
+		model_debug_render_children( pm, i, detail_level, flags );
+
+		i = pm->submodel[i].next_sibling;
+	}
+
+	g3_done_instance(true);
+}
+
+void model_debug_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int detail_level_locked )
+{
+	ship *shipp = NULL;
+	object *objp = NULL;
+
+	if ( objnum >= 0 ) {
+		objp = &Objects[objnum];
+
+		if ( objp->type == OBJ_SHIP ) {
+			shipp = &Ships[objp->instance];
+		}
+	}
+
+	polymodel *pm = model_get(model_num);	
+	
+	g3_start_instance_matrix(pos, orient, true);
+
+	if ( flags & MR_SHOW_RADIUS ) {
+		if ( !( flags & MR_SHOW_OUTLINE_PRESET ) ) {
+			gr_set_color(0,64,0);
+			g3_draw_sphere_ez(&vmd_zero_vector,pm->rad);
+		}
+	}
+
+	int detail_level = model_queue_render_determine_detail(objnum, model_num, orient, pos, flags, detail_level_locked);
+
+	bool set_autocen = false;
+	vec3d auto_back = ZERO_VECTOR;
+
+	if ( flags & MR_AUTOCENTER ) {
+		// standard autocenter using data in model
+		if ( pm->flags & PM_FLAG_AUTOCEN ) {
+			auto_back = pm->autocenter;
+			vm_vec_scale(&auto_back, -1.0f);
+			set_autocen = true;
+		} else if ( flags & MR_IS_MISSILE ) {
+			// fake autocenter if we are a missile and don't already have autocen info
+            auto_back.xyz.x = -( (pm->submodel[pm->detail[detail_level]].max.xyz.x + pm->submodel[pm->detail[detail_level]].min.xyz.x) / 2.0f );
+            auto_back.xyz.y = -( (pm->submodel[pm->detail[detail_level]].max.xyz.y + pm->submodel[pm->detail[detail_level]].min.xyz.y) / 2.0f );
+			auto_back.xyz.z = -( (pm->submodel[pm->detail[detail_level]].max.xyz.z + pm->submodel[pm->detail[detail_level]].min.xyz.z) / 2.0f );
+			set_autocen = true;
+		}
+
+		if ( set_autocen ) {
+			g3_start_instance_matrix(&auto_back, NULL, true);
+		}
+	}
+
+	uint save_gr_zbuffering_mode = gr_zbuffer_set(GR_ZBUFF_READ);
+
+	int i = pm->submodel[pm->detail[detail_level]].first_child;
+
+	while ( i >= 0 ) {
+		model_debug_render_children( pm, i, detail_level, flags );
+
+		i = pm->submodel[i].next_sibling;
+	}
+
+	if ( flags & MR_SHOW_PIVOTS ) {
+		model_draw_debug_points( pm, NULL, flags );
+		model_draw_debug_points( pm, &pm->submodel[pm->detail[detail_level]], flags );
+
+		if ( pm->flags & PM_FLAG_AUTOCEN ) {
+			gr_set_color(255, 255, 255);
+			g3_draw_sphere_ez(&pm->autocenter, pm->rad / 4.5f);
+		}
+	}
+
+	if ( flags & MR_SHOW_SHIELDS )	{
+		model_render_shields(pm, flags);
+	}	
+
+	if ( flags & MR_SHOW_PATHS ) {
+		if ( Cmdline_nohtl ) model_draw_paths(model_num, flags);
+		else model_draw_paths_htl(model_num, flags);
+	}
+
+	if ( flags & MR_BAY_PATHS ) {
+		if ( Cmdline_nohtl ) model_draw_bay_paths(model_num);
+		else model_draw_bay_paths_htl(model_num);
+	}
+
+	if ( (flags & MR_AUTOCENTER) && (set_autocen) ) {
+		g3_done_instance(true);
+	}
+
+	g3_done_instance(true);
+
+	gr_zbuffer_set(save_gr_zbuffering_mode);
+}
+
 void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures, int render)
 {
 	DrawList model_list;
@@ -2063,6 +2247,8 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 
 	gr_reset_lighting();
 	gr_set_lighting(false, false);
+
+	model_debug_render(model_num, orient, pos, flags, objnum, interp.detail_level_locked);
 }
 
 void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int model_instance_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures)
@@ -2106,7 +2292,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 
 	interp->objnum = objnum;
 
-	interp->light = model_queue_render_determine_light(interp, pos, flags);
+	scene->setLightFactor(model_queue_render_determine_light(interp, pos, flags));
 
 	ship *shipp = NULL;
 	object *objp = NULL;
@@ -2340,6 +2526,10 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 				i = pm->submodel[i].next_sibling;
 			}
 		}
+	}
+
+	if ( !( interp->flags & MR_NO_TEXTURING ) ) {
+		scene->addInsignia(pm, interp->detail_level, interp->insignia_bitmap);
 	}
 
 	if ( (interp->flags & MR_AUTOCENTER) && (set_autocen) ) {

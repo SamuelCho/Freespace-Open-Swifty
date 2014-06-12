@@ -102,6 +102,10 @@ void gr_stub_center_alpha( int type)
 {
 }
 
+void gr_stub_set_thrust_scale(float scale)
+{
+}
+
 void gr_stub_circle( int xc, int yc, int d, int resize_mode )
 {
 }
@@ -315,6 +319,10 @@ void gr_stub_set_gamma(float gamma)
 }
 
 void gr_stub_set_lighting(bool set, bool state)
+{
+}
+
+void gr_stub_set_light_factor(float factor)
 {
 }
 
@@ -907,6 +915,7 @@ bool gr_stub_init()
 	gr_screen.gf_end_clip_plane		= gr_stub_end_clip_plane;
 
 	gr_screen.gf_lighting			= gr_stub_set_lighting;
+	gr_screen.gf_set_light_factor	= gr_stub_set_light_factor;
 
 	gr_screen.gf_set_proj_matrix	= gr_stub_set_projection_matrix;
 	gr_screen.gf_end_proj_matrix	= gr_stub_end_projection_matrix;
@@ -917,6 +926,7 @@ bool gr_stub_init()
 	gr_screen.gf_push_scale_matrix	= gr_stub_push_scale_matrix;
 	gr_screen.gf_pop_scale_matrix	= gr_stub_pop_scale_matrix;
 	gr_screen.gf_center_alpha		= gr_stub_center_alpha;
+	gr_screen.gf_set_thrust_scale	= gr_stub_set_thrust_scale;
 
 	gr_screen.gf_setup_background_fog	= gr_stub_setup_background_fog;
 

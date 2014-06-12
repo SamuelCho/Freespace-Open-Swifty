@@ -566,7 +566,9 @@ typedef struct screen {
 	void (*gf_copy_effect_texture)();
 
 	void (*gf_lighting)(bool,bool);
+	void (*gf_set_light_factor)(float);
 	void (*gf_center_alpha)(int);
+	void (*gf_set_thrust_scale)(float);
 
 	void (*gf_start_clip_plane)();
 	void (*gf_end_clip_plane)();
@@ -895,7 +897,9 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_deferred_lighting_finish		GR_CALL(*gr_screen.gf_deferred_lighting_finish)
 
 #define	gr_set_lighting					GR_CALL(*gr_screen.gf_lighting)
+#define gr_set_light_factor				GR_CALL(*gr_screen.gf_set_light_factor)
 #define	gr_center_alpha					GR_CALL(*gr_screen.gf_center_alpha)
+#define gr_set_thrust_scale				GR_CALL(*gr_screen.gf_set_thrust_scale)
 
 #define	gr_start_clip					GR_CALL(*gr_screen.gf_start_clip_plane)
 #define	gr_end_clip						GR_CALL(*gr_screen.gf_end_clip_plane)

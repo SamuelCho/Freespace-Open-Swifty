@@ -1167,9 +1167,9 @@ void model_interp_sortnorm_f2b(ubyte * p,polymodel * pm, bsp_info *sm, int do_bo
 	if (prelist) model_interp_sub(p+prelist,pm,sm,do_box_check);		// prelist
 }
 
-void model_draw_debug_points( polymodel *pm, bsp_info * submodel )
+void model_draw_debug_points( polymodel *pm, bsp_info * submodel, uint flags )
 {
-	if ( Interp_flags & MR_SHOW_OUTLINE_PRESET )	{
+	if ( flags & MR_SHOW_OUTLINE_PRESET )	{
 		return;
 	}
 
@@ -1246,13 +1246,13 @@ void model_draw_debug_points( polymodel *pm, bsp_info * submodel )
 /**
  * Debug code to show all the paths of a model
  */
-void model_draw_paths( int model_num )
+void model_draw_paths( int model_num, uint flags )
 {
 	int i,j;
 	vec3d pnt;
 	polymodel * pm;	
 
-	if ( Interp_flags & MR_SHOW_OUTLINE_PRESET )	{
+	if ( flags & MR_SHOW_OUTLINE_PRESET )	{
 		return;
 	}
 
@@ -1297,14 +1297,14 @@ void model_draw_paths( int model_num )
 /**
  * Debug code to show all the paths of a model
  */
-void model_draw_paths_htl( int model_num )
+void model_draw_paths_htl( int model_num, uint flags )
 {
 	int i,j;
 	vec3d pnt;
 	vec3d prev_pnt;
 	polymodel * pm;	
 
-	if ( Interp_flags & MR_SHOW_OUTLINE_PRESET )	{
+	if ( flags & MR_SHOW_OUTLINE_PRESET )	{
 		return;
 	}
 
@@ -1618,7 +1618,7 @@ void model_interp_subcall(polymodel * pm, int mn, int detail_level)
 	model_interp_sub( pm->submodel[mn].bsp_data, pm, &pm->submodel[mn], 0 );
 
 	if (Interp_flags & MR_SHOW_PIVOTS )
-		model_draw_debug_points( pm, &pm->submodel[mn] );
+		model_draw_debug_points( pm, &pm->submodel[mn], Interp_flags );
 
 	if ( pm->submodel[mn].num_arcs )	{
 		interp_render_lightning( pm, &pm->submodel[mn]);
@@ -1777,14 +1777,13 @@ DoneWithThis:
 }
 
 
-void model_render_shields( polymodel * pm )
+void model_render_shields( polymodel * pm, uint flags )
 {
-	model_set_outline_color(255,255,255);
 	int i, j;
 	shield_tri *tri;
 	vertex pnt0, tmp, prev_pnt;
 
-	if ( Interp_flags & MR_SHOW_OUTLINE_PRESET )	{
+	if ( flags & MR_SHOW_OUTLINE_PRESET )	{
 		return;
 	}
 
@@ -1815,10 +1814,10 @@ void model_render_shields( polymodel * pm )
 	}
 }
 
-void model_render_insignias(polymodel *pm, int detail_level)
+void model_render_insignias(polymodel *pm, int detail_level, int bitmap_num)
 {
 	// if the model has no insignias, or we don't have a texture, then bail
-	if ( (pm->num_ins <= 0) || (Interp_insignia_bitmap < 0) )
+	if ( (pm->num_ins <= 0) || (bitmap_num < 0) )
 		return;
 
 	int idx, s_idx;
@@ -1829,7 +1828,7 @@ void model_render_insignias(polymodel *pm, int detail_level)
 	int tmap_flags = TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT;
 
 	// set the proper texture	
-	gr_set_bitmap(Interp_insignia_bitmap, GR_ALPHABLEND_NONE, GR_BITBLT_MODE_NORMAL, 0.65f);
+	gr_set_bitmap(bitmap_num, GR_ALPHABLEND_NONE, GR_BITBLT_MODE_NORMAL, 0.65f);
 
 	// otherwise render them	
 	for(idx=0; idx<pm->num_ins; idx++){	
@@ -2071,6 +2070,8 @@ void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint fl
 	} else {
 		Interp_light = 1.0f;
 	}
+
+	gr_set_light_factor(Interp_light);
 
 	extern bool Deferred_lighting;
 
@@ -3204,8 +3205,8 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	}
 
 	if (Interp_flags & MR_SHOW_PIVOTS )	{
-		model_draw_debug_points( pm, NULL );
-		model_draw_debug_points( pm, &pm->submodel[pm->detail[Interp_detail_level]] );
+		model_draw_debug_points( pm, NULL, Interp_flags );
+		model_draw_debug_points( pm, &pm->submodel[pm->detail[Interp_detail_level]], Interp_flags );
 
 		if(pm->flags & PM_FLAG_AUTOCEN){
 			gr_set_color(255, 255, 255);
@@ -3222,7 +3223,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 	gr_zbuffer_set(GR_ZBUFF_READ);
 	if(!(Interp_flags & MR_NO_TEXTURING))
-		model_render_insignias(pm, Interp_detail_level);	
+		model_render_insignias(pm, Interp_detail_level, Interp_insignia_bitmap);	
 
 	gr_zbias(0);  
 
@@ -3233,12 +3234,12 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	}	
 
 	if ( Interp_flags & MR_SHOW_SHIELDS )	{
-		model_render_shields(pm);
+		model_render_shields(pm, Interp_flags);
 	}	
 
 	if ( Interp_flags & MR_SHOW_PATHS ){
-		if (Cmdline_nohtl) model_draw_paths(model_num);
-		else model_draw_paths_htl(model_num);
+		if (Cmdline_nohtl) model_draw_paths(model_num, Interp_flags);
+		else model_draw_paths_htl(model_num, Interp_flags);
 	}
 
 	if (Interp_flags & MR_BAY_PATHS ){
@@ -3362,6 +3363,8 @@ void submodel_render_DEPRECATED(int model_num, int submodel_num, matrix *orient,
 	if ( !(Interp_flags & MR_NO_LIGHTING ) ) {
 		Interp_light = 1.0f;
 
+		gr_set_light_factor(Interp_light);
+
 		light_filter_push( -1, pos, pm->submodel[submodel_num].rad );
 
 		light_rotate_all();
@@ -3429,7 +3432,7 @@ void submodel_render_DEPRECATED(int model_num, int submodel_num, matrix *orient,
 	}
 
 	if (Interp_flags & MR_SHOW_PIVOTS )
-		model_draw_debug_points( pm, &pm->submodel[submodel_num] );
+		model_draw_debug_points( pm, &pm->submodel[submodel_num], Interp_flags );
 
 	if ( !(Interp_flags & MR_NO_LIGHTING ) )	{
 		light_filter_pop();	
@@ -4699,7 +4702,7 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level, int 
 	model_render_buffers(pm, mn, render, true);
 
 	if (Interp_flags & MR_SHOW_PIVOTS)
-		model_draw_debug_points( pm, &pm->submodel[mn] );
+		model_draw_debug_points( pm, &pm->submodel[mn], Interp_flags );
 
 	if (model->num_arcs)
 		interp_render_lightning( pm, &pm->submodel[mn]);
@@ -4770,6 +4773,8 @@ void model_render_buffers(polymodel *pm, int mn, int render, bool is_child)
 		scale.xyz.y = Interp_warp_scale_y;
 		scale.xyz.z = Interp_warp_scale_z;
 	}
+
+	gr_set_thrust_scale(Interp_thrust_scale);
 
 	texture_info tex_replace[TM_NUM_TYPES];
 
@@ -5278,7 +5283,6 @@ void model_interp_load_global_data(interp_data *interp)
 	interp->flags = Interp_flags;
 	interp->forced_bitmap = Interp_forced_bitmap;
 	interp->insignia_bitmap = Interp_insignia_bitmap;
-	interp->light = Interp_light;
 	interp->new_replacement_textures = Interp_new_replacement_textures;
 	interp->objnum = Interp_objnum;
 	

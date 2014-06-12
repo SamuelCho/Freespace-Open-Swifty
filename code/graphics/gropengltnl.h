@@ -167,7 +167,7 @@ void gr_opengl_start_state_block();
 int gr_opengl_end_state_block();
 void gr_opengl_set_state_block(int);
 
-//void gr_opengl_set_team_color(const SCP_string &team, const SCP_string &secondaryteam = "<none>", fix timestamp = 0, int fadetime = 0);
+void gr_opengl_set_thrust_scale(float scale = -1.0f);
 void gr_opengl_set_team_color(team_color *colors);
 void gr_opengl_disable_team_color();
 

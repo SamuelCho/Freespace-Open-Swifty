@@ -1334,6 +1334,20 @@ void moldel_calc_facing_pts( vec3d *top, vec3d *bot, vec3d *fvec, vec3d *pos, fl
 
 void interp_render_arc(vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width);
 
+void model_render_insignias(polymodel *pm, int detail_level, int bitmap_num);
+
+void model_draw_debug_points( polymodel *pm, bsp_info * submodel, uint flags );
+
+void model_render_shields( polymodel * pm, uint flags );
+
+void model_draw_paths( int model_num, uint flags );
+
+void model_draw_paths_htl( int model_num, uint flags );
+
+void model_draw_bay_paths(int model_num);
+
+void model_draw_bay_paths_htl(int model_num);
+
 void glowpoint_init();
 SCP_vector<glow_point_bank_override>::iterator get_glowpoint_bank_override_by_name(const char* name);
 extern SCP_vector<glow_point_bank_override> glowpoint_bank_overrides;

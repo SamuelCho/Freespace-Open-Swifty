@@ -29,6 +29,15 @@ extern inline int in_sphere(vec3d *pos, float radius, vec3d *view_pos);
 extern inline int in_box(vec3d *min, vec3d *max, vec3d *pos, vec3d *view_pos);
 extern int model_interp_get_texture(texture_info *tinfo, fix base_frametime);
 
+struct Transform
+{
+	matrix basis;
+	vec3d origin;
+
+	Transform(): basis(vmd_identity_matrix), origin(vmd_zero_vector) {}
+	Transform(matrix *m, vec3d *v): basis(*m), origin(*v) {}
+};
+
 struct interp_data
 {
 	int objnum;
@@ -43,7 +52,6 @@ struct interp_data
 	int detail_level_locked;
 	int detail_level;
 	float depth_scale;
-	float light;
 	fix base_frametime;
 	bool desaturate;
 	int warp_bitmap;
@@ -121,8 +129,6 @@ struct interp_data
 
 		depth_scale = 1500.0f;
 
-		light = 1.0f;
-
 		base_frametime = 0;
 
 		warp_scale_x = 1.0f;
@@ -194,13 +200,20 @@ struct clip_plane_state
 
 struct arc_effect
 {
-	matrix orient;
-	vec3d pos;
+	Transform transformation;
 	vec3d v1;
 	vec3d v2;
 	color primary;
 	color secondary;
 	float width;
+};
+
+struct insignia_draw_data
+{
+	Transform transformation;
+	polymodel *pm;
+	int detail_level;
+	int bitmap_num;
 };
 
 struct render_state
@@ -218,6 +231,7 @@ struct render_state
 
 	bool lighting;
 	SceneLights::LightIndexingInfo lights;
+	float light_factor;
 	
 	bool using_team_color;
 	team_color tm_color;
@@ -249,19 +263,11 @@ struct render_state
 
 		lights.index_start = 0;
 		lights.num_lights = 0;
+		light_factor = 1.0f;
 
 		animated_timer = 0.0f;
 		animated_effect = 0;
 	}
-};
-
-struct Transform
-{
-	matrix basis;
-	vec3d origin;
-
-	Transform(): basis(vmd_identity_matrix), origin(vmd_zero_vector) {}
-	Transform(matrix *m, vec3d *v): basis(*m), origin(*v) {}
 };
 
 struct queued_buffer_draw
@@ -285,12 +291,10 @@ struct queued_buffer_draw
 	uniform_block uniform_handle;
 
 	float thrust_scale;
-	float light_factor;
 
 	queued_buffer_draw()
 	{
 		depth_mode = GR_ZBUFF_FULL;
-		light_factor = 1.0f;
 
 		texture_maps[TM_BASE_TYPE]		= -1;
 		texture_maps[TM_GLOW_TYPE]		= -1;
@@ -319,6 +323,8 @@ class DrawList
 	int set_clip_plane;
 	SceneLights::LightIndexingInfo current_lights_set;
 
+	void renderArc(arc_effect &arc);
+	void renderInsignia(insignia_draw_data &insignia_info);
 	void renderBuffer(queued_buffer_draw &render_elements);
 	uint determineShaderFlags(render_state *state, queued_buffer_draw *draw_info, vertex_buffer *buffer, int tmap_flags);
 	
@@ -328,7 +334,8 @@ class DrawList
 	SCP_vector<int> render_keys;
 
 	SCP_vector<arc_effect> arcs;
-	
+	SCP_vector<insignia_draw_data> insignias;
+
 	static DrawList *Target;
 	static bool sortDrawPair(const int a, const int b);
 public:
@@ -359,10 +366,13 @@ public:
 	void popTransform();
 
 	void addArc(vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width);
-	void renderArc(arc_effect &arc);
 	void renderArcs();
 
+	void addInsignia(polymodel *pm, int detail_level, int bitmap_num);
+	void renderInsignias();
+
 	void setLightFilter(int objnum, vec3d *pos, float rad);
+	void setLightFactor(float factor);
 
 	void sortDraws();
 	void renderAll(int blend_filter = -1);

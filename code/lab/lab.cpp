@@ -721,6 +721,7 @@ void labviewer_render_model(float frametime)
 		sip = &Ship_info[Lab_selected_index];
 	}
 
+	model_clear_instance(Lab_model_num);
 
 	// get correct revolution rate
 	rev_rate = REVOLUTION_RATE;
@@ -841,7 +842,6 @@ void labviewer_render_model(float frametime)
 	// lighting for techroom
 
 	model_set_outline_color(255, 255, 255);
-	model_clear_instance(Lab_model_num);
 	model_set_detail_level(Lab_model_LOD);
 
 	int flagggs = Lab_model_flags;

@@ -47,7 +47,6 @@ extern vec3d G3_user_clip_normal;
 extern vec3d G3_user_clip_point;
 extern int Interp_multitex_cloakmap;
 extern int Interp_cloakmap_alpha;
-extern float Interp_light;
 
 extern bool Basemap_override;
 extern bool Envmap_override;
@@ -88,6 +87,7 @@ int GL_vertex_data_in = 0;
 GLint GL_max_elements_vertices = 4096;
 GLint GL_max_elements_indices = 4096;
 
+float GL_thrust_scale = -1.0f;
 team_color* Current_team_color;
 team_color Current_temp_color;
 bool Using_Team_Color = false;
@@ -623,6 +623,11 @@ void gr_opengl_disable_team_color() {
 	Using_Team_Color = false;
 }
 
+void gr_opengl_set_thrust_scale(float scale)
+{
+	GL_thrust_scale = scale;
+}
+
 static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *bufferp)
 {
 	GLint offset = (GLint)bufferp->vertex_offset;
@@ -720,7 +725,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		GL_state.Fog(), 
 		textured, 
 		in_shadow_map,
-		Interp_thrust_scale_subobj,
+		GL_thrust_scale > 0.0f,
 		Interp_transform_texture >= 0 && bufferp->flags & VB_FLAG_MODEL_ID,
 		Using_Team_Color, 
 		flags, 
@@ -752,7 +757,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 
 	opengl_shader_set_current( &GL_shader[sdr_index] );
 
-	opengl_default_light_settings( !GL_center_alpha, (Interp_light > 0.25f) );
+	opengl_default_light_settings( !GL_center_alpha, (GL_light_factor > 0.25f) );
 	gr_opengl_set_center_alpha(GL_center_alpha);
 
 	opengl_setup_render_states(r, g, b, a, tmap_type, flags);
@@ -780,13 +785,12 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	Current_uniforms.setOrientation(&Object_matrix);
 	Current_uniforms.setPosition(&Object_position);
 	Current_uniforms.setNumLights(Num_active_gl_lights);
+	Current_uniforms.setThrusterScale(GL_thrust_scale);
 
 	if ( Using_Team_Color ) {
 		Current_uniforms.setTeamColor(Current_team_color->base.r, Current_team_color->base.g, Current_team_color->base.b, 
 			Current_team_color->stripe.r,  Current_team_color->stripe.g,  Current_team_color->stripe.b);
 	}
-
-	Current_uniforms.setThrusterScale(Interp_thrust_scale);
 		
 	Current_uniforms.generateUniforms(texture_slot, flags, shader_flags);
 	Current_uniforms.setUniforms();
@@ -972,7 +976,7 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 
 	render_pass = 0;
 
-	opengl_default_light_settings( !GL_center_alpha, (Interp_light > 0.25f), (using_spec) ? 0 : 1 );
+	opengl_default_light_settings( !GL_center_alpha, (GL_light_factor > 0.25f), (using_spec) ? 0 : 1 );
 	gr_opengl_set_center_alpha(GL_center_alpha);
 
 	opengl_setup_render_states(r, g, b, a, tmap_type, flags);
@@ -2423,7 +2427,7 @@ void gr_opengl_tnl_set_uniforms(int flags, uint shader_flags, int tmap_type)
 	}
 	int n_lights = MIN(Num_active_gl_lights, GL_max_lights) - 1;
 	vglUniform1iARB( opengl_shader_get_uniform("n_lights"), n_lights );
-	vglUniform1fARB( opengl_shader_get_uniform("light_factor"), Interp_light );
+	vglUniform1fARB( opengl_shader_get_uniform("light_factor"), GL_light_factor );
 
 	// base texture
 	if (shader_flags & SDR_FLAG_DIFFUSE_MAP) {
@@ -2562,7 +2566,7 @@ void gr_opengl_tnl_set_uniforms(int flags, uint shader_flags, int tmap_type)
 	}
 
 	if (shader_flags & SDR_FLAG_THRUSTER) {
-		vglUniform1fARB( opengl_shader_get_uniform("thruster_scale"), Interp_thrust_scale);
+		vglUniform1fARB( opengl_shader_get_uniform("thruster_scale"), GL_thrust_scale );
 	}
 }
 
@@ -2953,7 +2957,7 @@ void uniform_handler::generateUniforms(int texture_slots[], int flags, uint sdr_
 
 	int num_lights = MIN(n_lights, GL_max_lights) - 1;
 	queueUniformi("n_lights", num_lights);
-	queueUniformf( "light_factor", Interp_light );
+	queueUniformf( "light_factor", GL_light_factor );
 	//vglUniform1iARB( opengl_shader_get_uniform("n_lights"), num_lights );
 
 	if ( sdr_flags & SDR_FLAG_CLIP ) {

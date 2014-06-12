@@ -31,6 +31,7 @@ opengl_light *opengl_lights = NULL;
 bool lighting_is_enabled = true;
 int Num_active_gl_lights = 0;
 int GL_center_alpha = 0;
+float GL_light_factor = 1.0f;
 
 extern float static_point_factor;
 extern float static_light_factor;
@@ -154,7 +155,6 @@ void FSLight2GLLight(light *FSLight, opengl_light *GLLight)
 	}
 }
 
-extern float Interp_light;
 void opengl_set_light(int light_num, opengl_light *ltp)
 {
 	Assert(light_num < GL_max_lights);
@@ -162,11 +162,12 @@ void opengl_set_light(int light_num, opengl_light *ltp)
 	GLfloat diffuse[4];
 	memcpy(diffuse, ltp->Diffuse, sizeof(GLfloat) * 4);
 
-// 	if ( (ltp->type == LT_DIRECTIONAL) && (Interp_light < 1.0f) ) {
-// 		diffuse[0] *= Interp_light;
-// 		diffuse[1] *= Interp_light;
-// 		diffuse[2] *= Interp_light;
-// 	}
+	if ( !Use_GLSL && (ltp->type == LT_DIRECTIONAL) && (GL_light_factor < 1.0f) ) {
+		// if we're not using shaders, manually adjust the diffuse light factor.
+		diffuse[0] *= GL_light_factor;
+		diffuse[1] *= GL_light_factor;
+		diffuse[2] *= GL_light_factor;
+	}
 
 	glLightfv(GL_LIGHT0+light_num, GL_POSITION, ltp->Position);
 	glLightfv(GL_LIGHT0+light_num, GL_AMBIENT, ltp->Ambient);
@@ -448,6 +449,11 @@ void gr_opengl_set_center_alpha(int type)
 
 	// reset center alpha
 	GL_center_alpha = 0;
+}
+
+void gr_opengl_set_light_factor(float factor)
+{
+	GL_light_factor = factor;
 }
 
 void gr_opengl_reset_lighting()
