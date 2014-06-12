@@ -1212,13 +1212,13 @@ void wss_direct_restore_loadout()
 
 			// This wing is already created, so directly update the ships
 			for ( j = 0; j < MAX_WING_SLOTS; j++ ) {
+				if ( wp->ship_index[j] == -1 ) { // if this is an invalid ship, move on
+					continue;
+				}
+
 				slot = &Player_loadout.unit_data[valid_wing_index*MAX_WING_SLOTS+j];
 				shipp = &Ships[wp->ship_index[j]];
 				if ( shipp->ship_info_index != slot->ship_class ) {
-
-					if ( wp->ship_index[j] == -1 ) {
-						continue;
-					}
 
 					if ( slot->ship_class == -1 ) {
 						cleanup_ship_index[j] = wp->ship_index[j];
@@ -1748,7 +1748,7 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 			model_set_detail_level(0);
 			gr_set_color(80,49,160);
 			opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS2);
-			opengl_shader_set_animated_timer(clip);
+			opengl_shader_set_animated_timer(-clip);
 
 			if ( (time < 2.5f) && (time >= 0.5f) ) { // Phase 1 and 2 render the wireframe
 				if (time >= 1.5f) // Just clip the wireframe after Phase 1
