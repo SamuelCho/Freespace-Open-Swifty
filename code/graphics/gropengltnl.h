@@ -82,9 +82,6 @@ class uniform_handler
 	SCP_vector<vec4> uniform_data_vec4;
 	SCP_vector<matrix4> uniform_data_matrix4;
 
-	matrix4 matrix_uniform_data[10];
-	int num_matrix_uniforms;
-
 	SCP_vector<int> uniforms_to_set;
 
 	matrix orientation;
@@ -94,6 +91,7 @@ class uniform_handler
 	vec3d stripe_color;
 	float thruster_scale;
 	int n_lights;
+	float light_factor;
 
 	SCP_map<SCP_string, int> uniform_lookup;
 
@@ -113,15 +111,19 @@ class uniform_handler
 	void queueUniformMatrix4f(SCP_string name, int transpose, matrix4 &val);
 public:
 	uniform_handler();
+
 	void resetTextures();
+
 	void setNumLights(int num_lights);
+	void setLightFactor(float factor);
 	void setOrientation(matrix *orient);
 	void setPosition(vec3d *pos);
 	void setThrusterScale(float scale);
 	void setTeamColor(float base_r, float base_g, float base_b, float stripe_r, float stripe_g, float stripe_b);
 	void setTexture(int texture_type, int texture_handle);
+	
 	void generateUniforms(int texture_slots[], int flags, uint sdr_flags);
-	bool setUniforms();
+	void setUniforms();
 
 	void resetAll();
 };

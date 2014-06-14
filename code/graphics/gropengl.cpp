@@ -1884,7 +1884,6 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_post_process_begin		= gr_opengl_post_process_begin;
 	gr_screen.gf_post_process_end		= gr_opengl_post_process_end;
 	gr_screen.gf_post_process_save_zbuffer	= gr_opengl_post_process_save_zbuffer;
-	gr_screen.gf_post_process_blur_shadow_map = gr_opengl_post_process_shadow_map;
 
 	gr_screen.gf_scene_texture_begin = gr_opengl_scene_texture_begin;
 	gr_screen.gf_scene_texture_end = gr_opengl_scene_texture_end;

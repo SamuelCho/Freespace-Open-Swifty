@@ -729,7 +729,6 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		Interp_transform_texture >= 0 && bufferp->flags & VB_FLAG_MODEL_ID,
 		Using_Team_Color, 
 		flags, 
-		0, 
 		SPECMAP, 
 		GLOWMAP, 
 		NORMMAP, 
@@ -785,6 +784,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	Current_uniforms.setOrientation(&Object_matrix);
 	Current_uniforms.setPosition(&Object_position);
 	Current_uniforms.setNumLights(Num_active_gl_lights);
+	Current_uniforms.setLightFactor(GL_light_factor);
 	Current_uniforms.setThrusterScale(GL_thrust_scale);
 
 	if ( Using_Team_Color ) {
@@ -2353,33 +2353,6 @@ void gr_opengl_end_shadow_map()
 		glScissor(gr_screen.offset_x, (gr_screen.max_h - gr_screen.offset_y - gr_screen.clip_height), gr_screen.clip_width, gr_screen.clip_height);
 }
 
-void gr_opengl_shadow_map_end()
-{
-	if(!in_shadow_map)
-		return;
-
-	gr_end_view_matrix();
-	in_shadow_map = false;
-
-	//gr_post_process_shadow_map();
-
-	gr_zbuffer_set(ZBUFFER_TYPE_FULL);
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, saved_fb);
-	if(saved_fb)
-	{
-		// 			GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
-		// 			vglDrawBuffers(2, buffers);
-	}
-
-	GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
-	vglDrawBuffers(2, buffers);
-
-	Glowpoint_override = Glowpoint_override_save;
-	GL_htl_projection_matrix_set = 0;
-
-	glViewport(gr_screen.offset_x, (gr_screen.max_h - gr_screen.offset_y - gr_screen.clip_height), gr_screen.clip_width, gr_screen.clip_height);
-}
-
 void gr_opengl_clear_shadow_map()
 {
 	glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &saved_fb);
@@ -2573,7 +2546,6 @@ void gr_opengl_tnl_set_uniforms(int flags, uint shader_flags, int tmap_type)
 uniform_handler::uniform_handler()
 {
 	loaded_block = NULL;
-	num_matrix_uniforms = 0;
 }
 
 void uniform_handler::resetTextures()
@@ -2609,6 +2581,11 @@ void uniform_handler::setThrusterScale(float scale)
 void uniform_handler::setNumLights(int num_lights)
 {
 	n_lights = num_lights;
+}
+
+void uniform_handler::setLightFactor(float factor)
+{
+	light_factor = factor;
 }
 
 void uniform_handler::setTeamColor(float base_r, float base_g, float base_b, float stripe_r, float stripe_g, float stripe_b)
@@ -2904,7 +2881,6 @@ void uniform_handler::resetAll()
 	uniform_data_vec3d.clear();
 	uniform_data_vec4.clear();
 	uniform_data_matrix4.clear();
-	num_matrix_uniforms = 0;
 
 	uniform_lookup.clear();
 	uniforms_to_set.clear();
@@ -2957,8 +2933,7 @@ void uniform_handler::generateUniforms(int texture_slots[], int flags, uint sdr_
 
 	int num_lights = MIN(n_lights, GL_max_lights) - 1;
 	queueUniformi("n_lights", num_lights);
-	queueUniformf( "light_factor", GL_light_factor );
-	//vglUniform1iARB( opengl_shader_get_uniform("n_lights"), num_lights );
+	queueUniformf( "light_factor", light_factor );
 
 	if ( sdr_flags & SDR_FLAG_CLIP ) {
 		queueUniformi("use_clip_plane", G3_user_clip);
@@ -3065,21 +3040,21 @@ void uniform_handler::generateUniforms(int texture_slots[], int flags, uint sdr_
 	if ( sdr_flags & SDR_FLAG_SHADOWS ) {
 		matrix4 model_matrix;
 		memset( &model_matrix, 0, sizeof(model_matrix) );
-// 		model_matrix.a1d[0]  = orientation.vec.rvec.xyz.x;	model_matrix.a1d[4]  = orientation.vec.uvec.xyz.x;	model_matrix.a1d[8]  = orientation.vec.fvec.xyz.x;
-// 		model_matrix.a1d[1]  = orientation.vec.rvec.xyz.y;	model_matrix.a1d[5]  = orientation.vec.uvec.xyz.y;	model_matrix.a1d[9]  = orientation.vec.fvec.xyz.y;
-// 		model_matrix.a1d[2]  = orientation.vec.rvec.xyz.z;	model_matrix.a1d[6]  = orientation.vec.uvec.xyz.z;	model_matrix.a1d[10] = orientation.vec.fvec.xyz.z;
-// 		model_matrix.a1d[12] = position.xyz.x;
-// 		model_matrix.a1d[13] = position.xyz.y;
-// 		model_matrix.a1d[14] = position.xyz.z;
-// 		model_matrix.a1d[15] = 1.0f;
-
-		model_matrix.a1d[0]  = Object_matrix.vec.rvec.xyz.x;   model_matrix.a1d[4]  = Object_matrix.vec.uvec.xyz.x;   model_matrix.a1d[8]  = Object_matrix.vec.fvec.xyz.x;
-		model_matrix.a1d[1]  = Object_matrix.vec.rvec.xyz.y;   model_matrix.a1d[5]  = Object_matrix.vec.uvec.xyz.y;   model_matrix.a1d[9]  = Object_matrix.vec.fvec.xyz.y;
-		model_matrix.a1d[2]  = Object_matrix.vec.rvec.xyz.z;   model_matrix.a1d[6]  = Object_matrix.vec.uvec.xyz.z;   model_matrix.a1d[10] = Object_matrix.vec.fvec.xyz.z;
-		model_matrix.a1d[12] = Object_position.xyz.x;
-		model_matrix.a1d[13] = Object_position.xyz.y;
-		model_matrix.a1d[14] = Object_position.xyz.z;
+		model_matrix.a1d[0]  = orientation.vec.rvec.xyz.x;	model_matrix.a1d[4]  = orientation.vec.uvec.xyz.x;	model_matrix.a1d[8]  = orientation.vec.fvec.xyz.x;
+		model_matrix.a1d[1]  = orientation.vec.rvec.xyz.y;	model_matrix.a1d[5]  = orientation.vec.uvec.xyz.y;	model_matrix.a1d[9]  = orientation.vec.fvec.xyz.y;
+		model_matrix.a1d[2]  = orientation.vec.rvec.xyz.z;	model_matrix.a1d[6]  = orientation.vec.uvec.xyz.z;	model_matrix.a1d[10] = orientation.vec.fvec.xyz.z;
+		model_matrix.a1d[12] = position.xyz.x;
+		model_matrix.a1d[13] = position.xyz.y;
+		model_matrix.a1d[14] = position.xyz.z;
 		model_matrix.a1d[15] = 1.0f;
+
+// 		model_matrix.a1d[0]  = Object_matrix.vec.rvec.xyz.x;   model_matrix.a1d[4]  = Object_matrix.vec.uvec.xyz.x;   model_matrix.a1d[8]  = Object_matrix.vec.fvec.xyz.x;
+// 		model_matrix.a1d[1]  = Object_matrix.vec.rvec.xyz.y;   model_matrix.a1d[5]  = Object_matrix.vec.uvec.xyz.y;   model_matrix.a1d[9]  = Object_matrix.vec.fvec.xyz.y;
+// 		model_matrix.a1d[2]  = Object_matrix.vec.rvec.xyz.z;   model_matrix.a1d[6]  = Object_matrix.vec.uvec.xyz.z;   model_matrix.a1d[10] = Object_matrix.vec.fvec.xyz.z;
+// 		model_matrix.a1d[12] = Object_position.xyz.x;
+// 		model_matrix.a1d[13] = Object_position.xyz.y;
+// 		model_matrix.a1d[14] = Object_position.xyz.z;
+// 		model_matrix.a1d[15] = 1.0f;
 
 		matrix4 l_matrix;
 		matrix4 l_proj_matrix[4];
@@ -3147,10 +3122,8 @@ void uniform_handler::generateUniforms(int texture_slots[], int flags, uint sdr_
 	}
 }
 
-bool uniform_handler::setUniforms()
+void uniform_handler::setUniforms()
 {
-	GLfloat buffer[4][16];
-
 	for ( int i = 0; i < uniforms_to_set.size(); ++i ) {
 		int uniform_index = uniforms_to_set[i];
 
@@ -3178,6 +3151,4 @@ bool uniform_handler::setUniforms()
 				break;
 		}
 	}
-
-	return true;
 }

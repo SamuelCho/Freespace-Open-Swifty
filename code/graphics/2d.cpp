@@ -1633,7 +1633,6 @@ uint gr_determine_shader_flags(
 	bool transform,
 	bool team_color,
 	int tmap_flags, 
-	int diffuse_map, 
 	int spec_map, 
 	int glow_map, 
 	int normal_map, 

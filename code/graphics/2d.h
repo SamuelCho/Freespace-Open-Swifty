@@ -555,7 +555,6 @@ typedef struct screen {
 	void (*gf_post_process_begin)();
 	void (*gf_post_process_end)();
 	void (*gf_post_process_save_zbuffer)();
-	void (*gf_post_process_blur_shadow_map)();
 
 	void (*gf_deferred_lighting_begin)();
 	void (*gf_deferred_lighting_end)();
@@ -890,7 +889,6 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_post_process_begin			GR_CALL(*gr_screen.gf_post_process_begin)
 #define gr_post_process_end				GR_CALL(*gr_screen.gf_post_process_end)
 #define gr_post_process_save_zbuffer	GR_CALL(*gr_screen.gf_post_process_save_zbuffer)
-#define gr_post_process_shadow_map		GR_CALL(*gr_screen.gf_post_process_blur_shadow_map)
 
 #define gr_deferred_lighting_begin		GR_CALL(*gr_screen.gf_deferred_lighting_begin)
 #define gr_deferred_lighting_end		GR_CALL(*gr_screen.gf_deferred_lighting_end)
@@ -960,7 +958,6 @@ uint gr_determine_shader_flags(
 	bool transform,
 	bool team_color_set,
 	int tmap_flags, 
-	int diffuse_map, 
 	int spec_map, 
 	int glow_map, 
 	int normal_map, 

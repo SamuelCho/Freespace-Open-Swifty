@@ -215,7 +215,6 @@ uint DrawList::determineShaderFlags(render_state *state, queued_buffer_draw *dra
 		draw_info->transform_data >= 0 && buffer->flags & VB_FLAG_MODEL_ID,
 		state->using_team_color,
 		tmap_flags, 
-		draw_info->texture_maps[TM_BASE_TYPE], 
 		draw_info->texture_maps[TM_SPECULAR_TYPE],
 		draw_info->texture_maps[TM_GLOW_TYPE],
 		draw_info->texture_maps[TM_NORMAL_TYPE],

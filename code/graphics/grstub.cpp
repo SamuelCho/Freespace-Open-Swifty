@@ -901,7 +901,6 @@ bool gr_stub_init()
 	gr_screen.gf_post_process_begin		= gr_stub_post_process_begin;
 	gr_screen.gf_post_process_end		= gr_stub_post_process_end;
 	gr_screen.gf_post_process_save_zbuffer	= gr_stub_post_process_save_zbuffer;
-	gr_screen.gf_post_process_blur_shadow_map = gr_stub_post_process_blur_shadow_map;
 
 	gr_screen.gf_scene_texture_begin = gr_stub_scene_texture_begin;
 	gr_screen.gf_scene_texture_end = gr_stub_scene_texture_end;
