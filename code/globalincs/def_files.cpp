@@ -1814,7 +1814,7 @@ char *Default_main_fragment_shader =
 "\n"
 "float sampleNoPCF(int cascade)\n"
 "{\n"
-"	return computeShadowFactor(sampleShadowMap(shadow_vec[cascade].xy, vec2(0.0, 0.0), cascade, 1.0/1024.0), 1.00);\n"
+"	return computeShadowFactor(sampleShadowMap(shadow_vec[cascade].xy, vec2(0.0, 0.0), cascade, 1.0/1024.0), 0.05);\n"
 "}\n"
 "\n"
 "float samplePoissonPCF(int cascade)\n"
