@@ -6655,17 +6655,10 @@ void ship_render_cockpit(object *objp)
 		gr_set_view_matrix(&vmd_zero_vector, &Eye_matrix);
 	}
 
-	//Zbuffer
-	int saved_zbuffer_mode = gr_zbuffer_get();
-	gr_zbuffer_set(GR_ZBUFF_NONE);
-
 	//Deal with the model
 	model_clear_instance(sip->cockpit_model_num);
 	model_set_detail_level(0);
 	model_immediate_render(sip->cockpit_model_num, &eye_ori, &pos, MR_LOCK_DETAIL | MR_NO_FOGGING, -1, -1, Player_cockpit_textures);
-
-	//Zbuffer
-	gr_zbuffer_set(saved_zbuffer_mode);
 
 	if (!Cmdline_nohtl) 
 	{

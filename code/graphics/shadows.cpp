@@ -666,7 +666,7 @@ void shadows_render_all(float fov, matrix *eye_orient, vec3d *eye_pos)
 	gr_end_proj_matrix();
 	gr_end_view_matrix();
 
-	matrix light_matrix = shadows_start_render(eye_orient, eye_pos, fov, gr_screen.clip_aspect, 200.0f, 500.0f, 2000.0f, 10000.0f);
+	matrix light_matrix = shadows_start_render(eye_orient, eye_pos, fov, gr_screen.clip_aspect, 200.0f, 600.0f, 2500.0f, 8000.0f);
 
 	DrawList scene;
 	object *objp = Objects;

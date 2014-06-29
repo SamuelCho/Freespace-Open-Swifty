@@ -2226,19 +2226,24 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 
 	switch ( render ) {
 	case MODEL_RENDER_OPAQUE:
+		gr_zbuffer_set(ZBUFFER_TYPE_FULL);
 		model_list.renderAll(GR_ALPHABLEND_NONE);
 		break;
 	case MODEL_RENDER_TRANS:
+		gr_zbuffer_set(ZBUFFER_TYPE_READ);
 		model_list.renderAll(GR_ALPHABLEND_FILTER);
 		break;
 	case MODEL_RENDER_ALL:
-		model_list.renderAll();
+		gr_zbuffer_set(ZBUFFER_TYPE_FULL);
+		model_list.renderAll(GR_ALPHABLEND_NONE);
+		gr_zbuffer_set(ZBUFFER_TYPE_READ);
+		model_list.renderAll(GR_ALPHABLEND_FILTER);
 		break;
 	}
-
+	
 	gr_zbias(0);
-	gr_zbuffer_set(ZBUFFER_TYPE_READ);
 	gr_set_cull(0);
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
 	gr_set_fill_mode(GR_FILL_MODE_SOLID);
 
 	gr_flush_data_states();
@@ -2246,6 +2251,8 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 
 	gr_reset_lighting();
 	gr_set_lighting(false, false);
+
+	GL_state.Texture.DisableAll();
 
 	model_debug_render(model_num, orient, pos, flags, objnum, interp.detail_level_locked);
 }
