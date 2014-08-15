@@ -80,7 +80,6 @@ static bool use_last_view = false;
 static GLfloat lmatrix[16];
 static GLfloat lprojmatrix[4][16];
 static GLfloat modelmatrix[16];
-int Current_shadow_frustum = 0;
 
 int GL_vertex_data_in = 0;
 
@@ -92,6 +91,9 @@ team_color* Current_team_color;
 team_color Current_temp_color;
 bool Using_Team_Color = false;
 
+bool GL_use_transform_buffer = false;
+int GL_transform_buffer_offset = -1;
+
 GLuint Shadow_map_texture = 0;
 GLuint Shadow_map_depth_texture = 0;
 GLuint shadow_fbo = 0;
@@ -101,6 +103,17 @@ bool shadowers = false;
 GLint saved_fb = 0;
 bool in_shadow_map = false;
 int parabolic = 0;
+
+int Transform_buffer_handle = -1;
+
+struct opengl_buffer_object {
+	GLuint buffer_id;
+	GLenum type;
+	GLenum usage;
+	uint size;
+
+	GLuint texture;	// for texture buffer objects
+};
 
 struct opengl_vertex_buffer {
 	GLfloat *array_list;	// interleaved array
@@ -142,10 +155,133 @@ void opengl_vertex_buffer::clear()
 	}
 }
 
+static SCP_vector<opengl_buffer_object> GL_buffer_objects;
 static SCP_vector<opengl_vertex_buffer> GL_vertex_buffers;
 static opengl_vertex_buffer *g_vbp = NULL;
 static int GL_vertex_buffers_in_use = 0;
 
+int opengl_create_buffer_object(GLenum type, GLenum usage)
+{
+	opengl_buffer_object buffer_obj;
+
+	buffer_obj.usage = usage;
+	buffer_obj.type = type;
+	buffer_obj.size = 0;
+
+	vglGenBuffersARB(1, &buffer_obj.buffer_id);
+
+	GL_buffer_objects.push_back(buffer_obj);
+
+	return GL_buffer_objects.size() - 1;
+}
+
+void gr_opengl_update_buffer_object(int handle, uint size, void* data)
+{
+	Assert(handle >= 0);
+	Assert(handle < GL_buffer_objects.size());
+
+	opengl_buffer_object &buffer_obj = GL_buffer_objects[handle];
+
+	switch ( buffer_obj.type ) {
+	case GL_ARRAY_BUFFER_ARB:
+		GL_state.Array.BindArrayBuffer(buffer_obj.buffer_id);
+		break;
+	case GL_ELEMENT_ARRAY_BUFFER_ARB:
+		GL_state.Array.BindElementBuffer(buffer_obj.buffer_id);
+		break;
+	case GL_TEXTURE_BUFFER_ARB:
+		GL_state.Array.BindTextureBuffer(buffer_obj.buffer_id);
+		break;
+	case GL_UNIFORM_BUFFER:
+		GL_state.Array.BindUniformBuffer(buffer_obj.buffer_id);
+	default:
+		Int3();
+		return;
+		break;
+	}
+
+	GL_vertex_data_in -= buffer_obj.size;
+	buffer_obj.size = size;
+	GL_vertex_data_in += buffer_obj.size;
+
+	vglBufferDataARB(buffer_obj.type, size, data, buffer_obj.usage);
+
+	if ( opengl_check_for_errors() ) {
+		Int3();
+	}
+}
+
+void opengl_delete_buffer_object(int handle)
+{
+	Assert(handle >= 0);
+	Assert(handle < GL_buffer_objects.size());
+
+	opengl_buffer_object &buffer_obj = GL_buffer_objects[handle];
+
+	if ( buffer_obj.type == GL_TEXTURE_BUFFER_ARB ) {
+		glDeleteTextures(1, &buffer_obj.texture);
+	}
+
+	GL_vertex_data_in -= buffer_obj.size;
+
+	vglDeleteBuffersARB(1, &buffer_obj.buffer_id);
+}
+
+int gr_opengl_create_stream_buffer_object()
+{
+	return opengl_create_buffer_object(GL_ARRAY_BUFFER_ARB, GL_DYNAMIC_DRAW_ARB);
+}
+
+int opengl_create_texture_buffer_object()
+{
+	if ( Use_GLSL < 3 || !Is_Extension_Enabled(OGL_ARB_TEXTURE_BUFFER) || !Is_Extension_Enabled(OGL_ARB_FLOATING_POINT_TEXTURES) ) {
+		return -1;
+	}
+
+	// create the buffer
+	int buffer_object_handle = opengl_create_buffer_object(GL_TEXTURE_BUFFER_ARB, GL_DYNAMIC_DRAW_ARB);
+
+	opengl_check_for_errors();
+
+	opengl_buffer_object &buffer_obj = GL_buffer_objects[buffer_object_handle];
+
+	// create the texture
+	glGenTextures(1, &buffer_obj.texture);
+	glBindTexture(GL_TEXTURE_BUFFER_ARB, buffer_obj.texture);
+
+	opengl_check_for_errors();
+
+	gr_opengl_update_buffer_object(buffer_object_handle, 100, NULL);
+
+	vglTexBufferARB(GL_TEXTURE_BUFFER_ARB, GL_RGBA32F, buffer_obj.buffer_id);
+
+	opengl_check_for_errors();
+
+	return buffer_object_handle;
+}
+
+void gr_opengl_update_transform_buffer(void* data, uint size)
+{
+	if ( Transform_buffer_handle < 0 ) {
+		return;
+	}
+
+	gr_opengl_update_buffer_object(Transform_buffer_handle, size, data);
+}
+
+GLuint opengl_get_transform_buffer_texture()
+{
+	if ( Transform_buffer_handle < 0 ) {
+		return 0;
+	}
+
+	return GL_buffer_objects[Transform_buffer_handle].texture;
+}
+
+void gr_opengl_set_transform_buffer_offset(int offset)
+{
+	GL_transform_buffer_offset = offset;
+}
 
 static void opengl_gen_buffer(opengl_vertex_buffer *vbp)
 {
@@ -280,13 +416,13 @@ bool gr_opengl_config_buffer(const int buffer_id, vertex_buffer *vb, bool update
 	vb->stride = 0;
 
 	// position
-	Verify( vb->model_list->vert != NULL || update_ibuffer_only );
+	Verify( update_ibuffer_only || vb->model_list->vert != NULL );
 
 	vb->stride += (3 * sizeof(GLfloat));
 
 	// normals
 	if (vb->flags & VB_FLAG_NORMAL) {
-		Verify( vb->model_list->norm != NULL || update_ibuffer_only );
+		Verify( update_ibuffer_only || vb->model_list->norm != NULL );
 
 		vb->stride += (3 * sizeof(GLfloat));
 	}
@@ -300,14 +436,14 @@ bool gr_opengl_config_buffer(const int buffer_id, vertex_buffer *vb, bool update
 	if (vb->flags & VB_FLAG_TANGENT) {
 		Assert( Cmdline_normal );
 
-		Verify( vb->model_list->tsb != NULL || update_ibuffer_only );
+		Verify( update_ibuffer_only || vb->model_list->tsb != NULL );
 		vb->stride += (4 * sizeof(GLfloat));
 	}
 
 	if (vb->flags & VB_FLAG_MODEL_ID) {
 		Assert( Use_GLSL >= 3 );
 
-		Verify( vb->model_list->submodels != NULL || update_ibuffer_only );
+		Verify( update_ibuffer_only || vb->model_list->submodels != NULL );
 		vb->stride += (1 * sizeof(GLfloat));
 	}
 
@@ -507,6 +643,10 @@ void opengl_destroy_all_buffers()
 		gr_opengl_destroy_buffer(i);
 	}
 
+	for ( uint i = 0; i < GL_buffer_objects.size(); i++ ) {
+		opengl_delete_buffer_object(i);
+	}
+
 	GL_vertex_buffers.clear();
 	GL_vertex_buffers_in_use = 0;
 }
@@ -516,6 +656,13 @@ void opengl_tnl_init()
 	GL_vertex_buffers.reserve(MAX_POLYGON_MODELS);
 	gr_opengl_deferred_light_sphere_init(16, 16);
 	gr_opengl_deferred_light_cylinder_init(16);
+
+	Transform_buffer_handle = opengl_create_texture_buffer_object();
+
+	if ( Transform_buffer_handle >= 0 && Cmdline_merged_ibos ) {
+		GL_use_transform_buffer = true;
+	}
+
 	if(Cmdline_shadow_quality)
 	{
 		//Setup shadow map framebuffer
@@ -668,7 +815,7 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 	}
 
 	if (bufferp->flags & VB_FLAG_MODEL_ID) {
-		int attrib_index = opengl_shader_get_attribute("model_id");
+		int attrib_index = opengl_shader_get_attribute("attrib_model_id");
 		if ( attrib_index >= 0 ) {
 			GL_state.Array.EnableVertexAttrib(attrib_index);
 			GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, bufferp->stride, ptr + offset);
@@ -726,7 +873,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		textured, 
 		in_shadow_map,
 		GL_thrust_scale > 0.0f,
-		Interp_transform_texture >= 0 && bufferp->flags & VB_FLAG_MODEL_ID,
+		(flags & TMAP_FLAG_BATCH_TRANSFORMS) && (GL_transform_buffer_offset >= 0) && (bufferp->flags & VB_FLAG_MODEL_ID),
 		Using_Team_Color, 
 		flags, 
 		SPECMAP, 
@@ -786,6 +933,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	Current_uniforms.setNumLights(Num_active_gl_lights);
 	Current_uniforms.setLightFactor(GL_light_factor);
 	Current_uniforms.setThrusterScale(GL_thrust_scale);
+	Current_uniforms.setTransformBufferOffset(GL_transform_buffer_offset);
 
 	if ( Using_Team_Color ) {
 		Current_uniforms.setTeamColor(Current_team_color->base.r, Current_team_color->base.g, Current_team_color->base.b, 
@@ -842,11 +990,11 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		}
 	}
 
-// 	if ( ( shader_flags & SDR_FLAG_TRANSFORM ) && texture_slot[TEX_SLOT_TRANSFORM] >= 0 ) {
-// 		GL_state.Texture.SetActiveUnit(texture_slot[TEX_SLOT_TRANSFORM]);
-// 		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-// 		GL_state.Texture.Enable(Interp_transform_texture);
-// 	}
+	if ( ( shader_flags & SDR_FLAG_TRANSFORM ) && texture_slot[TEX_SLOT_TRANSFORM] >= 0 ) {
+		GL_state.Texture.SetActiveUnit(texture_slot[TEX_SLOT_TRANSFORM]);
+		GL_state.Texture.SetTarget(GL_TEXTURE_BUFFER_ARB);
+		GL_state.Texture.Enable(opengl_get_transform_buffer_texture());
+	}
 
 	if(in_shadow_map) {
 		vglDrawElementsInstancedBaseVertex(GL_TRIANGLES, count, element_type, ibuffer + (datap->index_offset + start), 4, (GLint)bufferp->vertex_offset/bufferp->stride);
@@ -2292,39 +2440,6 @@ void gr_opengl_shadow_map_start(matrix *light_orient, light_frustum_info *veryne
 	glViewport(0, 0, size, size);
 }
 
-void gr_opengl_shadow_map_switch(int shadow_map_num)
-{
-	int size = (Cmdline_shadow_quality == 2 ? 1024 : 512);
-
-	if ( shadow_map_num == 0 ) {
-		glViewport(0, 0, size*0.5f, size*0.5f);
-		//glViewport(0, 0, size, size);
-		
-		GL_state.ScissorTest(GL_TRUE);
-		//glScissor(0, 0, size, size);
-		glScissor(0, 0, size*0.5f, size*0.5f);
-	} else if ( shadow_map_num == 1 ) {
-		glViewport(0, size*0.5f, size*0.5f, size*0.5f);
-		//glViewport(0, 0, size, size);
-
-		GL_state.ScissorTest(GL_TRUE);
-		//glScissor(0, 0, size, size);
-		glScissor(0, size*0.5f, size*0.5f, size*0.5f);
-	} else if ( shadow_map_num == 2 ) {
-		glViewport(size*0.5f, 0, size*0.5f, size*0.5f);
-
-		GL_state.ScissorTest(GL_TRUE);
-		glScissor(size*0.5f, 0, size*0.5f, size*0.5f);
-	} else {
-		glViewport(size*0.5f, size*0.5f, size*0.5f, size*0.5f);
-
-		GL_state.ScissorTest(GL_TRUE);
-		glScissor(size*0.5f, size*0.5f, size*0.5f, size*0.5f);
-	}
-
-	Current_shadow_frustum = shadow_map_num;
-}
-
 void gr_opengl_end_shadow_map()
 {
 		if(!in_shadow_map)
@@ -2599,6 +2714,11 @@ void uniform_handler::setTeamColor(float base_r, float base_g, float base_b, flo
 	stripe_color.xyz.z = stripe_b;
 }
 
+void uniform_handler::setTransformBufferOffset(int offset)
+{
+	transform_buffer_offset = offset;
+}
+
 void uniform_handler::loadUniformLookup(uniform_block *prev_block)
 {
 	uniform_lookup.clear();
@@ -2821,7 +2941,7 @@ void uniform_handler::queueUniformMatrix4f(SCP_string name, int transpose, matri
 	uniform_lookup[name] = uniforms.size()-1;
 }
 
-void uniform_handler::queueUniform4fv(SCP_string name, int count, int transpose, matrix4 *val)
+void uniform_handler::queueUniformMatrix4fv(SCP_string name, int count, int transpose, matrix4 *val)
 {
  	int uniform_index = findUniform(name);
 
@@ -3012,7 +3132,7 @@ void uniform_handler::generateUniforms(int texture_slots[], int flags, uint sdr_
 				texture_mat.a1d[i] = GL_env_texture_matrix[i];
 			}
 
-			queueUniform4fv("envMatrix", 1, GL_FALSE, &texture_mat);
+			queueUniformMatrix4fv("envMatrix", 1, GL_FALSE, &texture_mat);
 			queueUniformi("sEnvmap", render_pass);
 			texture_slots[TEX_SLOT_ENV] = render_pass;
 			++render_pass;
@@ -3070,7 +3190,7 @@ void uniform_handler::generateUniforms(int texture_slots[], int flags, uint sdr_
 		}
 
 		queueUniformMatrix4f("shadow_mv_matrix", GL_FALSE, l_matrix);
-		queueUniform4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
+		queueUniformMatrix4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
 		queueUniformMatrix4f("model_matrix", GL_FALSE, model_matrix);
 		queueUniformf("veryneardist", shadow_veryneardist);
 		queueUniformf("neardist", shadow_neardist);
@@ -3090,8 +3210,7 @@ void uniform_handler::generateUniforms(int texture_slots[], int flags, uint sdr_
 			}
 		}
 
-		queueUniformi("shadow_map_num", Current_shadow_frustum);
-		queueUniform4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
+		queueUniformMatrix4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
 		//vglUniformMatrix4fvARB( opengl_shader_get_uniform("shadow_proj_matrix"), 4, GL_FALSE, &lprojmatrix[0][0]);
 	}
 
@@ -3102,11 +3221,10 @@ void uniform_handler::generateUniforms(int texture_slots[], int flags, uint sdr_
 	}
 
 	if ( sdr_flags & SDR_FLAG_TRANSFORM ) {
-		GL_state.Array.BindUniformBufferBindingIndex(Interp_transform_texture, 0);
-		vglUniformBlockBindingARB(Current_shader->program_id, opengl_shader_get_uniform_block("transform_data"), 0);
-// 		queueUniformi("transform_tex", render_pass);
-// 		texture_slots[TEX_SLOT_TRANSFORM] = render_pass;
-// 		++render_pass;
+ 		queueUniformi("transform_tex", render_pass);
+		queueUniformi("buffer_matrix_offset", transform_buffer_offset);
+ 		texture_slots[TEX_SLOT_TRANSFORM] = render_pass;
+ 		++render_pass;
 	}
 
 	// Team colors are passed to the shader here, but the shader needs to handle their application.

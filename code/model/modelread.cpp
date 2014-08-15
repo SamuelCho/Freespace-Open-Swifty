@@ -863,7 +863,6 @@ void create_vertex_buffer(polymodel *pm)
 	// create another set of indexes for the detail buffers
 	if ( use_shader_transforms ) {
 		for ( i = 0; i < pm->n_detail_levels; i++ )	{
-			pm->detail_buffers[i].clear();
 			interp_create_detail_index_buffer(pm, i);
 		}
 	}
@@ -886,7 +885,7 @@ void create_vertex_buffer(polymodel *pm)
 			if ( pm->use_thruster_buffers ) {
 				gr_pack_buffer(pm->vertex_buffer_id, &pm->thruster_buffers[i]);
 
-				pm->thruster_buffers->release();
+				pm->thruster_buffers[i].release();
 			}
 		}
 	}
@@ -2469,20 +2468,39 @@ void model_load_texture(polymodel *pm, int i, char *file)
 	if (tmisc->GetTexture() > 0)
 		shader_flags |= SDR_FLAG_MISC_MAP;
 	
+	gr_maybe_create_shader(SDR_FLAG_GEOMETRY | SDR_FLAG_SHADOW_MAP);
+
+	if(Use_GLSL > 1)
+		shader_flags |= SDR_FLAG_CLIP;
+
 	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED);
 	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED | SDR_FLAG_FOG);
-	gr_maybe_create_shader(SDR_FLAG_GEOMETRY | SDR_FLAG_SHADOW_MAP);
 	
-	extern int Use_GLSL;
 	if(Use_GLSL > 1)
 		shader_flags |= SDR_FLAG_DEFERRED;
-	
-	if(GL_version >= 30)
-		shader_flags |= SDR_FLAG_CLIP;
 
 	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT);
 	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_FOG);
 	
+	extern bool GL_use_transform_buffer;
+	if( Cmdline_merged_ibos && GL_use_transform_buffer && Use_GLSL >= 3 ) {
+		shader_flags &= ~SDR_FLAG_DEFERRED;
+		shader_flags |= SDR_FLAG_TRANSFORM;
+
+		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED);
+		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED | SDR_FLAG_FOG);
+
+		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT);
+		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_FOG);
+
+		shader_flags |= SDR_FLAG_DEFERRED;
+
+		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED);
+		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED | SDR_FLAG_FOG);
+
+		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT);
+		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_FOG);
+	}
 }
 
 //returns the number of this model
@@ -2775,6 +2793,7 @@ int model_create_instance(int model_num, int submodel_num)
 	}
 
 	polymodel_instance *pmi = (polymodel_instance*)vm_malloc(sizeof(polymodel_instance));
+	memset(pmi, 0, sizeof(polymodel_instance));
 
 	// if not found, create a slot
 	if ( open_slot < 0 ) {
@@ -2803,22 +2822,6 @@ int model_create_instance(int model_num, int submodel_num)
 		pmi->root_submodel_num = submodel_num;
 	}
 
-	if ( Cmdline_merged_ibos ) {
-		pmi->transform_tex_id = gr_create_transform_tex();
-	
-		// create transform texture buffer. allocate 12 floats per submodel. 3*3 for the orientation matrix. Plus another 3 for the offset.
-		pmi->transform_buffer = (float*)vm_malloc( sizeof(float)*pm->n_models*16 );
-		memset(pmi->transform_buffer, 0, sizeof(float)*pm->n_models*16);
-
-		// pre-populate all model batches with initial orientations
-		for ( i = 0; i < pm->n_detail_levels; ++i ) {
-			matrix identity_mat = IDENTITY_MATRIX;
-			model_interp_preprocess(&identity_mat, open_slot, i, true);
-		}
-
-		gr_update_transform_tex(pmi->transform_tex_id, pm->n_models, pmi->transform_buffer);
-	}
-
 	return open_slot;
 }
 
@@ -2839,8 +2842,6 @@ void model_delete_instance(int model_instance_num)
 	}
 
 	if ( Cmdline_merged_ibos ) {
-		gr_destroy_transform_tex(pmi->transform_tex_id);
-
 		if ( pmi->transform_buffer ) {
 			vm_free(pmi->transform_buffer);
 		}
@@ -4471,9 +4472,9 @@ void model_get_rotating_submodel_list(SCP_vector<int> *submodel_vector, object *
 
 }
 
-void model_get_submodel_tree_list(SCP_vector<int> *submodel_vector, polymodel* pm, int mn)
+void model_get_submodel_tree_list(SCP_vector<int> &submodel_vector, polymodel* pm, int mn)
 {
-	submodel_vector->push_back(mn);
+	submodel_vector.push_back(mn);
 
 	int i = pm->submodel[mn].first_child;
 

@@ -92,6 +92,7 @@ class uniform_handler
 	float thruster_scale;
 	int n_lights;
 	float light_factor;
+	int transform_buffer_offset;
 
 	SCP_map<SCP_string, int> uniform_lookup;
 
@@ -107,7 +108,7 @@ class uniform_handler
 	void queueUniformf(SCP_string name, float value);
 	void queueUniform3f(SCP_string name, vec3d &value);
 	void queueUniform4f(SCP_string name, vec4 &val);
-	void queueUniform4fv(SCP_string name, int count, int transpose, matrix4 *value);
+	void queueUniformMatrix4fv(SCP_string name, int count, int transpose, matrix4 *value);
 	void queueUniformMatrix4f(SCP_string name, int transpose, matrix4 &val);
 public:
 	uniform_handler();
@@ -120,6 +121,7 @@ public:
 	void setPosition(vec3d *pos);
 	void setThrusterScale(float scale);
 	void setTeamColor(float base_r, float base_g, float base_b, float stripe_r, float stripe_g, float stripe_b);
+	void setTransformBufferOffset(int offset);
 	void setTexture(int texture_type, int texture_handle);
 	
 	void generateUniforms(int texture_slots[], int flags, uint sdr_flags);
@@ -135,6 +137,8 @@ extern float shadow_neardist;
 extern float shadow_middist;
 extern float shadow_fardist;
 extern bool in_shadow_map;
+
+extern bool GL_use_transform_buffer;
 
 void gr_opengl_start_instance_matrix(vec3d *offset, matrix *rotation);
 void gr_opengl_start_instance_angles(vec3d *pos, angles *rotation);
@@ -158,6 +162,11 @@ void gr_opengl_destroy_buffer(int idx);
 void gr_opengl_set_buffer(int idx);
 void gr_opengl_render_buffer(int start, const vertex_buffer *bufferp, int texi, int flags);
 void gr_opengl_render_to_env(int FACE);
+
+void gr_opengl_update_buffer_object(int handle, uint size, void* data);
+
+void gr_opengl_update_transform_buffer(void* data, uint size);
+void gr_opengl_set_transform_buffer_offset(int offset);
 
 int gr_opengl_create_stream_buffer();
 void gr_opengl_update_stream_buffer(int buffer, void *buffer_data, uint size);

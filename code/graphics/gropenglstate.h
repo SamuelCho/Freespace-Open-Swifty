@@ -233,6 +233,7 @@ class opengl_array_state
 
 		GLuint array_buffer;
 		GLuint element_array_buffer;
+		GLuint texture_array_buffer;
 		GLuint uniform_buffer;
 
 		GLuint uniform_buffer_index_bindings[MAX_UNIFORM_BUFFERS];
@@ -272,6 +273,7 @@ class opengl_array_state
 
 		void BindArrayBuffer(GLuint id);
 		void BindElementBuffer(GLuint id);
+		void BindTextureBuffer(GLuint id);
 		void BindUniformBuffer(GLuint id);
 		void BindUniformBufferBindingIndex(GLuint id, GLuint index);
 };

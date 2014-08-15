@@ -1861,6 +1861,10 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_render_buffer		= gr_opengl_render_buffer;
 	gr_screen.gf_set_buffer			= gr_opengl_set_buffer;
 
+	gr_screen.gf_update_transform_buffer	= gr_opengl_update_transform_buffer;
+	gr_screen.gf_update_buffer_object		= gr_opengl_update_buffer_object;
+	gr_screen.gf_set_transform_buffer_offset	= gr_opengl_set_transform_buffer_offset;
+
 	gr_screen.gf_create_stream_buffer		= gr_opengl_create_stream_buffer;
 	gr_screen.gf_update_stream_buffer		= gr_opengl_update_stream_buffer;
 	gr_screen.gf_render_stream_buffer		= gr_opengl_render_stream_buffer;

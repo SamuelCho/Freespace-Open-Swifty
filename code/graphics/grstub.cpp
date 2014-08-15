@@ -275,6 +275,22 @@ void gr_stub_set_buffer(int idx)
 {
 }
 
+
+void gr_stub_update_buffer_object(int handle, uint size, void* data)
+{
+
+}
+
+void gr_stub_update_transform_buffer(void* data, uint size)
+{
+
+}
+
+void gr_stub_set_transform_buffer_offset(int offset)
+{
+
+}
+
 int gr_stub_create_stream_buffer()
 {
 	return -1;
@@ -877,6 +893,10 @@ bool gr_stub_init()
 	gr_screen.gf_destroy_buffer		= gr_stub_destroy_buffer;
 	gr_screen.gf_render_buffer		= gr_stub_render_buffer;
 	gr_screen.gf_set_buffer			= gr_stub_set_buffer;
+
+	gr_screen.gf_update_transform_buffer	= gr_stub_update_transform_buffer;
+	gr_screen.gf_update_buffer_object		= gr_stub_update_buffer_object;
+	gr_screen.gf_set_transform_buffer_offset	= gr_stub_set_transform_buffer_offset;
 
 	gr_screen.gf_create_stream_buffer		= gr_stub_create_stream_buffer;
 	gr_screen.gf_update_stream_buffer		= gr_stub_update_stream_buffer;

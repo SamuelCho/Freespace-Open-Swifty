@@ -44,7 +44,7 @@ struct interp_data
 	matrix orient;
 	vec3d pos;
 
-	int transform_texture;
+	bool use_shader_transforms;
 
 	int thrust_scale_subobj;
 	int flags;
@@ -120,9 +120,8 @@ struct interp_data
 
 		objnum = -1;
 
+		use_shader_transforms = false;
 		desaturate = false;
-
-		transform_texture = -1;
 
 		detail_level_locked = 0;
 		detail_level = 0;
@@ -274,7 +273,7 @@ struct queued_buffer_draw
 {
 	int render_state_handle;
 	int texture_maps[TM_NUM_TYPES];
-	int transform_data;
+	int transform_buffer_offset;
 
 	color clr;
 	int blend_filter;
@@ -305,15 +304,39 @@ struct queued_buffer_draw
 	}
 };
 
+class ModelTransformBuffer
+{
+	SCP_vector<matrix4> TransformMatrices;
+	void* MemAlloc;
+	uint MemAllocSize;
+
+	int CurrentOffset;
+
+	void AllocateMemory();
+public:
+	ModelTransformBuffer() : CurrentOffset(0), MemAlloc(NULL), MemAllocSize(0) {};
+
+	void reset();
+
+	int getBufferOffset();
+	void setNumModels(int n_models);
+	void setModelTransform(matrix4 &transform, int model_id);
+
+	void submitBufferData();
+
+	void addMatrix(matrix4 &mat);
+};
+
 class DrawList
 {
 	Transform CurrentTransform;
+	vec3d CurrentScale;
 	SCP_vector<Transform> TransformStack;
 
 	render_state current_render_state;
 	bool dirty_render_state;
 
-	SceneLights Lights;
+	SceneLights SceneLightHandler;
 	
 	int current_textures[TM_NUM_TYPES];
 	int current_blend_filter;
@@ -340,7 +363,7 @@ class DrawList
 	static bool sortDrawPair(const int a, const int b);
 public:
 	DrawList();
-	void addLight(light *light_ptr);
+	void initRender();
 
 	void resetState();
 	void setClipPlane(vec3d *position = NULL, vec3d *normal = NULL);
@@ -358,12 +381,15 @@ public:
 	void setTeamColor(team_color *color = NULL);
 	void setAnimatedTimer(float time);
 	void setAnimatedEffect(int effect);
-	void addBufferDraw(vec3d *scale, vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp);
+	void setModelTransformBuffer(int model_num);
+	void startModelDraw(int n_models);
+	void addBufferDraw(vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp);
 	
 	vec3d getViewPosition();
 	void clearTransforms();
 	void pushTransform(vec3d* pos, matrix* orient);
 	void popTransform();
+	void setScale(vec3d *scale = NULL);
 
 	void addArc(vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width);
 	void renderArcs();

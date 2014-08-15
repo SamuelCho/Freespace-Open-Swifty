@@ -885,7 +885,7 @@ void model_set_detail_level(int n);
 #define MR_NO_ZBUFFER				(1<<19)		// switch z-buffering off completely 
 #define MR_NO_CULL					(1<<20)		// don't cull backfacing poly's
 #define MR_FORCE_TEXTURE			(1<<21)		// force a given texture to always be used
-#define MR_FORCE_LOWER_DETAIL		(1<<22)		// force the model to draw 1 LOD lower, if possible
+#define MR_NO_BATCH					(1<<22)		// only the current model will be rendered in the current scene to be drawn
 #define MR_EDGE_ALPHA				(1<<23)		// makes norms that are faceing away from you render more transparent -Bobboau
 #define MR_CENTER_ALPHA				(1<<24)		// oposite of above -Bobboau
 #define MR_NO_FOGGING				(1<<25)		// Don't fog - taylor
@@ -995,7 +995,7 @@ extern void find_submodel_instance_world_point(vec3d *outpnt, object *ship_obj, 
 void model_get_rotating_submodel_list(SCP_vector<int> *submodel_vector, object *objp);
 
 // Given a polygon model index, get a list of a model tree starting from that index
-void model_get_submodel_tree_list(SCP_vector<int> *submodel_vector, polymodel* pm, int mn);
+void model_get_submodel_tree_list(SCP_vector<int> &submodel_vector, polymodel* pm, int mn);
 
 // For a rotating submodel, find a point on the axis
 void model_init_submodel_axis_pt(submodel_instance_info *sii, int model_num, int submodel_num);

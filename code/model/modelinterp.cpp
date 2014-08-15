@@ -1045,7 +1045,7 @@ void model_interp_tmappoly(ubyte * p,polymodel * pm)
 				if(Interp_flags & MR_ALL_XPARENT){
 					g3_draw_poly( nv, Interp_list, Interp_tmap_flags );
 				} else {
-					g3_draw_poly( nv, Interp_list, Interp_tmap_flags|TMAP_FLAG_NONDARKENING );		
+					g3_draw_poly( nv, Interp_list, Interp_tmap_flags );		
 				}
 			}
 		}
@@ -2988,11 +2988,6 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 			}
 		}
 
-		// maybe force lower detail
-		if (Interp_flags & MR_FORCE_LOWER_DETAIL) {
-			i++;
-		}
-
 		Interp_detail_level = i-1-tmp_detail_level;
 
 		if ( Interp_detail_level < 0 ) 
@@ -4509,24 +4504,26 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 		thruster_index_counts[i] = 0;
 	}
 
-	model_get_submodel_tree_list(&submodel_list, pm, pm->detail[detail_num]);
+	submodel_list.clear();
+
+	model_get_submodel_tree_list(submodel_list, pm, pm->detail[detail_num]);
 
 	size_t num_buffers;
 	int tex_num;
 
-	vertex_buffer *detail_buffer = &pm->detail_buffers[detail_num];
-	vertex_buffer *thruster_buffer = &pm->thruster_buffers[detail_num];
+	vertex_buffer &detail_buffer = pm->detail_buffers[detail_num];
+	vertex_buffer &thruster_buffer = pm->thruster_buffers[detail_num];
 
-	detail_buffer->model_list = new(std::nothrow) poly_list;
-	thruster_buffer->model_list = new(std::nothrow) poly_list;
+	detail_buffer.model_list = new(std::nothrow) poly_list;
+	thruster_buffer.model_list = new(std::nothrow) poly_list;
 
 	// need to first count how many indexes there are in this entire detail model hierarchy
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
 		num_buffers = pm->submodel[model_num].buffer.tex_buf.size();
 
-		detail_buffer->flags |= pm->submodel[model_num].buffer.flags;
-		thruster_buffer->flags |= pm->submodel[model_num].buffer.flags;
+		detail_buffer.flags |= pm->submodel[model_num].buffer.flags;
+		thruster_buffer.flags |= pm->submodel[model_num].buffer.flags;
 
 		for ( j = 0; j < num_buffers; ++j ) {
 			tex_num = pm->submodel[model_num].buffer.tex_buf[j].texture;
@@ -4546,11 +4543,15 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 			continue;
 		}
 
-		buffer_data new_buffer(index_counts[i]);
-		new_buffer.n_verts = 0;
-		new_buffer.texture = i;
+		detail_buffer.tex_buf.push_back(buffer_data(index_counts[i]));
 
-		detail_buffer->tex_buf.push_back(new_buffer);
+		buffer_data &new_buffer = detail_buffer.tex_buf.back();
+		//new_buffer.n_verts = 0;
+		new_buffer.texture = i;
+	}
+
+	for ( i = 0; i < detail_buffer.tex_buf.size(); ++i ) {
+		detail_buffer.tex_buf[i].n_verts = 0;
 	}
 
 	for ( i = 0; i < MAX_MODEL_TEXTURES; ++i ) {
@@ -4558,11 +4559,15 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 			continue;
 		}
 
-		buffer_data new_buffer(thruster_index_counts[i]);
-		new_buffer.n_verts = 0;
-		new_buffer.texture = i;
+		thruster_buffer.tex_buf.push_back(buffer_data(thruster_index_counts[i]));
 
-		thruster_buffer->tex_buf.push_back(new_buffer);
+		buffer_data &new_buffer = thruster_buffer.tex_buf.back();
+		//new_buffer.n_verts = 0;
+		new_buffer.texture = i;
+	}
+
+	for ( i = 0; i < thruster_buffer.tex_buf.size(); ++i ) {
+		thruster_buffer.tex_buf[i].n_verts = 0;
 	}
 
 	// finally copy over the indexes
@@ -4570,29 +4575,29 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 		model_num = submodel_list[i];
 		
 		if ( pm->submodel[model_num].is_thruster ) {
-			interp_copy_index_buffer(&pm->submodel[model_num].buffer, thruster_buffer, thruster_index_counts);
+			interp_copy_index_buffer(&pm->submodel[model_num].buffer, &thruster_buffer, thruster_index_counts);
 		} else {
-			interp_copy_index_buffer(&pm->submodel[model_num].buffer, detail_buffer, index_counts);
+			interp_copy_index_buffer(&pm->submodel[model_num].buffer, &detail_buffer, index_counts);
 		}
 	}
 
 	// check which buffers need to have the > USHORT flag
-	for ( i = 0; i < detail_buffer->tex_buf.size(); ++i ) {
-		if ( detail_buffer->tex_buf[i].i_last >= USHRT_MAX ) {
-			detail_buffer->tex_buf[i].flags |= VB_FLAG_LARGE_INDEX;
+	for ( i = 0; i < detail_buffer.tex_buf.size(); ++i ) {
+		if ( detail_buffer.tex_buf[i].i_last >= USHRT_MAX ) {
+			detail_buffer.tex_buf[i].flags |= VB_FLAG_LARGE_INDEX;
 		}
 	}
 
-	gr_config_buffer(pm->vertex_buffer_id, detail_buffer, true);
+	gr_config_buffer(pm->vertex_buffer_id, &detail_buffer, true);
 
 	if ( pm->use_thruster_buffers ) {
-		for ( i = 0; i < thruster_buffer->tex_buf.size(); ++i ) {
-			if ( thruster_buffer->tex_buf[i].i_last >= USHRT_MAX ) {
-				thruster_buffer->tex_buf[i].flags |= VB_FLAG_LARGE_INDEX;
+		for ( i = 0; i < thruster_buffer.tex_buf.size(); ++i ) {
+			if ( thruster_buffer.tex_buf[i].i_last >= USHRT_MAX ) {
+				thruster_buffer.tex_buf[i].flags |= VB_FLAG_LARGE_INDEX;
 			}
 		}
 
-		gr_config_buffer(pm->vertex_buffer_id, thruster_buffer, true);
+		gr_config_buffer(pm->vertex_buffer_id, &thruster_buffer, true);
 	}
 }
 
@@ -5187,8 +5192,6 @@ void model_interp_update_transforms(object *objp, int detail_num)
 // 			pmi->transform_buffer[i*16+10] *= Interp_warp_scale_z;
 // 		}
 	}
-
-	gr_update_transform_tex(pmi->transform_tex_id, pm->n_models, pmi->transform_buffer);
 }
 
 void model_mix_two_team_colors(team_color* dest, team_color* a, team_color* b, float mix_factor)
@@ -5315,7 +5318,6 @@ void model_interp_load_global_data(interp_data *interp)
 	interp->thrust_scale_x = Interp_thrust_scale_x;
 	interp->thrust_scale_y = Interp_thrust_scale_y;
 	interp->tmap_flags = Interp_tmap_flags;
-	interp->transform_texture = Interp_transform_texture;
 	interp->warp_bitmap = Interp_warp_bitmap;
 	interp->warp_scale_x = Interp_warp_scale_x;
 	interp->warp_scale_y = Interp_warp_scale_y;

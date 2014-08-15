@@ -354,12 +354,7 @@ void obj_render_queue_all()
 
 	gr_deferred_lighting_begin();
 
-	// load lights into draw list
-	for ( i = 0; i < Num_lights; ++i ) {
-		if ( Lights[i].type == LT_DIRECTIONAL || !Deferred_lighting ) {
-			scene.addLight(&Lights[i]);
-		}	
-	}
+	scene.initRender();
 
 	for ( i = 0; i <= Highest_object_index; i++,objp++ ) {
 		if ( (objp->type != OBJ_NONE) && ( objp->flags & OF_RENDERS ) )	{
@@ -388,7 +383,7 @@ void obj_render_queue_all()
 	scene.sortDraws();
 
 	gr_zbuffer_set(ZBUFFER_TYPE_FULL);
-	scene.renderAll(GR_ALPHABLEND_NONE);
+	PROFILE("Submit Draws", scene.renderAll(GR_ALPHABLEND_NONE));
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);
 	gr_zbias(0);
 	gr_set_cull(0);
@@ -406,7 +401,7 @@ void obj_render_queue_all()
 	gr_set_lighting(false, false);
 
 	// now render transparent meshes
-	scene.renderAll(GR_ALPHABLEND_FILTER);
+	PROFILE("Submit Draws", scene.renderAll(GR_ALPHABLEND_FILTER));
 
 	// render electricity effects and insignias
 	scene.renderInsignias();
@@ -432,7 +427,7 @@ void obj_render_queue_all()
 		gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
 	}
 
-	batch_render_all();
+	PROFILE("Draw Effects", batch_render_all());
 
 	gr_zbias(0);
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);

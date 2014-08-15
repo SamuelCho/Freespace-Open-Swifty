@@ -185,20 +185,35 @@ public:
 	}
 
 	// Constructor
+
+	buffer_data() :
+	flags(0), texture(-1), n_verts(0), index_offset(0),
+		i_first(1), i_last(0), index(NULL)
+	{
+	}
+
 	buffer_data(int n_vrts) :
 		flags(0), texture(-1), n_verts(n_vrts), index_offset(0),
-		i_first(1), i_last(0)
+		i_first(1), i_last(0), index(NULL)
 	{
-		index = new(std::nothrow) uint[n_verts];
+		if ( n_verts > 0 ) {
+			index = new(std::nothrow) uint[n_verts];
+		} else {
+			index = NULL;
+		}
 	}
     
 	// Copy-constructor
 	buffer_data(const buffer_data& other)
 	{
-		index = new(std::nothrow) uint[other.n_verts];
-		for (size_t i=0; i < (size_t) other.n_verts; i++)
-		{
-			index[i] = other.index[i];
+		if ( other.index ) {
+			index = new(std::nothrow) uint[other.n_verts];
+			for (size_t i=0; i < (size_t) other.n_verts; i++)
+			{
+				index[i] = other.index[i];
+			}
+		} else {
+			index = NULL;
 		}
         
 		flags   = other.flags;
@@ -216,12 +231,16 @@ public:
 	{
 		if (this != &rhs)
 		{
-			delete [] index;
-            
-			index = new(std::nothrow) uint[rhs.n_verts];
-			for (size_t i=0; i < (size_t) rhs.n_verts; i++)
-			{
-				index[i] = rhs.index[i];
+			if ( index ) {
+				delete [] index;
+			}
+
+			if ( rhs.index && rhs.n_verts > 0 ) {
+				index = new(std::nothrow) uint[rhs.n_verts];
+				for (size_t i=0; i < (size_t) rhs.n_verts; i++)
+				{
+					index[i] = rhs.index[i];
+				}
 			}
             
 			flags   = rhs.flags;
@@ -516,6 +535,10 @@ typedef struct screen {
 	void (*gf_destroy_buffer)(int);
 	void (*gf_set_buffer)(int);
 	void (*gf_render_buffer)(int, const vertex_buffer*, int, int);
+
+	void (*gf_update_buffer_object)(int handle, uint size, void* data);
+	void (*gf_update_transform_buffer)(void* data, uint size);
+	void (*gf_set_transform_buffer_offset)(int offset);
 
 	int (*gf_create_stream_buffer)();
 	void (*gf_update_stream_buffer)(int buffer, void *buffer_data, uint size);
@@ -852,6 +875,10 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 	(*gr_screen.gf_render_buffer)(start, bufferp, texi, flags);
 }
 
+#define gr_update_buffer_object			GR_CALL(*gr_screen.gf_update_buffer_object)
+#define gr_update_transform_buffer		GR_CALL(*gr_screen.gf_update_transform_buffer)
+#define gr_set_transform_buffer_offset	GR_CALL(*gr_screen.gf_set_transform_buffer_offset)
+
 #define gr_create_stream_buffer			GR_CALL(*gr_screen.gf_create_stream_buffer)
 #define gr_update_stream_buffer			GR_CALL(*gr_screen.gf_update_stream_buffer)
 #define gr_render_stream_buffer			GR_CALL(*gr_screen.gf_render_stream_buffer)
@@ -921,10 +948,6 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 
 #define gr_maybe_create_shader			GR_CALL(*gr_screen.gf_maybe_create_shader)
 
-// functions to prepare transformation data textures
-#define gr_create_transform_tex			GR_CALL(*gr_screen.gf_create_transformation_tex)
-#define gr_destroy_transform_tex		GR_CALL(*gr_screen.gf_destroy_transformation_tex)
-#define gr_update_transform_tex			GR_CALL(*gr_screen.gf_update_transformation_tex)
 #define gr_flush_data_states			GR_CALL(*gr_screen.gf_flush_data_states)
 
 #define gr_set_team_color				GR_CALL(*gr_screen.gf_set_team_color)

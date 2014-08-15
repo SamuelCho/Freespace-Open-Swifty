@@ -81,8 +81,9 @@ extern ogl_function GL_EXT_Special[];
 #define OGL_ARB_UNIFORM_BUFFER_OBJECT		30
 #define OGL_EXT_TRANSFORM_FEEDBACK			31
 #define OGL_ARB_DRAW_INSTANCED				32
+#define OGL_ARB_TEXTURE_BUFFER				33
 
-#define NUM_OGL_EXTENSIONS					33
+#define NUM_OGL_EXTENSIONS					34
 
 
 // Functions
@@ -173,8 +174,9 @@ extern ogl_function GL_EXT_Special[];
 #define OGL_GET_TRANSFORM_FEEDBACK_VARYING	80
 #define OGL_ARB_DRAW_ARRAYS_INSTANCED		81
 #define OGL_ARB_DRAW_ELEMENTS_INSTANCED		82
+#define OGL_ARB_TEX_BUFFER					83
 
-#define NUM_OGL_FUNCTIONS					83
+#define NUM_OGL_FUNCTIONS					84
 
 // special extensions/functions (OS specific, non-GL stuff)
 #define OGL_SPC_WGL_SWAP_INTERVAL		0
@@ -290,6 +292,7 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define PFNGLGETTRANSFORMFEEDBACKVARYINGEXTPROC	glGetTransformFeedbackVaryingEXTProcPtr
 #define PFNGLDRAWARRAYSINSTANCEDARBPROC			glDrawArraysInstancedARBProcPtr
 #define PFNGLDRAWELEMENTSINSTANCEDARBPROC		glDrawElementsInstancedARBProcPtr;
+#define PFNGLTEXBUFFERARBPROC					glTexBufferARBProcPtr;
 #endif	// __APPLE__
 
 #define vglFogCoordfEXT					GLEXT_CALL( OGL_FOG_COORDF, PFNGLFOGCOORDFEXTPROC )
@@ -377,6 +380,7 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define vglGetTransformFeedbackVaryingEXT	GLEXT_CALL( OGL_GET_TRANSFORM_FEEDBACK_VARYING, PFNGLGETTRANSFORMFEEDBACKVARYINGEXTPROC )
 #define vglDrawArraysInstancedARB		GLEXT_CALL( OGL_ARB_DRAW_ARRAYS_INSTANCED, PFNGLDRAWARRAYSINSTANCEDARBPROC )
 #define vglDrawElementsInstancedARB		GLEXT_CALL( OGL_ARB_DRAW_ELEMENTS_INSTANCED, PFNGLDRAWELEMENTSINSTANCEDARBPROC )
+#define vglTexBufferARB					GLEXT_CALL( OGL_ARB_TEX_BUFFER, PFNGLTEXBUFFERARBPROC )
 #ifndef __APPLE__
 #define vglTexImage3D					GLEXT_CALL( OGL_TEXIMAGE3D, PFNGLTEXIMAGE3DPROC )
 #else

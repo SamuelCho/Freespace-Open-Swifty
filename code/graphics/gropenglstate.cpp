@@ -897,6 +897,7 @@ void opengl_array_state::init(GLuint n_units)
 
 	array_buffer = 0;
 	element_array_buffer = 0;
+	texture_array_buffer = 0;
 	uniform_buffer = 0;
 }
 
@@ -1216,6 +1217,17 @@ void opengl_array_state::BindElementBuffer(GLuint id)
 	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, id);
 
 	element_array_buffer = id;
+}
+
+void opengl_array_state::BindTextureBuffer(GLuint id)
+{
+	if ( texture_array_buffer == id ) {
+		return;
+	}
+
+	vglBindBufferARB(GL_TEXTURE_BUFFER_ARB, id);
+
+	texture_array_buffer = id;
 }
 
 void opengl_array_state::BindUniformBufferBindingIndex(GLuint id, GLuint index)
