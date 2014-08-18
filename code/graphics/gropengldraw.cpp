@@ -1642,13 +1642,13 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 			if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) )
 			{
 				glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
-				sdr_index = gr_opengl_maybe_create_shader(SDR_FLAG_SOFT_QUAD|SDR_FLAG_DISTORTION);
+				sdr_index = opengl_shader_get_effect_shader(SDR_EFFECT_DISTORTION);
 				if (sdr_index == -1) {
 					//If we failed to compile a shader for this for whatever reason, bail out and make sure we don't get to this point again
 					Use_Shaders_for_effect_rendering = false;
 					return;
 				}
-				opengl_shader_set_current(&GL_shader[sdr_index]);
+				opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
 				
 				vglUniform1iARB(opengl_shader_get_uniform("frameBuffer"), 2);
 				
@@ -1671,12 +1671,12 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 			}
 			else
 			{
-				sdr_index = gr_opengl_maybe_create_shader(SDR_FLAG_SOFT_QUAD);
+				sdr_index = opengl_shader_get_effect_shader(SDR_EFFECT_SOFT_QUAD);
 				if (sdr_index == -1) {
 					Use_Shaders_for_effect_rendering = false;
 					return;
 				}
-				opengl_shader_set_current(&GL_shader[sdr_index]);
+				opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
 				zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
 			}
 

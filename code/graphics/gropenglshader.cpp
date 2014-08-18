@@ -33,6 +33,8 @@
 SCP_vector<opengl_shader_t> GL_shader;
 opengl_shader_t Deferred_light_shader;
 
+SCP_vector<opengl_shader_t> GL_effect_shaders;
+
 static char *GLshader_info_log = NULL;
 static const int GLshader_info_log_size = 8192;
 GLuint Framebuffer_fallback_texture_id = 0;
@@ -74,16 +76,35 @@ static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
 static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main) / sizeof(opengl_shader_uniform_reference_t);
 
 /**
- * Static lookup referene for particle shader uniforms
+ * Static lookup reference for effect shader uniforms
  */
-static opengl_shader_uniform_reference_t GL_Uniform_Reference_Particle[] = {
-	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION), 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 1, { "offset_in" }, 0, {}, "Distorted Particles" },
-	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_GEOMETRY),	6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 2, { "radius_in", "up" }, 0, {}, "Geometry Shader Generated Particles" },
-	{ (SDR_FLAG_SOFT_QUAD | SDR_FLAG_TRAILS | SDR_FLAG_GEOMETRY),	1, {"baseMap"}, 3, { "fvec", "intensity", "width" }, 0, {}, "Trails" },
-	{ (SDR_FLAG_SOFT_QUAD),	6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, { "radius_in" }, 0, {}, "Depth-blended Particles" }
+static opengl_shader_file_t GL_effect_shader_files[] = {
+
+	// soft particles
+	{ "effect-v.sdr", "effect-particle-f.sdr", 0, SDR_EFFECT_SOFT_QUAD, 6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, {"radius_in"} },
+
+	// geometry shader soft particles
+	{ "effect-v.sdr", "effect-particle-f.sdr", "effect-screen-g.sdr", SDR_EFFECT_SOFT_QUAD | SDR_EFFECT_GEOMETRY, 6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 
+		2, {"radius_in", "up"}, },
+
+	// linear depth soft particles
+	{ "effect-v.sdr", "effect-particle-f.sdr", 0, SDR_EFFECT_SOFT_QUAD | SDR_EFFECT_LINEAR_DEPTH, 6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, {"radius_in"} },
+
+	// geometry shader linear depth soft particles
+	{ "effect-v.sdr", "effect-particle-f.sdr", "effect-screen-g.sdr", SDR_EFFECT_SOFT_QUAD | SDR_EFFECT_GEOMETRY | SDR_EFFECT_LINEAR_DEPTH, 6, 
+		{"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 2, {"radius_in", "up"}, },
+
+	// distortion effect
+	{ "effect-v.sdr", "effect-distort-f.sdr", 0, SDR_EFFECT_DISTORTION, 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 
+		1, { "offset_in" } },
+
+	// geometry shader trails
+	{ "effect-v.sdr", "effect-f.sdr", "effect-ribbon-g.sdr", SDR_EFFECT_TRAILS | SDR_EFFECT_GEOMETRY, 1, {"baseMap"}, 3, { "fvec", "intensity", "width" } }
+
+	// { char *vert, char *frag, char *geo, int flags, int num_uniforms, char* uniforms[MAX_SHADER_UNIFORMS], int num_attributes, char* attributes[MAX_SDR_ATTRIBUTES] }
 };
 
-static const int Particle_shader_flag_references = sizeof(GL_Uniform_Reference_Particle) / sizeof(opengl_shader_uniform_reference_t);
+static const unsigned int Num_effect_shaders = sizeof(GL_effect_shader_files) / sizeof(opengl_shader_file_t);
 
 opengl_shader_t *Current_shader = NULL;
 
@@ -157,6 +178,22 @@ int gr_opengl_maybe_create_shader(unsigned int flags)
 	return -1;
 }
 
+int opengl_shader_get_effect_shader(uint flags)
+{
+	if (Use_GLSL < 2)
+		return -1;
+
+	size_t max = GL_effect_shaders.size();
+
+	for ( size_t i = 0; i < max; ++i ) {
+		if ( GL_effect_shaders[i].flags == flags ) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 /**
  * Go through GL_shader and call glDeleteObject() for all created shaders, then clear GL_shader
  */
@@ -175,9 +212,22 @@ void opengl_shader_shutdown()
 		}
 
 		GL_shader[i].uniforms.clear();
+		GL_shader[i].attributes.clear();
+		GL_shader[i].uniform_blocks.clear();
+	}
+
+	for (i = 0; i < GL_effect_shaders.size(); i++) {
+		if (GL_effect_shaders[i].program_id) {
+			vglDeleteObjectARB(GL_effect_shaders[i].program_id);
+			GL_effect_shaders[i].program_id = 0;
+		}
+
+		GL_effect_shaders[i].uniforms.clear();
+		GL_effect_shaders[i].attributes.clear();
 	}
 
 	GL_shader.clear();
+	GL_effect_shaders.clear();
 
 	if (GLshader_info_log != NULL) {
 		vm_free(GLshader_info_log);
@@ -245,10 +295,6 @@ static char *opengl_load_shader(char *filename, int flags)
 	if (flags & SDR_FLAG_ANIMATED) {
 		sflags += "#define FLAG_ANIMATED\n";
 	}
-
-	if (flags & SDR_FLAG_DISTORTION) {
-		sflags += "#define FLAG_DISTORTION\n";
-	}
 	
 	if (flags & SDR_FLAG_TRANSFORM) {
 		sflags += "#define FLAG_TRANSFORM\n";
@@ -284,10 +330,6 @@ static char *opengl_load_shader(char *filename, int flags)
 
 	if (flags & SDR_FLAG_CLIP) {
 		sflags += "#define FLAG_CLIP\n";
-	}
-
-	if (flags & SDR_FLAG_TRAILS) {
-		sflags += "#define FLAG_TRAILS\n";
 	}
 
 	const char *shader_flags = sflags.c_str();
@@ -341,13 +383,8 @@ void opengl_compile_main_shader(unsigned int flags) {
 	char geom_name[NAME_LENGTH];
 	char frag_name[NAME_LENGTH];
 
-	if (flags & SDR_FLAG_SOFT_QUAD) {
-		strcpy_s( vert_name, "soft-v.sdr");
-		strcpy_s( frag_name, "soft-f.sdr");
-	} else {
-		strcpy_s( vert_name, "main-v.sdr");
-		strcpy_s( frag_name, "main-f.sdr");
-	}
+	strcpy_s( vert_name, "main-v.sdr");
+	strcpy_s( frag_name, "main-f.sdr");
 
 	// read vertex shader
 	if ( (vert = opengl_load_shader(vert_name, flags)) == NULL ) {
@@ -362,18 +399,8 @@ void opengl_compile_main_shader(unsigned int flags) {
 	}
 
 	if( flags & SDR_FLAG_GEOMETRY ) {
-		if (flags & SDR_FLAG_SOFT_QUAD) {
-			strcpy_s( geom_name, "soft-g.sdr");
-
-			if ( flags & SDR_FLAG_TRAILS ) {
-				Current_geo_sdr_params = &Trail_billboards;
-			} else {
-				Current_geo_sdr_params = &Particle_billboards;
-			}
-		} else {
-			strcpy_s( geom_name, "main-g.sdr");
-			Current_geo_sdr_params = &Geo_transform;
-		}
+		strcpy_s( geom_name, "main-g.sdr");
+		Current_geo_sdr_params = &Geo_transform;
 
 		// read geometry shader
 		geom = opengl_load_shader(geom_name, flags);
@@ -398,57 +425,27 @@ void opengl_compile_main_shader(unsigned int flags) {
 	mprintf(("Shader features:\n"));
 
 	//Init all the uniforms
-	if (new_shader.flags & SDR_FLAG_SOFT_QUAD) {
-		for (int j = 0; j < Particle_shader_flag_references; j++) {
-			if (new_shader.flags == GL_Uniform_Reference_Particle[j].flag) {
-				int k;
-
-			// Equality check needed because the combination of SDR_FLAG_SOFT_QUAD and SDR_FLAG_DISTORTION define something very different
-			// than just SDR_FLAG_SOFT_QUAD alone
-				if (GL_Uniform_Reference_Particle[j].num_uniforms > 0) {
-					for (k = 0; k < GL_Uniform_Reference_Particle[j].num_uniforms; k++) {
-						opengl_shader_init_uniform( GL_Uniform_Reference_Particle[j].uniforms[k] );
-					}
+	for (int j = 0; j < Main_shader_flag_references; j++) {
+		if (new_shader.flags & GL_Uniform_Reference_Main[j].flag) {
+			if (GL_Uniform_Reference_Main[j].num_uniforms > 0) {
+				for (int k = 0; k < GL_Uniform_Reference_Main[j].num_uniforms; k++) {
+					opengl_shader_init_uniform( GL_Uniform_Reference_Main[j].uniforms[k] );
 				}
-
-				if (GL_Uniform_Reference_Particle[j].num_attributes > 0) {
-					for (k = 0; k < GL_Uniform_Reference_Particle[j].num_attributes; k++) {
-						opengl_shader_init_attribute( GL_Uniform_Reference_Particle[j].attributes[k] );
-					}
-				}
-
-				if (GL_Uniform_Reference_Particle[j].num_uniform_blocks > 0) {
-					for (k = 0; k < GL_Uniform_Reference_Particle[j].num_uniform_blocks; k++) {
-						opengl_shader_init_uniform_block( GL_Uniform_Reference_Particle[j].uniform_blocks[k] );
-					}
-				}
-
-				mprintf(("   %s\n", GL_Uniform_Reference_Particle[j].name));
 			}
-		}
-	} else {
-		for (int j = 0; j < Main_shader_flag_references; j++) {
-			if (new_shader.flags & GL_Uniform_Reference_Main[j].flag) {
-				if (GL_Uniform_Reference_Main[j].num_uniforms > 0) {
-					for (int k = 0; k < GL_Uniform_Reference_Main[j].num_uniforms; k++) {
-						opengl_shader_init_uniform( GL_Uniform_Reference_Main[j].uniforms[k] );
-					}
-				}
 
-				if (GL_Uniform_Reference_Main[j].num_attributes > 0) {
-					for (int k = 0; k < GL_Uniform_Reference_Main[j].num_attributes; k++) {
-						opengl_shader_init_attribute( GL_Uniform_Reference_Main[j].attributes[k] );
-					}
+			if (GL_Uniform_Reference_Main[j].num_attributes > 0) {
+				for (int k = 0; k < GL_Uniform_Reference_Main[j].num_attributes; k++) {
+					opengl_shader_init_attribute( GL_Uniform_Reference_Main[j].attributes[k] );
 				}
-
-				if (GL_Uniform_Reference_Main[j].num_uniform_blocks > 0) {
-					for (int k = 0; k < GL_Uniform_Reference_Main[j].num_uniform_blocks; k++) {
-						opengl_shader_init_uniform_block( GL_Uniform_Reference_Main[j].uniform_blocks[k] );
-					}
-				}
-
-				mprintf(("   %s\n", GL_Uniform_Reference_Main[j].name));
 			}
+
+			if (GL_Uniform_Reference_Main[j].num_uniform_blocks > 0) {
+				for (int k = 0; k < GL_Uniform_Reference_Main[j].num_uniform_blocks; k++) {
+					opengl_shader_init_uniform_block( GL_Uniform_Reference_Main[j].uniform_blocks[k] );
+				}
+			}
+
+			mprintf(("   %s\n", GL_Uniform_Reference_Main[j].name));
 		}
 	}
 
@@ -507,6 +504,161 @@ Done:
 	}
 }
 
+static char *opengl_load_effect_shader(char *filename, int flags)
+{
+	SCP_string sflags;
+
+	if (Use_GLSL >= 4) {
+		sflags += "#define SHADER_MODEL 4\n";
+	} else if (Use_GLSL == 3) {
+		sflags += "#define SHADER_MODEL 3\n";
+	} else {
+		sflags += "#define SHADER_MODEL 2\n";
+	}
+
+	if ( flags & SDR_EFFECT_GEOMETRY ) {
+		sflags += "#define FLAG_EFFECT_GEOMETRY\n";
+	}
+
+	if ( flags & SDR_EFFECT_TRAILS ) {
+		sflags += "#define FLAG_EFFECT_TRAILS\n";
+	}
+
+	if ( flags & SDR_EFFECT_LINEAR_DEPTH ) {
+		sflags += "#define FLAG_EFFECT_LINEAR_DEPTH\n";
+	}
+
+	if ( flags & SDR_EFFECT_SOFT_QUAD ) {
+		sflags += "#define FLAG_EFFECT_SOFT_QUAD\n";
+	}
+
+	if ( flags & SDR_EFFECT_DISTORTION ) {
+		sflags += "#define FLAG_EFFECT_DISTORTION\n";
+	}
+
+	const char *shader_flags = sflags.c_str();
+	int flags_len = strlen(shader_flags);
+
+	if ( Enable_external_shaders ) {
+		CFILE *cf_shader = cfopen(filename, "rt", CFILE_NORMAL, CF_TYPE_EFFECTS);
+
+		if (cf_shader != NULL  ) {
+			int len = cfilelength(cf_shader);
+			char *shader = (char*) vm_malloc(len + flags_len + 1);
+
+			strcpy(shader, shader_flags);
+			memset(shader + flags_len, 0, len + 1);
+			cfread(shader + flags_len, len + 1, 1, cf_shader);
+			cfclose(cf_shader);
+
+			return shader;
+		} 
+	}
+
+	mprintf(("   Loading built-in default shader for: %s\n", filename));
+	char* def_shader = defaults_get_file(filename);
+	size_t len = strlen(def_shader);
+	char *shader = (char*) vm_malloc(len + flags_len + 1);
+
+	strcpy(shader, shader_flags);
+	strcat(shader, def_shader);
+
+	return shader;
+}
+
+void opengl_shader_init_effects()
+{
+	char *vert = NULL, *frag = NULL, *geo = NULL;
+
+	for ( int i = 0; i < Num_effect_shaders; ++i ) {
+		bool in_error = false;
+		opengl_shader_t new_shader;
+		opengl_shader_file_t *shader_file = &GL_effect_shader_files[i];
+
+		// choose appropriate files
+		char *vert_name = shader_file->vert;
+		char *frag_name = shader_file->frag;
+		char *geo_name = shader_file->geo;
+
+		mprintf(("  Compiling effect shader %d ... \n", i+1));
+
+		// read vertex shader
+		if ( (vert = opengl_load_effect_shader(vert_name, shader_file->flags) ) == NULL ) {
+			in_error = true;
+			goto Done;
+		}
+
+		// read fragment shader
+		if ( (frag = opengl_load_effect_shader(frag_name, shader_file->flags) ) == NULL ) {
+			in_error = true;
+			goto Done;
+		}
+
+		// read geometry shader
+		if ( geo_name != NULL ) {
+			if ( !Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) ) {
+				goto Done;
+			}
+
+			if ( (geo = opengl_load_effect_shader(geo_name, shader_file->flags) ) == NULL ) {
+				in_error = true;
+				goto Done;
+			}
+
+			// hack in order to get the proper geometry shader parameters using the EXT extension
+			if ( shader_file->flags & SDR_EFFECT_TRAILS ) {
+				Current_geo_sdr_params = &Trail_billboards;
+			} else {
+				Current_geo_sdr_params = &Particle_billboards;
+			}
+		}
+
+		Verify( vert != NULL );
+		Verify( frag != NULL );
+
+		new_shader.program_id = opengl_shader_create(vert, frag, geo);
+
+		if ( !new_shader.program_id ) {
+			in_error = true;
+			goto Done;
+		}
+
+		new_shader.flags = shader_file->flags;
+
+		opengl_shader_set_current( &new_shader );
+
+		new_shader.uniforms.reserve(shader_file->num_uniforms);
+
+		for (int j = 0; j < shader_file->num_uniforms; j++) {
+			opengl_shader_init_uniform( shader_file->uniforms[j] );
+		}
+
+		for (int j = 0; j < shader_file->num_attributes; j++) {
+			opengl_shader_init_attribute( shader_file->attributes[j] );
+		}
+
+		opengl_shader_set_current();
+
+		GL_effect_shaders.push_back(new_shader);
+
+	Done:
+		if (vert != NULL) {
+			vm_free(vert);
+			vert = NULL;
+		}
+
+		if (frag != NULL) {
+			vm_free(frag);
+			frag = NULL;
+		}
+
+		if (geo != NULL) {
+			vm_free(geo);
+			geo = NULL;
+		}
+	}
+}
+
 /**
  * Initializes the shader system. Creates a 1x1 texture that can be used as a fallback texture when framebuffer support is missing.
  * Also compiles the shaders used for particle rendering.
@@ -539,14 +691,7 @@ void opengl_shader_init()
 	// Reserve 32 shader slots. This should cover most use cases in real life.
 	GL_shader.reserve(32);
 
-	// Compile the particle shaders, since these are most definitely going to be used
-	opengl_compile_main_shader(SDR_FLAG_SOFT_QUAD);
-	opengl_compile_main_shader(SDR_FLAG_SOFT_QUAD | SDR_FLAG_DISTORTION);
-
-	if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) ) {
-		opengl_compile_main_shader(SDR_FLAG_SOFT_QUAD | SDR_FLAG_GEOMETRY);
-		opengl_compile_main_shader(SDR_FLAG_SOFT_QUAD | SDR_FLAG_GEOMETRY | SDR_FLAG_TRAILS);
-	}
+	opengl_shader_init_effects();
 
 	opengl_shader_compile_deferred_light_shader();
 	mprintf(("\n"));

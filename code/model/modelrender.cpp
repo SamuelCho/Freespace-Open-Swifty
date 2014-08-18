@@ -91,6 +91,10 @@ void ModelTransformBuffer::AllocateMemory()
 	uint size = TransformMatrices.size() * sizeof(matrix4);
 
 	if ( MemAlloc == NULL || MemAllocSize < size ) {
+		if ( MemAlloc != NULL ) {
+			vm_free(MemAlloc);
+		}
+
 		MemAlloc = vm_malloc(size);
 	}
 

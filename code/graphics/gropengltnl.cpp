@@ -1500,12 +1500,15 @@ void gr_opengl_render_stream_buffer_end()
 	opengl_shader_set_current();
 	Stream_buffer_sdr = -1;
 
+	GL_state.Texture.DisableAll();
+
 	GL_state.CullFace(Stream_cull);
 	GL_state.Lighting(Stream_lighting);
 	gr_zbuffer_set(Stream_zbuff_mode);
 }
 
 extern GLuint Scene_depth_texture;
+extern GLuint Scene_position_texture;
 extern GLuint Distortion_texture[2];
 extern int Distortion_switch;
 void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
@@ -1583,12 +1586,12 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 			int sdr_index;
 
 			if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) ) {
-				sdr_index = gr_opengl_maybe_create_shader(SDR_FLAG_SOFT_QUAD|SDR_FLAG_DISTORTION);
+				sdr_index = opengl_shader_get_effect_shader(SDR_EFFECT_DISTORTION);
 
 				if ( sdr_index != Stream_buffer_sdr ) {
 					glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
-					opengl_shader_set_current(&GL_shader[sdr_index]);
+					opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
 					Stream_buffer_sdr = sdr_index;
 
 					vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);
@@ -1631,10 +1634,10 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 				GL_state.Texture.Enable(Scene_depth_texture);
 			} else if ( flags & TMAP_FLAG_VERTEX_GEN && flags & TMAP_FLAG_LINESTRIP ) {
-				sdr_index = gr_opengl_maybe_create_shader(SDR_FLAG_SOFT_QUAD|SDR_FLAG_TRAILS|SDR_FLAG_GEOMETRY);
+				sdr_index = opengl_shader_get_effect_shader(SDR_EFFECT_TRAILS|SDR_EFFECT_GEOMETRY);
 
 				if ( sdr_index != Stream_buffer_sdr ) {
-					opengl_shader_set_current(&GL_shader[sdr_index]);
+					opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
 					Stream_buffer_sdr = sdr_index;
 
 					vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);
@@ -1658,14 +1661,20 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 					}
 				}
 			} else if ( Cmdline_softparticles ) {
+				uint sdr_effect_flags = SDR_EFFECT_SOFT_QUAD;
+
 				if ( flags & TMAP_FLAG_VERTEX_GEN ) {
-					sdr_index = gr_opengl_maybe_create_shader(SDR_FLAG_SOFT_QUAD|SDR_FLAG_GEOMETRY);
-				} else {
-					sdr_index = gr_opengl_maybe_create_shader(SDR_FLAG_SOFT_QUAD);
+					sdr_effect_flags |= SDR_EFFECT_GEOMETRY;
 				}
 
+ 				if ( !Cmdline_no_deferred_lighting ) {
+ 					sdr_effect_flags |= SDR_EFFECT_LINEAR_DEPTH;
+ 				}
+
+				sdr_index = opengl_shader_get_effect_shader(sdr_effect_flags);
+
 				if ( sdr_index != Stream_buffer_sdr ) {
-					opengl_shader_set_current(&GL_shader[sdr_index]);
+					opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
 					Stream_buffer_sdr = sdr_index;
 
 					vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);
@@ -1690,11 +1699,19 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 
 				zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
 
-				Assert(Scene_depth_texture != 0);
+				if ( !Cmdline_no_deferred_lighting ) {
+					Assert(Scene_position_texture != 0);
 
-				GL_state.Texture.SetActiveUnit(1);
-				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-				GL_state.Texture.Enable(Scene_depth_texture);
+					GL_state.Texture.SetActiveUnit(1);
+					GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+					GL_state.Texture.Enable(Scene_position_texture);
+				} else {
+					Assert(Scene_depth_texture != 0);
+
+					GL_state.Texture.SetActiveUnit(1);
+					GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+					GL_state.Texture.Enable(Scene_depth_texture);
+				}
 			}
 		} else {
 			GL_state.Array.ResetVertexAttribUsed();

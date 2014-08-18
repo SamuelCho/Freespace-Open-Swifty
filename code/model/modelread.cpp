@@ -266,6 +266,11 @@ void model_unload(int modelnum, int force)
 		vm_free(pm->shield_collision_tree);
 	}
 
+	for ( int i = 0; i < MAX_MODEL_DETAIL_LEVELS; ++i ) {
+		pm->detail_buffers[i].clear();
+		pm->thruster_buffers[i].clear();
+	}
+
 	// run through Ship_info[] and if the model has been loaded we'll need to reset the modelnum to -1.
 	for (i = 0; i < Num_ship_classes; i++) {
 		if ( pm->id == Ship_info[i].model_num ) {

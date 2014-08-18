@@ -40,6 +40,20 @@ struct geometry_sdr_params
 	int vertices_out;
 };
 
+struct opengl_shader_file_t {
+	char *vert;
+	char *frag;
+	char *geo;
+
+	int flags;
+
+	int num_uniforms;
+	char* uniforms[MAX_SHADER_UNIFORMS];
+
+	int num_attributes;
+	char* attributes[MAX_SDR_ATTRIBUTES];
+};
+
 struct opengl_shader_uniform_reference_t {
 	unsigned int flag;
 
@@ -78,11 +92,14 @@ typedef struct opengl_shader_t {
 } opengl_shader_t;
 
 extern SCP_vector<opengl_shader_t> GL_shader;
+extern SCP_vector<opengl_shader_t> GL_effect_shaders;
 
 extern opengl_shader_t *Current_shader;
 extern opengl_shader_t Deferred_light_shader;
 
 extern geometry_sdr_params *Current_geo_sdr_params;
+
+int opengl_shader_get_effect_shader(uint flags);
 
 int gr_opengl_maybe_create_shader(unsigned int flags);
 void opengl_shader_set_current(opengl_shader_t *shader_obj = NULL);

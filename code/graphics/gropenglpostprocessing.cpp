@@ -45,23 +45,8 @@ geometry_sdr_params Geometry_post = {GL_TRIANGLES, GL_TRIANGLE_STRIP, 3};
 #define SDR_POST_FLAG_PASS1		(1<<3)
 #define SDR_POST_FLAG_PASS2		(1<<4)
 #define SDR_POST_FLAG_LIGHTSHAFT (1<<5)
-#define SDR_POST_FLAG_GEO		(1<<6)
 
 static SCP_vector<opengl_shader_t> GL_post_shader;
-
-struct opengl_shader_file_t {
-	char *vert;
-	char *frag;
-	char *geo;
-
-	int flags;
-
-	int num_uniforms;
-	char* uniforms[MAX_SHADER_UNIFORMS];
-
-	int num_attributes;
-	char* attributes[MAX_SDR_ATTRIBUTES];
-};
 
 // NOTE: The order of this list *must* be preserved!  Additional shaders can be
 //       added, but the first 7 are used with magic numbers so their position
@@ -93,12 +78,6 @@ static opengl_shader_file_t GL_post_shader_files[] = {
 
 	{ "shadowdebug-v.sdr", "shadowdebug-f.sdr", 0, 0,
 	2, { "shadow_map", "index" }, 0, { NULL } },
-	
-	{ "post-v.sdr", "blur-f.sdr", "blur-g.sdr", SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS1 | SDR_POST_FLAG_GEO,
-	3, { "tex", "blurSampler", "bsize" }, 0, { NULL } },
-
-	{ "post-v.sdr", "blur-f.sdr", "blur-g.sdr", SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS2 | SDR_POST_FLAG_GEO,
-	3, { "tex", "blurSampler", "bsize" }, 0, { NULL } },
 
 	{ "deferred-clear-v.sdr", "deferred-clear-f.sdr", 0, 0,
 	0, { NULL }, 0, { NULL } }
@@ -153,7 +132,7 @@ void opengl_clear_deferred_buffers()
 	GLboolean blend = GL_state.Blend(GL_FALSE);
 	GLboolean cull = GL_state.CullFace(GL_FALSE);
 
-	opengl_shader_set_current( &GL_post_shader[10] );
+	opengl_shader_set_current( &GL_post_shader[8] );
 
 	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 
@@ -920,10 +899,6 @@ static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 		sflags += "#define PASS_1\n";
 	}
 
-	if (flags & SDR_POST_FLAG_GEO) {
-		sflags += "#define FLAG_GEOMETRY\n";
-	}
-
 	if (flags & SDR_POST_FLAG_LIGHTSHAFT) {
 		char temp[42];
 		sprintf(temp, "#define SAMPLE_NUM %d\n", ls_samplenum);
@@ -1067,6 +1042,10 @@ static bool opengl_post_init_shader()
 
 		// read geometry shader
 		if ( geo_name != NULL ) {
+			if ( !Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) ) {
+				goto Done;
+			}
+
 			if ( (geo = opengl_post_load_shader(geo_name, shader_file->flags, flags2)) == NULL ) {
 				in_error = true;
 				goto Done;
@@ -1123,6 +1102,11 @@ static bool opengl_post_init_shader()
 		if (frag != NULL) {
 			vm_free(frag);
 			frag = NULL;
+		}
+
+		if (geo != NULL) {
+			vm_free(geo);
+			geo = NULL;
 		}
 
 		if (idx == 4)
