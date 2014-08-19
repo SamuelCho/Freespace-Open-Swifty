@@ -250,7 +250,7 @@ void trail_render( trail * trailp )
 			fvec = &tmp_fvec;
 		}
 
-		if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) ) {
+		if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) && Trail_buffer_object >= 0 ) {
 			trail_shader_info new_trail_vert;
 
 			new_trail_vert.pos = trailp->pos[n];
@@ -327,7 +327,7 @@ void trail_render( trail * trailp )
 		Trail_v_list[nv+1] = bot;
 	}
 
-	if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) ) {
+	if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) && Trail_buffer_object >= 0 ) {
 		new_trail.n_verts = Trail_vert_buffer.size() - new_trail.buffer_offset;
 
 		if ( new_trail.n_verts >= 2 ) {

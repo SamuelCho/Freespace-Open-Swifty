@@ -1667,10 +1667,6 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 					sdr_effect_flags |= SDR_EFFECT_GEOMETRY;
 				}
 
- 				if ( !Cmdline_no_deferred_lighting ) {
- 					sdr_effect_flags |= SDR_EFFECT_LINEAR_DEPTH;
- 				}
-
 				sdr_index = opengl_shader_get_effect_shader(sdr_effect_flags);
 
 				if ( sdr_index != Stream_buffer_sdr ) {
@@ -1683,6 +1679,12 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 					vglUniform1fARB(opengl_shader_get_uniform("window_height"), (float)gr_screen.max_h);
 					vglUniform1fARB(opengl_shader_get_uniform("nearZ"), Min_draw_distance);
 					vglUniform1fARB(opengl_shader_get_uniform("farZ"), Max_draw_distance);
+					
+					if ( Cmdline_no_deferred_lighting ) {
+						vglUniform1iARB(opengl_shader_get_uniform("linear_depth"), 0);
+					} else {
+						vglUniform1iARB(opengl_shader_get_uniform("linear_depth"), 1);
+					}
 
 					if ( radius_offset >= 0 ) {
 						attrib_index = opengl_shader_get_attribute("radius_in");

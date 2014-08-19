@@ -77,10 +77,7 @@ static opengl_shader_file_t GL_post_shader_files[] = {
 		8, { "scene", "cockpit", "sun_pos", "weight", "intensity", "falloff", "density", "cp_intensity" }, 0, { NULL } },
 
 	{ "shadowdebug-v.sdr", "shadowdebug-f.sdr", 0, 0,
-	2, { "shadow_map", "index" }, 0, { NULL } },
-
-	{ "deferred-clear-v.sdr", "deferred-clear-f.sdr", 0, 0,
-	0, { NULL }, 0, { NULL } }
+	2, { "shadow_map", "index" }, 0, { NULL } }
 };
 
 static const unsigned int Num_post_shader_files = sizeof(GL_post_shader_files) / sizeof(opengl_shader_file_t);
@@ -123,27 +120,6 @@ static int Post_texture_height = 0;
 
 
 static char *opengl_post_load_shader(char *filename, int flags, int flags2);
-
-void opengl_clear_deferred_buffers()
-{
-	GLboolean depth = GL_state.DepthTest(GL_FALSE);
-	GLboolean depth_mask = GL_state.DepthMask(GL_FALSE);
-	GLboolean light = GL_state.Lighting(GL_FALSE);
-	GLboolean blend = GL_state.Blend(GL_FALSE);
-	GLboolean cull = GL_state.CullFace(GL_FALSE);
-
-	opengl_shader_set_current( &GL_post_shader[8] );
-
-	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
-
-	opengl_shader_set_current();
-
-	GL_state.DepthTest(depth);
-	GL_state.DepthMask(depth_mask);
-	GL_state.Lighting(light);
-	GL_state.Blend(blend);
-	GL_state.CullFace(cull);
-}
 
 static bool opengl_post_pass_bloom()
 {

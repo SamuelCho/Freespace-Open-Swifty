@@ -1687,6 +1687,7 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 			vglUniform1fARB(opengl_shader_get_uniform("nearZ"), Min_draw_distance);
 			vglUniform1fARB(opengl_shader_get_uniform("farZ"), Max_draw_distance);
 			vglUniform1fARB(opengl_shader_get_uniform("use_offset"), 0.0f);
+			vglUniform1iARB(opengl_shader_get_uniform("linear_depth"), 0);
 
 			if( !(flags & TMAP_FLAG_DISTORTION) && !(flags & TMAP_FLAG_DISTORTION_THRUSTER) ) // Only use vertex attribute with soft particles to avoid OpenGL Errors - Valathil
 			{
@@ -3085,6 +3086,27 @@ void gr_opengl_copy_effect_texture()
 	glDrawBuffer(GL_COLOR_ATTACHMENT4_EXT);
 	vglBlitFramebufferEXT(0, 0, gr_screen.max_w, gr_screen.max_h, 0, 0, gr_screen.max_w, gr_screen.max_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 	glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+}
+
+void opengl_clear_deferred_buffers()
+{
+	GLboolean depth = GL_state.DepthTest(GL_FALSE);
+	GLboolean depth_mask = GL_state.DepthMask(GL_FALSE);
+	GLboolean light = GL_state.Lighting(GL_FALSE);
+	GLboolean blend = GL_state.Blend(GL_FALSE);
+	GLboolean cull = GL_state.CullFace(GL_FALSE);
+
+	opengl_shader_set_current( &Deferred_clear_shader );
+
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+	opengl_shader_set_current();
+
+	GL_state.DepthTest(depth);
+	GL_state.DepthMask(depth_mask);
+	GL_state.Lighting(light);
+	GL_state.Blend(blend);
+	GL_state.CullFace(cull);
 }
 
 void gr_opengl_deferred_lighting_begin()

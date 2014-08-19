@@ -181,7 +181,7 @@ void DrawList::setModelTransformBuffer(int model_num)
 	transform.a1d[14] = CurrentTransform.origin.a1d[2];
 
 	// set visibility
-	transform.a1d[15] = 1.0f;
+	transform.a1d[15] = 0.0f;
 
 	TransformBufferHandler.setModelTransform(transform, model_num);
 }
@@ -2613,7 +2613,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 	}
 
 	if ( !GL_use_transform_buffer || !Cmdline_merged_ibos ) {
-		// always set non-batched rendering on
+		// always set non-batched rendering on if not supported
 		interp->flags |= MR_NO_BATCH;
 	}
 

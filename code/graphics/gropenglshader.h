@@ -96,6 +96,7 @@ extern SCP_vector<opengl_shader_t> GL_effect_shaders;
 
 extern opengl_shader_t *Current_shader;
 extern opengl_shader_t Deferred_light_shader;
+extern opengl_shader_t Deferred_clear_shader;
 
 extern geometry_sdr_params *Current_geo_sdr_params;
 
@@ -125,6 +126,7 @@ void opengl_shader_set_animated_timer(float timer);
 float opengl_shader_get_animated_timer();
 
 void opengl_shader_compile_deferred_light_shader();
+void opengl_shader_compile_deferred_light_clear_shader();
 
 #define ANIMATED_SHADER_LOADOUTSELECT_FS1	0
 #define ANIMATED_SHADER_LOADOUTSELECT_FS2	1

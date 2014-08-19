@@ -32,6 +32,7 @@
 
 SCP_vector<opengl_shader_t> GL_shader;
 opengl_shader_t Deferred_light_shader;
+opengl_shader_t Deferred_clear_shader;
 
 SCP_vector<opengl_shader_t> GL_effect_shaders;
 
@@ -81,18 +82,11 @@ static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main)
 static opengl_shader_file_t GL_effect_shader_files[] = {
 
 	// soft particles
-	{ "effect-v.sdr", "effect-particle-f.sdr", 0, SDR_EFFECT_SOFT_QUAD, 6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, {"radius_in"} },
+	{ "effect-v.sdr", "effect-particle-f.sdr", 0, SDR_EFFECT_SOFT_QUAD, 7, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth"}, 1, {"radius_in"} },
 
 	// geometry shader soft particles
-	{ "effect-v.sdr", "effect-particle-f.sdr", "effect-screen-g.sdr", SDR_EFFECT_SOFT_QUAD | SDR_EFFECT_GEOMETRY, 6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 
-		2, {"radius_in", "up"}, },
-
-	// linear depth soft particles
-	{ "effect-v.sdr", "effect-particle-f.sdr", 0, SDR_EFFECT_SOFT_QUAD | SDR_EFFECT_LINEAR_DEPTH, 6, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 1, {"radius_in"} },
-
-	// geometry shader linear depth soft particles
-	{ "effect-v.sdr", "effect-particle-f.sdr", "effect-screen-g.sdr", SDR_EFFECT_SOFT_QUAD | SDR_EFFECT_GEOMETRY | SDR_EFFECT_LINEAR_DEPTH, 6, 
-		{"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ"}, 2, {"radius_in", "up"}, },
+	{ "effect-v.sdr", "effect-particle-f.sdr", "effect-screen-g.sdr", SDR_EFFECT_SOFT_QUAD | SDR_EFFECT_GEOMETRY, 7, 
+		{"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth"}, 2, {"radius_in", "up"}, },
 
 	// distortion effect
 	{ "effect-v.sdr", "effect-distort-f.sdr", 0, SDR_EFFECT_DISTORTION, 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 
@@ -694,6 +688,7 @@ void opengl_shader_init()
 	opengl_shader_init_effects();
 
 	opengl_shader_compile_deferred_light_shader();
+	opengl_shader_compile_deferred_light_clear_shader();
 	mprintf(("\n"));
 }
 
@@ -1135,6 +1130,71 @@ void opengl_shader_compile_deferred_light_shader()
 	vglUniform1fARB( opengl_shader_get_uniform("vpheight"), 1.0f/gr_screen.max_h );
 	vglUniform1fARB( opengl_shader_get_uniform("spec_factor"), Cmdline_ogl_spec );
 
+
+	opengl_shader_set_current();
+
+Done:
+	if (vert != NULL) {
+		vm_free(vert);
+		vert = NULL;
+	}
+
+	if (frag != NULL) {
+		vm_free(frag);
+		frag = NULL;
+	}
+
+	if (in_error) {
+		// We died on a lighting shader, probably due to instruction count.
+		// Drop down to a special var that will use fixed-function rendering
+		// but still allow for post-processing to work
+		mprintf(("  Shader in_error!  Disabling GLSL model rendering!\n"));
+		Use_GLSL = 1;
+		Cmdline_height = 0;
+		Cmdline_normal = 0;
+	}
+}
+
+/**
+ * Compile the deferred light clear shader.
+ */
+void opengl_shader_compile_deferred_light_clear_shader()
+{
+	char *vert = NULL, *frag = NULL;
+
+	mprintf(("Compiling deferred light clear shader...\n"));
+
+	bool in_error = false;
+
+	// choose appropriate files
+	char vert_name[NAME_LENGTH];
+	char frag_name[NAME_LENGTH];
+
+	strcpy_s( vert_name, "deferred-clear-v.sdr");
+	strcpy_s( frag_name, "deferred-clear-f.sdr");
+
+	// read vertex shader
+	if ( (vert = opengl_load_shader(vert_name, 0)) == NULL ) {
+		in_error = true;
+		goto Done;
+	}
+
+	// read fragment shader
+	if ( (frag = opengl_load_shader(frag_name, 0)) == NULL ) {
+		in_error = true;
+		goto Done;
+	}
+
+	Verify( vert != NULL );
+	Verify( frag != NULL );
+
+	Deferred_clear_shader.program_id = opengl_shader_create(vert, frag, NULL);
+
+	if ( !Deferred_clear_shader.program_id ) {
+		in_error = true;
+		goto Done;
+	}
+	opengl_shader_set_current( &Deferred_clear_shader );
 
 	opengl_shader_set_current();
 

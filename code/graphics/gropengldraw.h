@@ -63,6 +63,7 @@ void gr_opengl_scene_texture_begin();
 void gr_opengl_scene_texture_end();
 void gr_opengl_copy_effect_texture();
 
+void opengl_clear_deferred_buffers();
 void gr_opengl_deferred_lighting_begin();
 void gr_opengl_deferred_lighting_end();
 void gr_opengl_deferred_lighting_finish();
