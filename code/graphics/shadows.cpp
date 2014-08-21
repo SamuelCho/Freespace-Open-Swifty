@@ -719,7 +719,7 @@ void shadows_render_all(float fov, matrix *eye_orient, vec3d *eye_pos)
 		}
 	}
 
-	scene.sortDraws();
+	scene.initRender();
 	scene.renderAll();
 
 	shadows_end_render();

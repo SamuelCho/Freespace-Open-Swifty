@@ -354,7 +354,7 @@ void obj_render_queue_all()
 
 	gr_deferred_lighting_begin();
 
-	scene.initRender();
+	scene.init();
 
 	for ( i = 0; i <= Highest_object_index; i++,objp++ ) {
 		if ( (objp->type != OBJ_NONE) && ( objp->flags & OF_RENDERS ) )	{
@@ -375,12 +375,13 @@ void obj_render_queue_all()
 			}
 
 			objp->flags |= OF_WAS_RENDERED;
-
+			profile_begin("Queue Render");
 			obj_queue_render(objp, &scene);
+			profile_end("Queue Render");
 		}
 	}
 
-	scene.sortDraws();
+	scene.initRender();
 
 	gr_zbuffer_set(ZBUFFER_TYPE_FULL);
 	PROFILE("Submit Draws", scene.renderAll(GR_ALPHABLEND_NONE));

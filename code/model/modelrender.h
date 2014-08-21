@@ -361,9 +361,10 @@ class DrawList
 
 	static DrawList *Target;
 	static bool sortDrawPair(const int a, const int b);
+	void sortDraws();
 public:
 	DrawList();
-	void initRender();
+	void init();
 
 	void resetState();
 	void setClipPlane(vec3d *position = NULL, vec3d *normal = NULL);
@@ -400,7 +401,7 @@ public:
 	void setLightFilter(int objnum, vec3d *pos, float rad);
 	void setLightFactor(float factor);
 
-	void sortDraws();
+	void initRender();
 	void renderAll(int blend_filter = -1);
 	void reset();
 };

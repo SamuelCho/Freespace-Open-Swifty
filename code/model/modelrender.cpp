@@ -66,7 +66,7 @@ void ModelTransformBuffer::setNumModels(int n_models)
 
 	CurrentOffset = TransformMatrices.size();
 
-	for ( uint i = 0; i < n_models; ++i ) {
+	for ( int i = 0; i < n_models; ++i ) {
 		TransformMatrices.push_back(init_mat);
 	}
 }
@@ -592,7 +592,7 @@ void DrawList::setCenterAlpha(int center_alpha)
 	current_render_state.center_alpha = center_alpha;
 }
 
-void DrawList::initRender()
+void DrawList::init()
 {
 	reset();
 
@@ -605,16 +605,17 @@ void DrawList::initRender()
 	TransformBufferHandler.reset();
 }
 
-void DrawList::renderAll(int blend_filter)
+void DrawList::initRender()
 {
-	int prev_sdr_flags = 0;
-	uniform_block *prev_uniforms = NULL;
+	sortDraws();
 
 	SceneLightHandler.resetLightState();
 	Current_uniforms.resetAll();
-
 	TransformBufferHandler.submitBufferData();
+}
 
+void DrawList::renderAll(int blend_filter)
+{
 	for ( size_t i = 0; i < render_keys.size(); ++i ) {
 		int render_index = render_keys[i];
 
@@ -1314,7 +1315,7 @@ void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, 
 
 	model_interp_load_global_data(&interp);
 	
-	model_list.initRender();
+	model_list.init();
 
 	submodel_queue_render(&interp, &model_list, model_num, submodel_num, orient, pos, flags, objnum, replacement_textures);
 	
@@ -2338,13 +2339,13 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 
 	interp_data interp;
 
-	model_list.initRender();
+	model_list.init();
 
 	model_interp_load_global_data(&interp);
 
 	model_queue_render(&interp, &model_list, model_num, -1, orient, pos, flags, objnum, replacement_textures);
 
-	model_list.sortDraws();
+	model_list.initRender();
 
 	switch ( render ) {
 	case MODEL_RENDER_OPAQUE:
@@ -2644,6 +2645,10 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 
 	// Draw the thruster subobjects
 	if ( draw_thrusters ) {
+		if ( !(interp->flags & MR_NO_BATCH) ) {
+			interp->tmap_flags &= ~TMAP_FLAG_BATCH_TRANSFORMS;
+		}
+
 		i = pm->submodel[pm->detail[interp->detail_level]].first_child;
 
 		while( i >= 0 ) {
