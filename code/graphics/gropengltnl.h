@@ -96,13 +96,17 @@ class uniform_handler
 
 	SCP_map<SCP_string, int> uniform_lookup;
 
-	uint current_sdr;
+	GLhandleARB current_sdr;
 	uniform_block *loaded_block;
 
 	void loadUniformLookup(uniform_block *uniforms = NULL);
 	int findUniform(SCP_string &name);
 
 	bool compareMatrix4(matrix4 &a, matrix4 &b);
+public:
+	uniform_handler();
+
+	void resetTextures();
 
 	void queueUniformi(SCP_string name, int value);
 	void queueUniformf(SCP_string name, float value);
@@ -110,10 +114,9 @@ class uniform_handler
 	void queueUniform4f(SCP_string name, vec4 &val);
 	void queueUniformMatrix4fv(SCP_string name, int count, int transpose, matrix4 *value);
 	void queueUniformMatrix4f(SCP_string name, int transpose, matrix4 &val);
-public:
-	uniform_handler();
 
-	void resetTextures();
+	void setCurrentShader(GLhandleARB sdr_handle);
+	void setUniformsBegin();
 
 	void setNumLights(int num_lights);
 	void setLightFactor(float factor);
@@ -124,8 +127,7 @@ public:
 	void setTransformBufferOffset(int offset);
 	void setTexture(int texture_type, int texture_handle);
 	
-	void generateUniforms(int texture_slots[], int flags, uint sdr_flags);
-	void setUniforms();
+	void setUniformsFinish();
 
 	void resetAll();
 };
@@ -183,6 +185,6 @@ void gr_opengl_set_team_color(team_color *colors);
 void gr_opengl_disable_team_color();
 
 void opengl_tnl_shutdown();
-void gr_opengl_tnl_set_uniforms(int flags, uint shader_flags, int tmap_type);
+void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type);
 
 #endif //_GROPENGLTNL_H
