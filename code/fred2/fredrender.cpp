@@ -53,6 +53,7 @@
 #include "graphics/font.h"
 #include "cmdline/cmdline.h"
 #include "iff_defs/iff_defs.h"
+#include "mod_table/mod_table.h"
 
 extern float flFrametime;
 extern subsys_to_render Render_subsys;
@@ -141,7 +142,7 @@ color colour_yellow;
 void fred_enable_htl()
 {
 	if (!Briefing_dialog) gr_set_proj_matrix( (4.0f/9.0f) * PI * FRED_DEFAULT_HTL_FOV,  gr_screen.aspect*(float)gr_screen.clip_width/(float)gr_screen.clip_height, 1.0f, FRED_DEAFULT_HTL_DRAW_DIST);
-	if (Briefing_dialog) gr_set_proj_matrix( (4.0f/9.0f) * PI * FRED_BRIEFING_HTL_FOV,  gr_screen.aspect*(float)gr_screen.clip_width/(float)gr_screen.clip_height, 1.0f, FRED_DEAFULT_HTL_DRAW_DIST);
+	if (Briefing_dialog) gr_set_proj_matrix( Briefing_window_FOV,  gr_screen.aspect*(float)gr_screen.clip_width/(float)gr_screen.clip_height, 1.0f, FRED_DEAFULT_HTL_DRAW_DIST);
 	gr_set_view_matrix(&Eye_position, &Eye_matrix);
 }
 
@@ -1488,7 +1489,11 @@ void render_frame()
 	gr_set_font(FONT1);
 	light_reset();
 
-	g3_set_view_matrix(&eye_pos, &eye_orient, 0.5f);
+	if (Briefing_dialog) {
+		g3_set_view_matrix(&eye_pos, &eye_orient, Briefing_window_FOV);
+	} else {
+		g3_set_view_matrix(&eye_pos, &eye_orient, 0.5f);
+	}
 	Viewer_pos = eye_pos;  // for starfield code
 	
 	fred_enable_htl();
@@ -1593,7 +1598,11 @@ void render_frame()
 		gr_set_clip(0, 0, True_rw, True_rh);
 
 	g3_start_frame(0);	 // ** Accounted for
-	g3_set_view_matrix(&eye_pos, &eye_orient, 0.5f);
+	if (Briefing_dialog) {
+		g3_set_view_matrix(&eye_pos, &eye_orient, Briefing_window_FOV);
+	} else {
+		g3_set_view_matrix(&eye_pos, &eye_orient, 0.5f);
+	}
 }
 
 void game_do_frame()
