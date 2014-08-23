@@ -2613,7 +2613,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 		scene->setZBias(0);
 	}
 
-	if ( !GL_use_transform_buffer || !Cmdline_merged_ibos ) {
+	if ( !GL_use_transform_buffer || Cmdline_no_batching ) {
 		// always set non-batched rendering on if not supported
 		interp->flags |= MR_NO_BATCH;
 	}

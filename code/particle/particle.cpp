@@ -40,6 +40,7 @@ static int Particles_enabled = 1;
 uint lastSignature = 0; // 0 is an invalid signature!
 
 int Particle_buffer_object = -1;
+int Geometry_shader_buffer_object = -1;
 
 // Reset everything between levels
 void particle_init()
@@ -70,6 +71,10 @@ void particle_init()
 	// grab a vertex buffer object
 	if ( Particle_buffer_object < 0 ) {
 		Particle_buffer_object = gr_create_stream_buffer();
+	}
+
+	if ( Geometry_shader_buffer_object < 0 ) {
+		Geometry_shader_buffer_object = gr_create_stream_buffer();
 	}
 }
 
@@ -443,7 +448,7 @@ void particle_render_all()
 
 	profile_begin("Batch Render");
 	if (render_batch) {
-		geometry_batch_render(Particle_buffer_object);
+		geometry_batch_render(Geometry_shader_buffer_object);
 		batch_render_all(Particle_buffer_object);
 	}
 	profile_end("Batch Render");

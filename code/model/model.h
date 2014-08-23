@@ -99,8 +99,6 @@ typedef struct polymodel_instance {
 	int root_submodel_num;			// unused?
 	submodel_instance *submodel;	// array of submodel instances; mirrors the polymodel->submodel array
 	submodel_instance *submodel_render; // array of submodel instances for the rendering system; mirrors the polymodel->submodel array
-	uint transform_tex_id;
-	float *transform_buffer;
 } polymodel_instance;
 
 #define MAX_MODEL_SUBSYSTEMS		200				// used in ships.cpp (only place?) for local stack variable DTP; bumped to 200
@@ -1179,10 +1177,6 @@ void model_remove_bsp_collision_tree(int tree_index);
 int model_create_bsp_collision_tree();
 
 void model_collide_preprocess(matrix *orient, int model_instance_num, int detail = 0);
-
-void model_interp_preprocess(matrix *orient, int model_instance_num, int detail_num, bool moving_submodels_only);
-
-void model_interp_update_transforms(object *objp, int detail_num);
 
 // Sets the submodel instance data in a submodel
 // If show_damaged is true it shows only damaged submodels.

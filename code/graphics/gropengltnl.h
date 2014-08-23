@@ -170,8 +170,7 @@ void gr_opengl_update_buffer_object(int handle, uint size, void* data);
 void gr_opengl_update_transform_buffer(void* data, uint size);
 void gr_opengl_set_transform_buffer_offset(int offset);
 
-int gr_opengl_create_stream_buffer();
-void gr_opengl_update_stream_buffer(int buffer, void *buffer_data, uint size);
+int gr_opengl_create_stream_buffer_object();
 void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags);
 void gr_opengl_render_stream_buffer_start(int buffer_id);
 void gr_opengl_render_stream_buffer_end();

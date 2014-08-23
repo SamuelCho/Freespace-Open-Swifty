@@ -457,7 +457,7 @@ void trail_render_all()
 		}
 
 		memcpy(Trail_buffer, &Trail_vert_buffer[0], Trail_vert_buffer.size()*sizeof(trail_shader_info));
-		gr_update_stream_buffer(Trail_buffer_object, Trail_buffer, Trail_buffer_allocated);
+		gr_update_buffer_object(Trail_buffer_object, Trail_buffer_allocated, Trail_buffer);
 
 		for ( SCP_vector<trail_batch>::iterator it = Trail_batches.begin(); it != Trail_batches.end(); ++it ) {
 			gr_set_bitmap(it->texture_id, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 1.0f);

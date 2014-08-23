@@ -207,7 +207,7 @@ void gr_opengl_update_buffer_object(int handle, uint size, void* data)
 	vglBufferDataARB(buffer_obj.type, size, data, buffer_obj.usage);
 
 	if ( opengl_check_for_errors() ) {
-		Int3();
+		//Int3();
 	}
 }
 
@@ -229,7 +229,7 @@ void opengl_delete_buffer_object(int handle)
 
 int gr_opengl_create_stream_buffer_object()
 {
-	return opengl_create_buffer_object(GL_ARRAY_BUFFER_ARB, GL_DYNAMIC_DRAW_ARB);
+	return opengl_create_buffer_object(GL_ARRAY_BUFFER_ARB, GL_STREAM_DRAW_ARB);
 }
 
 int opengl_create_texture_buffer_object()
@@ -352,27 +352,6 @@ static void opengl_gen_buffer(opengl_vertex_buffer *vbp)
 			GL_vertex_data_in += vbp->ibo_size;
 		}
 	}
-}
-
-int gr_opengl_create_stream_buffer()
-{
-	opengl_vertex_buffer buffer;
-
-	vglGenBuffersARB(1, &buffer.vbo);
-
-	GL_vertex_buffers.push_back(buffer);
-	GL_vertex_buffers_in_use++;
-
-	return (int)(GL_vertex_buffers.size() - 1);
-}
-
-void gr_opengl_update_stream_buffer(int buffer, void *buffer_data, uint size)
-{
-	opengl_vertex_buffer *stream_buffer = &GL_vertex_buffers[buffer];
-
-	stream_buffer->vbo_size = size;
-
-	vglBufferDataARB(GL_ARRAY_BUFFER_ARB, stream_buffer->vbo_size, (GLvoid*)buffer_data, GL_STREAM_DRAW_ARB);
 }
 
 int gr_opengl_create_buffer()
@@ -658,7 +637,7 @@ void opengl_tnl_init()
 
 	Transform_buffer_handle = opengl_create_texture_buffer_object();
 
-	if ( Transform_buffer_handle >= 0 && Cmdline_merged_ibos ) {
+	if ( Transform_buffer_handle >= 0 && !Cmdline_no_batching ) {
 		GL_use_transform_buffer = true;
 	}
 

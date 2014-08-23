@@ -296,10 +296,6 @@ int gr_stub_create_stream_buffer()
 	return -1;
 }
 
-void gr_stub_update_stream_buffer(int buffer, void *buffer_data, uint size)
-{
-}
-
 void gr_stub_render_stream_buffer(int offset, int n_verts, int flags)
 {
 }
@@ -899,7 +895,6 @@ bool gr_stub_init()
 	gr_screen.gf_set_transform_buffer_offset	= gr_stub_set_transform_buffer_offset;
 
 	gr_screen.gf_create_stream_buffer		= gr_stub_create_stream_buffer;
-	gr_screen.gf_update_stream_buffer		= gr_stub_update_stream_buffer;
 	gr_screen.gf_render_stream_buffer		= gr_stub_render_stream_buffer;
 	gr_screen.gf_render_stream_buffer_start	= gr_stub_render_stream_buffer_start;
 	gr_screen.gf_render_stream_buffer_end	= gr_stub_render_stream_buffer_end;

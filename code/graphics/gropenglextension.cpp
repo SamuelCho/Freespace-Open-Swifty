@@ -483,10 +483,7 @@ void opengl_extensions_init()
 
 	if ( Use_GLSL < 3 ) {
 		Cmdline_no_deferred_lighting = 1;
-	}
-
-	if ( Use_GLSL <= 3 ) {
-		Cmdline_merged_ibos = false;
+		Cmdline_no_batching = true;
 	}
 
 	if (Use_GLSL) {

@@ -848,7 +848,7 @@ void create_vertex_buffer(polymodel *pm)
 
 	bool use_shader_transforms = false;
 
-	if ( Cmdline_merged_ibos ) {
+	if ( Use_GLSL >= 3 ) {
 		bool unequal_stride = false;
 		uint stride = pm->submodel[0].buffer.stride;
 
@@ -2488,7 +2488,7 @@ void model_load_texture(polymodel *pm, int i, char *file)
 	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_FOG);
 	
 	extern bool GL_use_transform_buffer;
-	if( Cmdline_merged_ibos && GL_use_transform_buffer && Use_GLSL >= 3 ) {
+	if( !Cmdline_no_batching && GL_use_transform_buffer && Use_GLSL >= 3 ) {
 		shader_flags &= ~SDR_FLAG_DEFERRED;
 		shader_flags |= SDR_FLAG_TRANSFORM;
 
@@ -2844,12 +2844,6 @@ void model_delete_instance(int model_instance_num)
 
 	if ( pmi->submodel_render ) {
 		vm_free(pmi->submodel_render);
-	}
-
-	if ( Cmdline_merged_ibos ) {
-		if ( pmi->transform_buffer ) {
-			vm_free(pmi->transform_buffer);
-		}
 	}
 
 	vm_free(pmi);

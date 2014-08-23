@@ -685,6 +685,9 @@ static SCP_map<int, batch_item> distortion_map;
 void *Batch_buffer = NULL;
 size_t Batch_buffer_size = 0;
 
+void *Batch_geometry_buffer = NULL;
+size_t Batch_geometry_buffer_size = 0;
+
 // static size_t find_good_batch_item(int texture)
 // {
 // 	size_t max_size = geometry_map.size();
@@ -1170,19 +1173,19 @@ void geometry_batch_render(int stream_buffer)
 	int n_to_render = geometry_batch_get_size();
 	int n_verts = 0;
 
-	if ( Batch_buffer_size < (n_to_render * sizeof(particle_pnt)) ) {
-		if ( Batch_buffer != NULL ) {
-			vm_free(Batch_buffer);
+	if ( Batch_geometry_buffer_size < (n_to_render * sizeof(particle_pnt)) ) {
+		if ( Batch_geometry_buffer != NULL ) {
+			vm_free(Batch_geometry_buffer);
 		}
 
-		Batch_buffer_size = n_to_render * sizeof(particle_pnt);
-		Batch_buffer = vm_malloc(Batch_buffer_size);
+		Batch_geometry_buffer_size = n_to_render * sizeof(particle_pnt);
+		Batch_geometry_buffer = vm_malloc(Batch_geometry_buffer_size);
 	}
 
-	batch_load_buffer_geometry_shader_map_bitmaps((particle_pnt*)Batch_buffer, &n_verts);
+	batch_load_buffer_geometry_shader_map_bitmaps((particle_pnt*)Batch_geometry_buffer, &n_verts);
 
 	gr_render_stream_buffer_start(stream_buffer);
-	gr_update_stream_buffer(stream_buffer, Batch_buffer, Batch_buffer_size);
+	gr_update_buffer_object(stream_buffer, Batch_geometry_buffer_size, Batch_geometry_buffer);
 
 	batch_render_geometry_shader_map_bitmaps();
 	gr_render_stream_buffer_end();
@@ -1209,7 +1212,7 @@ void batch_render_all(int stream_buffer)
 		batch_load_buffer_lasers((effect_vertex*)Batch_buffer, &n_verts);
 		batch_load_buffer_geometry_map_bitmaps((effect_vertex*)Batch_buffer, &n_verts);
 		batch_load_buffer_distortion_map_bitmaps((effect_vertex*)Batch_buffer, &n_verts);
-		gr_update_stream_buffer(stream_buffer, Batch_buffer, Batch_buffer_size);
+		gr_update_buffer_object(stream_buffer, Batch_buffer_size, Batch_buffer);
 
 		Assert(n_verts <= n_to_render);
 
