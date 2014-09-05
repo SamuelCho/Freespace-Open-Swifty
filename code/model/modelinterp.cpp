@@ -783,15 +783,6 @@ void model_interp_tmappoly(ubyte * p,polymodel * pm)
 	texture_info *tglow = &tmap->textures[TM_GLOW_TYPE];
 	int rt_begin_index = tmap_num*TM_NUM_TYPES;
 
-	// Goober5000
-	Interp_base_frametime = 0;
-	if (Interp_objnum >= 0)
-	{
-		object *objp = &Objects[Interp_objnum];
-		if (objp->type == OBJ_SHIP)
-			Interp_base_frametime = Ships[objp->instance].base_texture_anim_frametime;
-	}
-
 	int is_invisible = 0;
 
 	if (Interp_warp_bitmap < 0) {
@@ -1979,7 +1970,7 @@ DCF(model_darkening,"Makes models darker with distance")
 	dc_printf("model_darkening set to %.1f\n", Interp_depth_scale);
 }
 
-void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures, int render)
+void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures, int render, const bool is_skybox)
 {
 	int cull = 0;
 	// replacement textures - Goober5000
@@ -2047,6 +2038,20 @@ void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint fl
 	if(flags & MR_NO_CULL){
 		cull = gr_set_cull(0);
 	}
+
+	// Goober5000
+	Interp_base_frametime = 0;
+
+	if (objnum >= 0) {
+		object *objp = &Objects[objnum];
+
+		if (objp->type == OBJ_SHIP) {
+			Interp_base_frametime = Ships[objp->instance].base_texture_anim_frametime;
+		}
+	} else if (is_skybox) {
+		Interp_base_frametime = Skybox_timestamp;
+	}
+
 
 	Interp_objnum = objnum;
 
@@ -2386,7 +2391,7 @@ void model_render_thrusters(polymodel *pm, int objnum, ship *shipp, matrix *orie
 
 			// fade them in the nebula as well
 			if (The_mission.flags & MISSION_FLAG_FULLNEB) {
-				vm_vec_rotate(&npnt, &gpt->pnt, orient);
+				vm_vec_unrotate(&npnt, &gpt->pnt, orient);
 				vm_vec_add2(&npnt, pos);
 
 				fog_int = (1.0f - (neb2_get_fog_intensity(&npnt)));
@@ -2625,10 +2630,33 @@ void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d 
 					vm_vec_add2(&world_pnt, pos);
 
 					vm_vec_unrotate(&world_norm, &loc_norm, orient);
-					
-					if ( (shipp != NULL) && (shipp->flags & (SF_ARRIVING | SF_DEPART_WARP) ) && (shipp->warpin_effect) && Ship_info[shipp->ship_info_index].warpin_type != WT_HYPERSPACE) {
-						if (g3_point_behind_user_plane(&world_pnt))
-							continue;
+
+					if ( shipp != NULL ) {
+						if ( (shipp->flags & (SF_ARRIVING) ) && (shipp->warpin_effect) && Ship_info[shipp->ship_info_index].warpin_type != WT_HYPERSPACE) {
+							vec3d warp_pnt, tmp;
+							matrix warp_orient;
+
+							shipp->warpin_effect->getWarpPosition(&warp_pnt);
+							shipp->warpin_effect->getWarpOrientation(&warp_orient);
+							vm_vec_sub( &tmp, &world_pnt, &warp_pnt );
+
+							if ( vm_vec_dot( &tmp, &warp_orient.vec.fvec ) < 0.0f ) {
+								continue;
+							}
+						}
+
+						if ( (shipp->flags & (SF_DEPART_WARP) ) && (shipp->warpout_effect) && Ship_info[shipp->ship_info_index].warpout_type != WT_HYPERSPACE) {
+							vec3d warp_pnt, tmp;
+							matrix warp_orient;
+
+							shipp->warpout_effect->getWarpPosition(&warp_pnt);
+							shipp->warpout_effect->getWarpOrientation(&warp_orient);
+							vm_vec_sub( &tmp, &world_pnt, &warp_pnt );
+
+							if ( vm_vec_dot( &tmp, &warp_orient.vec.fvec ) > 0.0f ) {
+								continue;
+							}
+						}
 					}
 
 					switch ((gpo && gpo->type_override)?gpo->type:bank->type)
@@ -3102,13 +3130,6 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		cull = gr_set_cull(0);
 	} else {
 		cull = gr_set_cull(1);
-	}
-
-	// Goober5000
-	Interp_base_frametime = 0;
-
-	if ( (objp != NULL) && (objp->type == OBJ_SHIP) ) {
-		Interp_base_frametime = Ships[objp->instance].base_texture_anim_frametime;
 	}
 
 	if ( !(Interp_flags & MR_NO_LIGHTING) ) {
@@ -5072,7 +5093,7 @@ bool model_get_team_color( team_color *clr, const SCP_string &team, const SCP_st
 {
 	Assert(clr != NULL);
 
-	if (secondaryteam == "<none>") {
+	if ( !stricmp(secondaryteam.c_str(), "none") ) {
 		if (Team_Colors.find(team) != Team_Colors.end()) {
 			*clr = Team_Colors[team];
 			return true;

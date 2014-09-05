@@ -601,9 +601,9 @@ int common_select_do(float frametime)
 
 	if ( (k > 0) || (new_k > 0) || B1_JUST_RELEASED ) {
 		if ( help_overlay_active(Briefing_overlay_id) || help_overlay_active(Ship_select_overlay_id) || help_overlay_active(Weapon_select_overlay_id) ) {
-			help_overlay_set_state(Briefing_overlay_id, 0);
-			help_overlay_set_state(Ship_select_overlay_id, 0);
-			help_overlay_set_state(Weapon_select_overlay_id, 0);
+			help_overlay_set_state(Briefing_overlay_id, gr_screen.res, 0);
+			help_overlay_set_state(Ship_select_overlay_id, gr_screen.res, 0);
+			help_overlay_set_state(Weapon_select_overlay_id, gr_screen.res, 0);
 			Active_ui_window->set_ignore_gadgets(0);
 			k = 0;
 			new_k = 0;
@@ -1768,8 +1768,9 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
             }
 			gr_zbuffer_set(false);
 			gr_set_color(80,49,160);
+			model_set_outline_color(80,49,160);
 
-			model_interp_set_animated_effect_and_timer(ANIMATED_SHADER_LOADOUTSELECT_FS2, clip);
+			model_interp_set_animated_effect_and_timer(ANIMATED_SHADER_LOADOUTSELECT_FS2, -clip);
 
 			if ( (time < 2.5f) && (time >= 0.5f) ) { // Phase 1 and 2 render the wireframe
 				if (time >= 1.5f) // Just clip the wireframe after Phase 1

@@ -883,7 +883,7 @@ void model_set_detail_level(int n);
 #define MR_NO_ZBUFFER				(1<<19)		// switch z-buffering off completely 
 #define MR_NO_CULL					(1<<20)		// don't cull backfacing poly's
 #define MR_FORCE_TEXTURE			(1<<21)		// force a given texture to always be used
-#define MR_NO_BATCH					(1<<22)		// only the current model will be rendered in the current scene to be drawn
+#define MR_NO_BATCH					(1<<22)		// don't use submodel batching when rendering
 #define MR_EDGE_ALPHA				(1<<23)		// makes norms that are faceing away from you render more transparent -Bobboau
 #define MR_CENTER_ALPHA				(1<<24)		// oposite of above -Bobboau
 #define MR_NO_FOGGING				(1<<25)		// Don't fog - taylor
@@ -900,7 +900,7 @@ void model_set_detail_level(int n);
 
 // Renders a model and all it's submodels.
 // See MR_? defines for values for flags
-void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL, int render = MODEL_RENDER_ALL);
+void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL, int render = MODEL_RENDER_ALL, const bool is_skybox = false);
 
 // Renders just one particular submodel on a model.
 // See MR_? defines for values for flags

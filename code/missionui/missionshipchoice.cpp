@@ -661,7 +661,7 @@ void ship_select_init()
 	Ss_mouse_down_on_region = -1;
 
 	Ship_select_overlay_id = help_overlay_get_index(SS_OVERLAY);
-	help_overlay_set_state(Ship_select_overlay_id,0);
+	help_overlay_set_state(Ship_select_overlay_id,gr_screen.res,0);
 
 	if ( Ship_select_open ) {
 		//reset the animation
@@ -974,8 +974,8 @@ void ship_select_blit_ship_info()
 	y_start += 10;
 	gr_set_color_fast(text);
 	if((sip->ship_length != NULL) && strlen(sip->ship_length)){
-		if (Lcl_gr) {
-			// in german, drop the s from Meters and make sure M is caps
+		if (Lcl_gr || Lcl_pl) {
+			// in german and polish, drop the s from Meters and make sure M is caps
 			char *sp = strstr(sip->ship_length, "Meters");
 			if (sp) {
 				sp[5] = ' ';		// make the old s a space now
@@ -1454,10 +1454,42 @@ void ship_select_do(float frametime)
 		ship_select_redraw_pressed_buttons();
 		common_render_selected_screen_button();
 	}
-	if(!Cmdline_ship_choice_3d)
+	if(!Cmdline_ship_choice_3d && ((Selected_ss_class >= 0) && (Ss_icons[Selected_ss_class].ss_anim.num_frames > 0)))
 	{
-		if ( (Selected_ss_class >= 0) && (Ss_icons[Selected_ss_class].ss_anim.num_frames > 0) ) {
-			generic_anim_render(&Ss_icons[Selected_ss_class].ss_anim, (help_overlay_active(Ship_select_overlay_id)) ? 0 : frametime, Ship_anim_coords[gr_screen.res][0], Ship_anim_coords[gr_screen.res][1], true);
+		generic_anim_render(&Ss_icons[Selected_ss_class].ss_anim, (help_overlay_active(Ship_select_overlay_id)) ? 0 : frametime, Ship_anim_coords[gr_screen.res][0], Ship_anim_coords[gr_screen.res][1], true);
+	} else {
+		// The new rendering code for 3D ships courtesy your friendly UnknownPlayer :)
+
+		// check we have a valid ship class selected
+		if ( (Selected_ss_class >= 0) && (ShipSelectModelNum >= 0) )
+		{
+			ship_info *sip = &Ship_info[Selected_ss_class];
+			float rev_rate = REVOLUTION_RATE;
+			if (sip->flags & SIF_BIG_SHIP) {
+				rev_rate *= 1.7f;
+			}
+			if (sip->flags & SIF_HUGE_SHIP) {
+				rev_rate *= 3.0f;
+			}
+
+			if (sip->uses_team_colors) {
+				model_interp_set_team_color(sip->default_team_name, "none", 0, 0);
+			}
+
+			draw_model_rotating(ShipSelectModelNum,
+				Ship_anim_coords[gr_screen.res][0],
+				Ship_anim_coords[gr_screen.res][1],
+				Tech_ship_display_coords[gr_screen.res][2],
+				Tech_ship_display_coords[gr_screen.res][3],
+				&ShipSelectScreenShipRot,
+				&sip->closeup_pos,
+				sip->closeup_zoom * 1.3f,
+				rev_rate,
+				MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING,
+				GR_RESIZE_MENU,
+				sip->selection_effect);
+
+			gr_disable_team_color();
 		}
 	}
 
@@ -1508,7 +1540,7 @@ void ship_select_do(float frametime)
 	ss_maybe_flash_button();
 
 	// blit help overlay if active
-	help_overlay_maybe_blit(Ship_select_overlay_id);
+	help_overlay_maybe_blit(Ship_select_overlay_id, gr_screen.res);
 
 	// If the commit button was pressed, do the commit button actions.  Done at the end of the
 	// loop so there isn't a skip in the animation (since ship_create() can take a long time if
@@ -1538,7 +1570,7 @@ void ship_select_do(float frametime)
 			}
 
 			if (sip->uses_team_colors) {
-				model_interp_set_team_color(sip->default_team_name, "<none>", 0, 0);
+				model_interp_set_team_color(sip->default_team_name, "none", 0, 0);
 			}
 
 			draw_model_rotating(ShipSelectModelNum,
@@ -1751,18 +1783,20 @@ void draw_ship_icon_with_number(int screen_offset, int ship_class)
 // in the tech room - UnknownPlayer
 void start_ship_animation(int ship_class, int play_sound)
 {
-	ship_info *sip = &Ship_info[ship_class];
 	char *p;
 	char animation_filename[CF_MAX_FILENAME_LENGTH+4];
 
+	if (ship_class < 0) {
+		mprintf(("No ship class passed in to start_ship_animation\n"));
+		ShipSelectModelNum = -1;
+		return;
+	}
+    
+	ship_info *sip = &Ship_info[ship_class];
+    
 	anim_timer_start = timer_get_milliseconds();
 
 	if ( Cmdline_ship_choice_3d || !strlen(sip->anim_filename) ) {
-		if (ship_class < 0) {
-			mprintf(("No ship class passed in to start_ship_animation\n"));
-			ShipSelectModelNum = -1;
-			return;
-		}
 
 		//Unload Anim if one was playing
 		if(Ship_anim_class > 0 && Ss_icons[Ship_anim_class].ss_anim.num_frames > 0) {

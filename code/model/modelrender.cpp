@@ -2333,7 +2333,7 @@ void model_debug_render(int model_num, matrix *orient, vec3d * pos, uint flags, 
 	gr_zbuffer_set(save_gr_zbuffering_mode);
 }
 
-void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures, int render)
+void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures, int render, const bool is_skybox)
 {
 	DrawList model_list;
 
@@ -2343,7 +2343,7 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 
 	model_interp_load_global_data(&interp);
 
-	model_queue_render(&interp, &model_list, model_num, -1, orient, pos, flags, objnum, replacement_textures);
+	model_queue_render(&interp, &model_list, model_num, -1, orient, pos, flags, objnum, replacement_textures, is_skybox);
 
 	model_list.initRender();
 
@@ -2380,7 +2380,7 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 	model_debug_render(model_num, orient, pos, flags, objnum, interp.detail_level_locked);
 }
 
-void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int model_instance_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures)
+void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int model_instance_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures, const bool is_skybox)
 {
 	int i;
 	int cull = 0;
@@ -2593,8 +2593,14 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 	// Goober5000
 	interp->base_frametime = 0;
 
-	if ( (objp != NULL) && (objp->type == OBJ_SHIP) ) {
-		interp->base_frametime = Ships[objp->instance].base_texture_anim_frametime;
+	if ( objnum >= 0 ) {
+		object *objp = &Objects[objnum];
+
+		if ( objp->type == OBJ_SHIP ) {
+			interp->base_frametime = Ships[objp->instance].base_texture_anim_frametime;
+		}
+	} else if ( is_skybox ) {
+		interp->base_frametime = Skybox_timestamp;
 	}
 
 	if ( !(interp->flags & MR_NO_LIGHTING) ) {
