@@ -134,6 +134,7 @@ extern int Cmdline_no_di_mouse;
 extern int Cmdline_drawelements;
 extern char* Cmdline_keyboard_layout;
 extern bool Cmdline_gl_finish;
+extern bool Cmdline_no_geo_sdr_effects;
 
 // Developer/Testing related
 extern char *Cmdline_start_mission;

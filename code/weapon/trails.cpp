@@ -15,6 +15,7 @@
 #include "io/timer.h"
 #include "ship/ship.h"
 #include "graphics/gropenglextension.h"
+#include "cmdline/cmdline.h"
 
 int Num_trails;
 trail Trails;
@@ -250,7 +251,7 @@ void trail_render( trail * trailp )
 			fvec = &tmp_fvec;
 		}
 
-		if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) && Trail_buffer_object >= 0 ) {
+		if ( !Cmdline_no_geo_sdr_effects && Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) && Trail_buffer_object >= 0 ) {
 			trail_shader_info new_trail_vert;
 
 			new_trail_vert.pos = trailp->pos[n];
@@ -327,7 +328,7 @@ void trail_render( trail * trailp )
 		Trail_v_list[nv+1] = bot;
 	}
 
-	if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) && Trail_buffer_object >= 0 ) {
+	if ( !Cmdline_no_geo_sdr_effects && Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) && Trail_buffer_object >= 0 ) {
 		new_trail.n_verts = Trail_vert_buffer.size() - new_trail.buffer_offset;
 
 		if ( new_trail.n_verts >= 2 ) {
@@ -444,7 +445,7 @@ void trail_render_all()
 		trail_render(trailp);
 	}
 
-	if ( Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) && Trail_buffer_object >= 0 ) {
+	if ( !Cmdline_no_geo_sdr_effects && Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) && Trail_buffer_object >= 0 ) {
 		gr_render_stream_buffer_start(Trail_buffer_object);
 
 		if ( Trail_buffer_allocated < Trail_vert_buffer.size()*sizeof(trail_shader_info) ) {
