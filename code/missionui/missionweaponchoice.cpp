@@ -890,18 +890,22 @@ void wl_render_overhead_view(float frametime)
             
 			model_clear_instance(wl_ship->model_num);
 			polymodel *pm = model_get(wl_ship->model_num);
-			gr_reset_clip();
+
 			if(Cmdline_shadow_quality)
-            {
-				gr_start_shadow_map(-sip->closeup_pos.xyz.z + pm->rad, 5000.0f, 20000.0f);
-                model_immediate_render(wl_ship->model_num, &object_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
-                gr_set_clip(Wl_overhead_coords[gr_screen.res][0], Wl_overhead_coords[gr_screen.res][1], gr_screen.res == 0 ? 291 : 467, gr_screen.res == 0 ? 226 : 362);
-                gr_end_shadow_map();
-            }
+			{
+				gr_reset_clip();
+				shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -sip->closeup_pos.xyz.z + pm->rad, 
+					-sip->closeup_pos.xyz.z + pm->rad + 200.0f, -sip->closeup_pos.xyz.z + pm->rad + 2000.0f, -sip->closeup_pos.xyz.z + pm->rad + 10000.0f);
+				model_immediate_render(wl_ship->model_num, &object_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
+				shadows_end_render();
+				gr_set_clip(Wl_overhead_coords[gr_screen.res][0], Wl_overhead_coords[gr_screen.res][1], gr_screen.res == 0 ? 291 : 467, gr_screen.res == 0 ? 226 : 362, GR_RESIZE_MENU);
+			}
+			
 			if (!Cmdline_nohtl) {
 				gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
 				gr_set_view_matrix(&Eye_position, &Eye_matrix);
 			}
+
 			model_immediate_render(wl_ship->model_num, &object_orient, &vmd_zero_vector, MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1);
 
             Glowpoint_use_depth_buffer = true;
