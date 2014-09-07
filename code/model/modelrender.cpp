@@ -2030,7 +2030,7 @@ void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum
 
 			// fade them in the nebula as well
 			if (The_mission.flags & MISSION_FLAG_FULLNEB) {
-				vm_vec_rotate(&npnt, &gpt->pnt, orient);
+				vm_vec_unrotate(&npnt, &gpt->pnt, orient);
 				vm_vec_add2(&npnt, pos);
 
 				fog_int = (1.0f - (neb2_get_fog_intensity(&npnt)));
