@@ -1759,7 +1759,12 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 
 				model_interp_set_clip_plane();
 
-				shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 2000.0f, -closeup_pos->xyz.z + pm->rad + 10000.0f);
+				if ( flags & MR_IS_MISSILE )  {
+					shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 20.0f, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 1000.0f);
+				} else {
+					shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 2000.0f, -closeup_pos->xyz.z + pm->rad + 10000.0f);
+				}
+
 				model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_NO_TEXTURING | MR_NO_LIGHTING, -1, -1);
 				shadows_end_render();
 
@@ -1830,20 +1835,17 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		rot_angles.h = *rotation_buffer;
 		vm_rotate_matrix_by_angles(&model_orient, &rot_angles);
 
-		gr_set_clip(x1, y1, x2, y2, resize_mode);
 		g3_start_frame(1);
+
+		polymodel *pm = model_get(model_id);
 
 		// render the wodel
 		if ( (closeup_pos != NULL) && (vm_vec_mag(closeup_pos) > 0.0f) ) {
 			g3_set_view_matrix(closeup_pos, &vmd_identity_matrix, closeup_zoom);
 		} else {
-			polymodel *pm = model_get(model_id);
 			vec3d pos = { { { 0.0f, 0.0f, -(pm->rad * 1.5f) } } };
 			g3_set_view_matrix(&pos, &vmd_identity_matrix, closeup_zoom);
 		}
-
-		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
-		gr_set_view_matrix(&Eye_position, &Eye_matrix);
 
 		// lighting for techroom
 		light_reset();
@@ -1855,6 +1857,24 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 
 		model_clear_instance(model_id);
 		model_set_detail_level(0);
+
+		if(Cmdline_shadow_quality)
+		{
+			if ( flags & MR_IS_MISSILE )  {
+				shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 20.0f, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 1000.0f);
+			} else {
+				shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 2000.0f, -closeup_pos->xyz.z + pm->rad + 10000.0f);
+			}
+
+			model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_NO_TEXTURING | MR_NO_LIGHTING, -1, -1);
+			shadows_end_render();
+		}
+
+		gr_set_clip(x1, y1, x2, y2, resize_mode);
+
+		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+		gr_set_view_matrix(&Eye_position, &Eye_matrix);
+
 		gr_set_color(0,128,0);
 
 		if (effect == 1) { // FS1 effect
