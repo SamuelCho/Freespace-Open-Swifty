@@ -2152,7 +2152,7 @@ void stars_draw_background()
 	// draw the model at the player's eye with no z-buffering
 	model_set_alpha(1.0f);
 
-	model_immediate_render(Nmodel_num, &Nmodel_orient, &Eye_position, Nmodel_flags, -1, -1, NULL, true);
+	model_immediate_render(Nmodel_num, &Nmodel_orient, &Eye_position, Nmodel_flags, -1, -1, NULL, MODEL_RENDER_ALL, true);
 
 	if (Nmodel_bitmap >= 0) {
 		model_set_forced_texture(-1);
