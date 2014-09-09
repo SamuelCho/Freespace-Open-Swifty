@@ -18,6 +18,7 @@
 #include "cmdline/cmdline.h"
 #include "graphics/grbatch.h"
 #include "debugconsole/console.h"
+#include "graphics/gropenglextension.h"
 
 #ifndef NDEBUG
 #include "io/timer.h"
@@ -73,7 +74,7 @@ void particle_init()
 		Particle_buffer_object = gr_create_stream_buffer();
 	}
 
-	if ( Geometry_shader_buffer_object < 0 ) {
+	if ( Geometry_shader_buffer_object < 0 && !Cmdline_no_geo_sdr_effects && Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) ) {
 		Geometry_shader_buffer_object = gr_create_stream_buffer();
 	}
 }
@@ -543,4 +544,3 @@ void particle_emit( particle_emitter *pe, int type, int optional_data, float ran
 		particle_create( &pe->pos, &tmp_vel, life, radius, type, optional_data );
 	}
 }
-

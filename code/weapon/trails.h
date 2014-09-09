@@ -51,15 +51,6 @@ struct trail_batch {
 	int buffer_offset;
 };
 
-struct trail_shader_info {
-	vec3d pos;
-	vec3d fvec;
-
-	float intensity;
-	float width;
-	uv_pair tex_coord;
-};
-
 // Call at the start of freespace to init trails
 
 // Call at start of level to reinit all missilie trail stuff

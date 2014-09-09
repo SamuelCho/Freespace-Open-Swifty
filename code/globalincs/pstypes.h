@@ -179,6 +179,21 @@ typedef struct effect_vertex {
 	ubyte r, g, b, a;
 } effect_vertex;
 
+struct particle_pnt {
+	vec3d position;
+	float size;
+	vec3d up;
+};
+
+struct trail_shader_info {
+	vec3d pos;
+	vec3d fvec;
+
+	float intensity;
+	float width;
+	uv_pair tex_coord;
+};
+
 //def_list
 typedef struct flag_def_list {
 	char *name;

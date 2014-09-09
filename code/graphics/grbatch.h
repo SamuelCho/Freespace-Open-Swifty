@@ -74,13 +74,6 @@ public:
 	void operator =(int){}
 };
 
-struct particle_pnt
-{
-	vec3d position;
-	float size;
-	vec3d up;
-};
-
 class geometry_shader_batcher
 {
 	SCP_vector<particle_pnt> vertices;

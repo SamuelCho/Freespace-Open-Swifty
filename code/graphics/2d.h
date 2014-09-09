@@ -1026,6 +1026,45 @@ void gr_pline_special(SCP_vector<vec3d> *pts, int thickness,int resize_mode=GR_R
 #define VB_FLAG_LARGE_INDEX	(1<<10)
 #define VB_FLAG_MODEL_ID	(1<<11)
 
+struct vertex_format_data
+{
+	enum vertex_format {
+		POSITION3,
+		POSITION2,
+		COLOR3,
+		COLOR4,
+		TEX_COORD,
+		NORMAL,
+		TANGENT,
+		MODEL_ID,
+		RADIUS,
+		FVEC,
+		UVEC,
+		INTENSITY
+	};
+
+	vertex_format format_type;
+	uint stride;
+	void *data_src;
+
+	vertex_format_data(vertex_format i_format_type, uint i_stride, void *i_data_src) : 
+	format_type(i_format_type), stride(i_stride), data_src(i_data_src) {}
+};
+
+class vertex_layout
+{
+	SCP_vector<vertex_format_data> Vertex_components;
+public:
+	vertex_layout(){}
+
+	uint get_num_vertex_components() { return Vertex_components.size(); }
+	vertex_format_data* get_vertex_component(uint index) { return &Vertex_components[index]; }
+	void add_vertex_component(vertex_format_data::vertex_format format_type, uint stride, void* src) 
+	{
+		Vertex_components.push_back(vertex_format_data(format_type, stride, src));
+	}
+};
+
 void gr_clear_shaders_cache();
 
 #endif

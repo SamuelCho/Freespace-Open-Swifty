@@ -106,6 +106,44 @@ int parabolic = 0;
 
 int Transform_buffer_handle = -1;
 
+struct opengl_vertex_bind {
+	vertex_format_data::vertex_format format;
+	
+	enum type {
+		POSITION,
+		COLOR,
+		TEXCOORD0,
+		TEXCOORD1,
+		NORMAL,
+		ATTRIB
+	};
+
+	opengl_vertex_bind::type binding_type;
+
+	GLint size;
+	GLenum data_type;
+
+	// used only by vertex attributes
+	SCP_string attrib_name;
+	GLboolean normalized;
+};
+
+static opengl_vertex_bind GL_array_binding_data[] =
+{
+	{ vertex_format_data::POSITION3,	opengl_vertex_bind::POSITION,	3, GL_FLOAT,			"",				GL_FALSE },
+	{ vertex_format_data::POSITION2,	opengl_vertex_bind::POSITION,	2, GL_FLOAT,			"",				GL_FALSE },
+	{ vertex_format_data::COLOR3,		opengl_vertex_bind::COLOR,		3, GL_UNSIGNED_BYTE,	"",				GL_FALSE },
+	{ vertex_format_data::COLOR4,		opengl_vertex_bind::COLOR,		4, GL_UNSIGNED_BYTE,	"",				GL_FALSE },
+	{ vertex_format_data::TEX_COORD,	opengl_vertex_bind::TEXCOORD0,	2, GL_FLOAT,			"",				GL_FALSE },
+	{ vertex_format_data::NORMAL,		opengl_vertex_bind::NORMAL,		3, GL_FLOAT,			"",				GL_FALSE },
+	{ vertex_format_data::TANGENT,		opengl_vertex_bind::TEXCOORD1,	4, GL_FLOAT,			"",				GL_FALSE },
+	{ vertex_format_data::MODEL_ID,		opengl_vertex_bind::ATTRIB,		1, GL_FLOAT,			"model_id",		GL_FALSE },
+	{ vertex_format_data::RADIUS,		opengl_vertex_bind::ATTRIB,		1, GL_FLOAT,			"radius",		GL_FALSE },
+	{ vertex_format_data::FVEC,			opengl_vertex_bind::ATTRIB,		3, GL_FLOAT,			"fvec",			GL_FALSE },
+	{ vertex_format_data::UVEC,			opengl_vertex_bind::ATTRIB,		3, GL_FLOAT,			"uvec",			GL_FALSE },
+	{ vertex_format_data::INTENSITY,	opengl_vertex_bind::ATTRIB,		1, GL_FLOAT,			"intensity",	GL_FALSE }
+};
+
 struct opengl_buffer_object {
 	GLuint buffer_id;
 	GLenum type;
@@ -2662,6 +2700,56 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	}
 
 	Current_uniforms.setUniformsFinish();
+}
+
+void opengl_bind_vertex_component(vertex_format_data &vert_component)
+{
+	opengl_vertex_bind &bind_info = GL_array_binding_data[vert_component.format_type];
+
+	switch ( bind_info.binding_type ) {
+	case opengl_vertex_bind::POSITION:
+		GL_state.Array.EnableClientVertex();
+		GL_state.Array.VertexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+		break;
+
+	case opengl_vertex_bind::TEXCOORD0:
+		GL_state.Array.EnableClientTexture();
+		GL_state.Array.SetActiveClientUnit(0);
+		GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+		break;
+
+	case opengl_vertex_bind::TEXCOORD1:
+		GL_state.Array.EnableClientTexture();
+		GL_state.Array.SetActiveClientUnit(1);
+		GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+		break;
+
+	case opengl_vertex_bind::COLOR:
+		GL_state.Array.EnableClientColor();
+		GL_state.Array.ColorPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+		GL_state.InvalidateColor();
+		break;
+
+	case opengl_vertex_bind::NORMAL:
+		GL_state.Array.EnableClientNormal();
+		GL_state.Array.NormalPointer(bind_info.data_type, vert_component.stride, vert_component.data_src);
+		break;
+
+	case opengl_vertex_bind::ATTRIB:
+		GLint index = opengl_shader_get_attribute(bind_info.attrib_name.c_str());
+
+		GL_state.Array.EnableVertexAttrib(index);
+		GL_state.Array.VertexAttribPointer(index, bind_info.size, bind_info.data_type, bind_info.normalized, vert_component.stride, vert_component.data_src);
+	}
+}
+
+void opengl_bind_vertex_layout(vertex_layout &layout)
+{
+	uint num_vertex_bindings = layout.get_num_vertex_components();
+
+	for ( uint i = 0; i < num_vertex_bindings; ++i ) {
+		opengl_bind_vertex_component(*layout.get_vertex_component(i));
+	}
 }
 
 uniform_handler::uniform_handler()
