@@ -288,7 +288,7 @@ void warpin_queue_render(DrawList *scene, object *obj, matrix *orient, vec3d *po
 
 		interp.detail_level_locked = (int)(dist / (radius * 10.0f));
 
-		model_queue_render( &interp, scene, Warp_model, -1, orient, pos, MR_LOCK_DETAIL | MR_NO_LIGHTING | MR_NORMAL | MR_NO_FOGGING | MR_NO_CULL, -1, NULL );
+		model_queue_render( &interp, scene, Warp_model, -1, orient, pos, MR_LOCK_DETAIL | MR_NO_LIGHTING | MR_NORMAL | MR_NO_FOGGING | MR_NO_CULL | MR_NO_BATCH, -1, NULL );
 	} else {
 		float Grid_depth = radius/2.5f;
 
