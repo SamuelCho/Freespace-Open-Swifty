@@ -2740,6 +2740,7 @@ void opengl_bind_vertex_component(vertex_format_data &vert_component)
 
 		GL_state.Array.EnableVertexAttrib(index);
 		GL_state.Array.VertexAttribPointer(index, bind_info.size, bind_info.data_type, bind_info.normalized, vert_component.stride, vert_component.data_src);
+		break;
 	}
 }
 

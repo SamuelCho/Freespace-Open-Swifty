@@ -1065,15 +1065,17 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 			alpha = forced_alpha;
 
 			//Check for invisible or transparent textures so they don't show up in the shadow maps - Valathil
-			if ( (interp->new_replacement_textures != NULL) && (interp->new_replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
-				tex_replace[TM_BASE_TYPE] = texture_info(interp->new_replacement_textures[rt_begin_index + TM_BASE_TYPE]);
-				texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tex_replace[TM_BASE_TYPE], interp->base_frametime);
-			} else {
-				texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tmap->textures[TM_BASE_TYPE], interp->base_frametime);
-			}
+			if ( in_shadow_map ) {
+				if ( (interp->new_replacement_textures != NULL) && (interp->new_replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
+					tex_replace[TM_BASE_TYPE] = texture_info(interp->new_replacement_textures[rt_begin_index + TM_BASE_TYPE]);
+					texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tex_replace[TM_BASE_TYPE], interp->base_frametime);
+				} else {
+					texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tmap->textures[TM_BASE_TYPE], interp->base_frametime);
+				}
 
-			if ( texture_maps[TM_BASE_TYPE] <= 0 ) {
-				continue;
+				if ( texture_maps[TM_BASE_TYPE] <= 0 ) {
+					continue;
+				}
 			}
 		}
 
@@ -2629,7 +2631,7 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 		scene->startModelDraw(pm->n_models);
 		model_queue_render_buffers(scene, interp, pm, -1);
 	}
-
+		
 	// Draw the subobjects
 	bool draw_thrusters = false;
 	i = pm->submodel[pm->detail[interp->detail_level]].first_child;

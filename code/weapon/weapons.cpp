@@ -7099,7 +7099,7 @@ void weapon_render(object* obj, DrawList *scene)
 
 	case WRT_POF:
 		{
-			uint render_flags = MR_NORMAL|MR_IS_MISSILE|MR_NO_LIGHTING;
+			uint render_flags = MR_NORMAL|MR_IS_MISSILE|MR_NO_LIGHTING|MR_NO_BATCH;
 
 			if (Cmdline_missile_lighting && !(wip->wi_flags2 & WIF2_MR_NO_LIGHTING))
 				render_flags &= ~MR_NO_LIGHTING;

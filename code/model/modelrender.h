@@ -384,6 +384,7 @@ public:
 	void setAnimatedEffect(int effect);
 	void setModelTransformBuffer(int model_num);
 	void startModelDraw(int n_models);
+
 	void addBufferDraw(vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp);
 	
 	vec3d getViewPosition();
