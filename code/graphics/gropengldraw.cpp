@@ -3164,7 +3164,10 @@ void gr_opengl_deferred_lighting_finish()
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, Scene_stencil_buffer);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, Scene_stencil_buffer);
 
-	std::sort(Lights, Lights+Num_lights, light_compare_by_type);
+	light lights_copy[MAX_LIGHTS];
+	memcpy(lights_copy, Lights, MAX_LIGHTS * sizeof(light));
+
+	std::sort(lights_copy, lights_copy+Num_lights, light_compare_by_type);
 
 	glEnable(GL_STENCIL_TEST);
 	glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
@@ -3173,7 +3176,7 @@ void gr_opengl_deferred_lighting_finish()
 
 	for(int i = 0; i < Num_lights; ++i)
 	{
-		light *l = &Lights[i];
+		light *l = &lights_copy[i];
 		vglUniform1iARB( opengl_shader_get_uniform("lighttype"), 0 );
 		switch(l->type)
 		{
@@ -3238,12 +3241,7 @@ void gr_opengl_deferred_lighting_finish()
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, Scene_depth_texture, 0);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
 
-	GL_state.Texture.SetActiveUnit(1);
-	GL_state.Texture.Disable();
-	GL_state.Texture.SetActiveUnit(2);
-	GL_state.Texture.Disable();
-	GL_state.Texture.SetActiveUnit(2);
-	GL_state.Texture.Disable();
+	GL_state.Texture.DisableAll();
 
 	GL_state.SetAlphaBlendMode( ALPHA_BLEND_NONE );
 	gr_zbuffer_set(zbuff);
