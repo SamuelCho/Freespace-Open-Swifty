@@ -868,11 +868,6 @@ void labviewer_render_model(float frametime)
 			submodel_immediate_render(Lab_model_num, pm->debris_objects[i], &Lab_viewer_orient, &world_point, Lab_model_flags, -1);
 			Shadow_override = false;
 		}
-
-		if ( !Cmdline_nohtl ) {
-			gr_end_view_matrix();
-			gr_end_proj_matrix();
-		}
 	}
 	// render normally otherwise
 	else {

@@ -854,7 +854,7 @@ void create_vertex_buffer(polymodel *pm)
 
 		// see if all submodel vertices have the same stride.
 		for ( i = 1; i < pm->n_models; ++i ) {
-			if ( stride != pm->submodel[i].buffer.stride ) {
+			if ( pm->submodel[i].buffer.model_list != NULL && stride != pm->submodel[i].buffer.stride ) {
 				unequal_stride = true;
 				break;
 			}
@@ -4473,7 +4473,9 @@ void model_get_rotating_submodel_list(SCP_vector<int> *submodel_vector, object *
 
 void model_get_submodel_tree_list(SCP_vector<int> &submodel_vector, polymodel* pm, int mn)
 {
-	submodel_vector.push_back(mn);
+	if ( pm->submodel[mn].buffer.model_list != NULL ) {
+		submodel_vector.push_back(mn);
+	}
 
 	int i = pm->submodel[mn].first_child;
 

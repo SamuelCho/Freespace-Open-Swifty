@@ -1524,9 +1524,31 @@ void model_queue_render_glowpoint(int point_num, vec3d *pos, matrix *orient, glo
 
 	vm_vec_unrotate(&world_norm, &loc_norm, orient);
 
-	if ( (shipp != NULL) && (shipp->flags & (SF_ARRIVING | SF_DEPART_WARP) ) && (shipp->warpin_effect) && Ship_info[shipp->ship_info_index].warpin_type != WT_HYPERSPACE) {
-		if ( g3_point_behind_user_plane(&world_pnt) ) {
-			return;
+	if ( shipp != NULL ) {
+		if ( (shipp->flags & (SF_ARRIVING) ) && (shipp->warpin_effect) && Ship_info[shipp->ship_info_index].warpin_type != WT_HYPERSPACE) {
+			vec3d warp_pnt, tmp;
+			matrix warp_orient;
+
+			shipp->warpin_effect->getWarpPosition(&warp_pnt);
+			shipp->warpin_effect->getWarpOrientation(&warp_orient);
+			vm_vec_sub( &tmp, &world_pnt, &warp_pnt );
+
+			if ( vm_vec_dot( &tmp, &warp_orient.vec.fvec ) < 0.0f ) {
+				return;
+			}
+		}
+
+		if ( (shipp->flags & (SF_DEPART_WARP) ) && (shipp->warpout_effect) && Ship_info[shipp->ship_info_index].warpout_type != WT_HYPERSPACE) {
+			vec3d warp_pnt, tmp;
+			matrix warp_orient;
+
+			shipp->warpout_effect->getWarpPosition(&warp_pnt);
+			shipp->warpout_effect->getWarpOrientation(&warp_orient);
+			vm_vec_sub( &tmp, &world_pnt, &warp_pnt );
+
+			if ( vm_vec_dot( &tmp, &warp_orient.vec.fvec ) > 0.0f ) {
+				return;
+			}
 		}
 	}
 
