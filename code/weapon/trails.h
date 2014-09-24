@@ -45,12 +45,6 @@ typedef struct trail {
 
 } trail;
 
-struct trail_batch {
-	int texture_id;
-	int n_verts;
-	int buffer_offset;
-};
-
 // Call at the start of freespace to init trails
 
 // Call at start of level to reinit all missilie trail stuff

@@ -44,8 +44,6 @@ struct interp_data
 	matrix orient;
 	vec3d pos;
 
-	bool use_shader_transforms;
-
 	int thrust_scale_subobj;
 	int flags;
 	int tmap_flags;
@@ -120,7 +118,6 @@ struct interp_data
 
 		objnum = -1;
 
-		use_shader_transforms = false;
 		desaturate = false;
 
 		detail_level_locked = 0;
@@ -213,6 +210,9 @@ struct insignia_draw_data
 	polymodel *pm;
 	int detail_level;
 	int bitmap_num;
+
+	// if there's a clip plane
+	int clip_plane;
 };
 
 struct render_state

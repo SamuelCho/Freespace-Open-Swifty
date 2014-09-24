@@ -658,11 +658,25 @@ void DrawList::addInsignia(polymodel *pm, int detail_level, int bitmap_num)
 	new_insignia.detail_level = detail_level;
 	new_insignia.bitmap_num = bitmap_num;
 
+	new_insignia.clip_plane = current_render_state.clip_plane_handle;
+
 	insignias.push_back(new_insignia);
 }
 
 void DrawList::renderInsignia(insignia_draw_data &insignia_info)
 {
+	if ( insignia_info.clip_plane >= 0 ) {
+		clip_plane_state &plane_data = clip_planes[insignia_info.clip_plane];
+
+		vec3d tmp;
+		vm_vec_sub(&tmp, &insignia_info.transformation.origin, &plane_data.point);
+		vm_vec_normalize(&tmp);
+
+		if ( vm_vec_dot(&tmp, &plane_data.normal) < 0.0f) {
+			return;
+		}
+	}
+
 	g3_start_instance_matrix(&insignia_info.transformation.origin, &insignia_info.transformation.basis);	
 
 	model_render_insignias(insignia_info.pm, insignia_info.detail_level, insignia_info.bitmap_num);

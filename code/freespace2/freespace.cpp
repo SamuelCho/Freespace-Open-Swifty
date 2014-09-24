@@ -3707,7 +3707,7 @@ void game_render_frame( camid cid )
 	// Note: environment mapping gets disabled when rendering to texture; if you change
 	// this, make sure that the current render target gets restored right afterwards!
 	if ( Cmdline_env && !Env_cubemap_drawn && gr_screen.rendering_to_texture == -1 ) {
-		setup_environment_mapping(cid);
+		PROFILE("Environment Mapping", setup_environment_mapping(cid));
 
 		if ( !Dynamic_environment ) {
 			Env_cubemap_drawn = true;
@@ -3826,7 +3826,7 @@ void game_render_frame( camid cid )
 	Shadow_override = false;
 	//================ END OF 3D RENDERING STUFF ====================
 
-	gr_scene_texture_end();
+	PROFILE("Post Process", gr_scene_texture_end());
 
 	extern int Multi_display_netinfo;
 	if(Multi_display_netinfo){
