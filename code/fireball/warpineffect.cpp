@@ -274,7 +274,7 @@ void warpin_queue_render(DrawList *scene, object *obj, matrix *orient, vec3d *po
 	}
 
 	if ( (Warp_model >= 0) && (warp_3d || Cmdline_3dwarp) ) {
-		interp_data interp;
+		model_render_params interp;
 
 		float scale = radius / 25.0f;
 

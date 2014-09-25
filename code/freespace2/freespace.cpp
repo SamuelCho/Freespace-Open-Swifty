@@ -3774,7 +3774,7 @@ void game_render_frame( camid cid )
 	SCP_vector<object*>::iterator obji = effect_ships.begin();
 	for(;obji != effect_ships.end();++obji)
 	{
-		obj_render_DEPRECATED(*obji);
+		obj_render(*obji);
 	}
 	effect_ships.clear();
 

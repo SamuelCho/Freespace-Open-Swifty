@@ -18070,7 +18070,7 @@ void ship_render_set_thrusters(object *obj)
 	}
 }
 
-void ship_render_weapon_models(interp_data *interp, DrawList *scene, object *obj, int render_flags)
+void ship_render_weapon_models(model_render_params *interp, DrawList *scene, object *obj, int render_flags)
 {
 	int num = obj->instance;
 	ship *shipp = &Ships[num];
@@ -18179,7 +18179,7 @@ int ship_render_get_insignia(object* obj, ship* shipp)
 	return -1;
 }
 
-void ship_render_set_animated_effect(interp_data *interp, ship *shipp, uint *render_flags)
+void ship_render_set_animated_effect(model_render_params *interp, ship *shipp, uint *render_flags)
 {
 	if ( !shipp->shader_effect_active || Use_GLSL <= 1 ) {
 		return;
@@ -18220,7 +18220,7 @@ void ship_render(object* obj, DrawList* scene)
 	bool is_first_stage_arrival = false;
 	bool show_thrusters = ((shipp->flags2 & SF2_NO_THRUSTERS) == 0) && !in_shadow_map;
 	dock_function_info dfi;
-	interp_data interp;
+	model_render_params interp;
 
 	MONITOR_INC( NumShipsRend, 1 );
 

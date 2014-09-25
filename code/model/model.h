@@ -18,7 +18,7 @@
 #include "object/object.h"
 
 class object;
-struct interp_data;
+class model_render_params;
 
 extern flag_def_list model_render_flags[];
 extern int model_render_flags_size;
@@ -818,8 +818,6 @@ public:
 	int vertex_buffer_id;			// HTL vertex buffer id
 
 	vertex_buffer detail_buffers[MAX_MODEL_DETAIL_LEVELS];
-	vertex_buffer thruster_buffers[MAX_MODEL_DETAIL_LEVELS];
-	bool use_thruster_buffers;
 };
 
 // Call once to initialize the model system
@@ -1238,7 +1236,7 @@ typedef struct mst_info {
 
 	bool use_ab;
 	float glow_noise;
-	const vec3d *rotvel;
+	vec3d rotvel;
 	vec3d length;
 
 	float glow_rad_factor;
@@ -1250,7 +1248,7 @@ typedef struct mst_info {
 	bool draw_distortion;
 
 	mst_info() : primary_bitmap(-1), primary_glow_bitmap(-1), secondary_glow_bitmap(-1), tertiary_glow_bitmap(-1), distortion_bitmap(-1),
-					use_ab(false), glow_noise(1.0f), rotvel(NULL), length(vmd_zero_vector), glow_rad_factor(1.0f),
+					use_ab(false), glow_noise(1.0f), rotvel(vmd_zero_vector), length(vmd_zero_vector), glow_rad_factor(1.0f),
 					secondary_glow_rad_factor(1.0f), tertiary_glow_rad_factor(1.0f), glow_length_factor(1.0f), distortion_rad_factor(1.0f), distortion_length_factor(1.0f),
 					draw_distortion(true)
 				{}
@@ -1314,7 +1312,7 @@ void model_do_dumb_rotation(int modelnum); //Bobboau
 
 int model_should_render_engine_glow(int objnum, int bank_obj);
 
-void model_interp_load_global_data(interp_data *interp);
+void model_interp_load_global_data(model_render_params *interp);
 
 void model_interp_set_clip_plane(vec3d* pos = NULL, vec3d* normal = NULL);
 

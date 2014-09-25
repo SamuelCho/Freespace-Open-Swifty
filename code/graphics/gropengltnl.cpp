@@ -858,7 +858,6 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 
 extern bool Scene_framebuffer_in_frame;
 extern GLuint Framebuffer_fallback_texture_id;
-extern int Interp_transform_texture;
 extern matrix Object_matrix;
 extern vec3d Object_position;
 extern int Interp_thrust_scale_subobj;

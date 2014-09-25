@@ -477,7 +477,7 @@ void shockwave_render(object *objp, DrawList *scene)
 	if (sw->model_id > -1) {
 		float model_Interp_scale_xyz = sw->radius / 50.0f;
 
-		interp_data interp;
+		model_render_params interp;
 
 		interp.warp_scale_x = model_Interp_scale_xyz;
 		interp.warp_scale_y = model_Interp_scale_xyz;

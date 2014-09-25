@@ -770,7 +770,7 @@ void render_one_model_nohtl(object *objp)
 		{
 			if (Fred_outline)	{
 				model_set_outline_color(Fred_outline >> 16, (Fred_outline >> 8) & 0xff, Fred_outline & 0xff);
-				model_immediate_render(Ship_info[Ships[z].ship_info_index].model_num, &objp->orient, &objp->pos, j | MR_SHOW_OUTLINE, -1, -1, Ships[z].ship_replacement_textures);
+				model_immediate_render(Ship_info[Ships[z].ship_info_index].model_num, &objp->orient, &objp->pos, j | MR_SHOW_OUTLINE | MR_NO_TEXTURING | MR_NO_LIGHTING, -1, -1, Ships[z].ship_replacement_textures);
 			} else {
 				model_immediate_render(Ship_info[Ships[z].ship_info_index].model_num, &objp->orient, &objp->pos, j, -1, -1, Ships[z].ship_replacement_textures);
 			}

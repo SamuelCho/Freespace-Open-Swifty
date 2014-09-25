@@ -330,10 +330,10 @@ void CJumpNode::Render(DrawList* scene, vec3d *pos, vec3d *view_pos)
 
 	int mr_flags = MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_NO_BATCH;
 	if(!(m_flags & JN_SHOW_POLYS)) {
-		mr_flags |= MR_NO_CULL | MR_NO_POLYS | MR_SHOW_OUTLINE | MR_SHOW_OUTLINE_HTL;
+		mr_flags |= MR_NO_CULL | MR_NO_POLYS | MR_SHOW_OUTLINE | MR_SHOW_OUTLINE_HTL | MR_NO_TEXTURING;
 	}
 
-	interp_data interp;
+	model_render_params interp;
 
 	if ( Fred_running ) {
 		interp.outline_color = m_display_color;

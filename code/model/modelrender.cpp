@@ -40,11 +40,219 @@ extern void interp_render_arc_segment( vec3d *v1, vec3d *v2, int depth );
 
 extern int Interp_thrust_scale_subobj;
 extern float Interp_thrust_scale;
-extern int Interp_transform_texture;
 
 DrawList *DrawList::Target = NULL;
 
 ModelTransformBuffer TransformBufferHandler;
+
+model_render_params::model_render_params(int model_num, matrix &orient, vec3d &pos, uint flags):
+	Model_num(model_num),
+	Orientation(orient),
+	Position(pos),
+	Model_flags(flags),
+	Objnum(-1),
+	Is_skybox(false),
+	Desaturate(false),
+	Detail_level_locked(0),
+	Depth_scale(1500.0f),
+	Warp_bitmap(-1),
+	Warp_alpha(-1.0f),
+	Xparent_alpha(1.0f),
+	Forced_bitmap(-1),
+	Replacement_textures(NULL),
+	Insignia_bitmap(-1),
+	Team_color_set(false),
+	Clip_plane_set(false),
+	Animated_effect(0),
+	Animated_timer(0.0f),
+	Thruster_info()
+{
+	Warp_scale.xyz.x = 1.0f;
+	Warp_scale.xyz.y = 1.0f;
+	Warp_scale.xyz.z = 1.0f;
+	
+	Clip_normal = vmd_zero_vector;
+	Clip_pos = vmd_zero_vector;
+}
+
+int model_render_params::get_model_number()
+{ 
+	return Model_num; 
+}
+
+const matrix& model_render_params::get_orientation()
+{ 
+	return Orientation;
+}
+
+const vec3d& model_render_params::get_position()
+{
+	return Position;
+}
+
+int model_render_params::get_model_flags()
+{
+	return Model_flags; 
+}
+
+int model_render_params::get_object_number(int num)
+{ 
+	return Objnum; 
+}
+
+int model_render_params::get_detail_level_lock(int detail_level_lock)
+{ 
+	return Detail_level_locked; 
+}
+
+float model_render_params::get_depth_scale(float scale)
+{ 
+	return Depth_scale; 
+}
+
+int model_render_params::get_warp_bitmap()
+{ 
+	return Warp_bitmap; 
+}
+
+float model_render_params::get_warp_alpha()
+{ 
+	return Warp_alpha; 
+}
+
+const vec3d& model_render_params::get_warp_scale()
+{ 
+	return Warp_scale; 
+}
+
+const color& model_render_params::get_outline_color()
+{ 
+	return Outline_color; 
+}
+float model_render_params::get_alpha()
+{ 
+	return Xparent_alpha; 
+}
+
+int model_render_params::get_forced_bitmap()
+{ 
+	return Forced_bitmap; 
+}
+
+int model_render_params::get_insignia_bitmap()
+{ 
+	return Insignia_bitmap; 
+}
+
+int* model_render_params::get_replacement_textures()
+{ 
+	return Replacement_textures; 
+}
+
+const team_color& model_render_params::get_team_color()
+{ 
+	return Current_team_color; 
+}
+
+const vec3d& model_render_params::get_clip_plane_pos()
+{ 
+	return Clip_pos; 
+}
+
+const vec3d& model_render_params::get_clip_plane_normal()
+{ 
+	return Clip_normal; 
+}
+
+int model_render_params::get_animated_effect_num()
+{ 
+	return Animated_effect; 
+}
+
+float model_render_params::get_animated_effect_timer()
+{ 
+	return Animated_timer; 
+}
+
+void model_render_params::set_animated_effect(int effect_num, float timer)
+{
+	Animated_effect = effect_num;
+	Animated_timer = timer;
+}
+
+void model_render_params::set_clip_plane(vec3d &pos, vec3d &normal)
+{
+	Clip_plane_set = true;
+
+	Clip_normal = normal;
+	Clip_pos = pos;
+}
+
+void model_render_params::set_team_color(team_color &clr)
+{
+	Team_color_set = true;
+
+	Current_team_color = clr;
+}
+
+void model_render_params::set_replacement_textures(int *textures)
+{
+	Replacement_textures = textures;
+}
+
+void model_render_params::set_insignia_bitmap(int bitmap)
+{
+	Insignia_bitmap = bitmap;
+}
+
+void model_render_params::set_forced_bitmap(int bitmap)
+{
+	Forced_bitmap = bitmap;
+}
+
+void model_render_params::set_alpha(float alpha)
+{
+	Xparent_alpha = alpha;
+}
+
+void model_render_params::set_outline_color(color &clr)
+{
+	Outline_color = clr;
+}
+
+void model_render_params::set_warp_params(int bitmap, float alpha, vec3d &scale)
+{
+	Warp_bitmap = bitmap;
+	Warp_alpha = alpha;
+	Warp_scale = scale;
+}
+
+void model_render_params::set_depth_scale(float scale)
+{
+	Depth_scale = scale;
+}
+
+void model_render_params::set_object_number(int num)
+{
+	Objnum = num;
+}
+
+void model_render_params::set_detail_level_lock(int detail_level_lock)
+{
+	Detail_level_locked = detail_level_lock;
+}
+
+void model_render_params::set_thruster_info(mst_info &info)
+{
+	Thruster_info = info;
+
+	CLAMP(Thruster_info.length.xyz.z, 0.1f, 1.0f);
+}
+
+const mst_info& model_render_params::get_thruster_info()
+{
+	return Thruster_info;
+}
 
 void ModelTransformBuffer::reset()
 {
@@ -239,7 +447,7 @@ void DrawList::setClipPlane(vec3d *position, vec3d *normal)
 	current_render_state.clip_plane_handle = clip_planes.size() - 1;
 }
 
-void DrawList::addBufferDraw(vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp)
+void DrawList::addBufferDraw(vertex_buffer *buffer, int texi, uint tmap_flags, model_render_params *interp)
 {
 	// need to do a check to see if the top render state matches the current.
 	//if ( dirty_render_state ) {
@@ -410,7 +618,6 @@ void DrawList::renderBuffer(queued_buffer_draw &render_elements)
 	NORMMAP = -1;
 	HEIGHTMAP = -1;
 	MISCMAP = -1;
-	Interp_transform_texture = -1;
 
 	gr_pop_scale_matrix();
 
@@ -748,7 +955,7 @@ bool DrawList::sortDrawPair(const int a, const int b)
 	return render_state_a->lights.index_start < render_state_b->lights.index_start;
 }
 
-void model_queue_render_lightning( DrawList *scene, interp_data* interp, polymodel *pm, bsp_info * sm )
+void model_queue_render_lightning( DrawList *scene, model_render_params* interp, polymodel *pm, bsp_info * sm )
 {
 	int i;
 	float width = 0.9f;
@@ -886,7 +1093,7 @@ int model_queue_render_determine_detail(int obj_num, int model_num, matrix* orie
 	}
 }
 
-void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel *pm, int mn, bool is_child)
+void model_queue_render_buffers(DrawList* scene, model_render_params* interp, polymodel *pm, int mn, int detail_level, uint tmap_flags)
 {
 	if ( pm->vertex_buffer_id < 0 ) {
 		return;
@@ -895,47 +1102,18 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 	vertex_buffer *buffer;
 	bsp_info *model = NULL;
 
-	Assert(interp->detail_level >= 0);
+	Assert(detail_level >= 0);
 
 	if ( (mn < 0) || (mn >= pm->n_models) ) {
-		if ( interp->thrust_scale_subobj ) {
-			buffer = &pm->thruster_buffers[interp->detail_level];
-		} else {
-			buffer = &pm->detail_buffers[interp->detail_level];
-		}
+		buffer = &pm->detail_buffers[detail_level];
 	} else {
 		model = &pm->submodel[mn];
 		buffer = &model->buffer;
-
-		// if using detail boxes or spheres, check that we are valid for the range
-		if ( !is_child && !( interp->flags & MR_FULL_DETAIL ) && model->use_render_box ) {
-			vm_vec_copy_scale(&interp->render_box_min, &model->render_box_min, interp->box_scale);
-			vm_vec_copy_scale(&interp->render_box_max, &model->render_box_max, interp->box_scale);
-
-			vec3d view_pos = scene->getViewPosition();
-
-			if ( (-model->use_render_box + in_box(&interp->render_box_min, &interp->render_box_max, &model->offset, &view_pos)) )
-				return;
-		}
-		if ( !is_child && !( interp->flags & MR_FULL_DETAIL ) && model->use_render_sphere ) {
-			interp->render_sphere_radius = model->render_sphere_radius * interp->box_scale;
-
-			// TODO: doesn't consider submodel rotations yet -zookeeper
-			vec3d offset;
-			model_find_submodel_offset(&offset, pm->id, mn);
-			vm_vec_add2(&offset, &model->render_sphere_offset);
-
-			vec3d view_pos = scene->getViewPosition();
-
-			if ( -model->use_render_sphere + in_sphere(&offset, interp->render_sphere_radius, &view_pos) ) {
-				return;
-			}
-		}
 	}
 
 	vec3d scale;
 
-	if ( interp->thrust_scale_subobj ) {
+	if ( model != NULL && model->is_thruster && (interp->get_model_flags() & MR_SHOW_THRUSTERS) ) {
 		scale.xyz.x = 1.0f;
 		scale.xyz.y = 1.0f;
 
@@ -943,20 +1121,20 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 			// since thruster scaling is done in the shader, no need to transform using the api
 			scale.xyz.z = 1.0f;
 		} else {
-			scale.xyz.z = interp->thrust_scale;
+			scale.xyz.z = interp->get_thruster_info().length.xyz.z;
 		}
 	} else {
-		scale.xyz.x = interp->warp_scale_x;
-		scale.xyz.y = interp->warp_scale_y;
-		scale.xyz.z = interp->warp_scale_z;
+		scale = interp->get_warp_scale();
 	}
 
 	scene->setScale(&scale);
 
-	if ( interp->tmap_flags & TMAP_FLAG_BATCH_TRANSFORMS && (mn >= 0) && (mn < pm->n_models) ) {
+	if ( tmap_flags & TMAP_FLAG_BATCH_TRANSFORMS && (mn >= 0) && (mn < pm->n_models) ) {
 		scene->setModelTransformBuffer(mn);
 		return;
 	}
+
+	fix base_frametime = model_render_determine_base_frametime(interp);
 
 	texture_info tex_replace[TM_NUM_TYPES];
 
@@ -1041,7 +1219,7 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 				}
 			}
 
-			if ( (Detail.lighting > 2)  && (interp->detail_level < 2) ) {
+			if ( (Detail.lighting > 2)  && (detail_level < 2) ) {
 				// likewise, etc.
 				texture_info *spec_map = &tmap->textures[TM_SPECULAR_TYPE];
 				texture_info *norm_map = &tmap->textures[TM_NORMAL_TYPE];
@@ -1128,11 +1306,11 @@ void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel 
 		scene->setTexture(TM_HEIGHT_TYPE, texture_maps[TM_HEIGHT_TYPE]);
 		scene->setTexture(TM_MISC_TYPE,	texture_maps[TM_MISC_TYPE]);
 
-		scene->addBufferDraw(buffer, i, interp->tmap_flags, interp);
+		scene->addBufferDraw(buffer, i, tmap_flags, interp);
 	}
 }
 
-void model_queue_render_children_buffers(DrawList* scene, interp_data* interp, polymodel* pm, int mn, int detail_level)
+void model_queue_render_children_buffers(DrawList* scene, model_render_params* interp, polymodel* pm, int mn, int detail_level, uint tmap_flags)
 {
 	int i;
 
@@ -1146,45 +1324,20 @@ void model_queue_render_children_buffers(DrawList* scene, interp_data* interp, p
 	if (model->blown_off)
 		return;
 
-	uint fl = interp->flags;
+	const uint model_flags = interp->get_model_flags();
 
 	if (model->is_thruster) {
-		if ( !( interp->flags & MR_SHOW_THRUSTERS ) ) {
+		if ( !( model_flags & MR_SHOW_THRUSTERS ) ) {
 			return;
 		}
 
-		interp->flags |= MR_NO_LIGHTING;
-		interp->thrust_scale_subobj = 1;
 		scene->setLighting(false);
-	} else {
-		interp->thrust_scale_subobj = 0;
 	}
 
-	// if using detail boxes or spheres, check that we are valid for the range
-	if ( !( interp->flags & MR_FULL_DETAIL ) && model->use_render_box ) {
-		vm_vec_copy_scale(&interp->render_box_min, &model->render_box_min, interp->box_scale);
-		vm_vec_copy_scale(&interp->render_box_max, &model->render_box_max, interp->box_scale);
+	vec3d view_pos = scene->getViewPosition();
 
-		vec3d view_pos = scene->getViewPosition();
-
-		if ( (-model->use_render_box + in_box(&interp->render_box_min, &interp->render_box_max, &model->offset, &view_pos)) ) {
-			return;
-		}
-	}
-
-	if ( !(interp->flags & MR_FULL_DETAIL) && model->use_render_sphere ) {
-		interp->render_sphere_radius = model->render_sphere_radius * interp->box_scale;
-
-		// TODO: doesn't consider submodel rotations yet -zookeeper
-		vec3d offset;
-		model_find_submodel_offset(&offset, pm->id, mn);
-		vm_vec_add2(&offset, &model->render_sphere_offset);
-
-		vec3d view_pos = scene->getViewPosition();
-
-		if ( (-model->use_render_sphere + in_sphere(&offset, interp->render_sphere_radius, &view_pos)) ) {
-			return;
-		}
+	if ( !model_render_check_detail_box(&view_pos, pm, mn, model_flags) ) {
+		return;
 	}
 
 	// Get submodel rotation data and use submodel orientation matrix
@@ -1219,7 +1372,7 @@ void model_queue_render_children_buffers(DrawList* scene, interp_data* interp, p
 
 	scene->pushTransform(&model->offset, &submodel_matrix);
 
-	model_queue_render_buffers(scene, interp, pm, mn, true);
+	model_queue_render_buffers(scene, interp, pm, mn, detail_level, tmap_flags);
 
 	if ( model->num_arcs ) {
 		model_queue_render_lightning( scene, interp, pm, &pm->submodel[mn] );
@@ -1229,26 +1382,20 @@ void model_queue_render_children_buffers(DrawList* scene, interp_data* interp, p
 
 	while ( i >= 0 ) {
 		if ( !pm->submodel[i].is_thruster ) {
-			model_queue_render_children_buffers( scene, interp, pm, i, detail_level );
+			model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags );
 		}
 
 		i = pm->submodel[i].next_sibling;
 	}
 
-	interp->flags = fl;
-
-	if ( interp->thrust_scale_subobj ) {
-		interp->thrust_scale_subobj = 0;
-
-		if ( !( interp->flags & MR_NO_LIGHTING ) ) {
-			scene->setLighting(true);
-		}
+	if ( model->is_thruster ) {
+		scene->setLighting(true);
 	}
 
 	scene->popTransform();
 }
 
-float model_queue_render_determine_light(interp_data* interp, vec3d *pos, uint flags)
+float model_queue_render_determine_light(model_render_params* interp, vec3d *pos, uint flags)
 {
 	if ( flags & MR_NO_LIGHTING ) {
 		return 1.0f;
@@ -1274,60 +1421,115 @@ float model_queue_render_determine_light(interp_data* interp, vec3d *pos, uint f
 	}
 }
 
-void model_render_set_clip_plane(interp_data *interp, vec3d *pos, vec3d *normal)
+float model_render_determine_box_scale()
 {
-	if ( pos == NULL || normal == NULL ) {
-		interp->clip_plane = false;
-		return;
+	float box_scale = 1.2f;
+
+	// scale the render box settings based on the "Model Detail" slider
+	switch ( Detail.detail_distance ) {
+	case 0:		// 1st dot is 20%
+		box_scale = 0.2f;
+		break;
+	case 1:		// 2nd dot is 50%
+		box_scale = 0.5f;
+		break;
+	case 2:		// 3rd dot is 80%
+		box_scale = 0.8f;
+		break;
+	case 3:		// 4th dot is 100% (this is the default setting for "High" and "Very High" settings)
+		box_scale = 1.0f;
+		break;
+	case 4:		// 5th dot (max) is 120%
+	default:
+		box_scale = 1.2f;
+		break;
 	}
 
-	interp->clip_plane = true;
-	interp->clip_pos = *pos;
-	interp->clip_normal = *normal;
+	return box_scale;
 }
 
-void model_render_set_thrust(interp_data *interp, int model_num, mst_info *mst)
+float model_render_determine_base_frametime(model_render_params *interp)
 {
-	if (mst == NULL) {
-		Int3();
-		return;
+	// Goober5000
+	fix base_frametime = 0;
+	int objnum = interp->get_object_number();
+
+	if ( objnum >= 0 ) {
+		object *objp = &Objects[objnum];
+
+		if ( objp->type == OBJ_SHIP ) {
+			base_frametime = Ships[objp->instance].base_texture_anim_frametime;
+		}
+	} else if ( is_skybox ) {
+		base_frametime = Skybox_timestamp;
 	}
 
-	interp->thrust_scale = mst->length.xyz.z;
-	interp->thrust_scale_x = mst->length.xyz.x;
-	interp->thrust_scale_y = mst->length.xyz.y;
+	return base_frametime;
+}
 
-	CLAMP(Interp_thrust_scale, 0.1f, 1.0f);
-
-	interp->thrust_bitmap = mst->primary_bitmap;
-	interp->thrust_glow_bitmap = mst->primary_glow_bitmap;
-	interp->secondary_thrust_glow_bitmap = mst->secondary_glow_bitmap;
-	interp->tertiary_thrust_glow_bitmap = mst->tertiary_glow_bitmap;
-	interp->distortion_thrust_bitmap = mst->distortion_bitmap;
-
-	interp->thrust_glow_noise = mst->glow_noise;
-	interp->afterburner = mst->use_ab;
-
-	if (mst->rotvel != NULL) {
-		interp->thrust_rotvel = *(mst->rotvel);
-	} else {
-		vm_vec_zero(&interp->thrust_rotvel);
+bool model_render_determine_autocenter(vec3d *auto_back, polymodel *pm, int detail_level, uint flags)
+{
+	if ( flags & MR_AUTOCENTER ) {
+		// standard autocenter using data in model
+		if ( pm->flags & PM_FLAG_AUTOCEN ) {
+			*auto_back = pm->autocenter;
+			vm_vec_scale(auto_back, -1.0f);
+			return true;
+		} else if ( flags & MR_IS_MISSILE ) {
+			// fake autocenter if we are a missile and don't already have autocen info
+			auto_back->xyz.x = -( (pm->submodel[pm->detail[detail_level]].max.xyz.x + pm->submodel[pm->detail[detail_level]].min.xyz.x) / 2.0f );
+			auto_back->xyz.y = -( (pm->submodel[pm->detail[detail_level]].max.xyz.y + pm->submodel[pm->detail[detail_level]].min.xyz.y) / 2.0f );
+			auto_back->xyz.z = -( (pm->submodel[pm->detail[detail_level]].max.xyz.z + pm->submodel[pm->detail[detail_level]].min.xyz.z) / 2.0f );
+			return true;
+		}
 	}
 
-	interp->thrust_glow_rad_factor = mst->glow_rad_factor;
-	interp->secondary_thrust_glow_rad_factor = mst->secondary_glow_rad_factor;
-	interp->tertiary_thrust_glow_rad_factor = mst->tertiary_glow_rad_factor;
-	interp->thrust_glow_len_factor = mst->glow_length_factor;
-	interp->distortion_thrust_rad_factor = mst->distortion_rad_factor;
-	interp->distortion_thrust_length_factor = mst->distortion_length_factor;
+	return false;
+}
 
-	interp->draw_distortion = mst->draw_distortion;
+bool model_render_check_detail_box(vec3d *view_pos, polymodel *pm, int submodel_num, uint flags)
+{
+	Assert(pm != NULL);
+
+	bsp_info *model = &pm->submodel[submodel_num];
+
+	float box_scale = model_render_determine_box_scale();
+
+	if ( !( flags & MR_FULL_DETAIL ) && model->use_render_box ) {
+		vec3d box_min, box_max;
+
+		vm_vec_copy_scale(&box_min, &model->render_box_min, box_scale);
+		vm_vec_copy_scale(&box_max, &model->render_box_max, box_scale);
+
+		if ( (-model->use_render_box + in_box(&box_min, &box_max, &model->offset, view_pos)) ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	if ( !(flags & MR_FULL_DETAIL) && model->use_render_sphere ) {
+		float sphere_radius = model->render_sphere_radius * box_scale;
+
+		// TODO: doesn't consider submodel rotations yet -zookeeper
+		vec3d offset;
+		model_find_submodel_offset(&offset, pm->id, submodel_num);
+		vm_vec_add2(&offset, &model->render_sphere_offset);
+
+		if ( (-model->use_render_sphere + in_sphere(&offset, sphere_radius, view_pos)) ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	return true;
 }
 
 void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures)
 {
 	DrawList model_list;
-	interp_data interp;
+	model_render_params interp;
 
 	model_interp_load_global_data(&interp);
 	
@@ -1349,7 +1551,7 @@ void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, 
 	gr_set_lighting(false, false);
 }
 
-void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures)
+void submodel_queue_render(model_render_params *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures)
 {
 	// replacement textures - Goober5000
 	interp->new_replacement_textures = replacement_textures;
@@ -1414,37 +1616,21 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 	//set to true since D3d and OGL need the api matrices set
 	scene->pushTransform(pos, orient);
 
-	bool set_autocen = false;
+	
 	vec3d auto_back = ZERO_VECTOR;
+	bool set_autocen = model_render_determine_autocenter(&auto_back, pm, interp->Detail_level_locked, interp->flags);
 
-	if ( interp->flags & MR_AUTOCENTER ) {
-		// standard autocenter using data in model
-		if ( pm->flags & PM_FLAG_AUTOCEN ) {
-			auto_back = pm->autocenter;
-			vm_vec_scale(&auto_back, -1.0f);
-			set_autocen = true;
-		} else if ( interp->flags & MR_IS_MISSILE ) {
-			// fake autocenter if we are a missile and don't already have autocen info
-			auto_back.xyz.x = -( (pm->submodel[pm->detail[interp->detail_level]].max.xyz.x + pm->submodel[pm->detail[interp->detail_level]].min.xyz.x) / 2.0f );
-			auto_back.xyz.y = -( (pm->submodel[pm->detail[interp->detail_level]].max.xyz.y + pm->submodel[pm->detail[interp->detail_level]].min.xyz.y) / 2.0f );
-			auto_back.xyz.z = -( (pm->submodel[pm->detail[interp->detail_level]].max.xyz.z + pm->submodel[pm->detail[interp->detail_level]].min.xyz.z) / 2.0f );
-			set_autocen = true;
-		}
-
-		if ( set_autocen ) {
-			scene->pushTransform(&auto_back, NULL);
-		}
+	if ( set_autocen ) {
+		scene->pushTransform(&auto_back, NULL);
 	}
 
 	if (is_outlines_only_htl) {
 		scene->setFillMode(GR_FILL_MODE_WIRE);
 
-		// lines shouldn't be rendered with textures or special RGB colors (assuming preset colors)
-		interp->flags |= MR_NO_TEXTURING;
-		interp->tmap_flags &= ~TMAP_FLAG_TEXTURED;
+		color outline_color = interp->get_outline_color();
+		gr_set_color_fast( &outline_color );
+
 		interp->tmap_flags &= ~TMAP_FLAG_RGB;
-		// don't render with lighting either
-		interp->flags |= MR_NO_LIGHTING;
 	} else {
 		scene->setFillMode(GR_FILL_MODE_SOLID);
 	}
@@ -1496,8 +1682,12 @@ void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, 
 
 	scene->setBuffer(pm->vertex_buffer_id);
 
-	model_queue_render_buffers(scene, interp, pm, submodel_num);
+	vec3d view_pos = scene->getViewPosition();
 
+	if ( model_render_check_detail_box(&view_pos, pm, submodel_num, interp->flags) ) {
+		model_queue_render_buffers(scene, interp, pm, submodel_num, 0);
+	}
+	
 	if ( pm->submodel[submodel_num].num_arcs )	{
 		//model_queue_render_lightning( scene, interp, pm, &pm->submodel[submodel_num] );
 	}
@@ -1892,7 +2082,7 @@ void model_queue_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, 
 	gr_set_cull(cull);
 }
 
-void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum, ship *shipp, matrix *orient, vec3d *pos)
+void model_queue_render_thrusters(model_render_params *interp, polymodel *pm, int objnum, ship *shipp, matrix *orient, vec3d *pos)
 {
 	int i, j;
 	int n_q = 0;
@@ -1911,7 +2101,7 @@ void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum
 		return;
 	}
 
-	if ( !(interp->flags & MR_SHOW_THRUSTERS) ) {
+	if ( !(interp->get_model_flags() & MR_SHOW_THRUSTERS) ) {
 		return;
 	}
 
@@ -1925,18 +2115,20 @@ void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum
 		return;
 	}
 
+	const mst_info& thruster_info = interp->get_thruster_info();
+
 	// primary_thruster_batcher
-	if (interp->thrust_glow_bitmap >= 0) {
+	if (thruster_info.primary_glow_bitmap >= 0) {
 		do_render = true;
 	}
 
 	// secondary_thruster_batcher
-	if (interp->secondary_thrust_glow_bitmap >= 0) {
+	if (thruster_info.secondary_glow_bitmap >= 0) {
 		do_render = true;
 	}
 
 	// tertiary_thruster_batcher
-	if (interp->tertiary_thrust_glow_bitmap >= 0) {
+	if (thruster_info.tertiary_glow_bitmap >= 0) {
 		do_render = true;
 	}
 
@@ -1949,8 +2141,8 @@ void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum
 	norm.xyz.z = -1.0f;
 	norm.xyz.x = 1.0f;
 	norm.xyz.y = -1.0f;
-	norm.xyz.x *= interp->thrust_rotvel.xyz.y/2;
-	norm.xyz.y *= interp->thrust_rotvel.xyz.x/2;
+	norm.xyz.x *= thruster_info.rotvel.xyz.y/2;
+	norm.xyz.y *= thruster_info.rotvel.xyz.x/2;
 	vm_vec_normalize(&norm);
 
 	for (i = 0; i < pm->n_thrusters; i++ ) {
@@ -2043,9 +2235,9 @@ void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum
 				vm_vec_copy_normalize(&scale_vec, &world_norm);
 
 			// adjust for thrust
-			(scale_vec.xyz.x *= interp->thrust_scale_x) -= 0.1f;
-			(scale_vec.xyz.y *= interp->thrust_scale_y) -= 0.1f;
-			(scale_vec.xyz.z *= interp->thrust_scale)   -= 0.1f;
+			(scale_vec.xyz.x *= thruster_info.length.xyz.x) -= 0.1f;
+			(scale_vec.xyz.y *= thruster_info.length.xyz.y) -= 0.1f;
+			(scale_vec.xyz.z *= thruster_info.length.xyz.z)   -= 0.1f;
 
 			// get magnitude, which we will use as the scaling reference
 			magnitude = vm_vec_normalize(&scale_vec);
@@ -2082,7 +2274,7 @@ void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum
 					d = 1.0f;
 			}
 
-			float w = gpt->radius * (scale + interp->thrust_glow_noise * NOISE_SCALE);
+			float w = gpt->radius * (scale + thruster_info.glow_noise * NOISE_SCALE);
 
 			// these lines are used by the tertiary glows, thus we will need to project this all of the time
 			if (Cmdline_nohtl) {
@@ -2092,36 +2284,36 @@ void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum
 			}
 
 			// start primary thruster glows
-			if ( (interp->thrust_glow_bitmap >= 0) && (d > 0.0f) ) {
+			if ( (thruster_info.primary_glow_bitmap >= 0) && (d > 0.0f) ) {
 				p.r = p.g = p.b = p.a = (ubyte)(255.0f * d);
 				batch_add_bitmap(
-					interp->thrust_glow_bitmap, 
+					thruster_info.primary_glow_bitmap, 
 					TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD, 
 					&p,
 					0,
-					(w * 0.5f * interp->thrust_glow_rad_factor),
+					(w * 0.5f * thruster_info.glow_rad_factor),
 					1.0f,
 					(w * 0.325f)
 					);
 			}
 
 			// start tertiary thruster glows
-			if (interp->tertiary_thrust_glow_bitmap >= 0) {
+			if (thruster_info.tertiary_glow_bitmap >= 0) {
 				p.screen.xyw.w -= w;
 				p.r = p.g = p.b = p.a = (ubyte)(255.0f * fog_int);
 				batch_add_bitmap_rotated(
-					interp->tertiary_thrust_glow_bitmap,
+					thruster_info.tertiary_glow_bitmap,
 					TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_HTL_3D_UNLIT | TMAP_FLAG_SOFT_QUAD,
 					&p,
 					(magnitude * 4),
-					(w * 0.6f * interp->tertiary_thrust_glow_rad_factor),
+					(w * 0.6f * thruster_info.tertiary_glow_rad_factor),
 					1.0f,
 					(-(D > 0) ? D : -D)
 					);
 			}
 
 			// begin secondary glows
-			if (interp->secondary_thrust_glow_bitmap >= 0) {
+			if (thruster_info.secondary_glow_bitmap >= 0) {
 				pnt = world_pnt;
 				scale = magnitude * (MAX_SCALE - (MIN_SCALE / 2)) + (MIN_SCALE / 2);
 				vm_vec_unrotate(&world_norm, &norm, orient);
@@ -2139,31 +2331,31 @@ void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum
 
 					float wVal = gpt->radius * scale * 2;
 
-					vm_vec_scale_add(&norm2, &pnt, &fvec, wVal * 2 * interp->thrust_glow_len_factor);
+					vm_vec_scale_add(&norm2, &pnt, &fvec, wVal * 2 * thruster_info.glow_length_factor);
 
 					if (The_mission.flags & MISSION_FLAG_FULLNEB) {
 						vm_vec_add(&npnt, &pnt, pos);
 						d *= fog_int;
 					}
 
-					batch_add_beam(interp->secondary_thrust_glow_bitmap,
+					batch_add_beam(thruster_info.secondary_glow_bitmap,
 						TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT,
-						&pnt, &norm2, wVal*interp->secondary_thrust_glow_rad_factor*0.5f, d
+						&pnt, &norm2, wVal*thruster_info.secondary_glow_rad_factor*0.5f, d
 						);
-					if (Scene_framebuffer_in_frame && interp->draw_distortion) {
-						vm_vec_scale_add(&norm2, &pnt, &fvec, wVal * 2 * interp->distortion_thrust_length_factor);
+					if (Scene_framebuffer_in_frame && thruster_info.draw_distortion) {
+						vm_vec_scale_add(&norm2, &pnt, &fvec, wVal * 2 * thruster_info.distortion_length_factor);
 						int dist_bitmap;
-						if (interp->distortion_thrust_bitmap > 0) {
-							dist_bitmap = interp->distortion_thrust_bitmap;
+						if (thruster_info.distortion_bitmap > 0) {
+							dist_bitmap = thruster_info.distortion_bitmap;
 						}
 						else {
-							dist_bitmap = interp->secondary_thrust_glow_bitmap;
+							dist_bitmap = thruster_info.secondary_glow_bitmap;
 						}
 						float mag = vm_vec_mag(&gpt->pnt); 
 						mag -= (float)((int)mag);//Valathil - Get a fairly random but constant number to offset the distortion texture
 						distortion_add_beam(dist_bitmap,
 							TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT | TMAP_FLAG_DISTORTION_THRUSTER | TMAP_FLAG_SOFT_QUAD,
-							&pnt, &norm2, wVal*interp->distortion_thrust_rad_factor*0.5f, 1.0f, mag
+							&pnt, &norm2, wVal*thruster_info.distortion_rad_factor*0.5f, 1.0f, mag
 							);
 					}
 				}
@@ -2176,13 +2368,13 @@ void model_queue_render_thrusters(interp_data *interp, polymodel *pm, int objnum
 				thruster_particles *tp;
 				size_t num_particles = 0;
 
-				if (interp->afterburner)
+				if (thruster_info.use_ab)
 					num_particles = sip->afterburner_thruster_particles.size();
 				else
 					num_particles = sip->normal_thruster_particles.size();
 
 				for (k = 0; k < num_particles; k++) {
-					if (interp->afterburner)
+					if (thruster_info.use_ab)
 						tp = &sip->afterburner_thruster_particles[k];
 					else
 						tp = &sip->normal_thruster_particles[k];
@@ -2375,7 +2567,7 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 {
 	DrawList model_list;
 
-	interp_data interp;
+	model_render_params interp;
 
 	model_list.init();
 
@@ -2418,34 +2610,43 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 	model_debug_render(model_num, orient, pos, flags, objnum, interp.detail_level_locked);
 }
 
-void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int model_instance_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures, const bool is_skybox)
+void model_queue_render(model_render_params *interp, DrawList *scene)
 {
 	int i;
 	int cull = 0;
-	// replacement textures - Goober5000
-	interp->new_replacement_textures = replacement_textures;
+
+	const int model_num = interp->get_model_number();
+	matrix orient = interp->get_orientation();
+	vec3d pos = interp->get_position();
+	const int objnum = interp->get_object_number();
+	const int model_flags = interp->get_model_flags();
 
 	polymodel *pm = model_get(model_num);
 	polymodel_instance * pmi = NULL;
 
 	model_do_dumb_rotation(model_num);
 
-	if ( interp->clip_plane ) {
-		scene->setClipPlane(&interp->clip_pos, &interp->clip_normal);
+	if ( interp->is_clip_plane_set() ) {
+		vec3d clip_pos = interp->get_clip_plane_pos();
+		vec3d clip_normal = interp->get_clip_plane_normal();
+
+		scene->setClipPlane(&clip_pos, &clip_normal);
 	} else {
 		scene->setClipPlane();
 	}
 
-	if ( interp->team_color_set ) {
-		scene->setTeamColor(&interp->current_team_color);
+	if ( interp->is_team_color_set() ) {
+		team_color model_team_color = interp->get_team_color();
+
+		scene->setTeamColor(&model_team_color);
 	} else {
 		scene->setTeamColor();
 	}
 
-	scene->setAnimatedEffect(interp->animated_effect);
-	scene->setAnimatedTimer(interp->animated_timer);
+	scene->setAnimatedEffect(interp->get_animated_effect_num());
+	scene->setAnimatedTimer(interp->get_animated_effect_timer());
 
-	if ( flags & MR_FORCE_CLAMP ) {
+	if ( model_flags & MR_FORCE_CLAMP ) {
 		scene->setTextureAddressing(TMAP_ADDRESS_CLAMP);
 	} else {
 		scene->setTextureAddressing(TMAP_ADDRESS_WRAP);
@@ -2453,13 +2654,11 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 
 	model_queue_render_set_glow_points(pm, objnum);
 
-	if ( !(flags & MR_NO_LIGHTING) ) {
-		scene->setLightFilter( objnum, pos, pm->rad );
+	if ( !(model_flags & MR_NO_LIGHTING) ) {
+		scene->setLightFilter( objnum, &pos, pm->rad );
 	}
 
-	interp->objnum = objnum;
-
-	scene->setLightFactor(model_queue_render_determine_light(interp, pos, flags));
+	scene->setLightFactor(model_queue_render_determine_light(interp, &pos, flags));
 
 	ship *shipp = NULL;
 	object *objp = NULL;
@@ -2478,14 +2677,8 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 		}
 	}
 
-	interp->orient = *orient;
-	interp->pos = *pos;
-
 	int tmp_detail_level = Game_detail_level;
-
-	// Turn off engine effect
-	interp->thrust_scale_subobj = 0;
-
+	
 	if ( !Model_texturing )
 		flags |= MR_NO_TEXTURING;
 
@@ -2493,41 +2686,39 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 		flags |= MR_NO_POLYS;
 	}
 
-	interp->flags = flags;
-
 	// Set the flags we will pass to the tmapper
-	interp->tmap_flags = TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB;
+	uint tmap_flags = TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB;
 
 	// if we're in nebula mode, fog everything except for the warp holes and other non-fogged models
 	if((The_mission.flags & MISSION_FLAG_FULLNEB) && (Neb2_render_mode != NEB2_RENDER_NONE) && !(flags & MR_NO_FOGGING)){
-		interp->tmap_flags |= TMAP_FLAG_PIXEL_FOG;
+		tmap_flags |= TMAP_FLAG_PIXEL_FOG;
 	}
-
-	if ( !(interp->flags & MR_NO_TEXTURING) )	{
-		interp->tmap_flags |= TMAP_FLAG_TEXTURED;
+	
+	if ( !(model_flags & MR_NO_TEXTURING) )	{
+		tmap_flags |= TMAP_FLAG_TEXTURED;
 
 		if ( (pm->flags & PM_FLAG_ALLOW_TILING) && tiling)
-			interp->tmap_flags |= TMAP_FLAG_TILED;
+			tmap_flags |= TMAP_FLAG_TILED;
 
-		if ( !(interp->flags & MR_NO_CORRECT) )	{
-			interp->tmap_flags |= TMAP_FLAG_CORRECT;
+		if ( !(model_flags & MR_NO_CORRECT) )	{
+			tmap_flags |= TMAP_FLAG_CORRECT;
 		}
 	}
 
-	if ( interp->flags & MR_ANIMATED_SHADER )
-		interp->tmap_flags |= TMAP_ANIMATED_SHADER;
+	if ( model_flags & MR_ANIMATED_SHADER )
+		tmap_flags |= TMAP_ANIMATED_SHADER;
 
 	if ( interp->desaturate ) {
-		interp->tmap_flags |= TMAP_FLAG_DESATURATE;
+		tmap_flags |= TMAP_FLAG_DESATURATE;
 	}
 
 	bool is_outlines_only = (flags & MR_NO_POLYS) && ((flags & MR_SHOW_OUTLINE_PRESET) || (flags & MR_SHOW_OUTLINE));
 	bool is_outlines_only_htl = !Cmdline_nohtl && (flags & MR_NO_POLYS) && (flags & MR_SHOW_OUTLINE_HTL);
 	bool use_api = !is_outlines_only_htl || (gr_screen.mode == GR_OPENGL);
 
-	scene->pushTransform(pos, orient);
+	scene->pushTransform(&pos, &orient);
 
-	interp->detail_level = model_queue_render_determine_detail(objnum, model_num, orient, pos, flags, interp->detail_level_locked);
+	int detail_level = model_queue_render_determine_detail(objnum, model_num, &orient, &pos, flags, interp->get_detail_level_lock());
 
 // #ifndef NDEBUG
 // 	if ( Interp_detail_level == 0 )	{
@@ -2538,51 +2729,15 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 // 		MONITOR_INC( NumMedModelsRend, 1 );
 // 	}
 // #endif
-
-	// scale the render box settings based on the "Model Detail" slider
-	switch ( Detail.detail_distance ) {
-	case 0:		// 1st dot is 20%
-		interp->box_scale = 0.2f;
-		break;
-	case 1:		// 2nd dot is 50%
-		interp->box_scale = 0.5f;
-		break;
-	case 2:		// 3rd dot is 80%
-		interp->box_scale = 0.8f;
-		break;
-	case 3:		// 4th dot is 100% (this is the default setting for "High" and "Very High" settings)
-		interp->box_scale = 1.0f;
-		break;
-	case 4:		// 5th dot (max) is 120%
-		interp->box_scale = 1.2f;
-		break;
-	}
-
+	
 	vec3d auto_back = ZERO_VECTOR;
-	bool set_autocen = false;
-
-	if ( interp->flags & MR_AUTOCENTER ) {
-		// standard autocenter using data in model
-		if (pm->flags & PM_FLAG_AUTOCEN) {
-			auto_back = pm->autocenter;
-			vm_vec_scale(&auto_back, -1.0f);
-			set_autocen = true;
-		} else if ( interp->flags & MR_IS_MISSILE ) {
-			// fake autocenter if we are a missile and don't already have autocen info
-			auto_back.xyz.x = -( (pm->submodel[pm->detail[interp->detail_level]].max.xyz.x + pm->submodel[pm->detail[interp->detail_level]].min.xyz.x) / 2.0f );
-			auto_back.xyz.y = -( (pm->submodel[pm->detail[interp->detail_level]].max.xyz.y + pm->submodel[pm->detail[interp->detail_level]].min.xyz.y) / 2.0f );
-			auto_back.xyz.z = -( (pm->submodel[pm->detail[interp->detail_level]].max.xyz.z + pm->submodel[pm->detail[interp->detail_level]].min.xyz.z) / 2.0f );
-			set_autocen = true;
-		}
-
-		if ( set_autocen ) {
-			scene->pushTransform(&auto_back, NULL);
-		}
+	bool set_autocen = model_render_determine_autocenter(&auto_back, pm, detail_level, model_flags);
+	
+	if ( set_autocen ) {
+		scene->pushTransform(&auto_back, NULL);
 	}
 
-	//gr_zbias(1);
-
-	if ( interp->tmap_flags & TMAP_FLAG_PIXEL_FOG ) {
+	if ( tmap_flags & TMAP_FLAG_PIXEL_FOG ) {
 		float fog_near = 10.0f, fog_far = 1000.0f;
 		neb2_get_adjusted_fog_values(&fog_near, &fog_far, objp);
 
@@ -2596,52 +2751,30 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 
 	if ( is_outlines_only_htl ) {
 		scene->setFillMode(GR_FILL_MODE_WIRE);
-		gr_set_color_fast( &interp->outline_color );
-		// lines shouldn't be rendered with textures or special RGB colors (assuming preset colors)
-		interp->flags |= MR_NO_TEXTURING;
-		interp->tmap_flags &= ~TMAP_FLAG_TEXTURED;
-		interp->tmap_flags &= ~TMAP_FLAG_RGB;
-		// don't render with lighting either
-		interp->flags |= MR_NO_LIGHTING;
+
+		color outline_color = interp->get_outline_color();
+		gr_set_color_fast( &outline_color );
+
+		tmap_flags &= ~TMAP_FLAG_RGB;
 	} else {
 		scene->setFillMode(GR_FILL_MODE_SOLID);
 	}
-
-	// set team colors
-	if ( interp->team_color_set ) {
-		scene->setTeamColor(&interp->current_team_color);
-	} else {
-		scene->setTeamColor(NULL);
-	}
-	
-	if ( interp->flags & MR_EDGE_ALPHA ) {
+		
+	if ( model_flags & MR_EDGE_ALPHA ) {
 		scene->setCenterAlpha(-1);
-	} else if ( interp->flags & MR_CENTER_ALPHA ) {
+	} else if ( model_flags & MR_CENTER_ALPHA ) {
 		scene->setCenterAlpha(1);
 	} else {
 		scene->setCenterAlpha(0);
 	}
 
-	if ( ( interp->flags & MR_NO_CULL ) || ( interp->flags & MR_ALL_XPARENT ) || ( interp->warp_bitmap >= 0 ) ) {
+	if ( ( model_flags & MR_NO_CULL ) || ( model_flags & MR_ALL_XPARENT ) || ( interp->get_warp_bitmap() >= 0 ) ) {
 		scene->setCullMode(0);
 	} else {
 		scene->setCullMode(1);
 	}
 
-	// Goober5000
-	interp->base_frametime = 0;
-
-	if ( objnum >= 0 ) {
-		object *objp = &Objects[objnum];
-
-		if ( objp->type == OBJ_SHIP ) {
-			interp->base_frametime = Ships[objp->instance].base_texture_anim_frametime;
-		}
-	} else if ( is_skybox ) {
-		interp->base_frametime = Skybox_timestamp;
-	}
-
-	if ( !(interp->flags & MR_NO_LIGHTING) ) {
+	if ( !(model_flags & MR_NO_LIGHTING) ) {
 		scene->setLighting(true);
 	} else {
 		scene->setLighting(false);
@@ -2657,24 +2790,23 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 		scene->setZBias(0);
 	}
 
-	if ( !GL_use_transform_buffer || Cmdline_no_batching ) {
-		// always set non-batched rendering on if not supported
-		interp->flags |= MR_NO_BATCH;
+	if ( GL_use_transform_buffer && !Cmdline_no_batching && !(model_flags & MR_NO_BATCH) ) {
+		// always set batched rendering on if supported
+		tmap_flags |= TMAP_FLAG_BATCH_TRANSFORMS;
 	}
 
-	if ( !(interp->flags & MR_NO_BATCH) ) {
-		interp->tmap_flags |= TMAP_FLAG_BATCH_TRANSFORMS;
+	if ( (tmap_flags & TMAP_FLAG_BATCH_TRANSFORMS) ) {
 		scene->startModelDraw(pm->n_models);
 		model_queue_render_buffers(scene, interp, pm, -1);
 	}
 		
 	// Draw the subobjects
 	bool draw_thrusters = false;
-	i = pm->submodel[pm->detail[interp->detail_level]].first_child;
+	i = pm->submodel[pm->detail[detail_level]].first_child;
 
 	while( i >= 0 )	{
 		if ( !pm->submodel[i].is_thruster ) {
-			model_queue_render_children_buffers( scene, interp, pm, i, interp->detail_level );
+			model_queue_render_children_buffers( scene, interp, pm, i, detail_level );
 		} else {
 			draw_thrusters = true;
 		}
@@ -2682,32 +2814,35 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 		i = pm->submodel[i].next_sibling;
 	}
 
-	model_radius = pm->submodel[pm->detail[interp->detail_level]].rad;
+	model_radius = pm->submodel[pm->detail[detail_level]].rad;
 
 	//*************************** draw the hull of the ship *********************************************
-	model_queue_render_buffers(scene, interp, pm, pm->detail[interp->detail_level]);
+	vec3d view_pos = scene->getViewPosition();
 
+	if ( model_render_check_detail_box(&view_pos, pm, pm->detail[detail_level], flags) ) {
+		model_queue_render_buffers(scene, interp, pm, pm->detail[detail_level], detail_level);
+	}
+	
 	// Draw the thruster subobjects
 	if ( draw_thrusters ) {
-		if ( !(interp->flags & MR_NO_BATCH) ) {
-			interp->tmap_flags &= ~TMAP_FLAG_BATCH_TRANSFORMS;
-		}
+		// always turn off batching when drawing thrusters
+		tmap_flags &= ~TMAP_FLAG_BATCH_TRANSFORMS;
 
-		i = pm->submodel[pm->detail[interp->detail_level]].first_child;
+		i = pm->submodel[pm->detail[detail_level]].first_child;
 
 		while( i >= 0 ) {
 			if (pm->submodel[i].is_thruster) {
-				model_queue_render_children_buffers( scene, interp, pm, i, interp->detail_level );
+				model_queue_render_children_buffers( scene, interp, pm, i, detail_level );
 			}
 			i = pm->submodel[i].next_sibling;
 		}
 	}
 
-	if ( !( interp->flags & MR_NO_TEXTURING ) ) {
-		scene->addInsignia(pm, interp->detail_level, interp->insignia_bitmap);
+	if ( !( model_flags & MR_NO_TEXTURING ) ) {
+		scene->addInsignia(pm, detail_level, interp->get_insignia_bitmap());
 	}
 
-	if ( (interp->flags & MR_AUTOCENTER) && (set_autocen) ) {
+	if ( (model_flags & MR_AUTOCENTER) && (set_autocen) ) {
 		scene->popTransform();
 	}
 
@@ -2715,20 +2850,20 @@ void model_queue_render(interp_data *interp, DrawList *scene, int model_num, int
 
 	// start rendering glow points -Bobboau
 	if ( (pm->n_glow_point_banks) && !is_outlines_only && !is_outlines_only_htl && !Glowpoint_override ) {
-		model_queue_render_glow_points(pm, shipp, orient, pos, Glowpoint_use_depth_buffer);
+		model_queue_render_glow_points(pm, shipp, &orient, &pos, Glowpoint_use_depth_buffer);
 	}
 
 	// Draw the thruster glow
 	if ( !is_outlines_only && !is_outlines_only_htl ) {
-		if ( ( interp->flags & MR_AUTOCENTER ) && set_autocen ) {
+		if ( ( model_flags & MR_AUTOCENTER ) && set_autocen ) {
 			vec3d autoback_rotated;
 
-			vm_vec_unrotate(&autoback_rotated, &auto_back, orient);
-			vm_vec_add2(&autoback_rotated, pos);
+			vm_vec_unrotate(&autoback_rotated, &auto_back, &orient);
+			vm_vec_add2(&autoback_rotated, &pos);
 
-			model_queue_render_thrusters( interp, pm, objnum, shipp, orient, &autoback_rotated );
+			model_queue_render_thrusters( interp, pm, objnum, shipp, &orient, &autoback_rotated );
 		} else {
-			model_queue_render_thrusters( interp, pm, objnum, shipp, orient, pos );
+			model_queue_render_thrusters( interp, pm, objnum, shipp, &orient, &pos );
 		}
 	}
 }

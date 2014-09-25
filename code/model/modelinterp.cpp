@@ -173,10 +173,6 @@ int Interp_detail_level = 0;
 
 static int FULLCLOAK = -1;
 
-// current transformation texture
-int Interp_transform_texture = -1;
-int Interp_transparent_textures_only = 0;
-
 // clip planes
 bool Interp_clip_plane;
 vec3d Interp_clip_pos;
@@ -419,11 +415,7 @@ void model_set_thrust(int model_num, mst_info *mst)
 	Interp_thrust_glow_noise = mst->glow_noise;
 	Interp_afterburner = mst->use_ab;
 
-	if (mst->rotvel != NULL) {
-		Interp_thrust_rotvel = *(mst->rotvel);
-	} else {
-		vm_vec_zero(&Interp_thrust_rotvel);
-	}
+	Interp_thrust_rotvel = mst->rotvel;
 
 	Interp_thrust_glow_rad_factor = mst->glow_rad_factor;
 	Interp_secondary_thrust_glow_rad_factor = mst->secondary_glow_rad_factor;
@@ -5154,7 +5146,7 @@ void model_interp_set_animated_effect_and_timer(int effect_num, float effect_tim
 	Interp_animated_timer = effect_timer;
 }
 
-void model_interp_load_global_data(interp_data *interp)
+void model_interp_load_global_data(model_render_params *interp)
 {
 	interp->afterburner = Interp_afterburner;
 	interp->base_frametime = Interp_base_frametime;

@@ -1602,6 +1602,20 @@ void obj_render(object *obj)
 	DrawList render_list;
 
 	obj_queue_render(obj, &render_list);
+
+	render_list.initRender();
+	render_list.renderAll();
+
+	gr_zbias(0);
+	gr_set_cull(0);
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+	gr_set_fill_mode(GR_FILL_MODE_SOLID);
+
+	gr_flush_data_states();
+	gr_set_buffer(-1);
+
+	gr_reset_lighting();
+	gr_set_lighting(false, false);
 }
 
 void obj_queue_render(object* obj, DrawList* scene)

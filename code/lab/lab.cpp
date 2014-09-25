@@ -79,6 +79,7 @@ static int Lab_model_num = -1;
 static int Lab_weaponmodel_num[MAX_SHIP_WEAPONS];
 static int Lab_model_LOD = 0;
 static int Lab_model_flags = MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING;
+static int Lab_model_debug_flags = 0;
 static char Lab_model_filename[MAX_FILENAME_LEN];
 static char Lab_weaponmodel_filename[MAX_SHIP_WEAPONS][MAX_FILENAME_LEN];
 
@@ -1931,7 +1932,7 @@ void labviewer_make_render_options_window(Button *caller)
 	ADD_RENDER_BOOL("No Team Colors", Teamcolor_override);
 	ADD_RENDER_BOOL("No Glow Points", Glowpoint_override);
 	// model flags
-	ADD_RENDER_FLAG("Wireframe", Lab_model_flags, ((Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL) | MR_NO_POLYS);
+	ADD_RENDER_FLAG("Wireframe", Lab_model_flags, ((Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL) | MR_NO_POLYS | MR_NO_TEXTURING);
 	ADD_RENDER_FLAG("Transparent", Lab_model_flags, MR_ALL_XPARENT);
 	ADD_RENDER_FLAG("No Lighting", Lab_model_flags, MR_NO_LIGHTING);
 	ADD_RENDER_FLAG("No Z-Buffer", Lab_model_flags, MR_NO_ZBUFFER);

@@ -588,7 +588,7 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 				}
 
 				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
-				flags |= MR_NO_POLYS | MR_NO_LIGHTING;
+				flags |= MR_NO_POLYS | MR_NO_LIGHTING | MR_NO_TEXTURING;
 
 				break;
 			case 2:
@@ -733,7 +733,7 @@ void HudGaugeTargetBox::renderTargetDebris(object *target_objp)
 				model_set_outline_color(255,255,255);
 
 				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
-				flags |= MR_NO_POLYS | MR_NO_LIGHTING;
+				flags |= MR_NO_POLYS | MR_NO_LIGHTING | MR_NO_TEXTURING;
 
 				break;
 			case 2:
@@ -895,7 +895,7 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_team, Player_ship->team, 0, target_objp));
 
 					flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
-					flags |= MR_NO_POLYS | MR_NO_LIGHTING;
+					flags |= MR_NO_POLYS | MR_NO_LIGHTING | MR_NO_TEXTURING;
 
 					break;
 				case 2:
@@ -926,7 +926,7 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 					}
 
 					flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
-					flags |= MR_NO_POLYS | MR_NO_LIGHTING;
+					flags |= MR_NO_POLYS | MR_NO_LIGHTING | MR_NO_TEXTURING;
 
 					break;
 				case 2:
@@ -1093,7 +1093,7 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 					model_set_outline_color(64,64,0);
 
 				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
-				flags |= MR_NO_POLYS | MR_NO_LIGHTING;
+				flags |= MR_NO_POLYS | MR_NO_LIGHTING | MR_NO_TEXTURING;
 
 				break;
 			case 2:

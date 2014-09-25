@@ -1137,7 +1137,7 @@ void debris_render(object * obj, DrawList *scene)
 		}
 	}
 
-	interp_data interp;
+	model_render_params interp;
 
 	if ( db->is_hull )	{
 		MONITOR_INC(NumHullDebrisRend,1);

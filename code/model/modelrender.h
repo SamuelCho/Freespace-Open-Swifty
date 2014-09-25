@@ -38,154 +38,85 @@ struct Transform
 	Transform(matrix *m, vec3d *v): basis(*m), origin(*v) {}
 };
 
-struct interp_data
+class model_render_params
 {
-	int objnum;
-	matrix orient;
-	vec3d pos;
+	int Model_num;
+	matrix Orientation;
+	vec3d Position;
+	int Model_flags;
 
-	int thrust_scale_subobj;
-	int flags;
-	int tmap_flags;
-	int detail_level_locked;
-	int detail_level;
-	float depth_scale;
-	fix base_frametime;
-	bool desaturate;
-	int warp_bitmap;
-	float warp_alpha;
-	color outline_color;
+	int Objnum;
+	
+	int Detail_level_locked;
 
-	float xparent_alpha;
+	float Depth_scale;
 
-	int forced_bitmap;
+	int Warp_bitmap;
+	float Warp_alpha;
+	vec3d Warp_scale;
 
-	int thrust_bitmap;
+	color Outline_color;
 
-	int insignia_bitmap;
+	float Xparent_alpha;
 
-	int *new_replacement_textures;
+	int Forced_bitmap;
 
-	int thrust_glow_bitmap;
+	int Insignia_bitmap;
 
-	int secondary_thrust_glow_bitmap;
-	int tertiary_thrust_glow_bitmap;
-	int distortion_thrust_bitmap;
+	int *Replacement_textures;
 
-	float thrust_glow_noise;
-	bool afterburner;
+	bool Team_color_set;
+	team_color Current_team_color;
 
-	vec3d thrust_rotvel;
+	bool Clip_plane_set;
+	vec3d Clip_normal;
+	vec3d Clip_pos;
 
-	float thrust_glow_rad_factor;
+	int Animated_effect;
+	float Animated_timer;
 
-	float secondary_thrust_glow_rad_factor;
-	float tertiary_thrust_glow_rad_factor;
-	float distortion_thrust_rad_factor;
-	float distortion_thrust_length_factor;
-	float thrust_glow_len_factor;
+	mst_info Thruster_info;
 
-	float box_scale; // this is used to scale both detail boxes and spheres
-	vec3d render_box_min;
-	vec3d render_box_max;
-	float render_sphere_radius;
-	vec3d render_sphere_offset;
+	bool Is_skybox;
+	bool Desaturate;
+public:
+	model_render_params(int model_num, matrix &orient, vec3d &pos, uint flags);
 
-	float thrust_scale;
-	float thrust_scale_x;
-	float thrust_scale_y;
+	void set_object_number(int num);
+	void set_detail_level_lock(int detail_level_lock);
+	void set_depth_scale(float scale);
+	void set_warp_params(int bitmap, float alpha, vec3d &scale);
+	void set_outline_color(color &clr);
+	void set_alpha(float alpha);
+	void set_forced_bitmap(int bitmap);
+	void set_insignia_bitmap(int bitmap);
+	void set_replacement_textures(int *textures);
+	void set_team_color(team_color &clr);
+	void set_clip_plane(vec3d &pos, vec3d &normal);
+	void set_animated_effect(int effect_num, float timer);
+	void set_thruster_info(mst_info &info);
 
-	float warp_scale_x;
-	float warp_scale_y;
-	float warp_scale_z;
-
-	bool draw_distortion;
-
-	bool team_color_set;
-	team_color current_team_color;
-
-	bool clip_plane;
-	vec3d clip_normal;
-	vec3d clip_pos;
-
-	int animated_effect;
-	float animated_timer;
-
-	interp_data() 
-	{
-		tmap_flags = 0;
-		flags = 0;
-
-		objnum = -1;
-
-		desaturate = false;
-
-		detail_level_locked = 0;
-		detail_level = 0;
-
-		depth_scale = 1500.0f;
-
-		base_frametime = 0;
-
-		warp_scale_x = 1.0f;
-		warp_scale_y = 1.0f;
-		warp_scale_z = 1.0f;
-
-		warp_bitmap = -1;
-		warp_alpha = -1.0f;
-
-		xparent_alpha = 1.0f;
-
-		forced_bitmap = -1;
-
-		new_replacement_textures = NULL;
-
-		distortion_thrust_bitmap = -1;
-
-		distortion_thrust_rad_factor = 1.0f;
-		distortion_thrust_length_factor = 1.0f;
-
-		draw_distortion = false;
-
-		thrust_scale = 0.1f;
-		thrust_scale_x = 0.0f;//added-Bobboau
-		thrust_scale_y = 0.0f;//added-Bobboau
-		thrust_bitmap = -1;
-		thrust_glow_bitmap = -1;
-		thrust_glow_noise = 1.0f;
-		insignia_bitmap = -1;
-		afterburner = false;
-
-		// Bobboau's thruster stuff
-		{
-			thrust_glow_rad_factor = 1.0f;
-
-			secondary_thrust_glow_bitmap = -1;
-			secondary_thrust_glow_rad_factor = 1.0f;
-
-			tertiary_thrust_glow_bitmap = -1;
-			tertiary_thrust_glow_rad_factor = 1.0f;
-
-			thrust_glow_len_factor = 1.0f;
-
-			thrust_rotvel = vmd_zero_vector;
-		}
-
-		box_scale = 1.0f;
-		render_box_min = vmd_zero_vector;
-		render_box_max = vmd_zero_vector;
-		render_sphere_radius = 0.0f;
-		render_sphere_offset = vmd_zero_vector;
-
-		team_color_set = false;
-
-		clip_plane = false;
-		clip_normal = vmd_zero_vector;
-		clip_pos = vmd_zero_vector;
-
-		animated_effect = 0;
-		animated_timer = 0.0f;
-	}
+	int get_model_number();
+	const matrix& get_orientation();
+	const vec3d& get_position();
+	const int get_model_flags();
+	int get_object_number();
+	int get_detail_level_lock();
+	float get_depth_scale();
+	int get_warp_bitmap();
+	float get_warp_alpha();
+	const vec3d& get_warp_scale();
+	const color& get_outline_color();
+	float get_alpha();
+	int get_forced_bitmap();
+	int get_insignia_bitmap();
+	int* get_replacement_textures();
+	const team_color& get_team_color();
+	const vec3d& get_clip_plane_pos();
+	const vec3d& get_clip_plane_normal();
+	int get_animated_effect_num();
+	float get_animated_effect_timer();
+	const mst_info& get_thruster_info();
 };
 
 struct clip_plane_state
@@ -385,7 +316,7 @@ public:
 	void setModelTransformBuffer(int model_num);
 	void startModelDraw(int n_models);
 
-	void addBufferDraw(vertex_buffer *buffer, int texi, uint tmap_flags, interp_data *interp);
+	void addBufferDraw(vertex_buffer *buffer, int texi, uint tmap_flags, model_render_params *interp);
 	
 	vec3d getViewPosition();
 	void clearTransforms();
@@ -416,11 +347,11 @@ public:
 };
 
 void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL, int render = MODEL_RENDER_ALL, const bool is_skybox = false);
-void model_queue_render(interp_data *interp, DrawList* scene, int model_num, int model_instance_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures, const bool is_skybox = false);
+void model_queue_render(model_render_params *interp, DrawList* scene, int model_num, int model_instance_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures, const bool is_skybox = false);
 void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int *replacement_textures = NULL);
-void submodel_queue_render(interp_data *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1, int *replacement_textures = NULL);
-void model_queue_render_buffers(DrawList* scene, interp_data* interp, polymodel *pm, int mn, bool is_child = false);
-void model_render_set_thrust(interp_data *interp, int model_num, mst_info *mst);
-void model_render_set_clip_plane(interp_data *interp, vec3d *pos = NULL, vec3d *normal = NULL);
+void submodel_queue_render(model_render_params *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1, int *replacement_textures = NULL);
+void model_queue_render_buffers(DrawList* scene, model_render_params* interp, polymodel *pm, int mn, int detail_level, uint tmap_flags);
+void model_render_set_thrust(model_render_params *interp, int model_num, mst_info *mst);
+void model_render_set_clip_plane(model_render_params *interp, vec3d *pos = NULL, vec3d *normal = NULL);
 
 #endif

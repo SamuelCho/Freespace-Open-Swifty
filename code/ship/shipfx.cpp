@@ -1903,7 +1903,7 @@ static void half_ship_render_ship_and_debris(clip_ship* half_ship,ship *shipp)
 	model_render_DEPRECATED(pm->id, &half_ship->orient, &orig_ship_world_center, render_flags, -1, -1, shipp->ship_replacement_textures);
 }
 
-void shipfx_queue_render_ship_halves_and_debris(DrawList *scene, interp_data *interp, clip_ship* half_ship, ship *shipp)
+void shipfx_queue_render_ship_halves_and_debris(DrawList *scene, model_render_params *interp, clip_ship* half_ship, ship *shipp)
 {
 	polymodel *pm = model_get(Ship_info[shipp->ship_info_index].model_num);
 
@@ -2378,7 +2378,7 @@ void shipfx_large_blowup_render(ship* shipp)
 	g3_stop_user_clip_plane();			
 }
 
-void shipfx_large_blowup_queue_render(interp_data *interp, DrawList *scene, ship* shipp)
+void shipfx_large_blowup_queue_render(model_render_params *interp, DrawList *scene, ship* shipp)
 {
 	Assert( shipp->large_ship_blowup_index > -1 );
 	Assert( shipp->large_ship_blowup_index < (int)Split_ships.size() );
@@ -3472,7 +3472,7 @@ int WarpEffect::warpShipClip()
 	return 0;
 }
 
-int WarpEffect::warpQueueShipClip(interp_data *interp)
+int WarpEffect::warpQueueShipClip(model_render_params *interp)
 {
 	return 0;
 }
@@ -3761,7 +3761,7 @@ int WE_Default::warpShipClip()
 	return 1;
 }
 
-int WE_Default::warpQueueShipClip(interp_data *interp)
+int WE_Default::warpQueueShipClip(model_render_params *interp)
 {
 	if(!this->isValid())
 		return 0;
@@ -4053,7 +4053,7 @@ int WE_BSG::warpShipClip()
 	return 1;
 }
 
-int WE_BSG::warpQueueShipClip(interp_data *interp)
+int WE_BSG::warpQueueShipClip(model_render_params *interp)
 {
 	if(!this->isValid())
 		return 0;
@@ -4377,7 +4377,7 @@ int WE_Homeworld::warpShipClip()
 	return 1;
 }
 
-int WE_Homeworld::warpQueueShipClip(interp_data *interp)
+int WE_Homeworld::warpQueueShipClip(model_render_params *interp)
 {
 	if(!this->isValid())
 		return 0;

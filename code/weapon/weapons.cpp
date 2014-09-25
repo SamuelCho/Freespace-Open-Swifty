@@ -6975,7 +6975,7 @@ void weapon_render(object* obj, DrawList *scene)
 	weapon_info *wip;
 	weapon *wp;
 	color c;
-	interp_data interp;
+	model_render_params interp;
 
 	MONITOR_INC(NumWeaponsRend, 1);
 
@@ -7130,7 +7130,7 @@ void weapon_render(object* obj, DrawList *scene)
 				mst.glow_rad_factor = wip->thruster_glow_factor;
 				mst.glow_noise = wp->thruster_glow_noise;
 
-				model_set_thrust(wip->model_num, &mst);
+				interp.set_thruster_info(mst);
 
 				render_flags |= MR_SHOW_THRUSTERS;
 			}

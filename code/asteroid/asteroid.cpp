@@ -1185,7 +1185,7 @@ void asteroid_render(object * obj, DrawList *scene)
 	if (Asteroids_enabled) {
 		int			num;
 		asteroid		*asp;
-		interp_data interp;
+		model_render_params interp;
 
 		num = obj->instance;
 

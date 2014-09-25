@@ -1068,7 +1068,7 @@ void brief_render_closeup(int ship_class, float frametime)
 	int model_render_flags_local;
 	if ( Closeup_icon->type == ICON_JUMP_NODE) {
 		model_set_outline_color(HUD_color_red, HUD_color_green, HUD_color_blue);		
-		model_render_flags_local = MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_POLYS | MR_SHOW_OUTLINE;
+		model_render_flags_local = MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_POLYS | MR_SHOW_OUTLINE_HTL | MR_NO_TEXTURING
 	} else {
 		model_render_flags_local = MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER;
 	}
