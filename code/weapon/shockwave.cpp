@@ -414,7 +414,7 @@ void shockwave_render_DEPRECATED(object *objp)
 		float dist = vm_vec_dist_quick( &sw->pos, &Eye_position );
 
 		model_set_detail_level((int)(dist / (sw->radius * 10.0f)));
-		model_immediate_render( sw->model_id, &Objects[sw->objnum].orient, &sw->pos, MR_NO_LIGHTING | MR_NO_FOGGING | MR_NORMAL | MR_CENTER_ALPHA | MR_NO_CULL, sw->objnum);
+		model_render_DEPRECATED( sw->model_id, &Objects[sw->objnum].orient, &sw->pos, MR_NO_LIGHTING | MR_NO_FOGGING | MR_NORMAL | MR_CENTER_ALPHA | MR_NO_CULL, sw->objnum);
 
 		model_set_warp_globals();
 		if(Cmdline_fb_explosions)
@@ -475,21 +475,20 @@ void shockwave_render(object *objp, DrawList *scene)
 		return;
 
 	if (sw->model_id > -1) {
-		float model_Interp_scale_xyz = sw->radius / 50.0f;
+		vec3d scale;
+		scale.xyz.x = scale.xyz.y = scale.xyz.z = sw->radius / 50.0f;
 
-		model_render_params interp;
+		model_render_params render_info;
 
-		interp.warp_scale_x = model_Interp_scale_xyz;
-		interp.warp_scale_y = model_Interp_scale_xyz;
-		interp.warp_scale_z = model_Interp_scale_xyz;
-		interp.warp_bitmap = -1;
-		interp.warp_alpha = 1.0f - (sw->radius/sw->outer_radius);
+		render_info.set_warp_params(-1, 1.0f - (sw->radius/sw->outer_radius), scale);
 
 		float dist = vm_vec_dist_quick( &sw->pos, &Eye_position );
 
-		interp.detail_level_locked = (int)(dist / (sw->radius * 10.0f));
+		render_info.set_detail_level_lock((int)(dist / (sw->radius * 10.0f)));
+		render_info.set_flags(MR_NO_LIGHTING | MR_NO_FOGGING | MR_NORMAL | MR_CENTER_ALPHA | MR_NO_CULL | MR_NO_BATCH);
+		render_info.set_object_number(sw->objnum);
 
-		model_queue_render( &interp, scene, sw->model_id, -1, &Objects[sw->objnum].orient, &sw->pos, MR_NO_LIGHTING | MR_NO_FOGGING | MR_NORMAL | MR_CENTER_ALPHA | MR_NO_CULL | MR_NO_BATCH, sw->objnum, NULL);
+		model_queue_render( &render_info, scene, sw->model_id, &Objects[sw->objnum].orient, &sw->pos);
 
 		if ( Cmdline_fb_explosions ) {
 			g3_transfer_vertex(&p, &sw->pos);

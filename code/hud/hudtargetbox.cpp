@@ -571,6 +571,7 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 		//                 is largely copied over from renderTargetShip(). To keep the codes similar please update
 		//                 both if and when needed
 		ship_model_start( target_objp );
+		model_render_params render_info;
 
 		switch (Targetbox_wire) {
 			case 0:
@@ -579,12 +580,12 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 				break;
 			case 1:
 				if (ship_is_tagged(target_objp))
-					model_set_outline_color_fast(iff_get_color(IFF_COLOR_TAGGED, 1));
+					render_info.set_outline_color(*iff_get_color(IFF_COLOR_TAGGED, 1));
 				else
-					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, 1, target_objp));
+					render_info.set_outline_color(*iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, 1, target_objp));
 
 				if (target_sip->uses_team_colors) {
-					model_interp_set_team_color(target_shipp->team_name, target_shipp->secondary_team_name, target_shipp->team_change_timestamp, target_shipp->team_change_time);
+					render_info.set_team_color(target_shipp->team_name, target_shipp->secondary_team_name, target_shipp->team_change_timestamp, target_shipp->team_change_time);
 				}
 
 				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
@@ -595,9 +596,9 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 				break;
 			case 3:
 				if (ship_is_tagged(target_objp))
-					model_set_outline_color_fast(iff_get_color(IFF_COLOR_TAGGED, 1));
+					render_info.set_outline_color(*iff_get_color(IFF_COLOR_TAGGED, 1));
 				else
-					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, 1, target_objp));
+					render_info.set_outline_color(*iff_get_color_by_team_and_object(target_shipp->team, Player_ship->team, 1, target_objp));
 
 				flags |= MR_NO_LIGHTING | MR_NO_TEXTURING;
 
@@ -605,19 +606,22 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 		}
 
 		if (target_sip->hud_target_lod >= 0) {
-			model_set_detail_level(target_sip->hud_target_lod);
+			render_info.set_detail_level_lock(target_sip->hud_target_lod);
 		}
 
 		if(Targetbox_shader_effect > -1) {
 			flags |= MR_ANIMATED_SHADER;
 
-			model_interp_set_animated_effect_and_timer(Targetbox_shader_effect);
+			render_info.set_animated_effect(Targetbox_shader_effect, 0.0f);
 		}
 
 		if ( Monitor_mask >= 0 ) {
 			gr_stencil_set(GR_STENCIL_READ);
 		}
-		Interp_desaturate = Desaturated;
+
+		if ( Desaturated ) {
+			flags |= MR_DESATURATED;
+		} 
 
 		if (!Glowpoint_override)
 			Glowpoint_override = true;
@@ -628,11 +632,15 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 			flags |= MR_NO_GLOWMAPS;
 		}
 
+		render_info.set_flags(flags | MR_AUTOCENTER | MR_NO_FOGGING);
+
 		// maybe render a special hud-target-only model
 		if(target_sip->model_num_hud >= 0){
-			model_immediate_render( target_sip->model_num_hud, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING);
+			model_immediate_render( &render_info, target_sip->model_num_hud, &target_objp->orient, &obj_pos);
 		} else {
-			model_immediate_render( target_sip->model_num, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1, target_shipp->ship_replacement_textures);
+			render_info.set_replacement_textures(target_shipp->ship_replacement_textures);
+
+			model_immediate_render( &render_info, target_sip->model_num, &target_objp->orient, &obj_pos);
 		}
 
 		Interp_desaturate = false;
@@ -724,13 +732,15 @@ void HudGaugeTargetBox::renderTargetDebris(object *target_objp)
 		renderTargetSetup(&camera_eye, &camera_orient, 0.5f);
 		model_clear_instance(debrisp->model_num);
 
+		model_render_params render_info;
+
 		switch (Targetbox_wire) {
 			case 0:
 				flags |= MR_NO_LIGHTING;
 
 				break;
 			case 1:
-				model_set_outline_color(255,255,255);
+				render_info.set_outline_color(255, 255, 255);
 
 				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
 				flags |= MR_NO_POLYS | MR_NO_LIGHTING | MR_NO_TEXTURING;
@@ -739,7 +749,7 @@ void HudGaugeTargetBox::renderTargetDebris(object *target_objp)
 			case 2:
 				break;
 			case 3:
-				model_set_outline_color(255,255,255);
+				render_info.set_outline_color(255, 255, 255);
 
 				flags |= MR_NO_LIGHTING | MR_NO_TEXTURING;
 
@@ -749,19 +759,21 @@ void HudGaugeTargetBox::renderTargetDebris(object *target_objp)
 		if(Targetbox_shader_effect > -1) {
 			flags |= MR_ANIMATED_SHADER;
 
-			model_interp_set_animated_effect_and_timer(Targetbox_shader_effect);
+			render_info.set_animated_effect(Targetbox_shader_effect, 0.0f);
 		}
 
 		if ( Monitor_mask >= 0 ) {
 			gr_stencil_set(GR_STENCIL_READ);
 		}
 
-		Interp_desaturate = Desaturated;
+		if ( Desaturated ) {
+			flags |= MR_DESATURATED;
+		}
+
+		render_info.set_flags(flags | MR_NO_FOGGING);
 
 		// This calls the colour that doesn't get reset
-		submodel_immediate_render( debrisp->model_num, debrisp->submodel_num, &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_NO_FOGGING );
-
-		Interp_desaturate = false;
+		submodel_immediate_render( &render_info, debrisp->model_num, debrisp->submodel_num, &target_objp->orient, &obj_pos);
 
 		if ( Monitor_mask >= 0 ) {
 			gr_stencil_set(GR_STENCIL_NONE);
@@ -883,6 +895,8 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 		renderTargetSetup(&camera_eye, &camera_orient, View_zoom/3);
 		model_clear_instance(viewed_model_num);
 		
+		model_render_params render_info;
+
 		// IMPORTANT NOTE! Code handling the rendering when 'missile_view == TRUE' is largely copied over from
 		//                 renderTargetShip(). To keep the codes similar please update both if and when needed
 		if (missile_view == FALSE) {
@@ -892,7 +906,7 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 
 					break;
 				case 1:
-					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_team, Player_ship->team, 0, target_objp));
+					render_info.set_outline_color(*iff_get_color_by_team_and_object(target_team, Player_ship->team, 0, target_objp));
 
 					flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
 					flags |= MR_NO_POLYS | MR_NO_LIGHTING | MR_NO_TEXTURING;
@@ -901,7 +915,7 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 				case 2:
 					break;
 				case 3:
-					model_set_outline_color_fast(iff_get_color_by_team_and_object(target_team, Player_ship->team, 0, target_objp));
+					render_info.set_outline_color(*iff_get_color_by_team_and_object(target_team, Player_ship->team, 0, target_objp));
 
 					flags |= MR_NO_LIGHTING | MR_NO_TEXTURING;
 
@@ -917,12 +931,12 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 					break;
 				case 1:
 					if (ship_is_tagged(viewed_obj))
-						model_set_outline_color_fast(iff_get_color(IFF_COLOR_TAGGED, 1));
+						render_info.set_outline_color(*iff_get_color(IFF_COLOR_TAGGED, 1));
 					else
-						model_set_outline_color_fast(iff_get_color_by_team_and_object(homing_shipp->team, Player_ship->team, 1, viewed_obj));
+						render_info.set_outline_color(*iff_get_color_by_team_and_object(homing_shipp->team, Player_ship->team, 1, viewed_obj));
 
 					if (homing_sip->uses_team_colors) {
-						model_interp_set_team_color(homing_shipp->team_name, homing_shipp->secondary_team_name, homing_shipp->team_change_timestamp, homing_shipp->team_change_time);
+						render_info.set_team_color(homing_shipp->team_name, homing_shipp->secondary_team_name, homing_shipp->team_change_timestamp, homing_shipp->team_change_time);
 					}
 
 					flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
@@ -933,9 +947,9 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 					break;
 				case 3:
 					if (ship_is_tagged(viewed_obj))
-						model_set_outline_color_fast(iff_get_color(IFF_COLOR_TAGGED, 1));
+						render_info.set_outline_color(*iff_get_color(IFF_COLOR_TAGGED, 1));
 					else
-						model_set_outline_color_fast(iff_get_color_by_team_and_object(homing_shipp->team, Player_ship->team, 1, viewed_obj));
+						render_info.set_outline_color(*iff_get_color_by_team_and_object(homing_shipp->team, Player_ship->team, 1, viewed_obj));
 
 					flags |= MR_NO_LIGHTING | MR_NO_TEXTURING;
 
@@ -944,20 +958,22 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 		}
 
 		if (hud_target_lod >= 0) {
-			model_set_detail_level(hud_target_lod);
+			render_info.set_detail_level_lock(hud_target_lod);
 		}
 
 		if(Targetbox_shader_effect > -1) {
 			flags |= MR_ANIMATED_SHADER;
 
-			model_interp_set_animated_effect_and_timer(Targetbox_shader_effect);
+			render_info.set_animated_effect(Targetbox_shader_effect, 0.0f);
 		}
 
 		if ( Monitor_mask >= 0 ) {
 			gr_stencil_set(GR_STENCIL_READ);
 		}
 
-		Interp_desaturate = Desaturated;
+		if ( Desaturated ) {
+			flags |= MR_DESATURATED;
+		}
 
 		if (missile_view == TRUE) {
 			if (!Glowpoint_override)
@@ -971,18 +987,25 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 		}
 		
 		if (missile_view == FALSE ) {
-			model_immediate_render( viewed_model_num, &viewed_obj->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_IS_MISSILE | MR_NO_FOGGING, -1, -1, replacement_textures);
+			render_info.set_flags(flags | MR_AUTOCENTER | MR_IS_MISSILE | MR_NO_FOGGING);
+			render_info.set_replacement_textures(replacement_textures);
+
+			model_immediate_render( &render_info, viewed_model_num, &viewed_obj->orient, &obj_pos );
 		} else {
 			// maybe render a special hud-target-only model
 			// autocentering is bad in this one
 			if(homing_sip->model_num_hud >= 0){
-				model_immediate_render( homing_sip->model_num_hud, &viewed_obj->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_NO_FOGGING);
+				render_info.set_flags(flags | MR_NO_FOGGING);
+
+				model_immediate_render( &render_info, homing_sip->model_num_hud, &viewed_obj->orient, &obj_pos);
 			} else {
-				model_immediate_render( homing_sip->model_num, &viewed_obj->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_NO_FOGGING, -1, -1, homing_shipp->ship_replacement_textures);
+				render_info.set_flags(flags | MR_NO_FOGGING);
+				render_info.set_replacement_textures(homing_shipp->ship_replacement_textures);
+
+				model_immediate_render( &render_info, homing_sip->model_num, &viewed_obj->orient, &obj_pos );
 			}
 		}
 
-		Interp_desaturate = false;
 		if (missile_view == TRUE) {
 			Glowpoint_override = false;
 
@@ -1081,6 +1104,8 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 		renderTargetSetup(&camera_eye, &camera_orient, 0.5f);
 		model_clear_instance(Asteroid_info[asteroidp->asteroid_type].model_num[pof]);
 		
+		model_render_params render_info;
+
 		switch (Targetbox_wire) {
 			case 0:
 				flags |= MR_NO_LIGHTING;
@@ -1088,9 +1113,9 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 				break;
 			case 1:
 				if (time_to_impact>=0)
-					model_set_outline_color(255,255,255);
+					render_info.set_outline_color(255,255,255);
 				else
-					model_set_outline_color(64,64,0);
+					render_info.set_outline_color(64,64,0);
 
 				flags = (Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL;
 				flags |= MR_NO_POLYS | MR_NO_LIGHTING | MR_NO_TEXTURING;
@@ -1100,9 +1125,9 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 				break;
 			case 3:
 				if (time_to_impact>=0)
-					model_set_outline_color(255,255,255);
+					render_info.set_outline_color(255,255,255);
 				else
-					model_set_outline_color(64,64,0);
+					render_info.set_outline_color(64,64,0);
 
 				flags |= MR_NO_LIGHTING | MR_NO_TEXTURING;
 
@@ -1112,18 +1137,20 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 		if(Targetbox_shader_effect > -1) {
 			flags |= MR_ANIMATED_SHADER;
 
-			model_interp_set_animated_effect_and_timer(Targetbox_shader_effect);
+			render_info.set_animated_effect(Targetbox_shader_effect, 0.0f);
 		}
 
 		if ( Monitor_mask >= 0 ) {
 			gr_stencil_set(GR_STENCIL_READ);
 		}
 
-		Interp_desaturate = Desaturated;
+		if ( Desaturated ) {
+			flags |= MR_DESATURATED;
+		}
 
-		model_immediate_render(Asteroid_info[asteroidp->asteroid_type].model_num[pof], &target_objp->orient, &obj_pos, flags | MR_LOCK_DETAIL | MR_NO_FOGGING );
+		render_info.set_flags(flags | MR_NO_FOGGING);
 
-		Interp_desaturate = false;
+		model_immediate_render( &render_info, Asteroid_info[asteroidp->asteroid_type].model_num[pof], &target_objp->orient, &obj_pos );
 
 		if ( Monitor_mask >= 0 ) {
 			gr_stencil_set(GR_STENCIL_NONE);

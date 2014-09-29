@@ -40,10 +40,8 @@ struct Transform
 
 class model_render_params
 {
-	int Model_num;
-	matrix Orientation;
-	vec3d Position;
-	int Model_flags;
+	uint Model_flags;
+	uint Debug_flags;
 
 	int Objnum;
 	
@@ -76,46 +74,48 @@ class model_render_params
 	float Animated_timer;
 
 	mst_info Thruster_info;
-
-	bool Is_skybox;
-	bool Desaturate;
 public:
-	model_render_params(int model_num, matrix &orient, vec3d &pos, uint flags);
+	model_render_params();
 
+	void set_flags(uint flags);
+	void set_debug_flags(uint flags);
 	void set_object_number(int num);
 	void set_detail_level_lock(int detail_level_lock);
 	void set_depth_scale(float scale);
 	void set_warp_params(int bitmap, float alpha, vec3d &scale);
 	void set_outline_color(color &clr);
+	void set_outline_color(int r, int g, int b);
 	void set_alpha(float alpha);
 	void set_forced_bitmap(int bitmap);
 	void set_insignia_bitmap(int bitmap);
 	void set_replacement_textures(int *textures);
 	void set_team_color(team_color &clr);
+	void set_team_color(const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime);
 	void set_clip_plane(vec3d &pos, vec3d &normal);
 	void set_animated_effect(int effect_num, float timer);
 	void set_thruster_info(mst_info &info);
 
-	int get_model_number();
-	const matrix& get_orientation();
-	const vec3d& get_position();
-	const int get_model_flags();
-	int get_object_number();
-	int get_detail_level_lock();
-	float get_depth_scale();
-	int get_warp_bitmap();
-	float get_warp_alpha();
+	bool is_clip_plane_set();
+	bool is_team_color_set();
+
+	const uint get_model_flags();
+	const uint get_debug_flags();
+	const int get_object_number();
+	const int get_detail_level_lock();
+	const float get_depth_scale();
+	const int get_warp_bitmap();
+	const float get_warp_alpha();
 	const vec3d& get_warp_scale();
 	const color& get_outline_color();
-	float get_alpha();
-	int get_forced_bitmap();
-	int get_insignia_bitmap();
-	int* get_replacement_textures();
+	const float get_alpha();
+	const int get_forced_bitmap();
+	const int get_insignia_bitmap();
+	const int* get_replacement_textures();
 	const team_color& get_team_color();
 	const vec3d& get_clip_plane_pos();
 	const vec3d& get_clip_plane_normal();
-	int get_animated_effect_num();
-	float get_animated_effect_timer();
+	const int get_animated_effect_num();
+	const float get_animated_effect_timer();
 	const mst_info& get_thruster_info();
 };
 
@@ -163,6 +163,8 @@ struct render_state
 	SceneLights::LightIndexingInfo lights;
 	float light_factor;
 	
+	float thrust_scale;
+
 	bool using_team_color;
 	team_color tm_color;
 
@@ -197,6 +199,8 @@ struct render_state
 
 		animated_timer = 0.0f;
 		animated_effect = 0;
+
+		thrust_scale = -1.0f;
 	}
 };
 
@@ -298,7 +302,9 @@ public:
 	void init();
 
 	void resetState();
-	void setClipPlane(vec3d *position = NULL, vec3d *normal = NULL);
+	void setClipPlane(const vec3d &position, const vec3d &normal);
+	void setClipPlane();
+	void setThrustScale(float scale = -1.0f);
 	void setTexture(int texture_type, int texture_handle);
 	void setDepthMode(int depth_set);
 	void setBlendFilter(int filter, float alpha);
@@ -310,7 +316,8 @@ public:
 	void setCenterAlpha(int center_alpha);
 	void setLighting(bool mode);
 	void setBuffer(int buffer);
-	void setTeamColor(team_color *color = NULL);
+	void setTeamColor(const team_color &color);
+	void setTeamColor();
 	void setAnimatedTimer(float time);
 	void setAnimatedEffect(int effect);
 	void setModelTransformBuffer(int model_num);
@@ -346,12 +353,18 @@ public:
 	static int sortDrawPair(const void* a, const void* b);
 };
 
-void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL, int render = MODEL_RENDER_ALL, const bool is_skybox = false);
-void model_queue_render(model_render_params *interp, DrawList* scene, int model_num, int model_instance_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures, const bool is_skybox = false);
-void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int *replacement_textures = NULL);
-void submodel_queue_render(model_render_params *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1, int *replacement_textures = NULL);
+//void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL);
+void model_immediate_render(model_render_params *render_info, int model_num, matrix *orient, vec3d * pos, int render = MODEL_RENDER_ALL);
+void model_queue_render(model_render_params *render_info, DrawList* scene, int model_num, matrix *orient, vec3d *pos);
+//void model_queue_render(DrawList* scene, int model_num, int model_instance_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures, const bool is_skybox = false);
+//void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int *replacement_textures = NULL);
+void submodel_immediate_render(model_render_params *render_info, int model_num, int submodel_num, matrix *orient, vec3d * pos);
+void submodel_queue_render(model_render_params *render_info, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos);
+//void submodel_queue_render(model_render_params *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1);
 void model_queue_render_buffers(DrawList* scene, model_render_params* interp, polymodel *pm, int mn, int detail_level, uint tmap_flags);
 void model_render_set_thrust(model_render_params *interp, int model_num, mst_info *mst);
 void model_render_set_clip_plane(model_render_params *interp, vec3d *pos = NULL, vec3d *normal = NULL);
+fix model_render_determine_base_frametime(int objnum, uint flags);
+bool model_render_check_detail_box(vec3d *view_pos, polymodel *pm, int submodel_num, uint flags);
 
 #endif

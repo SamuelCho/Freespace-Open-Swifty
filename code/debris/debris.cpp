@@ -1137,15 +1137,14 @@ void debris_render(object * obj, DrawList *scene)
 		}
 	}
 
-	model_render_params interp;
+	model_render_params render_info;
 
-	if ( db->is_hull )	{
-		MONITOR_INC(NumHullDebrisRend,1);
-		submodel_queue_render( &interp, scene, db->model_num, db->submodel_num, &obj->orient, &obj->pos, MR_NORMAL );
-	} else {
-		MONITOR_INC(NumSmallDebrisRend,1);
-		submodel_queue_render( &interp, scene, db->model_num, db->submodel_num, &obj->orient, &obj->pos, MR_NO_LIGHTING );
+	if ( !db->is_hull )	{
+		render_info.set_flags(MR_NO_LIGHTING);
 	}
+
+	MONITOR_INC(NumHullDebrisRend,1);
+	submodel_queue_render( &render_info, scene, db->model_num, db->submodel_num, &obj->orient, &obj->pos );
 
 	if (tbase != NULL && (swapped!=-1) && pm)	{
 		tbase->SetTexture(swapped);

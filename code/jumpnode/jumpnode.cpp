@@ -259,7 +259,7 @@ void CJumpNode::RenderDEPRECATED(vec3d *pos, vec3d *view_pos)
 	
 	matrix node_orient = IDENTITY_MATRIX;
 	
-	int mr_flags = MR_NO_LIGHTING | MR_LOCK_DETAIL;
+	int mr_flags = MR_NO_LIGHTING;
 	if(!(m_flags & JN_SHOW_POLYS)) {
 		mr_flags |= MR_NO_CULL | MR_NO_POLYS | MR_SHOW_OUTLINE_PRESET;
 	}
@@ -328,20 +328,24 @@ void CJumpNode::Render(DrawList* scene, vec3d *pos, vec3d *view_pos)
 
 	matrix node_orient = IDENTITY_MATRIX;
 
-	int mr_flags = MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_NO_BATCH;
+	int mr_flags = MR_NO_LIGHTING | MR_NO_BATCH;
 	if(!(m_flags & JN_SHOW_POLYS)) {
 		mr_flags |= MR_NO_CULL | MR_NO_POLYS | MR_SHOW_OUTLINE | MR_SHOW_OUTLINE_HTL | MR_NO_TEXTURING;
 	}
 
-	model_render_params interp;
+	model_render_params render_info;
+
+	render_info.set_detail_level_lock(0);
+	render_info.set_flags(mr_flags);
 
 	if ( Fred_running ) {
-		interp.outline_color = m_display_color;
-		model_queue_render(&interp, scene, m_modelnum, -1, &node_orient, pos, mr_flags, -1, NULL);
+		render_info.set_outline_color(m_display_color);
+
+		model_queue_render(&render_info, scene, m_modelnum, &node_orient, pos);
 	} else {
 		if (m_flags & JN_USE_DISPLAY_COLOR) {
 			//gr_set_color_fast(&m_display_color);
-			interp.outline_color = m_display_color;
+			render_info.set_outline_color(m_display_color);
 		}
 		else if ( view_pos != NULL) {
 			int alpha_index = HUD_color_alpha;
@@ -363,13 +367,12 @@ void CJumpNode::Render(DrawList* scene, vec3d *pos, vec3d *view_pos)
 				}
 			}
 
-			interp.outline_color = HUD_color_defaults[alpha_index];
-
+			render_info.set_outline_color(HUD_color_defaults[alpha_index]);
 		} else {
-			gr_init_color(&interp.outline_color, HUD_color_red, HUD_color_green, HUD_color_blue);
+			render_info.set_outline_color(HUD_color_red, HUD_color_green, HUD_color_blue);
 		}
 
-		model_queue_render(&interp, scene, m_modelnum, -1, &node_orient, pos, mr_flags, -1, NULL );
+		model_queue_render(&render_info, scene, m_modelnum, &node_orient, pos);
 	}
 
 }

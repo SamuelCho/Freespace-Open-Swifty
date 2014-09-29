@@ -860,12 +860,12 @@ void model_set_detail_level(int n);
 // Flags you can pass to model_render
 #define MR_NORMAL					(0)			// Draw a normal object
 #define MR_SHOW_OUTLINE				(1<<0)		// Draw the object in outline mode. Color specified by model_set_outline_color
-#define MR_SHOW_PIVOTS				(1<<1)		// Show the pivot points
-#define MR_SHOW_PATHS				(1<<2)		// Show the paths associated with a model
-#define MR_SHOW_RADIUS				(1<<3)		// Show the radius around the object
-#define MR_SHOW_SHIELDS				(1<<4)		// Show the shield mesh
+#define MR_SKYBOX					(1<<1)		// Draw as a skybox
+#define MR_DESATURATED				(1<<2)		// Draw model in monochrome using outline color
+#define MR_EMPTY_SLOT0				(1<<3)		// Show the radius around the object
+#define MR_EMPTY_SLOT1				(1<<4)		// Show the shield mesh
 #define MR_SHOW_THRUSTERS			(1<<5)		// Show the engine thrusters. See model_set_thrust for how long it draws.
-#define MR_LOCK_DETAIL				(1<<6)		// Only draw the detail level defined in model_set_detail_level
+#define MR_EMPTY_SLOT2				(1<<6)		// Only draw the detail level defined in model_set_detail_level
 #define MR_NO_POLYS					(1<<7)		// Don't draw the polygons.
 #define MR_NO_LIGHTING				(1<<8)		// Don't perform any lighting on the model.
 #define MR_NO_TEXTURING				(1<<9)		// Draw textures as flat-shaded polygons.
@@ -890,6 +890,12 @@ void model_set_detail_level(int n);
 #define MR_FULL_DETAIL				(1<<28)		// render all valid objects, particularly ones that are otherwise in/out of render boxes - taylor
 #define MR_FORCE_CLAMP				(1<<29)		// force clamp - Hery
 #define MR_ANIMATED_SHADER			(1<<30)		// Use a animated Shader - Valathil
+
+#define MR_DEBUG_PIVOTS				(1<<0)		// Show the pivot points
+#define MR_DEBUG_PATHS				(1<<1)		// Show the paths associated with a model
+#define MR_DEBUG_RADIUS				(1<<2)		// Show the radius around the object
+#define MR_DEBUG_SHIELDS			(1<<3)		// Show the shield mesh
+#define MR_DEBUG_BAY_PATHS			(1<<4)		// draw bay paths
 
 //Defines for the render parameter of model_render, model_really_render and model_render_buffers
 #define MODEL_RENDER_OPAQUE 1
@@ -1311,8 +1317,6 @@ void model_do_look_at(int model_num); //Bobboau
 void model_do_dumb_rotation(int modelnum); //Bobboau
 
 int model_should_render_engine_glow(int objnum, int bank_obj);
-
-void model_interp_load_global_data(model_render_params *interp);
 
 void model_interp_set_clip_plane(vec3d* pos = NULL, vec3d* normal = NULL);
 

@@ -45,15 +45,11 @@ DrawList *DrawList::Target = NULL;
 
 ModelTransformBuffer TransformBufferHandler;
 
-model_render_params::model_render_params(int model_num, matrix &orient, vec3d &pos, uint flags):
-	Model_num(model_num),
-	Orientation(orient),
-	Position(pos),
-	Model_flags(flags),
+model_render_params::model_render_params():
+	Model_flags(MR_NORMAL),
+	Debug_flags(0),
 	Objnum(-1),
-	Is_skybox(false),
-	Desaturate(false),
-	Detail_level_locked(0),
+	Detail_level_locked(-1),
 	Depth_scale(1500.0f),
 	Warp_bitmap(-1),
 	Warp_alpha(-1.0f),
@@ -63,7 +59,7 @@ model_render_params::model_render_params(int model_num, matrix &orient, vec3d &p
 	Insignia_bitmap(-1),
 	Team_color_set(false),
 	Clip_plane_set(false),
-	Animated_effect(0),
+	Animated_effect(-1),
 	Animated_timer(0.0f),
 	Thruster_info()
 {
@@ -73,49 +69,46 @@ model_render_params::model_render_params(int model_num, matrix &orient, vec3d &p
 	
 	Clip_normal = vmd_zero_vector;
 	Clip_pos = vmd_zero_vector;
+
+	if ( !Model_texturing )
+		Model_flags |= MR_NO_TEXTURING;
+
+	if ( !Model_polys )	{
+		Model_flags |= MR_NO_POLYS;
+	}
 }
 
-int model_render_params::get_model_number()
-{ 
-	return Model_num; 
-}
-
-const matrix& model_render_params::get_orientation()
-{ 
-	return Orientation;
-}
-
-const vec3d& model_render_params::get_position()
-{
-	return Position;
-}
-
-int model_render_params::get_model_flags()
+const uint model_render_params::get_model_flags()
 {
 	return Model_flags; 
 }
 
-int model_render_params::get_object_number(int num)
+const uint model_render_params::get_debug_flags()
+{
+	return Debug_flags;
+}
+
+const int model_render_params::get_object_number()
 { 
 	return Objnum; 
 }
 
-int model_render_params::get_detail_level_lock(int detail_level_lock)
+const int model_render_params::get_detail_level_lock()
 { 
 	return Detail_level_locked; 
 }
 
-float model_render_params::get_depth_scale(float scale)
+const float model_render_params::get_depth_scale()
 { 
 	return Depth_scale; 
 }
 
-int model_render_params::get_warp_bitmap()
+const int model_render_params::get_warp_bitmap()
 { 
 	return Warp_bitmap; 
 }
 
-float model_render_params::get_warp_alpha()
+const float model_render_params::get_warp_alpha()
 { 
 	return Warp_alpha; 
 }
@@ -129,22 +122,22 @@ const color& model_render_params::get_outline_color()
 { 
 	return Outline_color; 
 }
-float model_render_params::get_alpha()
+const float model_render_params::get_alpha()
 { 
 	return Xparent_alpha; 
 }
 
-int model_render_params::get_forced_bitmap()
+const int model_render_params::get_forced_bitmap()
 { 
 	return Forced_bitmap; 
 }
 
-int model_render_params::get_insignia_bitmap()
+const int model_render_params::get_insignia_bitmap()
 { 
 	return Insignia_bitmap; 
 }
 
-int* model_render_params::get_replacement_textures()
+const int* model_render_params::get_replacement_textures()
 { 
 	return Replacement_textures; 
 }
@@ -164,12 +157,12 @@ const vec3d& model_render_params::get_clip_plane_normal()
 	return Clip_normal; 
 }
 
-int model_render_params::get_animated_effect_num()
+const int model_render_params::get_animated_effect_num()
 { 
 	return Animated_effect; 
 }
 
-float model_render_params::get_animated_effect_timer()
+const float model_render_params::get_animated_effect_timer()
 { 
 	return Animated_timer; 
 }
@@ -188,11 +181,26 @@ void model_render_params::set_clip_plane(vec3d &pos, vec3d &normal)
 	Clip_pos = pos;
 }
 
+bool model_render_params::is_clip_plane_set()
+{
+	return Clip_plane_set;
+}
+
 void model_render_params::set_team_color(team_color &clr)
 {
 	Team_color_set = true;
 
 	Current_team_color = clr;
+}
+
+void model_render_params::set_team_color(const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime)
+{
+	Team_color_set = model_get_team_color(&Current_team_color, team, secondaryteam, timestamp, fadetime);
+}
+
+bool model_render_params::is_team_color_set()
+{
+	return Team_color_set;
 }
 
 void model_render_params::set_replacement_textures(int *textures)
@@ -220,6 +228,11 @@ void model_render_params::set_outline_color(color &clr)
 	Outline_color = clr;
 }
 
+void model_render_params::set_outline_color(int r, int g, int b)
+{
+	gr_init_color( &Outline_color, r, g, b );
+}
+
 void model_render_params::set_warp_params(int bitmap, float alpha, vec3d &scale)
 {
 	Warp_bitmap = bitmap;
@@ -232,9 +245,19 @@ void model_render_params::set_depth_scale(float scale)
 	Depth_scale = scale;
 }
 
+void model_render_params::set_debug_flags(uint flags)
+{
+	Debug_flags = flags;
+}
+
 void model_render_params::set_object_number(int num)
 {
 	Objnum = num;
+}
+
+void model_render_params::set_flags(uint flags)
+{
+	Model_flags = flags;
 }
 
 void model_render_params::set_detail_level_lock(int detail_level_lock)
@@ -430,21 +453,26 @@ void DrawList::setLightFactor(float factor)
 	current_render_state.light_factor = factor;
 }
 
-void DrawList::setClipPlane(vec3d *position, vec3d *normal)
+void DrawList::setClipPlane(const vec3d &position, const vec3d &normal)
 {
-	if ( position == NULL || normal == NULL ) {
-		current_render_state.clip_plane_handle = -1;
-		return;
-	}
-
 	clip_plane_state clip_normal;
 
-	clip_normal.point = *position;
-	clip_normal.normal = *normal;
+	clip_normal.point = position;
+	clip_normal.normal = normal;
 
 	clip_planes.push_back(clip_normal);
 
 	current_render_state.clip_plane_handle = clip_planes.size() - 1;
+}
+
+void DrawList::setClipPlane()
+{
+	current_render_state.clip_plane_handle = -1;
+}
+
+void DrawList::setThrustScale(float scale)
+{
+	current_render_state.thrust_scale = scale;
 }
 
 void DrawList::addBufferDraw(vertex_buffer *buffer, int texi, uint tmap_flags, model_render_params *interp)
@@ -488,12 +516,6 @@ void DrawList::addBufferDraw(vertex_buffer *buffer, int texi, uint tmap_flags, m
 	draw_data.texture_maps[TM_NORMAL_TYPE] = current_textures[TM_NORMAL_TYPE];
 	draw_data.texture_maps[TM_HEIGHT_TYPE] = current_textures[TM_HEIGHT_TYPE];
 	draw_data.texture_maps[TM_MISC_TYPE] = current_textures[TM_MISC_TYPE];
-
-	if ( interp->thrust_scale_subobj ) {
-		draw_data.thrust_scale = interp->thrust_scale;
-	} else {
-		draw_data.thrust_scale = -1.0f;
-	}
 
 	draw_data.sdr_flags = determineShaderFlags(&current_render_state, &draw_data, buffer, tmap_flags);
 
@@ -597,7 +619,7 @@ void DrawList::renderBuffer(queued_buffer_draw &render_elements)
 
 	gr_zbias(draw_state.zbias);
 
-	gr_set_thrust_scale(render_elements.thrust_scale);
+	gr_set_thrust_scale(draw_state.thrust_scale);
 
 	g3_start_instance_matrix(&render_elements.transformation.origin, &render_elements.transformation.basis);
 
@@ -754,14 +776,15 @@ void DrawList::setLighting(bool lighting)
 	current_render_state.lighting = lighting;
 }
 
-void DrawList::setTeamColor(team_color *color)
+void DrawList::setTeamColor(const team_color &color)
 {
-	if ( color ) {
-		current_render_state.using_team_color = true;
-		current_render_state.tm_color = *color;
-	} else {
-		current_render_state.using_team_color = false;
-	}
+	current_render_state.using_team_color = true;
+	current_render_state.tm_color = color;
+}
+
+void DrawList::setTeamColor()
+{
+	current_render_state.using_team_color = false;
 }
 
 void DrawList::setAnimatedTimer(float time)
@@ -970,7 +993,7 @@ void model_queue_render_lightning( DrawList *scene, model_render_params* interp,
 
 	Assert( sm->num_arcs > 0 );
 
-	if ( interp->flags & MR_SHOW_OUTLINE_PRESET ) {
+	if ( interp->get_model_flags() & MR_SHOW_OUTLINE_PRESET ) {
 		return;
 	}
 
@@ -1036,7 +1059,7 @@ int model_queue_render_determine_detail(int obj_num, int model_num, matrix* orie
 	int i;
 
 	if ( pm->n_detail_levels > 1 ) {
-		if ( flags & MR_LOCK_DETAIL ) {
+		if ( detail_level_locked >= 0 ) {
 			i = detail_level_locked+1;
 		} else {
 
@@ -1101,6 +1124,8 @@ void model_queue_render_buffers(DrawList* scene, model_render_params* interp, po
 
 	vertex_buffer *buffer;
 	bsp_info *model = NULL;
+	const uint model_flags = interp->get_model_flags();
+	const int obj_num = interp->get_object_number();
 
 	Assert(detail_level >= 0);
 
@@ -1111,20 +1136,24 @@ void model_queue_render_buffers(DrawList* scene, model_render_params* interp, po
 		buffer = &model->buffer;
 	}
 
+	bool render_as_thruster = (model != NULL) && model->is_thruster && (model_flags & MR_SHOW_THRUSTERS);
+
 	vec3d scale;
 
-	if ( model != NULL && model->is_thruster && (interp->get_model_flags() & MR_SHOW_THRUSTERS) ) {
+	if ( render_as_thruster ) {
 		scale.xyz.x = 1.0f;
 		scale.xyz.y = 1.0f;
 
 		if ( Use_GLSL > 1 ) {
-			// since thruster scaling is done in the shader, no need to transform using the api
 			scale.xyz.z = 1.0f;
+			scene->setThrustScale(interp->get_thruster_info().length.xyz.z);
 		} else {
 			scale.xyz.z = interp->get_thruster_info().length.xyz.z;
+			scene->setThrustScale();
 		}
 	} else {
 		scale = interp->get_warp_scale();
+		scene->setThrustScale();
 	}
 
 	scene->setScale(&scale);
@@ -1134,38 +1163,39 @@ void model_queue_render_buffers(DrawList* scene, model_render_params* interp, po
 		return;
 	}
 
-	fix base_frametime = model_render_determine_base_frametime(interp);
+	fix base_frametime = model_render_determine_base_frametime(obj_num, model_flags);
 
 	texture_info tex_replace[TM_NUM_TYPES];
 
-	int no_texturing = interp->flags & MR_NO_TEXTURING;
+	int no_texturing = model_flags & MR_NO_TEXTURING;
 
 	int forced_texture = -2;
 	float forced_alpha = 1.0f;
 	int forced_blend_filter = GR_ALPHABLEND_NONE;
 
-	if ( ( interp->flags & MR_FORCE_TEXTURE ) && ( interp->forced_bitmap >= 0 ) ) {
-		forced_texture = interp->forced_bitmap;
-	} else if ( interp->warp_bitmap >= 0 ) {
-		forced_texture = interp->warp_bitmap;
-		forced_alpha = interp->warp_alpha;
+	if ( ( model_flags & MR_FORCE_TEXTURE ) && ( interp->get_forced_bitmap() >= 0 ) ) {
+		forced_texture = interp->get_forced_bitmap();
+	} else if ( interp->get_warp_bitmap() >= 0 ) {
+		forced_texture = interp->get_warp_bitmap();
+		forced_alpha = interp->get_warp_alpha();
 		forced_blend_filter = GR_ALPHABLEND_FILTER;
-	} else if ( interp->thrust_scale_subobj ) {
-		if ( ( interp->thrust_bitmap >= 0 ) && ( interp->thrust_scale > 0.0f ) ) {
-			forced_texture = interp->thrust_bitmap;
+	} else if ( render_as_thruster ) {
+		if ( ( interp->get_thruster_info().primary_bitmap >= 0 ) && ( interp->get_thruster_info().length.xyz.z > 0.0f ) ) {
+			forced_texture = interp->get_thruster_info().primary_bitmap;
 		} else {
 			forced_texture = -1;
 		}
 
 		forced_alpha = 1.2f;
 		forced_blend_filter = GR_ALPHABLEND_FILTER;
-	} else if ( interp->flags & MR_ALL_XPARENT ) {
-		forced_alpha = interp->xparent_alpha;
+	} else if ( model_flags & MR_ALL_XPARENT ) {
+		forced_alpha = interp->get_alpha();
 		forced_blend_filter = GR_ALPHABLEND_FILTER;
 	}
 
 	int texture_maps[TM_NUM_TYPES] = {-1, -1, -1, -1, -1, -1};
 	size_t buffer_size = buffer->tex_buf.size();
+	const int *replacement_textures = interp->get_replacement_textures();
 
 	for ( size_t i = 0; i < buffer_size; i++ ) {
 		int tmap_num = buffer->tex_buf[i].texture;
@@ -1186,16 +1216,16 @@ void model_queue_render_buffers(DrawList* scene, model_render_params* interp, po
 			alpha = forced_alpha;
 		} else if ( !no_texturing ) {
 			// pick the texture, animating it if necessary
-			if ( (interp->new_replacement_textures != NULL) && (interp->new_replacement_textures[rt_begin_index + TM_BASE_TYPE] == REPLACE_WITH_INVISIBLE) ) {
+			if ( (replacement_textures != NULL) && (replacement_textures[rt_begin_index + TM_BASE_TYPE] == REPLACE_WITH_INVISIBLE) ) {
 				// invisible textures aren't rendered, but we still have to skip assigning the underlying model texture
 				texture_maps[TM_BASE_TYPE] = -1;
-			} else if ( (interp->new_replacement_textures != NULL) && (interp->new_replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
+			} else if ( (replacement_textures != NULL) && (replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
 				// an underlying texture is replaced with a real new texture
-				tex_replace[TM_BASE_TYPE] = texture_info(interp->new_replacement_textures[rt_begin_index + TM_BASE_TYPE]);
-				texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tex_replace[TM_BASE_TYPE], interp->base_frametime);
+				tex_replace[TM_BASE_TYPE] = texture_info(replacement_textures[rt_begin_index + TM_BASE_TYPE]);
+				texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tex_replace[TM_BASE_TYPE], base_frametime);
 			} else {
 				// we just use the underlying texture
-				texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tmap->textures[TM_BASE_TYPE], interp->base_frametime);
+				texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tmap->textures[TM_BASE_TYPE], base_frametime);
 			}
 
 			if ( texture_maps[TM_BASE_TYPE] < 0 ) {
@@ -1203,18 +1233,18 @@ void model_queue_render_buffers(DrawList* scene, model_render_params* interp, po
 			}
 
 			// doing glow maps?
-			if ( !(interp->flags & MR_NO_GLOWMAPS) ) {
+			if ( !(model_flags & MR_NO_GLOWMAPS) ) {
 				texture_info *tglow = &tmap->textures[TM_GLOW_TYPE];
 
-				if ( (interp->new_replacement_textures != NULL) && (interp->new_replacement_textures[rt_begin_index + TM_GLOW_TYPE] >= 0) ) {
-					tex_replace[TM_GLOW_TYPE] = texture_info(interp->new_replacement_textures[rt_begin_index + TM_GLOW_TYPE]);
-					texture_maps[TM_GLOW_TYPE] = model_interp_get_texture(&tex_replace[TM_GLOW_TYPE], interp->base_frametime);
+				if ( (replacement_textures != NULL) && (replacement_textures[rt_begin_index + TM_GLOW_TYPE] >= 0) ) {
+					tex_replace[TM_GLOW_TYPE] = texture_info(replacement_textures[rt_begin_index + TM_GLOW_TYPE]);
+					texture_maps[TM_GLOW_TYPE] = model_interp_get_texture(&tex_replace[TM_GLOW_TYPE], base_frametime);
 				} else if (tglow->GetTexture() >= 0) {
 					// shockwaves are special, their current frame has to come out of the shockwave code to get the timing correct
-					if ( (interp->objnum >= 0) && (Objects[interp->objnum].type == OBJ_SHOCKWAVE) && (tglow->GetNumFrames() > 1) ) {
-						texture_maps[TM_GLOW_TYPE] = tglow->GetTexture() + shockwave_get_framenum(Objects[interp->objnum].instance, tglow->GetNumFrames());
+					if ( (obj_num >= 0) && (Objects[obj_num].type == OBJ_SHOCKWAVE) && (tglow->GetNumFrames() > 1) ) {
+						texture_maps[TM_GLOW_TYPE] = tglow->GetTexture() + shockwave_get_framenum(Objects[obj_num].instance, tglow->GetNumFrames());
 					} else {
-						texture_maps[TM_GLOW_TYPE] = model_interp_get_texture(tglow, interp->base_frametime);
+						texture_maps[TM_GLOW_TYPE] = model_interp_get_texture(tglow, base_frametime);
 					}
 				}
 			}
@@ -1226,43 +1256,43 @@ void model_queue_render_buffers(DrawList* scene, model_render_params* interp, po
 				texture_info *height_map = &tmap->textures[TM_HEIGHT_TYPE];
 				texture_info *misc_map = &tmap->textures[TM_MISC_TYPE];
 
-				if (interp->new_replacement_textures != NULL) {
-					if (interp->new_replacement_textures[rt_begin_index + TM_SPECULAR_TYPE] >= 0) {
-						tex_replace[TM_SPECULAR_TYPE] = texture_info(interp->new_replacement_textures[rt_begin_index + TM_SPECULAR_TYPE]);
+				if (replacement_textures != NULL) {
+					if (replacement_textures[rt_begin_index + TM_SPECULAR_TYPE] >= 0) {
+						tex_replace[TM_SPECULAR_TYPE] = texture_info(replacement_textures[rt_begin_index + TM_SPECULAR_TYPE]);
 						spec_map = &tex_replace[TM_SPECULAR_TYPE];
 					}
 
-					if (interp->new_replacement_textures[rt_begin_index + TM_NORMAL_TYPE] >= 0) {
-						tex_replace[TM_NORMAL_TYPE] = texture_info(interp->new_replacement_textures[rt_begin_index + TM_NORMAL_TYPE]);
+					if (replacement_textures[rt_begin_index + TM_NORMAL_TYPE] >= 0) {
+						tex_replace[TM_NORMAL_TYPE] = texture_info(replacement_textures[rt_begin_index + TM_NORMAL_TYPE]);
 						norm_map = &tex_replace[TM_NORMAL_TYPE];
 					}
 
-					if (interp->new_replacement_textures[rt_begin_index + TM_HEIGHT_TYPE] >= 0) {
-						tex_replace[TM_HEIGHT_TYPE] = texture_info(interp->new_replacement_textures[rt_begin_index + TM_HEIGHT_TYPE]);
+					if (replacement_textures[rt_begin_index + TM_HEIGHT_TYPE] >= 0) {
+						tex_replace[TM_HEIGHT_TYPE] = texture_info(replacement_textures[rt_begin_index + TM_HEIGHT_TYPE]);
 						height_map = &tex_replace[TM_HEIGHT_TYPE];
 					}
 
-					if (interp->new_replacement_textures[rt_begin_index + TM_MISC_TYPE] >= 0) {
-						tex_replace[TM_MISC_TYPE] = texture_info(interp->new_replacement_textures[rt_begin_index + TM_MISC_TYPE]);
+					if (replacement_textures[rt_begin_index + TM_MISC_TYPE] >= 0) {
+						tex_replace[TM_MISC_TYPE] = texture_info(replacement_textures[rt_begin_index + TM_MISC_TYPE]);
 						misc_map = &tex_replace[TM_MISC_TYPE];
 					}
 				}
 
-				texture_maps[TM_SPECULAR_TYPE] = model_interp_get_texture(spec_map, interp->base_frametime);
-				texture_maps[TM_NORMAL_TYPE] = model_interp_get_texture(norm_map, interp->base_frametime);
-				texture_maps[TM_HEIGHT_TYPE] = model_interp_get_texture(height_map, interp->base_frametime);
-				texture_maps[TM_MISC_TYPE] = model_interp_get_texture(misc_map, interp->base_frametime);
+				texture_maps[TM_SPECULAR_TYPE] = model_interp_get_texture(spec_map, base_frametime);
+				texture_maps[TM_NORMAL_TYPE] = model_interp_get_texture(norm_map, base_frametime);
+				texture_maps[TM_HEIGHT_TYPE] = model_interp_get_texture(height_map, base_frametime);
+				texture_maps[TM_MISC_TYPE] = model_interp_get_texture(misc_map, base_frametime);
 			}
 		} else {
 			alpha = forced_alpha;
 
 			//Check for invisible or transparent textures so they don't show up in the shadow maps - Valathil
 			if ( in_shadow_map ) {
-				if ( (interp->new_replacement_textures != NULL) && (interp->new_replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
-					tex_replace[TM_BASE_TYPE] = texture_info(interp->new_replacement_textures[rt_begin_index + TM_BASE_TYPE]);
-					texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tex_replace[TM_BASE_TYPE], interp->base_frametime);
+				if ( (replacement_textures != NULL) && (replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
+					tex_replace[TM_BASE_TYPE] = texture_info(replacement_textures[rt_begin_index + TM_BASE_TYPE]);
+					texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tex_replace[TM_BASE_TYPE], base_frametime);
 				} else {
-					texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tmap->textures[TM_BASE_TYPE], interp->base_frametime);
+					texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tmap->textures[TM_BASE_TYPE], base_frametime);
 				}
 
 				if ( texture_maps[TM_BASE_TYPE] <= 0 ) {
@@ -1278,7 +1308,7 @@ void model_queue_render_buffers(DrawList* scene, model_render_params* interp, po
 		// trying to get transparent textures-Bobboau
 		if (tmap->is_transparent) {
 			// for special shockwave/warp map usage
-			alpha = (interp->warp_alpha != -1.0f) ? interp->warp_alpha : 0.8f;
+			alpha = (interp->get_warp_alpha() != -1.0f) ? interp->get_warp_alpha() : 0.8f;
 			blend_filter = GR_ALPHABLEND_FILTER;
 
 		}
@@ -1290,7 +1320,7 @@ void model_queue_render_buffers(DrawList* scene, model_render_params* interp, po
 		if (blend_filter != GR_ALPHABLEND_NONE) {
 			scene->setDepthMode(GR_ZBUFF_READ);
 		} else {
-			if ( (interp->flags & MR_NO_ZBUFFER) || (interp->flags & MR_ALL_XPARENT) ) {
+			if ( (model_flags & MR_NO_ZBUFFER) || (model_flags & MR_ALL_XPARENT) ) {
 				scene->setDepthMode(GR_ZBUFF_NONE);
 			} else {
 				scene->setDepthMode(GR_ZBUFF_FULL);
@@ -1402,8 +1432,8 @@ float model_queue_render_determine_light(model_render_params* interp, vec3d *pos
 	} else if ( flags & MR_IS_ASTEROID ) {
 		// Dim it based on distance
 		float depth = vm_vec_dist_quick( pos, &Eye_position );
-		if ( depth > interp->depth_scale )	{
-			float temp_light = interp->depth_scale/depth;
+		if ( depth > interp->get_depth_scale() )	{
+			float temp_light = interp->get_depth_scale()/depth;
 
 			// If it is too far, exit
 			if ( temp_light < (1.0f/32.0f) ) {
@@ -1448,11 +1478,10 @@ float model_render_determine_box_scale()
 	return box_scale;
 }
 
-float model_render_determine_base_frametime(model_render_params *interp)
+fix model_render_determine_base_frametime(int objnum, uint flags)
 {
 	// Goober5000
 	fix base_frametime = 0;
-	int objnum = interp->get_object_number();
 
 	if ( objnum >= 0 ) {
 		object *objp = &Objects[objnum];
@@ -1460,7 +1489,7 @@ float model_render_determine_base_frametime(model_render_params *interp)
 		if ( objp->type == OBJ_SHIP ) {
 			base_frametime = Ships[objp->instance].base_texture_anim_frametime;
 		}
-	} else if ( is_skybox ) {
+	} else if ( flags & MR_SKYBOX ) {
 		base_frametime = Skybox_timestamp;
 	}
 
@@ -1528,14 +1557,16 @@ bool model_render_check_detail_box(vec3d *view_pos, polymodel *pm, int submodel_
 
 void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures)
 {
-	DrawList model_list;
-	model_render_params interp;
 
-	model_interp_load_global_data(&interp);
+}
+
+void submodel_immediate_render(model_render_params *render_info, int model_num, int submodel_num, matrix *orient, vec3d * pos)
+{
+	DrawList model_list;
 	
 	model_list.init();
 
-	submodel_queue_render(&interp, &model_list, model_num, submodel_num, orient, pos, flags, objnum, replacement_textures);
+	submodel_queue_render(render_info, &model_list, model_num, submodel_num, orient, pos);
 	
 	model_list.renderAll();
 
@@ -1551,65 +1582,60 @@ void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, 
 	gr_set_lighting(false, false);
 }
 
-void submodel_queue_render(model_render_params *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures)
+void submodel_queue_render(model_render_params *render_info, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum)
 {
-	// replacement textures - Goober5000
-	interp->new_replacement_textures = replacement_textures;
 
+}
+
+void submodel_queue_render(model_render_params *render_info, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos)
+{
 	polymodel * pm;
 
 	//MONITOR_INC( NumModelsRend, 1 );	
 
 	if ( !( Game_detail_flags & DETAIL_FLAG_MODELS ) )	return;
-
-	// Turn off engine effect
-	interp->thrust_scale_subobj = 0;
-
-	if ( !Model_texturing ) {
-		flags |= MR_NO_TEXTURING;
-	}
-
-	if ( interp->clip_plane ) {
-		scene->setClipPlane(&interp->clip_pos, &interp->clip_normal);
+	
+	if ( render_info->is_clip_plane_set() ) {
+		scene->setClipPlane(render_info->get_clip_plane_pos(), render_info->get_clip_plane_normal());
 	} else {
 		scene->setClipPlane();
 	}
 
-	if ( interp->team_color_set ) {
-		scene->setTeamColor(&interp->current_team_color);
+	if ( render_info->is_team_color_set() ) {
+		scene->setTeamColor(render_info->get_team_color());
 	} else {
 		scene->setTeamColor();
 	}
-
-	scene->setAnimatedEffect(interp->animated_effect);
-	scene->setAnimatedTimer(interp->animated_timer);
-
-	interp->flags = flags;
-	interp->pos = *pos;
+		
+	uint flags = render_info->get_model_flags();
+	int objnum = render_info->get_object_number();
 
 	pm = model_get(model_num);
 
 	// Set the flags we will pass to the tmapper
-	interp->tmap_flags = TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB;
+	uint tmap_flags = TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB;
 
 	// if we're in nebula mode
 	if( ( The_mission.flags & MISSION_FLAG_FULLNEB ) && ( Neb2_render_mode != NEB2_RENDER_NONE ) ) {
-		interp->tmap_flags |= TMAP_FLAG_PIXEL_FOG;
+		tmap_flags |= TMAP_FLAG_PIXEL_FOG;
 	}
 
-	if ( !( interp->flags & MR_NO_TEXTURING ) )	{
-		interp->tmap_flags |= TMAP_FLAG_TEXTURED;
+	if ( !( flags & MR_NO_TEXTURING ) )	{
+		tmap_flags |= TMAP_FLAG_TEXTURED;
 
 		if ( ( pm->flags & PM_FLAG_ALLOW_TILING ) && tiling )
-			interp->tmap_flags |= TMAP_FLAG_TILED;
+			tmap_flags |= TMAP_FLAG_TILED;
 
-		if ( !( interp->flags & MR_NO_CORRECT ) )	{
-			interp->tmap_flags |= TMAP_FLAG_CORRECT;
+		if ( !( flags & MR_NO_CORRECT ) )	{
+			tmap_flags |= TMAP_FLAG_CORRECT;
 		}
 	}
 
-	if ( interp->flags & MR_ANIMATED_SHADER )
-		interp->tmap_flags |= TMAP_ANIMATED_SHADER;
+	if ( render_info->get_animated_effect_num() >= 0 ) {
+		tmap_flags |= TMAP_ANIMATED_SHADER;
+		scene->setAnimatedEffect(render_info->get_animated_effect_num());
+		scene->setAnimatedTimer(render_info->get_animated_effect_timer());
+	}
 
 	bool is_outlines_only_htl = !Cmdline_nohtl && (flags & MR_NO_POLYS) && (flags & MR_SHOW_OUTLINE_HTL);
 
@@ -1618,7 +1644,7 @@ void submodel_queue_render(model_render_params *interp, DrawList *scene, int mod
 
 	
 	vec3d auto_back = ZERO_VECTOR;
-	bool set_autocen = model_render_determine_autocenter(&auto_back, pm, interp->Detail_level_locked, interp->flags);
+	bool set_autocen = model_render_determine_autocenter(&auto_back, pm, render_info->get_detail_level_lock(), flags);
 
 	if ( set_autocen ) {
 		scene->pushTransform(&auto_back, NULL);
@@ -1627,38 +1653,28 @@ void submodel_queue_render(model_render_params *interp, DrawList *scene, int mod
 	if (is_outlines_only_htl) {
 		scene->setFillMode(GR_FILL_MODE_WIRE);
 
-		color outline_color = interp->get_outline_color();
+		color outline_color = render_info->get_outline_color();
 		gr_set_color_fast( &outline_color );
 
-		interp->tmap_flags &= ~TMAP_FLAG_RGB;
+		tmap_flags &= ~TMAP_FLAG_RGB;
 	} else {
 		scene->setFillMode(GR_FILL_MODE_SOLID);
 	}
 
 	scene->setLightFactor(1.0f);
 
-	if ( !( interp->flags & MR_NO_LIGHTING ) ) {
+	if ( !( flags & MR_NO_LIGHTING ) ) {
 		scene->setLightFilter(-1, pos, pm->submodel[submodel_num].rad);
 		scene->setLighting(true);
 	} else {
 		scene->setLighting(false);
 	}
 
-	interp->base_frametime = 0;
-
-	if (objnum >= 0) {
-		object *objp = &Objects[objnum];
-
-		if (objp->type == OBJ_SHIP) {
-			interp->base_frametime = Ships[objp->instance].base_texture_anim_frametime;
-		}
-	}
-
 	// fixes disappearing HUD in OGL - taylor
 	scene->setCullMode(1);
 
 	// RT - Put this here to fog debris
-	if( interp->tmap_flags & TMAP_FLAG_PIXEL_FOG ) {
+	if( tmap_flags & TMAP_FLAG_PIXEL_FOG ) {
 		float fog_near, fog_far;
 		object *obj = NULL;
 
@@ -1684,12 +1700,12 @@ void submodel_queue_render(model_render_params *interp, DrawList *scene, int mod
 
 	vec3d view_pos = scene->getViewPosition();
 
-	if ( model_render_check_detail_box(&view_pos, pm, submodel_num, interp->flags) ) {
-		model_queue_render_buffers(scene, interp, pm, submodel_num, 0);
+	if ( model_render_check_detail_box(&view_pos, pm, submodel_num, flags) ) {
+		model_queue_render_buffers(scene, render_info, pm, submodel_num, 0, tmap_flags);
 	}
 	
 	if ( pm->submodel[submodel_num].num_arcs )	{
-		//model_queue_render_lightning( scene, interp, pm, &pm->submodel[submodel_num] );
+		model_queue_render_lightning( scene, render_info, pm, &pm->submodel[submodel_num] );
 	}
 
 	if ( set_autocen ) {
@@ -2410,7 +2426,7 @@ void model_queue_render_thrusters(model_render_params *interp, polymodel *pm, in
 	}
 }
 
-void model_debug_render_children(polymodel *pm, int mn, int detail_level, uint flags)
+void model_render_debug_children(polymodel *pm, int mn, int detail_level, uint flags)
 {
 	int i;
 
@@ -2457,14 +2473,14 @@ void model_debug_render_children(polymodel *pm, int mn, int detail_level, uint f
 
 	g3_start_instance_matrix(&model->offset, &submodel_matrix, true);
 
-	if ( flags & MR_SHOW_PIVOTS ) {
-		model_draw_debug_points( pm, &pm->submodel[mn], flags );
-	}
+// 	if ( flags & MR_SHOW_PIVOTS ) {
+// 		model_draw_debug_points( pm, &pm->submodel[mn], flags );
+// 	}
 
 	i = model->first_child;
 
 	while ( i >= 0 ) {
-		model_debug_render_children( pm, i, detail_level, flags );
+		model_render_debug_children( pm, i, detail_level, flags );
 
 		i = pm->submodel[i].next_sibling;
 	}
@@ -2472,7 +2488,7 @@ void model_debug_render_children(polymodel *pm, int mn, int detail_level, uint f
 	g3_done_instance(true);
 }
 
-void model_debug_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int detail_level_locked )
+void model_render_debug(int model_num, matrix *orient, vec3d * pos, uint flags, uint debug_flags, int objnum, int detail_level_locked )
 {
 	ship *shipp = NULL;
 	object *objp = NULL;
@@ -2489,7 +2505,7 @@ void model_debug_render(int model_num, matrix *orient, vec3d * pos, uint flags, 
 	
 	g3_start_instance_matrix(pos, orient, true);
 
-	if ( flags & MR_SHOW_RADIUS ) {
+	if ( debug_flags & MR_DEBUG_RADIUS ) {
 		if ( !( flags & MR_SHOW_OUTLINE_PRESET ) ) {
 			gr_set_color(0,64,0);
 			g3_draw_sphere_ez(&vmd_zero_vector,pm->rad);
@@ -2498,26 +2514,11 @@ void model_debug_render(int model_num, matrix *orient, vec3d * pos, uint flags, 
 
 	int detail_level = model_queue_render_determine_detail(objnum, model_num, orient, pos, flags, detail_level_locked);
 
-	bool set_autocen = false;
 	vec3d auto_back = ZERO_VECTOR;
-
-	if ( flags & MR_AUTOCENTER ) {
-		// standard autocenter using data in model
-		if ( pm->flags & PM_FLAG_AUTOCEN ) {
-			auto_back = pm->autocenter;
-			vm_vec_scale(&auto_back, -1.0f);
-			set_autocen = true;
-		} else if ( flags & MR_IS_MISSILE ) {
-			// fake autocenter if we are a missile and don't already have autocen info
-            auto_back.xyz.x = -( (pm->submodel[pm->detail[detail_level]].max.xyz.x + pm->submodel[pm->detail[detail_level]].min.xyz.x) / 2.0f );
-            auto_back.xyz.y = -( (pm->submodel[pm->detail[detail_level]].max.xyz.y + pm->submodel[pm->detail[detail_level]].min.xyz.y) / 2.0f );
-			auto_back.xyz.z = -( (pm->submodel[pm->detail[detail_level]].max.xyz.z + pm->submodel[pm->detail[detail_level]].min.xyz.z) / 2.0f );
-			set_autocen = true;
-		}
-
-		if ( set_autocen ) {
-			g3_start_instance_matrix(&auto_back, NULL, true);
-		}
+	bool set_autocen = model_render_determine_autocenter(&auto_back, pm, detail_level, flags);
+	
+	if ( set_autocen ) {
+		g3_start_instance_matrix(&auto_back, NULL, true);
 	}
 
 	uint save_gr_zbuffering_mode = gr_zbuffer_set(GR_ZBUFF_READ);
@@ -2525,12 +2526,12 @@ void model_debug_render(int model_num, matrix *orient, vec3d * pos, uint flags, 
 	int i = pm->submodel[pm->detail[detail_level]].first_child;
 
 	while ( i >= 0 ) {
-		model_debug_render_children( pm, i, detail_level, flags );
+		model_render_debug_children( pm, i, detail_level, flags );
 
 		i = pm->submodel[i].next_sibling;
 	}
 
-	if ( flags & MR_SHOW_PIVOTS ) {
+	if ( debug_flags & MR_DEBUG_PIVOTS ) {
 		model_draw_debug_points( pm, NULL, flags );
 		model_draw_debug_points( pm, &pm->submodel[pm->detail[detail_level]], flags );
 
@@ -2540,16 +2541,16 @@ void model_debug_render(int model_num, matrix *orient, vec3d * pos, uint flags, 
 		}
 	}
 
-	if ( flags & MR_SHOW_SHIELDS )	{
+	if ( debug_flags & MR_DEBUG_SHIELDS )	{
 		model_render_shields(pm, flags);
 	}	
 
-	if ( flags & MR_SHOW_PATHS ) {
+	if ( debug_flags & MR_DEBUG_PATHS ) {
 		if ( Cmdline_nohtl ) model_draw_paths(model_num, flags);
 		else model_draw_paths_htl(model_num, flags);
 	}
 
-	if ( flags & MR_BAY_PATHS ) {
+	if ( debug_flags & MR_DEBUG_BAY_PATHS ) {
 		if ( Cmdline_nohtl ) model_draw_bay_paths(model_num);
 		else model_draw_bay_paths_htl(model_num);
 	}
@@ -2563,17 +2564,18 @@ void model_debug_render(int model_num, matrix *orient, vec3d * pos, uint flags, 
 	gr_zbuffer_set(save_gr_zbuffering_mode);
 }
 
-void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures, int render, const bool is_skybox)
+void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures)
+{
+
+}
+
+void model_immediate_render(model_render_params *render_info, int model_num, matrix *orient, vec3d * pos, int render)
 {
 	DrawList model_list;
 
-	model_render_params interp;
-
 	model_list.init();
 
-	model_interp_load_global_data(&interp);
-
-	model_queue_render(&interp, &model_list, model_num, -1, orient, pos, flags, objnum, replacement_textures, is_skybox);
+	model_queue_render(render_info, &model_list, model_num, orient, pos);
 
 	model_list.initRender();
 
@@ -2607,17 +2609,14 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 
 	GL_state.Texture.DisableAll();
 
-	model_debug_render(model_num, orient, pos, flags, objnum, interp.detail_level_locked);
+	model_render_debug(model_num, orient, pos, render_info->get_model_flags(), render_info->get_debug_flags(), render_info->get_object_number(), render_info->get_detail_level_lock());
 }
 
-void model_queue_render(model_render_params *interp, DrawList *scene)
+void model_queue_render(model_render_params *interp, DrawList *scene, int model_num, matrix *orient, vec3d *pos)
 {
 	int i;
 	int cull = 0;
 
-	const int model_num = interp->get_model_number();
-	matrix orient = interp->get_orientation();
-	vec3d pos = interp->get_position();
 	const int objnum = interp->get_object_number();
 	const int model_flags = interp->get_model_flags();
 
@@ -2627,25 +2626,17 @@ void model_queue_render(model_render_params *interp, DrawList *scene)
 	model_do_dumb_rotation(model_num);
 
 	if ( interp->is_clip_plane_set() ) {
-		vec3d clip_pos = interp->get_clip_plane_pos();
-		vec3d clip_normal = interp->get_clip_plane_normal();
-
-		scene->setClipPlane(&clip_pos, &clip_normal);
+		scene->setClipPlane(interp->get_clip_plane_pos(), interp->get_clip_plane_normal());
 	} else {
 		scene->setClipPlane();
 	}
 
 	if ( interp->is_team_color_set() ) {
-		team_color model_team_color = interp->get_team_color();
-
-		scene->setTeamColor(&model_team_color);
+		scene->setTeamColor(interp->get_team_color());
 	} else {
 		scene->setTeamColor();
 	}
-
-	scene->setAnimatedEffect(interp->get_animated_effect_num());
-	scene->setAnimatedTimer(interp->get_animated_effect_timer());
-
+		
 	if ( model_flags & MR_FORCE_CLAMP ) {
 		scene->setTextureAddressing(TMAP_ADDRESS_CLAMP);
 	} else {
@@ -2655,42 +2646,21 @@ void model_queue_render(model_render_params *interp, DrawList *scene)
 	model_queue_render_set_glow_points(pm, objnum);
 
 	if ( !(model_flags & MR_NO_LIGHTING) ) {
-		scene->setLightFilter( objnum, &pos, pm->rad );
+		scene->setLightFilter( objnum, pos, pm->rad );
 	}
 
-	scene->setLightFactor(model_queue_render_determine_light(interp, &pos, flags));
+	scene->setLightFactor(model_queue_render_determine_light(interp, pos, model_flags));
 
 	ship *shipp = NULL;
 	object *objp = NULL;
-
-	// just to be on the safe side
-	Assert( interp->objnum == objnum );
-
-	if ( objnum >= 0 ) {
-		objp = &Objects[objnum];
-
-		if (objp->type == OBJ_SHIP) {
-			shipp = &Ships[objp->instance];
-
-			if (shipp->flags2 & SF2_GLOWMAPS_DISABLED)
-				flags |= MR_NO_GLOWMAPS;
-		}
-	}
-
+	
 	int tmp_detail_level = Game_detail_level;
 	
-	if ( !Model_texturing )
-		flags |= MR_NO_TEXTURING;
-
-	if ( !Model_polys )	{
-		flags |= MR_NO_POLYS;
-	}
-
 	// Set the flags we will pass to the tmapper
 	uint tmap_flags = TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB;
 
 	// if we're in nebula mode, fog everything except for the warp holes and other non-fogged models
-	if((The_mission.flags & MISSION_FLAG_FULLNEB) && (Neb2_render_mode != NEB2_RENDER_NONE) && !(flags & MR_NO_FOGGING)){
+	if((The_mission.flags & MISSION_FLAG_FULLNEB) && (Neb2_render_mode != NEB2_RENDER_NONE) && !(model_flags & MR_NO_FOGGING)){
 		tmap_flags |= TMAP_FLAG_PIXEL_FOG;
 	}
 	
@@ -2705,20 +2675,23 @@ void model_queue_render(model_render_params *interp, DrawList *scene)
 		}
 	}
 
-	if ( model_flags & MR_ANIMATED_SHADER )
-		tmap_flags |= TMAP_ANIMATED_SHADER;
-
-	if ( interp->desaturate ) {
+	if ( model_flags & MR_DESATURATED ) {
 		tmap_flags |= TMAP_FLAG_DESATURATE;
 	}
 
-	bool is_outlines_only = (flags & MR_NO_POLYS) && ((flags & MR_SHOW_OUTLINE_PRESET) || (flags & MR_SHOW_OUTLINE));
-	bool is_outlines_only_htl = !Cmdline_nohtl && (flags & MR_NO_POLYS) && (flags & MR_SHOW_OUTLINE_HTL);
+	if ( interp->get_animated_effect_num() >= 0 ) {
+		tmap_flags |= TMAP_ANIMATED_SHADER;
+		scene->setAnimatedEffect(interp->get_animated_effect_num());
+		scene->setAnimatedTimer(interp->get_animated_effect_timer());
+	}
+
+	bool is_outlines_only = (model_flags & MR_NO_POLYS) && ((model_flags & MR_SHOW_OUTLINE_PRESET) || (model_flags & MR_SHOW_OUTLINE));
+	bool is_outlines_only_htl = !Cmdline_nohtl && (model_flags & MR_NO_POLYS) && (model_flags & MR_SHOW_OUTLINE_HTL);
 	bool use_api = !is_outlines_only_htl || (gr_screen.mode == GR_OPENGL);
 
-	scene->pushTransform(&pos, &orient);
+	scene->pushTransform(pos, orient);
 
-	int detail_level = model_queue_render_determine_detail(objnum, model_num, &orient, &pos, flags, interp->get_detail_level_lock());
+	int detail_level = model_queue_render_determine_detail(objnum, model_num, orient, pos, model_flags, interp->get_detail_level_lock());
 
 // #ifndef NDEBUG
 // 	if ( Interp_detail_level == 0 )	{
@@ -2797,7 +2770,7 @@ void model_queue_render(model_render_params *interp, DrawList *scene)
 
 	if ( (tmap_flags & TMAP_FLAG_BATCH_TRANSFORMS) ) {
 		scene->startModelDraw(pm->n_models);
-		model_queue_render_buffers(scene, interp, pm, -1);
+		model_queue_render_buffers(scene, interp, pm, -1, detail_level, tmap_flags);
 	}
 		
 	// Draw the subobjects
@@ -2806,7 +2779,7 @@ void model_queue_render(model_render_params *interp, DrawList *scene)
 
 	while( i >= 0 )	{
 		if ( !pm->submodel[i].is_thruster ) {
-			model_queue_render_children_buffers( scene, interp, pm, i, detail_level );
+			model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags );
 		} else {
 			draw_thrusters = true;
 		}
@@ -2819,8 +2792,8 @@ void model_queue_render(model_render_params *interp, DrawList *scene)
 	//*************************** draw the hull of the ship *********************************************
 	vec3d view_pos = scene->getViewPosition();
 
-	if ( model_render_check_detail_box(&view_pos, pm, pm->detail[detail_level], flags) ) {
-		model_queue_render_buffers(scene, interp, pm, pm->detail[detail_level], detail_level);
+	if ( model_render_check_detail_box(&view_pos, pm, pm->detail[detail_level], model_flags) ) {
+		model_queue_render_buffers(scene, interp, pm, pm->detail[detail_level], detail_level, tmap_flags);
 	}
 	
 	// Draw the thruster subobjects
@@ -2832,7 +2805,7 @@ void model_queue_render(model_render_params *interp, DrawList *scene)
 
 		while( i >= 0 ) {
 			if (pm->submodel[i].is_thruster) {
-				model_queue_render_children_buffers( scene, interp, pm, i, detail_level );
+				model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags );
 			}
 			i = pm->submodel[i].next_sibling;
 		}
@@ -2850,7 +2823,7 @@ void model_queue_render(model_render_params *interp, DrawList *scene)
 
 	// start rendering glow points -Bobboau
 	if ( (pm->n_glow_point_banks) && !is_outlines_only && !is_outlines_only_htl && !Glowpoint_override ) {
-		model_queue_render_glow_points(pm, shipp, &orient, &pos, Glowpoint_use_depth_buffer);
+		model_queue_render_glow_points(pm, shipp, orient, pos, Glowpoint_use_depth_buffer);
 	}
 
 	// Draw the thruster glow
@@ -2858,12 +2831,12 @@ void model_queue_render(model_render_params *interp, DrawList *scene)
 		if ( ( model_flags & MR_AUTOCENTER ) && set_autocen ) {
 			vec3d autoback_rotated;
 
-			vm_vec_unrotate(&autoback_rotated, &auto_back, &orient);
-			vm_vec_add2(&autoback_rotated, &pos);
+			vm_vec_unrotate(&autoback_rotated, &auto_back, orient);
+			vm_vec_add2(&autoback_rotated, pos);
 
-			model_queue_render_thrusters( interp, pm, objnum, shipp, &orient, &autoback_rotated );
+			model_queue_render_thrusters( interp, pm, objnum, shipp, orient, &autoback_rotated );
 		} else {
-			model_queue_render_thrusters( interp, pm, objnum, shipp, &orient, &pos );
+			model_queue_render_thrusters( interp, pm, objnum, shipp, orient, pos );
 		}
 	}
 }

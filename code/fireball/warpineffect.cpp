@@ -128,15 +128,18 @@ void warpin_render(object *obj, matrix *orient, vec3d *pos, int texture_bitmap_n
 	}
 
 	if ( (Warp_model >= 0) && (warp_3d || Cmdline_3dwarp) ) {
-		float scale = radius / 25.0f;
-		model_set_warp_globals(scale, scale, scale, texture_bitmap_num, (radius/max_radius) );
+		model_render_params render_info;
+
+		vec3d scale;
+		scale.xyz.z = scale.xyz.y = scale.xyz.x = radius / 25.0f;
+		render_info.set_warp_params(texture_bitmap_num, radius/max_radius, scale);
 
 		float dist = vm_vec_dist_quick( pos, &Eye_position );
-		model_set_detail_level((int)(dist / (radius * 10.0f)));
+		render_info.set_detail_level_lock((int)(dist / (radius * 10.0f)));
 
-		model_immediate_render( Warp_model, orient, pos, MR_LOCK_DETAIL | MR_NO_LIGHTING | MR_NORMAL | MR_NO_FOGGING | MR_NO_CULL );
+		render_info.set_flags(MR_NO_LIGHTING | MR_NORMAL | MR_NO_FOGGING | MR_NO_CULL | MR_NO_BATCH);
 
-		model_set_warp_globals();
+		model_immediate_render( &render_info, Warp_model, orient, pos );
 	} else {
 		float Grid_depth = radius/2.5f;
 
@@ -274,21 +277,21 @@ void warpin_queue_render(DrawList *scene, object *obj, matrix *orient, vec3d *po
 	}
 
 	if ( (Warp_model >= 0) && (warp_3d || Cmdline_3dwarp) ) {
-		model_render_params interp;
+		model_render_params render_info;
 
 		float scale = radius / 25.0f;
 
-		interp.warp_scale_x = scale;
-		interp.warp_scale_y = scale;
-		interp.warp_scale_z = scale;
-		interp.warp_bitmap = texture_bitmap_num;
-		interp.warp_alpha = (radius/max_radius);
-		
+		vec3d warp_scale;
+
+		warp_scale.xyz.x = warp_scale.xyz.y = warp_scale.xyz.z = scale;
+
 		float dist = vm_vec_dist_quick( pos, &Eye_position );
 
-		interp.detail_level_locked = (int)(dist / (radius * 10.0f));
+		render_info.set_warp_params(texture_bitmap_num, radius/max_radius, warp_scale);
+		render_info.set_detail_level_lock((int)(dist / (radius * 10.0f)));
+		render_info.set_flags(MR_NO_LIGHTING | MR_NORMAL | MR_NO_FOGGING | MR_NO_CULL | MR_NO_BATCH);
 
-		model_queue_render( &interp, scene, Warp_model, -1, orient, pos, MR_LOCK_DETAIL | MR_NO_LIGHTING | MR_NORMAL | MR_NO_FOGGING | MR_NO_CULL | MR_NO_BATCH, -1, NULL );
+		model_queue_render( &render_info, scene, Warp_model, orient, pos);
 	} else {
 		float Grid_depth = radius/2.5f;
 

@@ -113,7 +113,7 @@ int shipfx_large_blowup_do_frame(ship *shipp, float frametime);
 
 void shipfx_large_blowup_render(ship *shipp);
 
-void shipfx_large_blowup_queue_render(model_render_params *interp, DrawList *scene, ship* shipp);
+void shipfx_large_blowup_queue_render(DrawList *scene, ship* shipp);
 
 void shipfx_debris_limit_speed(struct debris *db, ship *shipp);
 
@@ -182,7 +182,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
-	virtual int warpQueueShipClip(model_render_params *interp);
+	virtual int warpShipClip(model_render_params *render_info);
 	virtual int warpShipRender();
 	virtual int warpShipQueueRender(DrawList *scene);
 	virtual int warpEnd();
@@ -221,7 +221,7 @@ public:
 	int warpStart();
 	int warpFrame(float frametime);
 	int warpShipClip();
-	int warpQueueShipClip(model_render_params *interp);
+	int warpShipClip(model_render_params *render_info);
 	int warpShipRender();
 
 	int getWarpPosition(vec3d *output);
@@ -279,7 +279,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
-	virtual int warpQueueShipClip(model_render_params *interp);
+	virtual int warpShipClip(model_render_params *render_info);
 	virtual int warpShipRender();
 	virtual int warpEnd();
 
@@ -329,7 +329,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
-	virtual int warpQueueShipClip(model_render_params *interp);
+	virtual int warpShipClip(model_render_params *render_info);
 	virtual int warpShipRender();
 	virtual int warpEnd();
 

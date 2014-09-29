@@ -268,7 +268,6 @@ void model_unload(int modelnum, int force)
 
 	for ( int i = 0; i < MAX_MODEL_DETAIL_LEVELS; ++i ) {
 		pm->detail_buffers[i].clear();
-		pm->thruster_buffers[i].clear();
 	}
 
 	// run through Ship_info[] and if the model has been loaded we'll need to reset the modelnum to -1.
@@ -886,12 +885,6 @@ void create_vertex_buffer(polymodel *pm)
 			gr_pack_buffer(pm->vertex_buffer_id, &pm->detail_buffers[i]);
 
 			pm->detail_buffers[i].release();
-
-			if ( pm->use_thruster_buffers ) {
-				gr_pack_buffer(pm->vertex_buffer_id, &pm->thruster_buffers[i]);
-
-				pm->thruster_buffers[i].release();
-			}
 		}
 	}
 
@@ -2547,7 +2540,6 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 	pm = new polymodel;	
 	Polygon_models[num] = pm;
 
-	pm->use_thruster_buffers = false;
 	pm->n_paths = 0;
 	pm->paths = NULL;
 

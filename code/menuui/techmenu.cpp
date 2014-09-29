@@ -469,9 +469,10 @@ void techroom_ships_render(float frametime)
 	angles rot_angles, view_angles;
 	int z, i, j;
 	ship_info *sip = &Ship_info[Cur_entry_index];
+	model_render_params render_info;
 
 	if (sip->uses_team_colors) {
-		model_interp_set_team_color(sip->default_team_name, "none", 0, 0);
+		render_info.set_team_color(sip->default_team_name, "none", 0, 0);
 	}
 
 	// get correct revolution rate
@@ -536,7 +537,7 @@ void techroom_ships_render(float frametime)
 	Glowpoint_use_depth_buffer = false;
 
 	model_clear_instance(Techroom_ship_modelnum);
-	model_set_detail_level(0);
+	render_info.set_detail_level_lock(0);
 
 	polymodel *pm = model_get(Techroom_ship_modelnum);
 	
@@ -567,7 +568,9 @@ void techroom_ships_render(float frametime)
         gr_reset_clip();
 
 		shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -sip->closeup_pos.xyz.z + pm->rad, -sip->closeup_pos.xyz.z + pm->rad + 200.0f, -sip->closeup_pos.xyz.z + pm->rad + 2000.0f, -sip->closeup_pos.xyz.z + pm->rad + 10000.0f);
-        model_immediate_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, MR_NO_TEXTURING | MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER, -1, -1);
+        render_info.set_flags(MR_NO_TEXTURING | MR_NO_LIGHTING | MR_AUTOCENTER);
+		
+		model_immediate_render(&render_info, Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector);
         shadows_end_render();
 
 		gr_set_clip(Tech_ship_display_coords[gr_screen.res][SHIP_X_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_Y_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_W_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_H_COORD]);
@@ -578,12 +581,14 @@ void techroom_ships_render(float frametime)
 		gr_set_view_matrix(&Eye_position, &Eye_matrix);
 	}
 
-	uint render_flags = MR_LOCK_DETAIL | MR_AUTOCENTER;
+	uint render_flags = MR_AUTOCENTER;
 
 	if(sip->flags2 & SIF2_NO_LIGHTING)
 		render_flags |= MR_NO_LIGHTING;
 
-	model_immediate_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, render_flags);
+	render_info.set_flags(render_flags);
+
+	model_immediate_render(&render_info, Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector);
 
 	Glowpoint_use_depth_buffer = true;
 

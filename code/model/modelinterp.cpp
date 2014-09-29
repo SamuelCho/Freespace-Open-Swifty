@@ -110,7 +110,7 @@ static float Interp_fog_level = 0.0f;
 
 // Stuff to control rendering parameters
 static color Interp_outline_color;
-static int Interp_detail_level_locked = 0;
+static int Interp_detail_level_locked = -1;
 static uint Interp_flags = 0;
 static uint Interp_tmap_flags = 0;
 bool Interp_desaturate = false;
@@ -388,6 +388,8 @@ void interp_clear_instance()
 
 	Interp_animated_effect = 0;
 	Interp_animated_timer = 0.0f;
+
+	Interp_detail_level_locked = -1;
 }
 
 /**
@@ -1600,8 +1602,8 @@ void model_interp_subcall(polymodel * pm, int mn, int detail_level)
 
 	model_interp_sub( pm->submodel[mn].bsp_data, pm, &pm->submodel[mn], 0 );
 
-	if (Interp_flags & MR_SHOW_PIVOTS )
-		model_draw_debug_points( pm, &pm->submodel[mn], Interp_flags );
+//	if (Interp_flags & MR_SHOW_PIVOTS )
+//		model_draw_debug_points( pm, &pm->submodel[mn], Interp_flags );
 
 	if ( pm->submodel[mn].num_arcs )	{
 		interp_render_lightning( pm, &pm->submodel[mn]);
@@ -1720,11 +1722,11 @@ int model_interp_sub(void *model_ptr, polymodel * pm, bsp_info *sm, int do_box_c
 				}
 			}
 
-			if (Interp_flags & MR_SHOW_PIVOTS )	{
-				#ifndef NDEBUG
-				modelstats_num_boxes++;
-				#endif
-			}
+//			if (Interp_flags & MR_SHOW_PIVOTS )	{
+//				#ifndef NDEBUG
+//				modelstats_num_boxes++;
+//				#endif
+//			}
 
 			if ( !(Interp_flags & MR_NO_LIGHTING ) )	{
 				if ( pushed )	{
@@ -2952,12 +2954,12 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 	g3_start_instance_matrix(pos, orient, use_api);
 
-	if ( Interp_flags & MR_SHOW_RADIUS )	{
-		if ( !(Interp_flags & MR_SHOW_OUTLINE_PRESET) )	{
-			gr_set_color(0,64,0);
-			g3_draw_sphere_ez(&vmd_zero_vector,pm->rad);
-		}
-	}
+// 	if ( Interp_flags & MR_SHOW_RADIUS )	{
+// 		if ( !(Interp_flags & MR_SHOW_OUTLINE_PRESET) )	{
+// 			gr_set_color(0,64,0);
+// 			g3_draw_sphere_ez(&vmd_zero_vector,pm->rad);
+// 		}
+// 	}
 
 	Assert( pm->n_detail_levels < MAX_MODEL_DETAIL_LEVELS );
 
@@ -2965,7 +2967,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	float depth = model_find_closest_point( &closest_pos, model_num, -1, orient, pos, &Eye_position );
 	if ( pm->n_detail_levels > 1 )	{
 
-		if ( Interp_flags & MR_LOCK_DETAIL )	{
+		if ( Interp_detail_level_locked >= 0 )	{
 			i = Interp_detail_level_locked+1;
 		} else {
 
@@ -3212,15 +3214,15 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		gr_set_lighting(false, false);
 	}
 
-	if (Interp_flags & MR_SHOW_PIVOTS )	{
-		model_draw_debug_points( pm, NULL, Interp_flags );
-		model_draw_debug_points( pm, &pm->submodel[pm->detail[Interp_detail_level]], Interp_flags );
-
-		if(pm->flags & PM_FLAG_AUTOCEN){
-			gr_set_color(255, 255, 255);
-			g3_draw_sphere_ez(&pm->autocenter, pm->rad / 4.5f);
-		}
-	}
+// 	if (Interp_flags & MR_SHOW_PIVOTS )	{
+// 		model_draw_debug_points( pm, NULL, Interp_flags );
+// 		model_draw_debug_points( pm, &pm->submodel[pm->detail[Interp_detail_level]], Interp_flags );
+// 
+// 		if(pm->flags & PM_FLAG_AUTOCEN){
+// 			gr_set_color(255, 255, 255);
+// 			g3_draw_sphere_ez(&pm->autocenter, pm->rad / 4.5f);
+// 		}
+// 	}
 
 	model_radius = 0.0f;
 
@@ -3241,19 +3243,19 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		interp_render_lightning( pm, &pm->submodel[pm->detail[0]]);
 	}	
 
-	if ( Interp_flags & MR_SHOW_SHIELDS )	{
-		model_render_shields(pm, Interp_flags);
-	}	
+// 	if ( Interp_flags & MR_SHOW_SHIELDS )	{
+// 		model_render_shields(pm, Interp_flags);
+// 	}	
 
-	if ( Interp_flags & MR_SHOW_PATHS ){
-		if (Cmdline_nohtl) model_draw_paths(model_num, Interp_flags);
-		else model_draw_paths_htl(model_num, Interp_flags);
-	}
+// 	if ( Interp_flags & MR_SHOW_PATHS ){
+// 		if (Cmdline_nohtl) model_draw_paths(model_num, Interp_flags);
+// 		else model_draw_paths_htl(model_num, Interp_flags);
+// 	}
 
-	if (Interp_flags & MR_BAY_PATHS ){
-		if (Cmdline_nohtl) model_draw_bay_paths(model_num);
-		else model_draw_bay_paths_htl(model_num);
-	}
+// 	if (Interp_flags & MR_BAY_PATHS ){
+// 		if (Cmdline_nohtl) model_draw_bay_paths(model_num);
+// 		else model_draw_bay_paths_htl(model_num);
+// 	}
 
 	if ( (Interp_flags & MR_AUTOCENTER) && (set_autocen) ) {
 		g3_done_instance(use_api);
@@ -3439,8 +3441,8 @@ void submodel_render_DEPRECATED(int model_num, int submodel_num, matrix *orient,
 		interp_render_lightning( pm, &pm->submodel[submodel_num]);
 	}
 
-	if (Interp_flags & MR_SHOW_PIVOTS )
-		model_draw_debug_points( pm, &pm->submodel[submodel_num], Interp_flags );
+// 	if (Interp_flags & MR_SHOW_PIVOTS )
+// 		model_draw_debug_points( pm, &pm->submodel[submodel_num], Interp_flags );
 
 	if ( !(Interp_flags & MR_NO_LIGHTING ) )	{
 		light_filter_pop();	
@@ -4510,11 +4512,9 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 	int model_num;
 	SCP_vector<int> submodel_list;
 	int index_counts[MAX_MODEL_TEXTURES];
-	int thruster_index_counts[MAX_MODEL_TEXTURES];
 
 	for ( i = 0; i < MAX_MODEL_TEXTURES; ++i ) {
 		index_counts[i] = 0;
-		thruster_index_counts[i] = 0;
 	}
 
 	submodel_list.clear();
@@ -4525,28 +4525,25 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 	int tex_num;
 
 	vertex_buffer &detail_buffer = pm->detail_buffers[detail_num];
-	vertex_buffer &thruster_buffer = pm->thruster_buffers[detail_num];
 
 	detail_buffer.model_list = new(std::nothrow) poly_list;
-	thruster_buffer.model_list = new(std::nothrow) poly_list;
 
 	// need to first count how many indexes there are in this entire detail model hierarchy
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
+
+		if ( pm->submodel[model_num].is_thruster ) {
+			continue;
+		}
+
 		num_buffers = pm->submodel[model_num].buffer.tex_buf.size();
 
 		detail_buffer.flags |= pm->submodel[model_num].buffer.flags;
-		thruster_buffer.flags |= pm->submodel[model_num].buffer.flags;
 
 		for ( j = 0; j < num_buffers; ++j ) {
 			tex_num = pm->submodel[model_num].buffer.tex_buf[j].texture;
 
-			if ( pm->submodel[model_num].is_thruster ) {
-				thruster_index_counts[tex_num] += pm->submodel[model_num].buffer.tex_buf[j].n_verts;
-				pm->use_thruster_buffers = true;
-			} else {
-				index_counts[tex_num] += pm->submodel[model_num].buffer.tex_buf[j].n_verts;
-			}
+			index_counts[tex_num] += pm->submodel[model_num].buffer.tex_buf[j].n_verts;
 		}
 	}
 
@@ -4567,31 +4564,11 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 		detail_buffer.tex_buf[i].n_verts = 0;
 	}
 
-	for ( i = 0; i < MAX_MODEL_TEXTURES; ++i ) {
-		if ( thruster_index_counts[i] <= 0 ) {
-			continue;
-		}
-
-		thruster_buffer.tex_buf.push_back(buffer_data(thruster_index_counts[i]));
-
-		buffer_data &new_buffer = thruster_buffer.tex_buf.back();
-		//new_buffer.n_verts = 0;
-		new_buffer.texture = i;
-	}
-
-	for ( i = 0; i < thruster_buffer.tex_buf.size(); ++i ) {
-		thruster_buffer.tex_buf[i].n_verts = 0;
-	}
-
 	// finally copy over the indexes
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
-		
-		if ( pm->submodel[model_num].is_thruster ) {
-			interp_copy_index_buffer(&pm->submodel[model_num].buffer, &thruster_buffer, thruster_index_counts);
-		} else {
-			interp_copy_index_buffer(&pm->submodel[model_num].buffer, &detail_buffer, index_counts);
-		}
+
+		interp_copy_index_buffer(&pm->submodel[model_num].buffer, &detail_buffer, index_counts);
 	}
 
 	// check which buffers need to have the > USHORT flag
@@ -4602,16 +4579,6 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 	}
 
 	gr_config_buffer(pm->vertex_buffer_id, &detail_buffer, true);
-
-	if ( pm->use_thruster_buffers ) {
-		for ( i = 0; i < thruster_buffer.tex_buf.size(); ++i ) {
-			if ( thruster_buffer.tex_buf[i].i_last >= USHRT_MAX ) {
-				thruster_buffer.tex_buf[i].flags |= VB_FLAG_LARGE_INDEX;
-			}
-		}
-
-		gr_config_buffer(pm->vertex_buffer_id, &thruster_buffer, true);
-	}
 }
 
 inline int in_box(vec3d *min, vec3d *max, vec3d *pos, vec3d *view_pos)
@@ -4719,8 +4686,8 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level, int 
 	
 	model_render_buffers(pm, mn, render, true);
 
-	if (Interp_flags & MR_SHOW_PIVOTS)
-		model_draw_debug_points( pm, &pm->submodel[mn], Interp_flags );
+// 	if (Interp_flags & MR_SHOW_PIVOTS)
+// 		model_draw_debug_points( pm, &pm->submodel[mn], Interp_flags );
 
 	if (model->num_arcs)
 		interp_render_lightning( pm, &pm->submodel[mn]);
@@ -5144,71 +5111,6 @@ void model_interp_set_animated_effect_and_timer(int effect_num, float effect_tim
 {
 	Interp_animated_effect = effect_num;
 	Interp_animated_timer = effect_timer;
-}
-
-void model_interp_load_global_data(model_render_params *interp)
-{
-	interp->afterburner = Interp_afterburner;
-	interp->base_frametime = Interp_base_frametime;
-	interp->box_scale = Interp_box_scale;
-	interp->depth_scale = Interp_depth_scale;
-	interp->desaturate = Interp_desaturate;
-	interp->detail_level = Interp_detail_level;
-	interp->detail_level_locked = Interp_detail_level_locked;
-	interp->distortion_thrust_bitmap = Interp_distortion_thrust_bitmap;
-	interp->distortion_thrust_length_factor = Interp_distortion_thrust_length_factor;
-	interp->distortion_thrust_rad_factor = Interp_distortion_thrust_rad_factor;
-	interp->draw_distortion = Interp_draw_distortion;
-	interp->flags = Interp_flags;
-	interp->forced_bitmap = Interp_forced_bitmap;
-	interp->insignia_bitmap = Interp_insignia_bitmap;
-	interp->new_replacement_textures = Interp_new_replacement_textures;
-	interp->objnum = Interp_objnum;
-	
-	if ( Interp_orient ) {
-		interp->orient = *Interp_orient;
-	}
-
-	interp->outline_color = Interp_outline_color;
-
-	if ( Interp_pos ) {
-		interp->pos = *Interp_pos;
-	}
-
-	interp->render_box_max = Interp_render_box_max;
-	interp->render_box_min = Interp_render_box_min;
-	interp->render_sphere_offset = Interp_render_sphere_offset;
-	interp->render_sphere_radius = Interp_render_sphere_radius;
-	interp->secondary_thrust_glow_bitmap = Interp_secondary_thrust_glow_bitmap;
-	interp->secondary_thrust_glow_rad_factor = Interp_secondary_thrust_glow_rad_factor;
-	interp->tertiary_thrust_glow_bitmap = Interp_tertiary_thrust_glow_bitmap;
-	interp->tertiary_thrust_glow_rad_factor = Interp_tertiary_thrust_glow_rad_factor;
-	interp->thrust_bitmap = Interp_thrust_bitmap;
-	interp->thrust_glow_bitmap = Interp_thrust_glow_bitmap;
-	interp->thrust_glow_len_factor = Interp_thrust_glow_len_factor;
-	interp->thrust_glow_noise = Interp_thrust_glow_noise;
-	interp->thrust_glow_rad_factor = Interp_thrust_glow_rad_factor;
-	interp->thrust_rotvel = Interp_thrust_rotvel;
-	interp->thrust_scale = Interp_thrust_scale;
-	interp->thrust_scale_subobj = Interp_thrust_scale_subobj;
-	interp->thrust_scale_x = Interp_thrust_scale_x;
-	interp->thrust_scale_y = Interp_thrust_scale_y;
-	interp->tmap_flags = Interp_tmap_flags;
-	interp->warp_bitmap = Interp_warp_bitmap;
-	interp->warp_scale_x = Interp_warp_scale_x;
-	interp->warp_scale_y = Interp_warp_scale_y;
-	interp->warp_scale_z = Interp_warp_scale_z;
-	interp->xparent_alpha = Interp_xparent_alpha;
-	
-	interp->current_team_color = Interp_team_color;
-	interp->team_color_set = Interp_team_color_set;
-
-	interp->clip_plane = Interp_clip_plane;
-	interp->clip_normal = Interp_clip_normal;
-	interp->clip_pos = Interp_clip_pos;
-
-	interp->animated_effect = Interp_animated_effect;
-	interp->animated_timer = Interp_animated_timer;
 }
 
 //********************-----CLASS: texture_info-----********************//

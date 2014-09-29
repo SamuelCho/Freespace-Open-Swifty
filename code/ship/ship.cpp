@@ -6241,7 +6241,7 @@ void ship_render_DEPRECATED(object * obj)
 
 				mst.use_ab = (obj->phys_info.flags & PF_AFTERBURNER_ON) || (obj->phys_info.flags & PF_BOOSTER_ON);
 				mst.glow_noise = shipp->thruster_glow_noise;
-				mst.rotvel = &Objects[shipp->objnum].phys_info.rotvel;
+				mst.rotvel = Objects[shipp->objnum].phys_info.rotvel;
 
 				mst.glow_rad_factor = sip->thruster01_glow_rad_factor;
 				mst.secondary_glow_rad_factor = sip->thruster02_glow_rad_factor;
@@ -6373,7 +6373,7 @@ void ship_render_DEPRECATED(object * obj)
 					for(k = 0; k < bank->num_slots; k++) {	
 						polymodel* pm = model_get(Weapon_info[swp->primary_bank_weapons[i]].external_model_num);
 						pm->gun_submodel_rotation = shipp->primary_rotate_ang[i];
-						model_immediate_render(Weapon_info[swp->primary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
+						model_render_DEPRECATED(Weapon_info[swp->primary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k], render_flags);
 						pm->gun_submodel_rotation = 0.0f;
 					}
 				}
@@ -6425,7 +6425,7 @@ void ship_render_DEPRECATED(object * obj)
  					float fog_val = neb2_get_fog_intensity(obj);
 					if(fog_val >= 0.6f){
 						model_set_detail_level(2);
-						model_render_DEPRECATED( sip->model_num, &obj->orient, &obj->pos, render_flags | MR_LOCK_DETAIL, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
+						model_render_DEPRECATED( sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
 					} else {
 						model_render_DEPRECATED( sip->model_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), -1, shipp->ship_replacement_textures, ship_render_mode );
 					}
@@ -6535,8 +6535,13 @@ void ship_render_cockpit(object *objp)
 
 	//Deal with the model
 	model_clear_instance(sip->cockpit_model_num);
-	model_set_detail_level(0);
-	model_immediate_render(sip->cockpit_model_num, &eye_ori, &pos, MR_LOCK_DETAIL | MR_NO_FOGGING, -1, -1, Player_cockpit_textures);
+
+	model_render_params render_info;
+	render_info.set_detail_level_lock(0);
+	render_info.set_flags(MR_NO_FOGGING);
+	render_info.set_replacement_textures(Player_cockpit_textures);
+
+	model_immediate_render(&render_info, sip->cockpit_model_num, &eye_ori, &pos);
 
 	if (!Cmdline_nohtl) 
 	{
@@ -6559,8 +6564,13 @@ void ship_render_show_ship_cockpit(object *objp)
 	gr_set_view_matrix(&cockpit_eye_pos, &Eye_matrix); // Set Camera to cockpit eye position
 	
 	Glowpoint_override = true; // Turn off glowpoints so they dont get rendered fixed at origin
-	model_set_detail_level(0);
-	model_immediate_render(Ship_info[Ships[objp->instance].ship_info_index].model_num, &objp->orient, &vmd_zero_vector, MR_NORMAL | MR_LOCK_DETAIL, OBJ_INDEX(objp)); // Render ship model with fixed detail level 0 so its not switching LOD when moving away from origin
+
+	model_render_params render_info;
+
+	render_info.set_object_number(OBJ_INDEX(objp));
+	render_info.set_detail_level_lock(0);
+
+	model_immediate_render(&render_info, Ship_info[Ships[objp->instance].ship_info_index].model_num, &objp->orient, &vmd_zero_vector); // Render ship model with fixed detail level 0 so its not switching LOD when moving away from origin
 	Glowpoint_override = false;
 
 	gr_end_view_matrix();
@@ -17926,7 +17936,7 @@ void ship_set_thruster_info(mst_info *mst, object *obj, ship *shipp, ship_info *
 
 	mst->use_ab = (obj->phys_info.flags & PF_AFTERBURNER_ON) || (obj->phys_info.flags & PF_BOOSTER_ON);
 	mst->glow_noise = shipp->thruster_glow_noise;
-	mst->rotvel = &Objects[shipp->objnum].phys_info.rotvel;
+	mst->rotvel = Objects[shipp->objnum].phys_info.rotvel;
 
 	mst->glow_rad_factor = sip->thruster01_glow_rad_factor;
 	mst->secondary_glow_rad_factor = sip->thruster02_glow_rad_factor;
@@ -18070,7 +18080,7 @@ void ship_render_set_thrusters(object *obj)
 	}
 }
 
-void ship_render_weapon_models(model_render_params *interp, DrawList *scene, object *obj, int render_flags)
+void ship_render_weapon_models(model_render_params *ship_render_info, DrawList *scene, object *obj, int render_flags)
 {
 	int num = obj->instance;
 	ship *shipp = &Ships[num];
@@ -18085,6 +18095,8 @@ void ship_render_weapon_models(model_render_params *interp, DrawList *scene, obj
 
 	scene->pushTransform(&obj->pos, &obj->orient);
 
+	model_render_params render_info = *ship_render_info;
+
 	render_flags &= ~MR_SHOW_THRUSTERS;
 
 	//primary weapons
@@ -18094,10 +18106,15 @@ void ship_render_weapon_models(model_render_params *interp, DrawList *scene, obj
 		}
 
 		w_bank *bank = &model_get(sip->model_num)->gun_banks[i];
-		for ( k = 0; k < bank->num_slots; k++ ) {	
+		for ( k = 0; k < bank->num_slots; k++ ) {
 			polymodel* pm = model_get(Weapon_info[swp->primary_bank_weapons[i]].external_model_num);
+
 			pm->gun_submodel_rotation = shipp->primary_rotate_ang[i];
-			model_queue_render(interp, scene, Weapon_info[swp->primary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &bank->pnt[k], render_flags, -1, NULL);
+
+			render_info.set_flags(render_flags);
+
+			model_queue_render(&render_info, scene, Weapon_info[swp->primary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k]);
+
 			pm->gun_submodel_rotation = 0.0f;
 		}
 	}
@@ -18116,7 +18133,9 @@ void ship_render_weapon_models(model_render_params *interp, DrawList *scene, obj
 
 		if (Weapon_info[swp->secondary_bank_weapons[i]].wi_flags2 & WIF2_EXTERNAL_WEAPON_LNCH) {
 			for(k = 0; k < bank->num_slots; k++) {
-				model_queue_render(interp, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &bank->pnt[k], render_flags, -1, NULL);
+				render_info.set_flags(render_flags);
+
+				model_queue_render(&render_info, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k]);
 			}
 		} else {
 			num_secondaries_rendered = 0;
@@ -18135,7 +18154,10 @@ void ship_render_weapon_models(model_render_params *interp, DrawList *scene, obj
 				num_secondaries_rendered++;
 
 				vm_vec_scale_add2(&secondary_weapon_pos, &vmd_z_vector, -(1.0f-shipp->secondary_point_reload_pct[i][k]) * model_get(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num)->rad);
-				model_queue_render(interp, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, -1, &vmd_identity_matrix, &secondary_weapon_pos, render_flags, -1, NULL);
+
+				render_info.set_flags(render_flags);
+
+				model_queue_render(&render_info, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos);
 			}
 		}
 	}
@@ -18179,7 +18201,7 @@ int ship_render_get_insignia(object* obj, ship* shipp)
 	return -1;
 }
 
-void ship_render_set_animated_effect(model_render_params *interp, ship *shipp, uint *render_flags)
+void ship_render_set_animated_effect(model_render_params *render_info, ship *shipp, uint *render_flags)
 {
 	if ( !shipp->shader_effect_active || Use_GLSL <= 1 ) {
 		return;
@@ -18189,8 +18211,7 @@ void ship_render_set_animated_effect(model_render_params *interp, ship *shipp, u
 	*render_flags |= (MR_ANIMATED_SHADER);
 
 	ship_effect* sep = &Ship_effects[shipp->shader_effect_num];
-	interp->animated_effect = sep->shader_effect;
-
+	
 	if ( sep->invert_timer ) {
 		timer = 1.0f - ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
 		timer = MAX(timer,0.0f);
@@ -18198,7 +18219,7 @@ void ship_render_set_animated_effect(model_render_params *interp, ship *shipp, u
 		timer = ((timer_get_milliseconds() - shipp->shader_effect_start_time) / (float)shipp->shader_effect_duration);
 	}
 
-	interp->animated_timer = 0.0f;
+	render_info->set_animated_effect(sep->shader_effect, timer);
 
 	if ( sep->disables_rendering && (timer_get_milliseconds() > shipp->shader_effect_start_time + shipp->shader_effect_duration) ) {
 		shipp->flags2 |= SF2_CLOAKED;
@@ -18220,7 +18241,6 @@ void ship_render(object* obj, DrawList* scene)
 	bool is_first_stage_arrival = false;
 	bool show_thrusters = ((shipp->flags2 & SF2_NO_THRUSTERS) == 0) && !in_shadow_map;
 	dock_function_info dfi;
-	model_render_params interp;
 
 	MONITOR_INC( NumShipsRend, 1 );
 
@@ -18279,7 +18299,7 @@ void ship_render(object* obj, DrawList* scene)
 	uint render_flags = MR_NORMAL;
 
 	if ( shipp->large_ship_blowup_index >= 0 )	{
-		shipfx_large_blowup_queue_render(&interp, scene, shipp);
+		shipfx_large_blowup_queue_render(scene, shipp);
 
 		//WMC - Draw animated warp effect (ie BSG thingy)
 		//WMC - based on Bobb's secondary thruster stuff
@@ -18295,15 +18315,17 @@ void ship_render(object* obj, DrawList* scene)
 
 		return;
 	}
-
+		
 	ship_render_set_thrusters(obj);
 
+	model_render_params render_info;
+	
 	if ( !(shipp->flags & SF_DISABLED) && !ship_subsys_disrupted(shipp, SUBSYSTEM_ENGINE) && show_thrusters) {
 		mst_info mst;
 
 		ship_set_thruster_info(&mst, obj, shipp, sip);
 
-		model_render_set_thrust(&interp, sip->model_num, &mst);
+		render_info.set_thruster_info(mst);
 
 		render_flags |= MR_SHOW_THRUSTERS;
 	}
@@ -18317,30 +18339,43 @@ void ship_render(object* obj, DrawList* scene)
 	// warp... either this ship or the ship it is docked with.
 	if ( warp_shipp != NULL ) {
 		if ( warp_shipp->flags & SF_ARRIVING ) {
-			clip_started = warp_shipp->warpin_effect->warpQueueShipClip(&interp);
+			clip_started = warp_shipp->warpin_effect->warpShipClip(&render_info);
 		} else if ( warp_shipp->flags & SF_DEPART_WARP ) {
-			clip_started = warp_shipp->warpout_effect->warpQueueShipClip(&interp);
+			clip_started = warp_shipp->warpout_effect->warpShipClip(&render_info);
 		}
-	} else {
-		model_render_set_clip_plane(&interp);
 	}
 
 	// maybe set squad logo bitmap
-	interp.insignia_bitmap = ship_render_get_insignia(obj, shipp);
+	render_info.set_insignia_bitmap(ship_render_get_insignia(obj, shipp));
 
 	// Valathil - maybe do a scripting hook here to do some scriptable effects?
-	ship_render_set_animated_effect(&interp, shipp, &render_flags);
+	ship_render_set_animated_effect(&render_info, shipp, &render_flags);
 
 	if ( sip->uses_team_colors ) {
-		interp.team_color_set = model_get_team_color(&interp.current_team_color, shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
+		team_color model_team_color;
+
+		bool team_color_set = model_get_team_color(&model_team_color, shipp->team_name, shipp->secondary_team_name, shipp->team_change_timestamp, shipp->team_change_time);
+
+		if ( team_color_set ) {
+			render_info.set_team_color(model_team_color);
+		}
 	}
 
 	if ( in_shadow_map ) {
 		render_flags = MR_NO_TEXTURING | MR_NO_LIGHTING;
 	}
 
+	if (shipp->flags2 & SF2_GLOWMAPS_DISABLED) {
+		render_flags |= MR_NO_GLOWMAPS;
+	}
+
+	render_info.set_flags(render_flags);
+
 	//draw weapon models
-	ship_render_weapon_models(&interp, scene, obj, render_flags);
+	ship_render_weapon_models(&render_info, scene, obj, render_flags);
+
+	render_info.set_object_number(OBJ_INDEX(obj));
+	render_info.set_replacement_textures(shipp->ship_replacement_textures);
 
 	// small ships
 	if ( !( shipp->flags2 & SF2_CLOAKED ) ) {
@@ -18348,14 +18383,11 @@ void ship_render(object* obj, DrawList* scene)
 			// force detail levels
 			float fog_val = neb2_get_fog_intensity(obj);
 			if ( fog_val >= 0.6f ) {
-				interp.detail_level_locked = 2;
-				model_queue_render(&interp, scene, sip->model_num, shipp->model_instance_num, &obj->orient, &obj->pos, render_flags | MR_LOCK_DETAIL, OBJ_INDEX(obj), shipp->ship_replacement_textures);
-			} else {
-				model_queue_render(&interp, scene, sip->model_num, shipp->model_instance_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), shipp->ship_replacement_textures);
+				render_info.set_detail_level_lock(2);
 			}
-		} else {
-			model_queue_render(&interp, scene, sip->model_num, shipp->model_instance_num, &obj->orient, &obj->pos, render_flags, OBJ_INDEX(obj), shipp->ship_replacement_textures);
 		}
+
+		model_queue_render(&render_info, scene, sip->model_num, &obj->orient, &obj->pos);
 	}
 
 	ship_model_stop(obj);

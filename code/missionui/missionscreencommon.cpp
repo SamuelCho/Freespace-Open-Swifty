@@ -1583,7 +1583,8 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 		}
 	}
 
-	model_set_detail_level(0);
+	model_render_params render_info;
+	render_info.set_detail_level_lock(0);
 
 	if (!Cmdline_nohtl)	{
 		gr_set_view_matrix(&Eye_position, &Eye_matrix);
@@ -1602,7 +1603,9 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 
 	Glowpoint_override = true;
 	model_clear_instance(model_id);
-	model_immediate_render(model_id, &object_orient, &vmd_zero_vector, flags, -1, -1);
+
+	render_info.set_flags(flags);
+	model_immediate_render(&render_info, model_id, &object_orient, &vmd_zero_vector);
 	Glowpoint_override = false;
 
 	if (!Cmdline_nohtl) 
@@ -1617,7 +1620,7 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 }
 
 void light_set_all_relevent();
-void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *rotation_buffer, vec3d *closeup_pos, float closeup_zoom, float rev_rate, int flags, int resize_mode, int effect)
+void draw_model_rotating(model_render_params *render_info, int model_id, int x1, int y1, int x2, int y2, float *rotation_buffer, vec3d *closeup_pos, float closeup_zoom, float rev_rate, int flags, int resize_mode, int effect)
 {
 	//WMC - Can't draw a non-model
 	if (model_id < 0)
@@ -1694,7 +1697,7 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		float start_scale = MIN(time,0.5f)*2.5f;
 		float offset = size*0.5f*MIN(MAX(time-3.0f,0.0f),0.6f)*1.66667f;
 		if ( (time < 1.5f) && (time >= 0.5f) )  // Clip the grid if were in phase 1
-			model_interp_set_clip_plane(&plane_point,&wire_normal);
+			render_info->set_clip_plane(plane_point,wire_normal);
 
 		g3_start_instance_angles(&vmd_zero_vector,&view_angles);
 
@@ -1747,7 +1750,7 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 
 			// render the ships
 			model_clear_instance(model_id);
-			model_set_detail_level(0);
+			render_info->set_detail_level_lock(0);
 
 			gr_zbuffer_set(true);
 			if(Cmdline_shadow_quality)
@@ -1757,7 +1760,10 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 
 				gr_reset_clip();
 
-				model_interp_set_clip_plane();
+				model_render_params shadow_render_info;
+
+				shadow_render_info.set_detail_level_lock(0);
+				shadow_render_info.set_flags(flags | MR_NO_TEXTURING | MR_NO_LIGHTING);
 
 				if ( flags & MR_IS_MISSILE )  {
 					shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 20.0f, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 1000.0f);
@@ -1765,7 +1771,7 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 					shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 2000.0f, -closeup_pos->xyz.z + pm->rad + 10000.0f);
 				}
 
-				model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_NO_TEXTURING | MR_NO_LIGHTING, -1, -1);
+				model_immediate_render(&shadow_render_info, model_id, &model_orient, &vmd_zero_vector);
 				shadows_end_render();
 
 				gr_set_clip(x1, y1, x2, y2, resize_mode);
@@ -1775,23 +1781,24 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
             }
 			gr_zbuffer_set(false);
 			gr_set_color(80,49,160);
-			model_set_outline_color(80,49,160);
+			render_info->set_outline_color(80, 49, 160);
 
-			model_interp_set_animated_effect_and_timer(ANIMATED_SHADER_LOADOUTSELECT_FS2, -clip);
+			render_info->set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS2, -clip);
 
 			if ( (time < 2.5f) && (time >= 0.5f) ) { // Phase 1 and 2 render the wireframe
 				if (time >= 1.5f) // Just clip the wireframe after Phase 1
-					model_interp_set_clip_plane(&plane_point,&wire_normal);
+					render_info->set_clip_plane(plane_point,wire_normal);
 				
-				model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_ANIMATED_SHADER);
-				if(time >= 1.5f)
-				model_interp_set_clip_plane();
+				render_info->set_flags(flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_ANIMATED_SHADER);
+
+				model_immediate_render(render_info, model_id, &model_orient, &vmd_zero_vector);
 			}
 
 			if (time >= 1.5f) { // Render the ship in Phase 2 onwards
-				model_interp_set_clip_plane(&plane_point,&ship_normal);
-				model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
-				model_interp_set_clip_plane();
+				render_info->set_clip_plane(plane_point,ship_normal);
+				render_info->set_flags(flags | MR_ANIMATED_SHADER);
+
+				model_immediate_render(render_info, model_id, &model_orient, &vmd_zero_vector);
 			}
 
 			if (time < 2.5f) { // Render the scanline in Phase 1 and 2
@@ -1856,7 +1863,8 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		// lighting for techroom
 
 		model_clear_instance(model_id);
-		model_set_detail_level(0);
+
+		render_info->set_detail_level_lock(0);
 
 		if(Cmdline_shadow_quality)
 		{
@@ -1866,7 +1874,12 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 				shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 2000.0f, -closeup_pos->xyz.z + pm->rad + 10000.0f);
 			}
 
-			model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_NO_TEXTURING | MR_NO_LIGHTING, -1, -1);
+			model_render_params shadow_render_info;
+
+			shadow_render_info.set_flags(flags | MR_NO_TEXTURING | MR_NO_LIGHTING);
+			shadow_render_info.set_detail_level_lock(0);
+
+			model_immediate_render(&shadow_render_info, model_id, &model_orient, &vmd_zero_vector);
 			shadows_end_render();
 		}
 
@@ -1878,11 +1891,13 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		gr_set_color(0,128,0);
 
 		if (effect == 1) { // FS1 effect
-			model_interp_set_animated_effect_and_timer(ANIMATED_SHADER_LOADOUTSELECT_FS1, MIN(time*0.5f,2.0f));
-			model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
+			render_info->set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS1, MIN(time*0.5f,2.0f));
+			render_info->set_flags(flags | MR_ANIMATED_SHADER);
 		} else {
-			model_immediate_render(model_id, &model_orient, &vmd_zero_vector, flags);
+			render_info->set_flags(flags);
 		}
+
+		model_immediate_render(render_info, model_id, &model_orient, &vmd_zero_vector);
 
 		batch_render_all();
 

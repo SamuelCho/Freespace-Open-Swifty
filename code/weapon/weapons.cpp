@@ -6975,7 +6975,6 @@ void weapon_render(object* obj, DrawList *scene)
 	weapon_info *wip;
 	weapon *wp;
 	color c;
-	model_render_params interp;
 
 	MONITOR_INC(NumWeaponsRend, 1);
 
@@ -7099,13 +7098,15 @@ void weapon_render(object* obj, DrawList *scene)
 
 	case WRT_POF:
 		{
+			model_render_params render_info;
+
 			uint render_flags = MR_NORMAL|MR_IS_MISSILE|MR_NO_LIGHTING|MR_NO_BATCH;
 
 			if (Cmdline_missile_lighting && !(wip->wi_flags2 & WIF2_MR_NO_LIGHTING))
 				render_flags &= ~MR_NO_LIGHTING;
 
 			if (wip->wi_flags2 & WIF2_TRANSPARENT) {
-				model_set_alpha(wp->alpha_current);
+				render_info.set_alpha(wp->alpha_current);
 				render_flags |= MR_ALL_XPARENT;
 			}
 
@@ -7130,7 +7131,7 @@ void weapon_render(object* obj, DrawList *scene)
 				mst.glow_rad_factor = wip->thruster_glow_factor;
 				mst.glow_noise = wp->thruster_glow_noise;
 
-				interp.set_thruster_info(mst);
+				render_info.set_thruster_info(mst);
 
 				render_flags |= MR_SHOW_THRUSTERS;
 			}
@@ -7147,13 +7148,12 @@ void weapon_render(object* obj, DrawList *scene)
 				object *wobj=&Objects[wp->lssm_warp_idx];		//warphole object
 				clip_plane=1;
 
-				model_render_set_clip_plane(&interp, &wobj->pos, &wobj->orient.vec.fvec);
-			} else {
-				model_render_set_clip_plane(&interp);
+				render_info.set_clip_plane(wobj->pos, wobj->orient.vec.fvec);
 			}
 
+			render_info.set_flags(render_flags);
 
-			model_queue_render(&interp, scene, wip->model_num, -1, &obj->orient, &obj->pos, render_flags, -1, NULL);
+			model_queue_render(&render_info, scene, wip->model_num, &obj->orient, &obj->pos);
 			wp->weapon_flags |= WF_CONSIDER_FOR_FLYBY_SOUND;
 
 			break;

@@ -1422,12 +1422,14 @@ void subspace_render()
 	Interp_subspace_offset_u = 1.0f - subspace_offset_u;
 	Interp_subspace_offset_v = 0.0f;
 
-	model_set_alpha(1.0f);
+	model_render_params render_info;
+	render_info.set_alpha(1.0f);
+	render_info.set_flags(render_flags);
 
 	if (!Cmdline_nohtl)
 		gr_set_texture_panning(Interp_subspace_offset_v, Interp_subspace_offset_u, true);
 
-	model_immediate_render( Subspace_model_outer, &tmp, &Eye_position, render_flags );	//MR_NO_CORRECT|MR_SHOW_OUTLINE
+	model_immediate_render( &render_info, Subspace_model_outer, &tmp, &Eye_position);	//MR_NO_CORRECT|MR_SHOW_OUTLINE
 
 	if (!Cmdline_nohtl)
 		gr_set_texture_panning(0, 0, false);
@@ -1440,14 +1442,14 @@ void subspace_render()
 
 	vm_angles_2_matrix(&tmp,&angs);
 
-	model_set_outline_color(255,255,255);
-
-	model_set_alpha(1.0f);
+	render_info.set_outline_color(255, 255, 255);
+	render_info.set_alpha(1.0f);
+	render_info.set_flags(render_flags);
 
 	if (!Cmdline_nohtl)
 		gr_set_texture_panning(Interp_subspace_offset_v, Interp_subspace_offset_u, true);
 
-	model_immediate_render( Subspace_model_inner, &tmp, &Eye_position, render_flags  );	//MR_NO_CORRECT|MR_SHOW_OUTLINE
+	model_immediate_render( &render_info, Subspace_model_inner, &tmp, &Eye_position );	//MR_NO_CORRECT|MR_SHOW_OUTLINE
 
 	if (!Cmdline_nohtl)
 		gr_set_texture_panning(0, 0, false);
@@ -2144,18 +2146,20 @@ void stars_draw_background()
 	if (Nmodel_num < 0)
 		return;
 
+	model_render_params render_info;
+
 	if (Nmodel_bitmap >= 0) {
-		model_set_forced_texture(Nmodel_bitmap);
+		render_info.set_forced_bitmap(Nmodel_bitmap);
 		Nmodel_flags |= MR_FORCE_TEXTURE;
 	}
 
 	// draw the model at the player's eye with no z-buffering
-	model_set_alpha(1.0f);
+	render_info.set_alpha(1.0f);
+	render_info.set_flags(Nmodel_flags | MR_SKYBOX);
 
-	model_immediate_render(Nmodel_num, &Nmodel_orient, &Eye_position, Nmodel_flags, -1, -1, NULL, MODEL_RENDER_ALL, true);
+	model_immediate_render(&render_info, Nmodel_num, &Nmodel_orient, &Eye_position, MODEL_RENDER_ALL);
 
 	if (Nmodel_bitmap >= 0) {
-		model_set_forced_texture(-1);
 		Nmodel_flags &= ~MR_FORCE_TEXTURE;
 	}
 }
