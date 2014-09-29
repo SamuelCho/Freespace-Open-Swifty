@@ -6321,7 +6321,7 @@ void ship_render_DEPRECATED(object * obj)
 				if(shipp->shader_effect_active && Use_GLSL > 1)
 				{
 					float timer;
-					render_flags |= (MR_ANIMATED_SHADER);
+					//render_flags |= (MR_ANIMATED_SHADER);
 
 					ship_effect* sep = &Ship_effects[shipp->shader_effect_num];
 					
@@ -18208,7 +18208,6 @@ void ship_render_set_animated_effect(model_render_params *render_info, ship *shi
 	}
 
 	float timer;
-	*render_flags |= (MR_ANIMATED_SHADER);
 
 	ship_effect* sep = &Ship_effects[shipp->shader_effect_num];
 	

@@ -2150,7 +2150,6 @@ void stars_draw_background()
 
 	if (Nmodel_bitmap >= 0) {
 		render_info.set_forced_bitmap(Nmodel_bitmap);
-		Nmodel_flags |= MR_FORCE_TEXTURE;
 	}
 
 	// draw the model at the player's eye with no z-buffering
@@ -2158,10 +2157,6 @@ void stars_draw_background()
 	render_info.set_flags(Nmodel_flags | MR_SKYBOX);
 
 	model_immediate_render(&render_info, Nmodel_num, &Nmodel_orient, &Eye_position, MODEL_RENDER_ALL);
-
-	if (Nmodel_bitmap >= 0) {
-		Nmodel_flags &= ~MR_FORCE_TEXTURE;
-	}
 }
 
 // call this to set a specific model as the background model

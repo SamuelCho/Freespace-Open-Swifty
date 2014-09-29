@@ -1173,7 +1173,7 @@ void model_queue_render_buffers(DrawList* scene, model_render_params* interp, po
 	float forced_alpha = 1.0f;
 	int forced_blend_filter = GR_ALPHABLEND_NONE;
 
-	if ( ( model_flags & MR_FORCE_TEXTURE ) && ( interp->get_forced_bitmap() >= 0 ) ) {
+	if ( interp->get_forced_bitmap() >= 0 ) {
 		forced_texture = interp->get_forced_bitmap();
 	} else if ( interp->get_warp_bitmap() >= 0 ) {
 		forced_texture = interp->get_warp_bitmap();

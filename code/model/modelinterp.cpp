@@ -390,6 +390,8 @@ void interp_clear_instance()
 	Interp_animated_timer = 0.0f;
 
 	Interp_detail_level_locked = -1;
+
+	Interp_forced_bitmap = -1;
 }
 
 /**
@@ -940,7 +942,7 @@ void model_interp_tmappoly(ubyte * p,polymodel * pm)
 					int texture;
 
 					// if we're rendering a nebula background pof, maybe select a custom texture
-					if((Interp_flags & MR_FORCE_TEXTURE) && (Interp_forced_bitmap >= 0)){
+					if(Interp_forced_bitmap >= 0){
 						texture = Interp_forced_bitmap;
 					}else if((Interp_new_replacement_textures != NULL) && (Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0)){
 						texture_info tt = texture_info(Interp_new_replacement_textures[rt_begin_index + TM_BASE_TYPE]);
@@ -2932,8 +2934,8 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		}
 	}
 
-	if ( Interp_flags & MR_ANIMATED_SHADER )
-		Interp_tmap_flags |= TMAP_ANIMATED_SHADER;
+// 	if ( Interp_flags & MR_ANIMATED_SHADER )
+// 		Interp_tmap_flags |= TMAP_ANIMATED_SHADER;
 
 	if ( Interp_desaturate ) {
 		Interp_tmap_flags |= TMAP_FLAG_DESATURATE;
@@ -3329,8 +3331,8 @@ void submodel_render_DEPRECATED(int model_num, int submodel_num, matrix *orient,
 		}
 	}
 
-	if ( Interp_flags & MR_ANIMATED_SHADER )
-		Interp_tmap_flags |= TMAP_ANIMATED_SHADER;
+// 	if ( Interp_flags & MR_ANIMATED_SHADER )
+// 		Interp_tmap_flags |= TMAP_ANIMATED_SHADER;
 
 	bool is_outlines_only_htl = !Cmdline_nohtl && (flags & MR_NO_POLYS) && (flags & MR_SHOW_OUTLINE_HTL);
 
@@ -4769,7 +4771,7 @@ void model_render_buffers(polymodel *pm, int mn, int render, bool is_child)
 	float forced_alpha = 1.0f;
 	int forced_blend_filter = GR_ALPHABLEND_NONE;
 
-	if ( (Interp_flags & MR_FORCE_TEXTURE) && (Interp_forced_bitmap >= 0) ) {
+	if ( Interp_forced_bitmap >= 0 ) {
 		forced_texture = Interp_forced_bitmap;
 	} else if (Interp_warp_bitmap >= 0) {
 		forced_texture = Interp_warp_bitmap;

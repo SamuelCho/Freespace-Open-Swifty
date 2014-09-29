@@ -610,8 +610,6 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 		}
 
 		if(Targetbox_shader_effect > -1) {
-			flags |= MR_ANIMATED_SHADER;
-
 			render_info.set_animated_effect(Targetbox_shader_effect, 0.0f);
 		}
 
@@ -757,8 +755,6 @@ void HudGaugeTargetBox::renderTargetDebris(object *target_objp)
 		}
 
 		if(Targetbox_shader_effect > -1) {
-			flags |= MR_ANIMATED_SHADER;
-
 			render_info.set_animated_effect(Targetbox_shader_effect, 0.0f);
 		}
 
@@ -962,8 +958,6 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 		}
 
 		if(Targetbox_shader_effect > -1) {
-			flags |= MR_ANIMATED_SHADER;
-
 			render_info.set_animated_effect(Targetbox_shader_effect, 0.0f);
 		}
 
@@ -1135,8 +1129,6 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 		}
 
 		if(Targetbox_shader_effect > -1) {
-			flags |= MR_ANIMATED_SHADER;
-
 			render_info.set_animated_effect(Targetbox_shader_effect, 0.0f);
 		}
 

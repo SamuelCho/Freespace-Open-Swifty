@@ -876,11 +876,11 @@ void model_set_detail_level(int n);
 #define MR_SHOW_OUTLINE_PRESET		(1<<14)		// Draw the object in outline mode. Color assumed to be set already.	
 #define MR_SHOW_INVISIBLE_FACES		(1<<15)		// Show invisible faces as green...
 #define MR_AUTOCENTER				(1<<16)		// Always use the center of the hull bounding box as the center, instead of the pivot point
-#define MR_BAY_PATHS				(1<<17)		// draw bay paths
+#define MR_EMPTY_SLOT3				(1<<17)		// draw bay paths
 #define MR_ALL_XPARENT				(1<<18)		// render it fully transparent
 #define MR_NO_ZBUFFER				(1<<19)		// switch z-buffering off completely 
 #define MR_NO_CULL					(1<<20)		// don't cull backfacing poly's
-#define MR_FORCE_TEXTURE			(1<<21)		// force a given texture to always be used
+#define MR_EMPTY_SLOT4				(1<<21)		// force a given texture to always be used
 #define MR_NO_BATCH					(1<<22)		// don't use submodel batching when rendering
 #define MR_EDGE_ALPHA				(1<<23)		// makes norms that are faceing away from you render more transparent -Bobboau
 #define MR_CENTER_ALPHA				(1<<24)		// oposite of above -Bobboau
@@ -889,7 +889,7 @@ void model_set_detail_level(int n);
 #define MR_NO_GLOWMAPS				(1<<27)		// disable rendering of glowmaps - taylor
 #define MR_FULL_DETAIL				(1<<28)		// render all valid objects, particularly ones that are otherwise in/out of render boxes - taylor
 #define MR_FORCE_CLAMP				(1<<29)		// force clamp - Hery
-#define MR_ANIMATED_SHADER			(1<<30)		// Use a animated Shader - Valathil
+#define MR_EMPTY_SLOT5				(1<<30)		// Use a animated Shader - Valathil
 
 #define MR_DEBUG_PIVOTS				(1<<0)		// Show the pivot points
 #define MR_DEBUG_PATHS				(1<<1)		// Show the paths associated with a model

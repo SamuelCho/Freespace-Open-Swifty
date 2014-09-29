@@ -1789,14 +1789,14 @@ void draw_model_rotating(model_render_params *render_info, int model_id, int x1,
 				if (time >= 1.5f) // Just clip the wireframe after Phase 1
 					render_info->set_clip_plane(plane_point,wire_normal);
 				
-				render_info->set_flags(flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_ANIMATED_SHADER);
+				render_info->set_flags(flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS);
 
 				model_immediate_render(render_info, model_id, &model_orient, &vmd_zero_vector);
 			}
 
 			if (time >= 1.5f) { // Render the ship in Phase 2 onwards
 				render_info->set_clip_plane(plane_point,ship_normal);
-				render_info->set_flags(flags | MR_ANIMATED_SHADER);
+				render_info->set_flags(flags);
 
 				model_immediate_render(render_info, model_id, &model_orient, &vmd_zero_vector);
 			}
@@ -1892,7 +1892,7 @@ void draw_model_rotating(model_render_params *render_info, int model_id, int x1,
 
 		if (effect == 1) { // FS1 effect
 			render_info->set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS1, MIN(time*0.5f,2.0f));
-			render_info->set_flags(flags | MR_ANIMATED_SHADER);
+			render_info->set_flags(flags);
 		} else {
 			render_info->set_flags(flags);
 		}
