@@ -40,8 +40,8 @@ static char *GLshader_info_log = NULL;
 static const int GLshader_info_log_size = 8192;
 GLuint Framebuffer_fallback_texture_id = 0;
 
-static int Effect_num = 0;
-static float Anim_timer = 0.0f;
+static int GL_anim_effect_num = 0;
+static float GL_anim_timer = 0.0f;
 
 geometry_sdr_params Geo_transform = {GL_TRIANGLES, GL_TRIANGLE_STRIP, 3};
 geometry_sdr_params Particle_billboards = {GL_POINTS, GL_TRIANGLE_STRIP, 4};
@@ -1026,11 +1026,12 @@ GLint opengl_shader_get_uniform_block(const char *uniform_text)
  * Sets the currently active animated effect.
  *
  * @param effect	Effect ID, needs to be implemented and checked for in the shader
+ * @param timer		Timer value to be passed to the shader
  */
-void opengl_shader_set_animated_effect(int effect)
+void gr_opengl_shader_set_animated_effect(int effect, float timer)
 {
-	Assert(effect > -1);
-	Effect_num = effect;
+	GL_anim_effect_num = effect;
+	GL_anim_timer = timer;
 }
 
 /**
@@ -1040,17 +1041,7 @@ void opengl_shader_set_animated_effect(int effect)
  */
 int opengl_shader_get_animated_effect()
 {
-	return Effect_num;
-}
-
-/**
- * Set the timer for animated effects.
- *
- * @param timer		Timer value to be passed to the shader
- */
-void opengl_shader_set_animated_timer(float timer)
-{
-	Anim_timer = timer;
+	return GL_anim_effect_num;
 }
 
 /**
@@ -1058,7 +1049,7 @@ void opengl_shader_set_animated_timer(float timer)
  */
 float opengl_shader_get_animated_timer()
 {
-	return Anim_timer;
+	return GL_anim_timer;
 }
 
 /**

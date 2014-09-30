@@ -50,7 +50,7 @@ typedef struct light {
 
 extern SCP_vector<light*> Static_light;
 
-class SceneLights
+class scene_lights
 {
 	SCP_vector<light> AllLights;
 	
@@ -63,22 +63,22 @@ class SceneLights
 	int current_light_index;
 	int current_num_lights;
 public:
-	struct LightIndexingInfo
+	struct light_indexing_info
 	{
 		int index_start;
 		int num_lights;
 	};
 
-	SceneLights()
+	scene_lights()
 	{
 		resetLightState();
 	}
 	void addLight(light *light_ptr);
 	void setLightFilter(int objnum, vec3d *pos, float rad);
-	bool setLights(SceneLights::LightIndexingInfo *info);
+	bool setLights(scene_lights::light_indexing_info *info);
 	void resetLightState();
-	int SceneLights::getNumStaticLights();
-	SceneLights::LightIndexingInfo bufferLights();
+	int scene_lights::getNumStaticLights();
+	scene_lights::light_indexing_info bufferLights();
 };
 
 void light_reset();

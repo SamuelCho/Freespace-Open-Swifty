@@ -746,6 +746,11 @@ bool gr_stub_set_shader_flag(uint shader_flags)
 	return true;
 }
 
+void gr_stub_set_animated_effect(int effect, float timer)
+{
+
+}
+
 void gr_stub_start_shadow_map(float neardist, float middist, float fardist)
 {
 }
@@ -961,6 +966,8 @@ bool gr_stub_init()
 
 	gr_screen.gf_set_shader_flag	= gr_stub_set_shader_flag;
 	gr_screen.gf_maybe_create_shader = gr_stub_maybe_create_shader;
+
+	gr_screen.gf_set_animated_effect = gr_stub_set_animated_effect;
 
 	gr_screen.gf_flush_data_states	= gr_stub_flush_data_states;
 

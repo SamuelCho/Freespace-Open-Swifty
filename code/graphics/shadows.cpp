@@ -607,10 +607,7 @@ void shadows_construct_light_frustum(light_frustum_info *shadow_data, matrix *li
 }
 
 matrix shadows_start_render(matrix *eye_orient, vec3d *eye_pos, float fov, float aspect, float veryneardist, float neardist, float middist, float fardist)
-{
-	extern bool Glowpoint_override_save;
-	extern bool Glowpoint_override;
-
+{	
 	if(Static_light.empty())
 		return vmd_identity_matrix; 
 	
@@ -666,9 +663,17 @@ void shadows_render_all(float fov, matrix *eye_orient, vec3d *eye_pos)
 	gr_end_proj_matrix();
 	gr_end_view_matrix();
 
+	// these cascade distances are a result of some arbitrary tuning to give a good balance of quality and banding. 
+	// maybe we could use a more programmatic algorithim? 
 	matrix light_matrix = shadows_start_render(eye_orient, eye_pos, fov, gr_screen.clip_aspect, 200.0f, 600.0f, 2500.0f, 8000.0f);
 
-	DrawList scene;
+	extern bool Glowpoint_override_save;
+	extern bool Glowpoint_override;
+
+	Glowpoint_override_save = Glowpoint_override;
+	Glowpoint_override = true;
+
+	draw_list scene;
 	object *objp = Objects;
 
 	for ( int i = 0; i <= Highest_object_index; i++, objp++ ) {
@@ -725,8 +730,10 @@ void shadows_render_all(float fov, matrix *eye_orient, vec3d *eye_pos)
 		}
 	}
 
-	scene.initRender();
-	scene.renderAll();
+	scene.init_render();
+	scene.render_all();
+
+	Glowpoint_override = Glowpoint_override_save;
 
 	shadows_end_render();
 

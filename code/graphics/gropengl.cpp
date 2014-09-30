@@ -1930,14 +1930,13 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_line_htl			= gr_opengl_line_htl;
 	gr_screen.gf_sphere_htl			= gr_opengl_sphere_htl;
 
+	gr_screen.gf_set_animated_effect = gr_opengl_shader_set_animated_effect;
+
 	gr_screen.gf_maybe_create_shader = gr_opengl_maybe_create_shader;
 	gr_screen.gf_start_shadow_map	= gr_opengl_start_shadow_map;
 	gr_screen.gf_end_shadow_map		= gr_opengl_end_shadow_map;
 	gr_screen.gf_clear_shadow_map	= gr_opengl_clear_shadow_map;
 
-	gr_screen.gf_create_transformation_tex		= gr_opengl_create_transformation_tex;
-	gr_screen.gf_destroy_transformation_tex		= gr_opengl_destroy_transformation_tex;
-	gr_screen.gf_update_transformation_tex		= gr_opengl_update_transformation_tex;
 	gr_screen.gf_update_texture = gr_opengl_update_texture;
 
 	gr_screen.gf_set_shader_flag	= gr_opengl_set_shader_flag;

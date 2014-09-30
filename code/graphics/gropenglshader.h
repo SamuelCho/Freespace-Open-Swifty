@@ -120,9 +120,9 @@ GLint opengl_shader_get_uniform(const char *uniform_text);
 void opengl_shader_init_uniform_block(const char *uniform_text);
 GLint opengl_shader_get_uniform_block(const char *uniform_text);
 
-void opengl_shader_set_animated_effect(int effect);
+
+void gr_opengl_shader_set_animated_effect(int effect, float timer);
 int opengl_shader_get_animated_effect();
-void opengl_shader_set_animated_timer(float timer);
 float opengl_shader_get_animated_timer();
 
 void opengl_shader_compile_deferred_light_shader();

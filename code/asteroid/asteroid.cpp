@@ -1181,7 +1181,7 @@ void asteroid_render_DEPRECATED(object * obj)
 	}
 }
 
-void asteroid_render(object * obj, DrawList *scene)
+void asteroid_render(object * obj, draw_list *scene)
 {
 	if (Asteroids_enabled) {
 		int			num;

@@ -18080,7 +18080,7 @@ void ship_render_set_thrusters(object *obj)
 	}
 }
 
-void ship_render_weapon_models(model_render_params *ship_render_info, DrawList *scene, object *obj, int render_flags)
+void ship_render_weapon_models(model_render_params *ship_render_info, draw_list *scene, object *obj, int render_flags)
 {
 	int num = obj->instance;
 	ship *shipp = &Ships[num];
@@ -18093,7 +18093,7 @@ void ship_render_weapon_models(model_render_params *ship_render_info, DrawList *
 	int i,k;
 	ship_weapon *swp = &shipp->weapons;
 
-	scene->pushTransform(&obj->pos, &obj->orient);
+	scene->push_transform(&obj->pos, &obj->orient);
 
 	model_render_params render_info = *ship_render_info;
 
@@ -18162,7 +18162,7 @@ void ship_render_weapon_models(model_render_params *ship_render_info, DrawList *
 		}
 	}
 
-	scene->popTransform();
+	scene->pop_transform();
 }
 
 int ship_render_get_insignia(object* obj, ship* shipp)
@@ -18203,7 +18203,7 @@ int ship_render_get_insignia(object* obj, ship* shipp)
 
 void ship_render_set_animated_effect(model_render_params *render_info, ship *shipp, uint *render_flags)
 {
-	if ( !shipp->shader_effect_active || Use_GLSL <= 1 ) {
+	if ( !shipp->shader_effect_active || Use_GLSL <= 1 || in_shadow_map ) {
 		return;
 	}
 
@@ -18231,7 +18231,7 @@ void ship_render_set_animated_effect(model_render_params *render_info, ship *shi
 	}
 }
 
-void ship_render(object* obj, DrawList* scene)
+void ship_render(object* obj, draw_list* scene)
 {
 	int num = obj->instance;
 	ship *shipp = &Ships[num];

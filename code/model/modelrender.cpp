@@ -41,9 +41,9 @@ extern void interp_render_arc_segment( vec3d *v1, vec3d *v2, int depth );
 extern int Interp_thrust_scale_subobj;
 extern float Interp_thrust_scale;
 
-DrawList *DrawList::Target = NULL;
+draw_list *draw_list::Target = NULL;
 
-ModelTransformBuffer TransformBufferHandler;
+model_batch_buffer TransformBufferHandler;
 
 model_render_params::model_render_params():
 	Model_flags(MR_NORMAL),
@@ -277,14 +277,14 @@ const mst_info& model_render_params::get_thruster_info()
 	return Thruster_info;
 }
 
-void ModelTransformBuffer::reset()
+void model_batch_buffer::reset()
 {
-	TransformMatrices.clear();
+	Submodel_matrices.clear();
 
-	CurrentOffset = 0;
+	Current_offset = 0;
 }
 
-void ModelTransformBuffer::setNumModels(int n_models)
+void model_batch_buffer::set_num_models(int n_models)
 {
 	matrix4 init_mat;
 
@@ -295,236 +295,236 @@ void ModelTransformBuffer::setNumModels(int n_models)
 	init_mat.a1d[10] = 1.0f;
 	init_mat.a1d[15] = 1.0f;	// set this to zero to indicate it's not to be drawn in the shader
 
-	CurrentOffset = TransformMatrices.size();
+	Current_offset = Submodel_matrices.size();
 
 	for ( int i = 0; i < n_models; ++i ) {
-		TransformMatrices.push_back(init_mat);
+		Submodel_matrices.push_back(init_mat);
 	}
 }
 
-void ModelTransformBuffer::setModelTransform(matrix4 &transform, int model_id)
+void model_batch_buffer::set_model_transform(matrix4 &transform, int model_id)
 {
-	TransformMatrices[CurrentOffset + model_id] = transform;
+	Submodel_matrices[Current_offset + model_id] = transform;
 }
 
-void ModelTransformBuffer::addMatrix(matrix4 &mat)
+void model_batch_buffer::add_matrix(matrix4 &mat)
 {
-	TransformMatrices.push_back(mat);
+	Submodel_matrices.push_back(mat);
 }
 
-int ModelTransformBuffer::getBufferOffset()
+int model_batch_buffer::get_buffer_offset()
 {
-	return CurrentOffset;
+	return Current_offset;
 }
 
-void ModelTransformBuffer::AllocateMemory()
+void model_batch_buffer::allocate_memory()
 {
-	uint size = TransformMatrices.size() * sizeof(matrix4);
+	uint size = Submodel_matrices.size() * sizeof(matrix4);
 
-	if ( MemAlloc == NULL || MemAllocSize < size ) {
-		if ( MemAlloc != NULL ) {
-			vm_free(MemAlloc);
+	if ( Mem_alloc == NULL || Mem_alloc_size < size ) {
+		if ( Mem_alloc != NULL ) {
+			vm_free(Mem_alloc);
 		}
 
-		MemAlloc = vm_malloc(size);
+		Mem_alloc = vm_malloc(size);
 	}
 
-	MemAllocSize = size;
-	memcpy(MemAlloc, &TransformMatrices[0], size);
+	Mem_alloc_size = size;
+	memcpy(Mem_alloc, &Submodel_matrices[0], size);
 }
 
-void ModelTransformBuffer::submitBufferData()
+void model_batch_buffer::submit_buffer_data()
 {
-	if ( TransformMatrices.size() == 0 ) {
+	if ( Submodel_matrices.size() == 0 ) {
 		return;
 	}
 
-	AllocateMemory();
+	allocate_memory();
 
-	gr_update_transform_buffer(MemAlloc, MemAllocSize);
+	gr_update_transform_buffer(Mem_alloc, Mem_alloc_size);
 }
 
-DrawList::DrawList()
+draw_list::draw_list()
 {
 	reset();
 }
 
-void DrawList::reset()
+void draw_list::reset()
 {
-	set_clip_plane = -1;
+	Current_set_clip_plane = -1;
 
-	dirty_render_state = true;
+	Dirty_render_state = true;
 
-	current_render_state = render_state();
+	Current_render_state = render_state();
 
-	current_textures[TM_BASE_TYPE] = -1;
-	current_textures[TM_GLOW_TYPE] = -1;
-	current_textures[TM_SPECULAR_TYPE] = -1;
-	current_textures[TM_NORMAL_TYPE] = -1;
-	current_textures[TM_HEIGHT_TYPE] = -1;
-	current_textures[TM_MISC_TYPE] = -1;
+	Current_textures[TM_BASE_TYPE] = -1;
+	Current_textures[TM_GLOW_TYPE] = -1;
+	Current_textures[TM_SPECULAR_TYPE] = -1;
+	Current_textures[TM_NORMAL_TYPE] = -1;
+	Current_textures[TM_HEIGHT_TYPE] = -1;
+	Current_textures[TM_MISC_TYPE] = -1;
 
-	clip_planes.clear();
-	render_states.clear();
-	render_elements.clear();
-	render_keys.clear();
+	Clip_planes.clear();
+	Render_states.clear();
+	Render_elements.clear();
+	Render_keys.clear();
 
-	clearTransforms();
+	clear_transforms();
 
-	CurrentScale.xyz.x = 1.0f;
-	CurrentScale.xyz.y = 1.0f;
-	CurrentScale.xyz.z = 1.0f;
+	Current_scale.xyz.x = 1.0f;
+	Current_scale.xyz.y = 1.0f;
+	Current_scale.xyz.z = 1.0f;
 }
 
-void DrawList::sortDraws()
+void draw_list::sort_draws()
 {
 	Target = this;
-	std::sort(Target->render_keys.begin(), Target->render_keys.end(), DrawList::sortDrawPair);
+	std::sort(Target->Render_keys.begin(), Target->Render_keys.end(), draw_list::sort_draw_pair);
 }
 
-void DrawList::startModelDraw(int n_models)
+void draw_list::start_model_batch(int n_models)
 {
-	TransformBufferHandler.setNumModels(n_models);
+	TransformBufferHandler.set_num_models(n_models);
 }
 
-void DrawList::setModelTransformBuffer(int model_num)
+void draw_list::add_submodel_to_batch(int model_num)
 {
 	matrix4 transform;
 
 	memset(&transform, 0, sizeof(matrix4));
 
 	// set basis
-	transform.a1d[0] = CurrentTransform.basis.a1d[0] * CurrentScale.xyz.x;
-	transform.a1d[1] = CurrentTransform.basis.a1d[1];
-	transform.a1d[2] = CurrentTransform.basis.a1d[2];
+	transform.a1d[0] = Current_transform.basis.a1d[0] * Current_scale.xyz.x;
+	transform.a1d[1] = Current_transform.basis.a1d[1];
+	transform.a1d[2] = Current_transform.basis.a1d[2];
 
-	transform.a1d[4] = CurrentTransform.basis.a1d[3];
-	transform.a1d[5] = CurrentTransform.basis.a1d[4] * CurrentScale.xyz.y;
-	transform.a1d[6] = CurrentTransform.basis.a1d[5];
+	transform.a1d[4] = Current_transform.basis.a1d[3];
+	transform.a1d[5] = Current_transform.basis.a1d[4] * Current_scale.xyz.y;
+	transform.a1d[6] = Current_transform.basis.a1d[5];
 
-	transform.a1d[8] = CurrentTransform.basis.a1d[6];
-	transform.a1d[9] = CurrentTransform.basis.a1d[7];
-	transform.a1d[10] = CurrentTransform.basis.a1d[8] * CurrentScale.xyz.z;
+	transform.a1d[8] = Current_transform.basis.a1d[6];
+	transform.a1d[9] = Current_transform.basis.a1d[7];
+	transform.a1d[10] = Current_transform.basis.a1d[8] * Current_scale.xyz.z;
 
 	// set position
-	transform.a1d[12] = CurrentTransform.origin.a1d[0];
-	transform.a1d[13] = CurrentTransform.origin.a1d[1];
-	transform.a1d[14] = CurrentTransform.origin.a1d[2];
+	transform.a1d[12] = Current_transform.origin.a1d[0];
+	transform.a1d[13] = Current_transform.origin.a1d[1];
+	transform.a1d[14] = Current_transform.origin.a1d[2];
 
 	// set visibility
 	transform.a1d[15] = 0.0f;
 
-	TransformBufferHandler.setModelTransform(transform, model_num);
+	TransformBufferHandler.set_model_transform(transform, model_num);
 }
 
-void DrawList::setDepthMode(int depth_set)
+void draw_list::set_depth_mode(int depth_set)
 {
 // 	if ( !dirty_render_state && depth_set != current_render_state.depth_mode ) {
 // 		dirty_render_state = true;
 // 	}
 
-	current_depth_mode = depth_set;
+	Current_depth_mode = depth_set;
 }
 
-void DrawList::addArc(vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width)
+void draw_list::add_arc(vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width)
 {
 	arc_effect new_arc;
 
-	new_arc.transformation = CurrentTransform;
+	new_arc.transformation = Current_transform;
 	new_arc.v1 = *v1;
 	new_arc.v2 = *v2;
 	new_arc.primary = *primary;
 	new_arc.secondary = *secondary;
 	new_arc.width = arc_width;
 
-	arcs.push_back(new_arc);
+	Arcs.push_back(new_arc);
 }
 
-void DrawList::setLightFilter(int objnum, vec3d *pos, float rad)
+void draw_list::set_light_filter(int objnum, vec3d *pos, float rad)
 {
-	SceneLightHandler.setLightFilter(objnum, pos, rad);
+	Scene_light_handler.setLightFilter(objnum, pos, rad);
 
-	dirty_render_state = true;
-	current_render_state.lights = SceneLightHandler.bufferLights();
+	Dirty_render_state = true;
+	Current_render_state.lights = Scene_light_handler.bufferLights();
 }
 
-void DrawList::setLightFactor(float factor)
+void draw_list::set_light_factor(float factor)
 {
-	current_render_state.light_factor = factor;
+	Current_render_state.light_factor = factor;
 }
 
-void DrawList::setClipPlane(const vec3d &position, const vec3d &normal)
+void draw_list::set_clip_plane(const vec3d &position, const vec3d &normal)
 {
 	clip_plane_state clip_normal;
 
 	clip_normal.point = position;
 	clip_normal.normal = normal;
 
-	clip_planes.push_back(clip_normal);
+	Clip_planes.push_back(clip_normal);
 
-	current_render_state.clip_plane_handle = clip_planes.size() - 1;
+	Current_render_state.clip_plane_handle = Clip_planes.size() - 1;
 }
 
-void DrawList::setClipPlane()
+void draw_list::set_clip_plane()
 {
-	current_render_state.clip_plane_handle = -1;
+	Current_render_state.clip_plane_handle = -1;
 }
 
-void DrawList::setThrustScale(float scale)
+void draw_list::set_thrust_scale(float scale)
 {
-	current_render_state.thrust_scale = scale;
+	Current_render_state.thrust_scale = scale;
 }
 
-void DrawList::addBufferDraw(vertex_buffer *buffer, int texi, uint tmap_flags, model_render_params *interp)
+void draw_list::add_buffer_draw(vertex_buffer *buffer, int texi, uint tmap_flags, model_render_params *interp)
 {
 	// need to do a check to see if the top render state matches the current.
 	//if ( dirty_render_state ) {
-		render_states.push_back(current_render_state);
+		Render_states.push_back(Current_render_state);
 	//}
 
-	dirty_render_state = false;
+	Dirty_render_state = false;
 
 	queued_buffer_draw draw_data;
 
-	draw_data.render_state_handle = render_states.size() - 1;
+	draw_data.render_state_handle = Render_states.size() - 1;
 	draw_data.buffer = buffer;
 	draw_data.texi = texi;
 	draw_data.flags = tmap_flags;
 
 	draw_data.clr = gr_screen.current_color;
-	draw_data.alpha = current_alpha;
-	draw_data.blend_filter = current_blend_filter;
-	draw_data.depth_mode = current_depth_mode;
+	draw_data.alpha = Current_alpha;
+	draw_data.blend_filter = Current_blend_filter;
+	draw_data.depth_mode = Current_depth_mode;
 
 	if ( tmap_flags & TMAP_FLAG_BATCH_TRANSFORMS ) {
- 		draw_data.transformation = Transform();
+ 		draw_data.transformation = transform();
  
   		draw_data.scale.xyz.x = 1.0f;
   		draw_data.scale.xyz.y = 1.0f;
   		draw_data.scale.xyz.z = 1.0f;
 
-		draw_data.transform_buffer_offset = TransformBufferHandler.getBufferOffset();
+		draw_data.transform_buffer_offset = TransformBufferHandler.get_buffer_offset();
 	} else {
-		draw_data.transformation = CurrentTransform;
-		draw_data.scale = CurrentScale;
+		draw_data.transformation = Current_transform;
+		draw_data.scale = Current_scale;
 		draw_data.transform_buffer_offset = -1;
 	}
 	
-	draw_data.texture_maps[TM_BASE_TYPE] = current_textures[TM_BASE_TYPE];
-	draw_data.texture_maps[TM_GLOW_TYPE] = current_textures[TM_GLOW_TYPE];
-	draw_data.texture_maps[TM_SPECULAR_TYPE] = current_textures[TM_SPECULAR_TYPE];
-	draw_data.texture_maps[TM_NORMAL_TYPE] = current_textures[TM_NORMAL_TYPE];
-	draw_data.texture_maps[TM_HEIGHT_TYPE] = current_textures[TM_HEIGHT_TYPE];
-	draw_data.texture_maps[TM_MISC_TYPE] = current_textures[TM_MISC_TYPE];
+	draw_data.texture_maps[TM_BASE_TYPE] = Current_textures[TM_BASE_TYPE];
+	draw_data.texture_maps[TM_GLOW_TYPE] = Current_textures[TM_GLOW_TYPE];
+	draw_data.texture_maps[TM_SPECULAR_TYPE] = Current_textures[TM_SPECULAR_TYPE];
+	draw_data.texture_maps[TM_NORMAL_TYPE] = Current_textures[TM_NORMAL_TYPE];
+	draw_data.texture_maps[TM_HEIGHT_TYPE] = Current_textures[TM_HEIGHT_TYPE];
+	draw_data.texture_maps[TM_MISC_TYPE] = Current_textures[TM_MISC_TYPE];
 
-	draw_data.sdr_flags = determineShaderFlags(&current_render_state, &draw_data, buffer, tmap_flags);
+	draw_data.sdr_flags = determine_shader_flags(&Current_render_state, &draw_data, buffer, tmap_flags);
 
-	render_elements.push_back(draw_data);
+	Render_elements.push_back(draw_data);
 
-	render_keys.push_back(render_elements.size() - 1);
+	Render_keys.push_back(Render_elements.size() - 1);
 }
 
-uint DrawList::determineShaderFlags(render_state *state, queued_buffer_draw *draw_info, vertex_buffer *buffer, int tmap_flags)
+uint draw_list::determine_shader_flags(render_state *state, queued_buffer_draw *draw_info, vertex_buffer *buffer, int tmap_flags)
 {
 	bool texture = (tmap_flags & TMAP_FLAG_TEXTURED) && (buffer->flags & VB_FLAG_UV1);
 	bool fog = false;
@@ -556,32 +556,31 @@ uint DrawList::determineShaderFlags(render_state *state, queued_buffer_draw *dra
 	);
 }
 
-void DrawList::renderBuffer(queued_buffer_draw &render_elements)
+void draw_list::render_buffer(queued_buffer_draw &render_elements)
 {
 	// get the render state for this draw call
 	int render_state_num = render_elements.render_state_handle;
 
-	render_state &draw_state = render_states[render_state_num];
+	render_state &draw_state = Render_states[render_state_num];
 
 	// set clip plane if necessary
-	if ( draw_state.clip_plane_handle >= 0 && draw_state.clip_plane_handle != set_clip_plane ) {
-		if ( set_clip_plane >= 0 ) {
+	if ( draw_state.clip_plane_handle >= 0 && draw_state.clip_plane_handle != Current_set_clip_plane ) {
+		if ( Current_set_clip_plane >= 0 ) {
 			g3_stop_user_clip_plane();
 		}
 
-		set_clip_plane = draw_state.clip_plane_handle;
+		Current_set_clip_plane = draw_state.clip_plane_handle;
 
-		clip_plane_state *clip_plane = &clip_planes[set_clip_plane];
+		clip_plane_state *clip_plane = &Clip_planes[Current_set_clip_plane];
 
 		g3_start_user_clip_plane(&clip_plane->point, &clip_plane->normal);
-	} else if ( draw_state.clip_plane_handle < 0 && set_clip_plane >= 0 ) {
+	} else if ( draw_state.clip_plane_handle < 0 && Current_set_clip_plane >= 0 ) {
 		// stop the clip plane if this draw call doesn't have clip plane and clip plane is set.
-		set_clip_plane = -1;
+		Current_set_clip_plane = -1;
 		g3_stop_user_clip_plane();
 	}
 
-	opengl_shader_set_animated_effect(draw_state.animated_effect);
-	opengl_shader_set_animated_timer(draw_state.animated_timer);
+	gr_set_animated_effect(draw_state.animated_effect, draw_state.animated_timer);
 
 	if ( draw_state.using_team_color ) {
 		gr_set_team_color(&draw_state.tm_color);
@@ -608,11 +607,11 @@ void DrawList::renderBuffer(queued_buffer_draw &render_elements)
 	gr_set_light_factor(draw_state.light_factor);
 
 	if ( draw_state.lighting ) {
-		SceneLightHandler.setLights(&draw_state.lights);
+		Scene_light_handler.setLights(&draw_state.lights);
 	} else {
 		gr_set_lighting(false, false);
 
-		SceneLightHandler.resetLightState();
+		Scene_light_handler.resetLightState();
 	}
 
 	gr_set_buffer(draw_state.buffer_id);
@@ -646,15 +645,15 @@ void DrawList::renderBuffer(queued_buffer_draw &render_elements)
 	g3_done_instance(true);
 }
 
-vec3d DrawList::getViewPosition()
+vec3d draw_list::get_view_position()
 {
 	matrix basis_world;
 
 	// get the world basis of our current local space.
-	vm_matrix_x_matrix(&basis_world, &Object_matrix, &CurrentTransform.basis);
+	vm_matrix_x_matrix(&basis_world, &Object_matrix, &Current_transform.basis);
 
 	vec3d eye_pos_local;
-	vm_vec_sub(&eye_pos_local, &Eye_position, &CurrentTransform.origin);
+	vm_vec_sub(&eye_pos_local, &Eye_position, &Current_transform.origin);
 
 	vec3d return_val;
 	vm_vec_rotate(&return_val, &eye_pos_local, &basis_world);
@@ -662,13 +661,13 @@ vec3d DrawList::getViewPosition()
 	return return_val;
 }
 
-void DrawList::clearTransforms()
+void draw_list::clear_transforms()
 {
-	CurrentTransform = Transform();
-	TransformStack.clear();
+	Current_transform = transform();
+	Transform_stack.clear();
 }
 
-void DrawList::pushTransform(vec3d *pos, matrix *orient)
+void draw_list::push_transform(vec3d *pos, matrix *orient)
 {
 	matrix basis;
 	vec3d origin;
@@ -685,62 +684,62 @@ void DrawList::pushTransform(vec3d *pos, matrix *orient)
 		origin = *pos;
 	}
 
-	if ( TransformStack.size() == 0 ) {
-		CurrentTransform.basis = basis;
-		CurrentTransform.origin = origin;
+	if ( Transform_stack.size() == 0 ) {
+		Current_transform.basis = basis;
+		Current_transform.origin = origin;
 
-		TransformStack.push_back(CurrentTransform);
+		Transform_stack.push_back(Current_transform);
 
 		return;
 	}
 
 	vec3d tempv;
-	Transform newTransform = CurrentTransform;
+	transform newTransform = Current_transform;
 
-	vm_vec_unrotate(&tempv, &origin, &CurrentTransform.basis);
+	vm_vec_unrotate(&tempv, &origin, &Current_transform.basis);
 	vm_vec_add2(&newTransform.origin, &tempv);
 
-	vm_matrix_x_matrix(&newTransform.basis, &CurrentTransform.basis, &basis);
+	vm_matrix_x_matrix(&newTransform.basis, &Current_transform.basis, &basis);
 
-	CurrentTransform = newTransform;
-	TransformStack.push_back(CurrentTransform);
+	Current_transform = newTransform;
+	Transform_stack.push_back(Current_transform);
 }
 
-void DrawList::popTransform()
+void draw_list::pop_transform()
 {
-	Assert( TransformStack.size() > 0 );
+	Assert( Transform_stack.size() > 0 );
 
-	TransformStack.pop_back();
+	Transform_stack.pop_back();
 
-	if ( TransformStack.size() > 0 ) {
-		CurrentTransform = TransformStack.back();
+	if ( Transform_stack.size() > 0 ) {
+		Current_transform = Transform_stack.back();
 	} else {
-		CurrentTransform = Transform();
+		Current_transform = transform();
 	}
 }
 
-void DrawList::setScale(vec3d *scale)
+void draw_list::set_scale(vec3d *scale)
 {
 	if ( scale == NULL ) {
-		CurrentScale.xyz.x = 1.0f;
-		CurrentScale.xyz.y = 1.0f;
-		CurrentScale.xyz.z = 1.0f;
+		Current_scale.xyz.x = 1.0f;
+		Current_scale.xyz.y = 1.0f;
+		Current_scale.xyz.z = 1.0f;
 		return;
 	}
 
-	CurrentScale = *scale;
+	Current_scale = *scale;
 }
 
-void DrawList::setBuffer(int buffer)
+void draw_list::set_buffer(int buffer)
 {
 // 	if ( !dirty_render_state && current_render_state.buffer_id != buffer) {
 // 		dirty_render_state = true;
 // 	}
 
-	current_render_state.buffer_id = buffer;
+	Current_render_state.buffer_id = buffer;
 }
 
-void DrawList::setBlendFilter(int filter, float alpha)
+void draw_list::set_blend_filter(int filter, float alpha)
 {
 // 	if ( !dirty_render_state && ( current_render_state.alpha != alpha && current_render_state.blend_filter != filter ) ) {
 // 		dirty_render_state = true;
@@ -749,117 +748,117 @@ void DrawList::setBlendFilter(int filter, float alpha)
 // 	current_blend_filter = GR_ALPHABLEND_NONE;
 // 	current_alpha = 1.0f;
 
-	current_blend_filter = filter;
-	current_alpha = alpha;
+	Current_blend_filter = filter;
+	Current_alpha = alpha;
 }
 
-void DrawList::setTexture(int texture_type, int texture_handle)
+void draw_list::set_texture(int texture_type, int texture_handle)
 {
 	Assert(texture_type > -1);
 	Assert(texture_type < TM_NUM_TYPES);
 
-	current_textures[texture_type] = texture_handle;
+	Current_textures[texture_type] = texture_handle;
 }
 
-void DrawList::setCullMode(int mode)
+void draw_list::set_cull_mode(int mode)
 {
-	current_render_state.cull_mode = mode;
+	Current_render_state.cull_mode = mode;
 }
 
-void DrawList::setZBias(int bias)
+void draw_list::set_zbias(int bias)
 {
-	current_render_state.zbias = bias;
+	Current_render_state.zbias = bias;
 }
 
-void DrawList::setLighting(bool lighting)
+void draw_list::set_lighting(bool lighting)
 {
-	current_render_state.lighting = lighting;
+	Current_render_state.lighting = lighting;
 }
 
-void DrawList::setTeamColor(const team_color &color)
+void draw_list::set_team_color(const team_color &color)
 {
-	current_render_state.using_team_color = true;
-	current_render_state.tm_color = color;
+	Current_render_state.using_team_color = true;
+	Current_render_state.tm_color = color;
 }
 
-void DrawList::setTeamColor()
+void draw_list::set_team_color()
 {
-	current_render_state.using_team_color = false;
+	Current_render_state.using_team_color = false;
 }
 
-void DrawList::setAnimatedTimer(float time)
+void draw_list::set_animated_timer(float time)
 {
-	current_render_state.animated_timer = time;
+	Current_render_state.animated_timer = time;
 }
 
-void DrawList::setAnimatedEffect(int effect)
+void draw_list::set_animated_effect(int effect)
 {
-	current_render_state.animated_effect = effect;
+	Current_render_state.animated_effect = effect;
 }
 
-void DrawList::setTextureAddressing(int addressing)
+void draw_list::set_texture_addressing(int addressing)
 {
-	current_render_state.texture_addressing = addressing;
+	Current_render_state.texture_addressing = addressing;
 }
 
-void DrawList::setFog(int fog_mode, int r, int g, int b, float fog_near, float fog_far)
+void draw_list::set_fog(int fog_mode, int r, int g, int b, float fog_near, float fog_far)
 {
-	current_render_state.fog_mode = fog_mode;
-	current_render_state.r = r;
-	current_render_state.g = g;
-	current_render_state.b = b;
-	current_render_state.fog_near = fog_near;
-	current_render_state.fog_far = fog_far;
+	Current_render_state.fog_mode = fog_mode;
+	Current_render_state.r = r;
+	Current_render_state.g = g;
+	Current_render_state.b = b;
+	Current_render_state.fog_near = fog_near;
+	Current_render_state.fog_far = fog_far;
 }
 
-void DrawList::setFillMode(int mode)
+void draw_list::set_fill_mode(int mode)
 {
-	current_render_state.fill_mode = mode;
+	Current_render_state.fill_mode = mode;
 }
 
-void DrawList::setCenterAlpha(int center_alpha)
+void draw_list::set_center_alpha(int center_alpha)
 {
-	current_render_state.center_alpha = center_alpha;
+	Current_render_state.center_alpha = center_alpha;
 }
 
-void DrawList::init()
+void draw_list::init()
 {
 	reset();
 
 	for ( int i = 0; i < Num_lights; ++i ) {
 		if ( Lights[i].type == LT_DIRECTIONAL || !Deferred_lighting ) {
-			SceneLightHandler.addLight(&Lights[i]);
+			Scene_light_handler.addLight(&Lights[i]);
 		}	
 	}
 
 	TransformBufferHandler.reset();
 }
 
-void DrawList::initRender()
+void draw_list::init_render()
 {
-	sortDraws();
+	sort_draws();
 
-	SceneLightHandler.resetLightState();
+	Scene_light_handler.resetLightState();
 	Current_uniforms.resetAll();
-	TransformBufferHandler.submitBufferData();
+	TransformBufferHandler.submit_buffer_data();
 }
 
-void DrawList::renderAll(int blend_filter)
+void draw_list::render_all(int blend_filter)
 {
-	for ( size_t i = 0; i < render_keys.size(); ++i ) {
-		int render_index = render_keys[i];
+	for ( size_t i = 0; i < Render_keys.size(); ++i ) {
+		int render_index = Render_keys[i];
 
-		if ( blend_filter == -1 || render_elements[render_index].blend_filter == blend_filter ) {
-			renderBuffer(render_elements[render_index]);
+		if ( blend_filter == -1 || Render_elements[render_index].blend_filter == blend_filter ) {
+			render_buffer(Render_elements[render_index]);
 		}
 	}
 
-	if ( set_clip_plane >= 0 ) {
+	if ( Current_set_clip_plane >= 0 ) {
 		g3_stop_user_clip_plane();
 	}
 }
 
-void DrawList::renderArc(arc_effect &arc)
+void draw_list::render_arc(arc_effect &arc)
 {
 	g3_start_instance_matrix(&arc.transformation.origin, &arc.transformation.basis);	
 
@@ -868,35 +867,35 @@ void DrawList::renderArc(arc_effect &arc)
 	g3_done_instance(true);
 }
 
-void DrawList::renderArcs()
+void draw_list::render_arcs()
 {
 	int mode = gr_zbuffer_set(GR_ZBUFF_READ);
 
-	for ( size_t i = 0; i < arcs.size(); ++i ) {
-		renderArc(arcs[i]);
+	for ( size_t i = 0; i < Arcs.size(); ++i ) {
+		render_arc(Arcs[i]);
 	}
 
 	gr_zbuffer_set(mode);
 }
 
-void DrawList::addInsignia(polymodel *pm, int detail_level, int bitmap_num)
+void draw_list::add_insignia(polymodel *pm, int detail_level, int bitmap_num)
 {
 	insignia_draw_data new_insignia;
 
-	new_insignia.transformation = CurrentTransform;
+	new_insignia.transformation = Current_transform;
 	new_insignia.pm = pm;
 	new_insignia.detail_level = detail_level;
 	new_insignia.bitmap_num = bitmap_num;
 
-	new_insignia.clip_plane = current_render_state.clip_plane_handle;
+	new_insignia.clip_plane = Current_render_state.clip_plane_handle;
 
-	insignias.push_back(new_insignia);
+	Insignias.push_back(new_insignia);
 }
 
-void DrawList::renderInsignia(insignia_draw_data &insignia_info)
+void draw_list::render_insignia(insignia_draw_data &insignia_info)
 {
 	if ( insignia_info.clip_plane >= 0 ) {
-		clip_plane_state &plane_data = clip_planes[insignia_info.clip_plane];
+		clip_plane_state &plane_data = Clip_planes[insignia_info.clip_plane];
 
 		vec3d tmp;
 		vm_vec_sub(&tmp, &insignia_info.transformation.origin, &plane_data.point);
@@ -914,26 +913,26 @@ void DrawList::renderInsignia(insignia_draw_data &insignia_info)
 	g3_done_instance(true);
 }
 
-void DrawList::renderInsignias()
+void draw_list::render_insignias()
 {
 	int mode = gr_zbuffer_set(GR_ZBUFF_READ);
 	gr_zbias(1);
 
-	for ( size_t i = 0; i < insignias.size(); ++i ) {
-		renderInsignia(insignias[i]);
+	for ( size_t i = 0; i < Insignias.size(); ++i ) {
+		render_insignia(Insignias[i]);
 	}
 
 	gr_zbias(0);
 	gr_zbuffer_set(mode);
 }
 
-bool DrawList::sortDrawPair(const int a, const int b)
+bool draw_list::sort_draw_pair(const int a, const int b)
 {
-	queued_buffer_draw *draw_call_a = &Target->render_elements[a];
-	queued_buffer_draw *draw_call_b = &Target->render_elements[b];
+	queued_buffer_draw *draw_call_a = &Target->Render_elements[a];
+	queued_buffer_draw *draw_call_b = &Target->Render_elements[b];
 
-	render_state *render_state_a = &Target->render_states[draw_call_a->render_state_handle];
-	render_state *render_state_b = &Target->render_states[draw_call_b->render_state_handle];
+	render_state *render_state_a = &Target->Render_states[draw_call_a->render_state_handle];
+	render_state *render_state_b = &Target->Render_states[draw_call_b->render_state_handle];
 
 	if ( render_state_a->clip_plane_handle != render_state_b->clip_plane_handle ) {
 		return render_state_a->clip_plane_handle < render_state_b->clip_plane_handle;
@@ -978,7 +977,7 @@ bool DrawList::sortDrawPair(const int a, const int b)
 	return render_state_a->lights.index_start < render_state_b->lights.index_start;
 }
 
-void model_queue_render_lightning( DrawList *scene, model_render_params* interp, polymodel *pm, bsp_info * sm )
+void model_queue_render_lightning( draw_list *scene, model_render_params* interp, polymodel *pm, bsp_info * sm )
 {
 	int i;
 	float width = 0.9f;
@@ -1041,7 +1040,7 @@ void model_queue_render_lightning( DrawList *scene, model_render_params* interp,
 		}
 
 		// render the actual arc segment
-		scene->addArc(&sm->arc_pts[i][0], &sm->arc_pts[i][1], &primary, &secondary, width);
+		scene->add_arc(&sm->arc_pts[i][0], &sm->arc_pts[i][1], &primary, &secondary, width);
 	}
 }
 
@@ -1116,7 +1115,7 @@ int model_queue_render_determine_detail(int obj_num, int model_num, matrix* orie
 	}
 }
 
-void model_queue_render_buffers(DrawList* scene, model_render_params* interp, polymodel *pm, int mn, int detail_level, uint tmap_flags)
+void model_queue_render_buffers(draw_list* scene, model_render_params* interp, polymodel *pm, int mn, int detail_level, uint tmap_flags)
 {
 	if ( pm->vertex_buffer_id < 0 ) {
 		return;
@@ -1146,20 +1145,20 @@ void model_queue_render_buffers(DrawList* scene, model_render_params* interp, po
 
 		if ( Use_GLSL > 1 ) {
 			scale.xyz.z = 1.0f;
-			scene->setThrustScale(interp->get_thruster_info().length.xyz.z);
+			scene->set_thrust_scale(interp->get_thruster_info().length.xyz.z);
 		} else {
 			scale.xyz.z = interp->get_thruster_info().length.xyz.z;
-			scene->setThrustScale();
+			scene->set_thrust_scale();
 		}
 	} else {
 		scale = interp->get_warp_scale();
-		scene->setThrustScale();
+		scene->set_thrust_scale();
 	}
 
-	scene->setScale(&scale);
+	scene->set_scale(&scale);
 
 	if ( tmap_flags & TMAP_FLAG_BATCH_TRANSFORMS && (mn >= 0) && (mn < pm->n_models) ) {
-		scene->setModelTransformBuffer(mn);
+		scene->add_submodel_to_batch(mn);
 		return;
 	}
 
@@ -1318,29 +1317,29 @@ void model_queue_render_buffers(DrawList* scene, model_render_params* interp, po
 		}
 
 		if (blend_filter != GR_ALPHABLEND_NONE) {
-			scene->setDepthMode(GR_ZBUFF_READ);
+			scene->set_depth_mode(GR_ZBUFF_READ);
 		} else {
 			if ( (model_flags & MR_NO_ZBUFFER) || (model_flags & MR_ALL_XPARENT) ) {
-				scene->setDepthMode(GR_ZBUFF_NONE);
+				scene->set_depth_mode(GR_ZBUFF_NONE);
 			} else {
-				scene->setDepthMode(GR_ZBUFF_FULL);
+				scene->set_depth_mode(GR_ZBUFF_FULL);
 			}
 		}
 
-		scene->setBlendFilter(blend_filter, alpha);
+		scene->set_blend_filter(blend_filter, alpha);
 
-		scene->setTexture(TM_BASE_TYPE,	texture_maps[TM_BASE_TYPE]);
-		scene->setTexture(TM_GLOW_TYPE,	texture_maps[TM_GLOW_TYPE]);
-		scene->setTexture(TM_SPECULAR_TYPE, texture_maps[TM_SPECULAR_TYPE]);
-		scene->setTexture(TM_NORMAL_TYPE, texture_maps[TM_NORMAL_TYPE]);
-		scene->setTexture(TM_HEIGHT_TYPE, texture_maps[TM_HEIGHT_TYPE]);
-		scene->setTexture(TM_MISC_TYPE,	texture_maps[TM_MISC_TYPE]);
+		scene->set_texture(TM_BASE_TYPE,	texture_maps[TM_BASE_TYPE]);
+		scene->set_texture(TM_GLOW_TYPE,	texture_maps[TM_GLOW_TYPE]);
+		scene->set_texture(TM_SPECULAR_TYPE, texture_maps[TM_SPECULAR_TYPE]);
+		scene->set_texture(TM_NORMAL_TYPE, texture_maps[TM_NORMAL_TYPE]);
+		scene->set_texture(TM_HEIGHT_TYPE, texture_maps[TM_HEIGHT_TYPE]);
+		scene->set_texture(TM_MISC_TYPE,	texture_maps[TM_MISC_TYPE]);
 
-		scene->addBufferDraw(buffer, i, tmap_flags, interp);
+		scene->add_buffer_draw(buffer, i, tmap_flags, interp);
 	}
 }
 
-void model_queue_render_children_buffers(DrawList* scene, model_render_params* interp, polymodel* pm, int mn, int detail_level, uint tmap_flags)
+void model_queue_render_children_buffers(draw_list* scene, model_render_params* interp, polymodel* pm, int mn, int detail_level, uint tmap_flags)
 {
 	int i;
 
@@ -1361,10 +1360,10 @@ void model_queue_render_children_buffers(DrawList* scene, model_render_params* i
 			return;
 		}
 
-		scene->setLighting(false);
+		scene->set_lighting(false);
 	}
 
-	vec3d view_pos = scene->getViewPosition();
+	vec3d view_pos = scene->get_view_position();
 
 	if ( !model_render_check_detail_box(&view_pos, pm, mn, model_flags) ) {
 		return;
@@ -1400,7 +1399,7 @@ void model_queue_render_children_buffers(DrawList* scene, model_render_params* i
 	matrix submodel_matrix;
 	vm_matrix_x_matrix(&submodel_matrix, &rotation_matrix, &inv_orientation);
 
-	scene->pushTransform(&model->offset, &submodel_matrix);
+	scene->push_transform(&model->offset, &submodel_matrix);
 
 	model_queue_render_buffers(scene, interp, pm, mn, detail_level, tmap_flags);
 
@@ -1419,10 +1418,10 @@ void model_queue_render_children_buffers(DrawList* scene, model_render_params* i
 	}
 
 	if ( model->is_thruster ) {
-		scene->setLighting(true);
+		scene->set_lighting(true);
 	}
 
-	scene->popTransform();
+	scene->pop_transform();
 }
 
 float model_queue_render_determine_light(model_render_params* interp, vec3d *pos, uint flags)
@@ -1562,13 +1561,13 @@ void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, 
 
 void submodel_immediate_render(model_render_params *render_info, int model_num, int submodel_num, matrix *orient, vec3d * pos)
 {
-	DrawList model_list;
+	draw_list model_list;
 	
 	model_list.init();
 
 	submodel_queue_render(render_info, &model_list, model_num, submodel_num, orient, pos);
 	
-	model_list.renderAll();
+	model_list.render_all();
 
 	gr_zbias(0);
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);
@@ -1582,12 +1581,12 @@ void submodel_immediate_render(model_render_params *render_info, int model_num, 
 	gr_set_lighting(false, false);
 }
 
-void submodel_queue_render(model_render_params *render_info, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum)
+void submodel_queue_render(model_render_params *render_info, draw_list *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum)
 {
 
 }
 
-void submodel_queue_render(model_render_params *render_info, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos)
+void submodel_queue_render(model_render_params *render_info, draw_list *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos)
 {
 	polymodel * pm;
 
@@ -1596,15 +1595,15 @@ void submodel_queue_render(model_render_params *render_info, DrawList *scene, in
 	if ( !( Game_detail_flags & DETAIL_FLAG_MODELS ) )	return;
 	
 	if ( render_info->is_clip_plane_set() ) {
-		scene->setClipPlane(render_info->get_clip_plane_pos(), render_info->get_clip_plane_normal());
+		scene->set_clip_plane(render_info->get_clip_plane_pos(), render_info->get_clip_plane_normal());
 	} else {
-		scene->setClipPlane();
+		scene->set_clip_plane();
 	}
 
 	if ( render_info->is_team_color_set() ) {
-		scene->setTeamColor(render_info->get_team_color());
+		scene->set_team_color(render_info->get_team_color());
 	} else {
-		scene->setTeamColor();
+		scene->set_team_color();
 	}
 		
 	uint flags = render_info->get_model_flags();
@@ -1633,45 +1632,45 @@ void submodel_queue_render(model_render_params *render_info, DrawList *scene, in
 
 	if ( render_info->get_animated_effect_num() >= 0 ) {
 		tmap_flags |= TMAP_ANIMATED_SHADER;
-		scene->setAnimatedEffect(render_info->get_animated_effect_num());
-		scene->setAnimatedTimer(render_info->get_animated_effect_timer());
+		scene->set_animated_effect(render_info->get_animated_effect_num());
+		scene->set_animated_timer(render_info->get_animated_effect_timer());
 	}
 
 	bool is_outlines_only_htl = !Cmdline_nohtl && (flags & MR_NO_POLYS) && (flags & MR_SHOW_OUTLINE_HTL);
 
 	//set to true since D3d and OGL need the api matrices set
-	scene->pushTransform(pos, orient);
+	scene->push_transform(pos, orient);
 
 	
 	vec3d auto_back = ZERO_VECTOR;
 	bool set_autocen = model_render_determine_autocenter(&auto_back, pm, render_info->get_detail_level_lock(), flags);
 
 	if ( set_autocen ) {
-		scene->pushTransform(&auto_back, NULL);
+		scene->push_transform(&auto_back, NULL);
 	}
 
 	if (is_outlines_only_htl) {
-		scene->setFillMode(GR_FILL_MODE_WIRE);
+		scene->set_fill_mode(GR_FILL_MODE_WIRE);
 
 		color outline_color = render_info->get_outline_color();
 		gr_set_color_fast( &outline_color );
 
 		tmap_flags &= ~TMAP_FLAG_RGB;
 	} else {
-		scene->setFillMode(GR_FILL_MODE_SOLID);
+		scene->set_fill_mode(GR_FILL_MODE_SOLID);
 	}
 
-	scene->setLightFactor(1.0f);
+	scene->set_light_factor(1.0f);
 
 	if ( !( flags & MR_NO_LIGHTING ) ) {
-		scene->setLightFilter(-1, pos, pm->submodel[submodel_num].rad);
-		scene->setLighting(true);
+		scene->set_light_filter(-1, pos, pm->submodel[submodel_num].rad);
+		scene->set_lighting(true);
 	} else {
-		scene->setLighting(false);
+		scene->set_lighting(false);
 	}
 
 	// fixes disappearing HUD in OGL - taylor
-	scene->setCullMode(1);
+	scene->set_cull_mode(1);
 
 	// RT - Put this here to fog debris
 	if( tmap_flags & TMAP_FLAG_PIXEL_FOG ) {
@@ -1685,20 +1684,20 @@ void submodel_queue_render(model_render_params *render_info, DrawList *scene, in
 		unsigned char r, g, b;
 		neb2_get_fog_color(&r, &g, &b);
 
-		scene->setFog(GR_FOGMODE_FOG, r, g, b, fog_near, fog_far);
+		scene->set_fog(GR_FOGMODE_FOG, r, g, b, fog_near, fog_far);
 	} else {
-		scene->setFog(GR_FOGMODE_NONE, 0, 0, 0);
+		scene->set_fog(GR_FOGMODE_NONE, 0, 0, 0);
 	}
 
 	if(in_shadow_map) {
-		scene->setZBias(-1024);
+		scene->set_zbias(-1024);
 	} else {
-		scene->setZBias(0);
+		scene->set_zbias(0);
 	}
 
-	scene->setBuffer(pm->vertex_buffer_id);
+	scene->set_buffer(pm->vertex_buffer_id);
 
-	vec3d view_pos = scene->getViewPosition();
+	vec3d view_pos = scene->get_view_position();
 
 	if ( model_render_check_detail_box(&view_pos, pm, submodel_num, flags) ) {
 		model_queue_render_buffers(scene, render_info, pm, submodel_num, 0, tmap_flags);
@@ -1709,10 +1708,10 @@ void submodel_queue_render(model_render_params *render_info, DrawList *scene, in
 	}
 
 	if ( set_autocen ) {
-		scene->popTransform();
+		scene->pop_transform();
 	}
 
-	scene->popTransform();
+	scene->pop_transform();
 }
 
 void model_queue_render_glowpoint(int point_num, vec3d *pos, matrix *orient, glow_point_bank *bank, glow_point_bank_override *gpo, polymodel *pm, ship* shipp, bool use_depth_buffer)
@@ -2571,28 +2570,28 @@ void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint fla
 
 void model_immediate_render(model_render_params *render_info, int model_num, matrix *orient, vec3d * pos, int render)
 {
-	DrawList model_list;
+	draw_list model_list;
 
 	model_list.init();
 
 	model_queue_render(render_info, &model_list, model_num, orient, pos);
 
-	model_list.initRender();
+	model_list.init_render();
 
 	switch ( render ) {
 	case MODEL_RENDER_OPAQUE:
 		gr_zbuffer_set(ZBUFFER_TYPE_FULL);
-		model_list.renderAll(GR_ALPHABLEND_NONE);
+		model_list.render_all(GR_ALPHABLEND_NONE);
 		break;
 	case MODEL_RENDER_TRANS:
 		gr_zbuffer_set(ZBUFFER_TYPE_READ);
-		model_list.renderAll(GR_ALPHABLEND_FILTER);
+		model_list.render_all(GR_ALPHABLEND_FILTER);
 		break;
 	case MODEL_RENDER_ALL:
 		gr_zbuffer_set(ZBUFFER_TYPE_FULL);
-		model_list.renderAll(GR_ALPHABLEND_NONE);
+		model_list.render_all(GR_ALPHABLEND_NONE);
 		gr_zbuffer_set(ZBUFFER_TYPE_READ);
-		model_list.renderAll(GR_ALPHABLEND_FILTER);
+		model_list.render_all(GR_ALPHABLEND_FILTER);
 		break;
 	}
 	
@@ -2612,7 +2611,7 @@ void model_immediate_render(model_render_params *render_info, int model_num, mat
 	model_render_debug(model_num, orient, pos, render_info->get_model_flags(), render_info->get_debug_flags(), render_info->get_object_number(), render_info->get_detail_level_lock());
 }
 
-void model_queue_render(model_render_params *interp, DrawList *scene, int model_num, matrix *orient, vec3d *pos)
+void model_queue_render(model_render_params *interp, draw_list *scene, int model_num, matrix *orient, vec3d *pos)
 {
 	int i;
 	int cull = 0;
@@ -2626,30 +2625,30 @@ void model_queue_render(model_render_params *interp, DrawList *scene, int model_
 	model_do_dumb_rotation(model_num);
 
 	if ( interp->is_clip_plane_set() ) {
-		scene->setClipPlane(interp->get_clip_plane_pos(), interp->get_clip_plane_normal());
+		scene->set_clip_plane(interp->get_clip_plane_pos(), interp->get_clip_plane_normal());
 	} else {
-		scene->setClipPlane();
+		scene->set_clip_plane();
 	}
 
 	if ( interp->is_team_color_set() ) {
-		scene->setTeamColor(interp->get_team_color());
+		scene->set_team_color(interp->get_team_color());
 	} else {
-		scene->setTeamColor();
+		scene->set_team_color();
 	}
 		
 	if ( model_flags & MR_FORCE_CLAMP ) {
-		scene->setTextureAddressing(TMAP_ADDRESS_CLAMP);
+		scene->set_texture_addressing(TMAP_ADDRESS_CLAMP);
 	} else {
-		scene->setTextureAddressing(TMAP_ADDRESS_WRAP);
+		scene->set_texture_addressing(TMAP_ADDRESS_WRAP);
 	}
 
 	model_queue_render_set_glow_points(pm, objnum);
 
 	if ( !(model_flags & MR_NO_LIGHTING) ) {
-		scene->setLightFilter( objnum, pos, pm->rad );
+		scene->set_light_filter( objnum, pos, pm->rad );
 	}
 
-	scene->setLightFactor(model_queue_render_determine_light(interp, pos, model_flags));
+	scene->set_light_factor(model_queue_render_determine_light(interp, pos, model_flags));
 
 	ship *shipp = NULL;
 	object *objp = NULL;
@@ -2681,15 +2680,15 @@ void model_queue_render(model_render_params *interp, DrawList *scene, int model_
 
 	if ( interp->get_animated_effect_num() >= 0 ) {
 		tmap_flags |= TMAP_ANIMATED_SHADER;
-		scene->setAnimatedEffect(interp->get_animated_effect_num());
-		scene->setAnimatedTimer(interp->get_animated_effect_timer());
+		scene->set_animated_effect(interp->get_animated_effect_num());
+		scene->set_animated_timer(interp->get_animated_effect_timer());
 	}
 
 	bool is_outlines_only = (model_flags & MR_NO_POLYS) && ((model_flags & MR_SHOW_OUTLINE_PRESET) || (model_flags & MR_SHOW_OUTLINE));
 	bool is_outlines_only_htl = !Cmdline_nohtl && (model_flags & MR_NO_POLYS) && (model_flags & MR_SHOW_OUTLINE_HTL);
 	bool use_api = !is_outlines_only_htl || (gr_screen.mode == GR_OPENGL);
 
-	scene->pushTransform(pos, orient);
+	scene->push_transform(pos, orient);
 
 	int detail_level = model_queue_render_determine_detail(objnum, model_num, orient, pos, model_flags, interp->get_detail_level_lock());
 
@@ -2707,7 +2706,7 @@ void model_queue_render(model_render_params *interp, DrawList *scene, int model_
 	bool set_autocen = model_render_determine_autocenter(&auto_back, pm, detail_level, model_flags);
 	
 	if ( set_autocen ) {
-		scene->pushTransform(&auto_back, NULL);
+		scene->push_transform(&auto_back, NULL);
 	}
 
 	if ( tmap_flags & TMAP_FLAG_PIXEL_FOG ) {
@@ -2717,50 +2716,50 @@ void model_queue_render(model_render_params *interp, DrawList *scene, int model_
 		unsigned char r, g, b;
 		neb2_get_fog_color(&r, &g, &b);
 
-		scene->setFog(GR_FOGMODE_FOG, r, g, b, fog_near, fog_far);
+		scene->set_fog(GR_FOGMODE_FOG, r, g, b, fog_near, fog_far);
 	} else {
-		scene->setFog(GR_FOGMODE_NONE, 0, 0, 0);
+		scene->set_fog(GR_FOGMODE_NONE, 0, 0, 0);
 	}
 
 	if ( is_outlines_only_htl ) {
-		scene->setFillMode(GR_FILL_MODE_WIRE);
+		scene->set_fill_mode(GR_FILL_MODE_WIRE);
 
 		color outline_color = interp->get_outline_color();
 		gr_set_color_fast( &outline_color );
 
 		tmap_flags &= ~TMAP_FLAG_RGB;
 	} else {
-		scene->setFillMode(GR_FILL_MODE_SOLID);
+		scene->set_fill_mode(GR_FILL_MODE_SOLID);
 	}
 		
 	if ( model_flags & MR_EDGE_ALPHA ) {
-		scene->setCenterAlpha(-1);
+		scene->set_center_alpha(-1);
 	} else if ( model_flags & MR_CENTER_ALPHA ) {
-		scene->setCenterAlpha(1);
+		scene->set_center_alpha(1);
 	} else {
-		scene->setCenterAlpha(0);
+		scene->set_center_alpha(0);
 	}
 
 	if ( ( model_flags & MR_NO_CULL ) || ( model_flags & MR_ALL_XPARENT ) || ( interp->get_warp_bitmap() >= 0 ) ) {
-		scene->setCullMode(0);
+		scene->set_cull_mode(0);
 	} else {
-		scene->setCullMode(1);
+		scene->set_cull_mode(1);
 	}
 
 	if ( !(model_flags & MR_NO_LIGHTING) ) {
-		scene->setLighting(true);
+		scene->set_lighting(true);
 	} else {
-		scene->setLighting(false);
+		scene->set_lighting(false);
 	}
 	
 	if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-		scene->setBuffer(pm->vertex_buffer_id);
+		scene->set_buffer(pm->vertex_buffer_id);
 	}
 
 	if ( in_shadow_map ) {
-		scene->setZBias(-1024);
+		scene->set_zbias(-1024);
 	} else {
-		scene->setZBias(0);
+		scene->set_zbias(0);
 	}
 
 	if ( GL_use_transform_buffer && !Cmdline_no_batching && !(model_flags & MR_NO_BATCH) ) {
@@ -2769,7 +2768,7 @@ void model_queue_render(model_render_params *interp, DrawList *scene, int model_
 	}
 
 	if ( (tmap_flags & TMAP_FLAG_BATCH_TRANSFORMS) ) {
-		scene->startModelDraw(pm->n_models);
+		scene->start_model_batch(pm->n_models);
 		model_queue_render_buffers(scene, interp, pm, -1, detail_level, tmap_flags);
 	}
 		
@@ -2790,7 +2789,7 @@ void model_queue_render(model_render_params *interp, DrawList *scene, int model_
 	model_radius = pm->submodel[pm->detail[detail_level]].rad;
 
 	//*************************** draw the hull of the ship *********************************************
-	vec3d view_pos = scene->getViewPosition();
+	vec3d view_pos = scene->get_view_position();
 
 	if ( model_render_check_detail_box(&view_pos, pm, pm->detail[detail_level], model_flags) ) {
 		model_queue_render_buffers(scene, interp, pm, pm->detail[detail_level], detail_level, tmap_flags);
@@ -2812,14 +2811,14 @@ void model_queue_render(model_render_params *interp, DrawList *scene, int model_
 	}
 
 	if ( !( model_flags & MR_NO_TEXTURING ) ) {
-		scene->addInsignia(pm, detail_level, interp->get_insignia_bitmap());
+		scene->add_insignia(pm, detail_level, interp->get_insignia_bitmap());
 	}
 
 	if ( (model_flags & MR_AUTOCENTER) && (set_autocen) ) {
-		scene->popTransform();
+		scene->pop_transform();
 	}
 
-	scene->popTransform();
+	scene->pop_transform();
 
 	// start rendering glow points -Bobboau
 	if ( (pm->n_glow_point_banks) && !is_outlines_only && !is_outlines_only_htl && !Glowpoint_override ) {

@@ -1044,7 +1044,7 @@ float fireball_wormhole_intensity( object *obj )
 	return rad;
 } 
 
-void fireball_render(object* obj, DrawList *scene)
+void fireball_render(object* obj, draw_list *scene)
 {
 	int		num;
 	vertex	p;

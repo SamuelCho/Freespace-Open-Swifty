@@ -1903,7 +1903,7 @@ static void half_ship_render_ship_and_debris(clip_ship* half_ship,ship *shipp)
 	model_render_DEPRECATED(pm->id, &half_ship->orient, &orig_ship_world_center, render_flags, -1, -1, shipp->ship_replacement_textures);
 }
 
-void shipfx_queue_render_ship_halves_and_debris(DrawList *scene, clip_ship* half_ship, ship *shipp)
+void shipfx_queue_render_ship_halves_and_debris(draw_list *scene, clip_ship* half_ship, ship *shipp)
 {
 	polymodel *pm = model_get(Ship_info[shipp->ship_info_index].model_num);
 
@@ -1919,6 +1919,10 @@ void shipfx_queue_render_ship_halves_and_debris(DrawList *scene, clip_ship* half
 
 	// set up render flags
 	uint render_flags = MR_NORMAL;
+
+	if ( in_shadow_map ) {
+		render_flags |= MR_NO_TEXTURING | MR_NO_LIGHTING;
+	}
 
 	for (int i = 0; i < pm->num_debris_objects; i++ )	{
 		// draw DEBRIS_FREE in test only
@@ -2389,7 +2393,7 @@ void shipfx_large_blowup_render(ship* shipp)
 	g3_stop_user_clip_plane();			
 }
 
-void shipfx_large_blowup_queue_render(DrawList *scene, ship* shipp)
+void shipfx_large_blowup_queue_render(draw_list *scene, ship* shipp)
 {
 	Assert( shipp->large_ship_blowup_index > -1 );
 	Assert( shipp->large_ship_blowup_index < (int)Split_ships.size() );
@@ -3493,7 +3497,7 @@ int WarpEffect::warpShipRender()
 	return 0;
 }
 
-int WarpEffect::warpShipQueueRender(DrawList *scene)
+int WarpEffect::warpShipQueueRender(draw_list *scene)
 {
 	return 0;
 }

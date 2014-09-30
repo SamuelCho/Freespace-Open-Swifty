@@ -1599,12 +1599,12 @@ void obj_render_DEPRECATED(object *obj)
 
 void obj_render(object *obj)
 {
-	DrawList render_list;
+	draw_list render_list;
 
 	obj_queue_render(obj, &render_list);
 
-	render_list.initRender();
-	render_list.renderAll();
+	render_list.init_render();
+	render_list.render_all();
 
 	gr_zbias(0);
 	gr_set_cull(0);
@@ -1618,7 +1618,7 @@ void obj_render(object *obj)
 	gr_set_lighting(false, false);
 }
 
-void obj_queue_render(object* obj, DrawList* scene)
+void obj_queue_render(object* obj, draw_list* scene)
 {
 	if ( obj->flags & OF_SHOULD_BE_DEAD ) return;
 

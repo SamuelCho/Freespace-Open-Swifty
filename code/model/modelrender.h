@@ -29,13 +29,13 @@ extern inline int in_sphere(vec3d *pos, float radius, vec3d *view_pos);
 extern inline int in_box(vec3d *min, vec3d *max, vec3d *pos, vec3d *view_pos);
 extern int model_interp_get_texture(texture_info *tinfo, fix base_frametime);
 
-struct Transform
+struct transform
 {
 	matrix basis;
 	vec3d origin;
 
-	Transform(): basis(vmd_identity_matrix), origin(vmd_zero_vector) {}
-	Transform(matrix *m, vec3d *v): basis(*m), origin(*v) {}
+	transform(): basis(vmd_identity_matrix), origin(vmd_zero_vector) {}
+	transform(matrix *m, vec3d *v): basis(*m), origin(*v) {}
 };
 
 class model_render_params
@@ -127,7 +127,7 @@ struct clip_plane_state
 
 struct arc_effect
 {
-	Transform transformation;
+	transform transformation;
 	vec3d v1;
 	vec3d v2;
 	color primary;
@@ -137,7 +137,7 @@ struct arc_effect
 
 struct insignia_draw_data
 {
-	Transform transformation;
+	transform transformation;
 	polymodel *pm;
 	int detail_level;
 	int bitmap_num;
@@ -160,7 +160,7 @@ struct render_state
 	int animated_effect;
 
 	bool lighting;
-	SceneLights::LightIndexingInfo lights;
+	scene_lights::light_indexing_info lights;
 	float light_factor;
 	
 	float thrust_scale;
@@ -215,7 +215,7 @@ struct queued_buffer_draw
 	float alpha;
 	int depth_mode;
 
-	Transform transformation;
+	transform transformation;
 	vec3d scale;
 
 	vertex_buffer *buffer;
@@ -239,129 +239,129 @@ struct queued_buffer_draw
 	}
 };
 
-class ModelTransformBuffer
+class model_batch_buffer
 {
-	SCP_vector<matrix4> TransformMatrices;
-	void* MemAlloc;
-	uint MemAllocSize;
+	SCP_vector<matrix4> Submodel_matrices;
+	void* Mem_alloc;
+	uint Mem_alloc_size;
 
-	int CurrentOffset;
+	int Current_offset;
 
-	void AllocateMemory();
+	void allocate_memory();
 public:
-	ModelTransformBuffer() : CurrentOffset(0), MemAlloc(NULL), MemAllocSize(0) {};
+	model_batch_buffer() : Current_offset(0), Mem_alloc(NULL), Mem_alloc_size(0) {};
 
 	void reset();
 
-	int getBufferOffset();
-	void setNumModels(int n_models);
-	void setModelTransform(matrix4 &transform, int model_id);
+	int get_buffer_offset();
+	void set_num_models(int n_models);
+	void set_model_transform(matrix4 &transform, int model_id);
 
-	void submitBufferData();
+	void submit_buffer_data();
 
-	void addMatrix(matrix4 &mat);
+	void add_matrix(matrix4 &mat);
 };
 
-class DrawList
+class draw_list
 {
-	Transform CurrentTransform;
-	vec3d CurrentScale;
-	SCP_vector<Transform> TransformStack;
+	transform Current_transform;
+	vec3d Current_scale;
+	SCP_vector<transform> Transform_stack;
 
-	render_state current_render_state;
-	bool dirty_render_state;
+	render_state Current_render_state;
+	bool Dirty_render_state;
 
-	SceneLights SceneLightHandler;
+	scene_lights Scene_light_handler;
 	
-	int current_textures[TM_NUM_TYPES];
-	int current_blend_filter;
-	float current_alpha;
-	int current_depth_mode;
+	int Current_textures[TM_NUM_TYPES];
+	int Current_blend_filter;
+	float Current_alpha;
+	int Current_depth_mode;
 
-	int set_clip_plane;
-	SceneLights::LightIndexingInfo current_lights_set;
+	int Current_set_clip_plane;
+	scene_lights::light_indexing_info Current_lights_set;
 
-	void renderArc(arc_effect &arc);
-	void renderInsignia(insignia_draw_data &insignia_info);
-	void renderBuffer(queued_buffer_draw &render_elements);
-	uint determineShaderFlags(render_state *state, queued_buffer_draw *draw_info, vertex_buffer *buffer, int tmap_flags);
+	void render_arc(arc_effect &arc);
+	void render_insignia(insignia_draw_data &insignia_info);
+	void render_buffer(queued_buffer_draw &render_elements);
+	uint determine_shader_flags(render_state *state, queued_buffer_draw *draw_info, vertex_buffer *buffer, int tmap_flags);
 	
-	SCP_vector<clip_plane_state> clip_planes;
-	SCP_vector<render_state> render_states;
-	SCP_vector<queued_buffer_draw> render_elements;
-	SCP_vector<int> render_keys;
+	SCP_vector<clip_plane_state> Clip_planes;
+	SCP_vector<render_state> Render_states;
+	SCP_vector<queued_buffer_draw> Render_elements;
+	SCP_vector<int> Render_keys;
 
-	SCP_vector<arc_effect> arcs;
-	SCP_vector<insignia_draw_data> insignias;
+	SCP_vector<arc_effect> Arcs;
+	SCP_vector<insignia_draw_data> Insignias;
 
-	static DrawList *Target;
-	static bool sortDrawPair(const int a, const int b);
-	void sortDraws();
+	static draw_list *Target;
+	static bool sort_draw_pair(const int a, const int b);
+	void sort_draws();
 public:
-	DrawList();
+	draw_list();
 	void init();
 
-	void resetState();
-	void setClipPlane(const vec3d &position, const vec3d &normal);
-	void setClipPlane();
-	void setThrustScale(float scale = -1.0f);
-	void setTexture(int texture_type, int texture_handle);
-	void setDepthMode(int depth_set);
-	void setBlendFilter(int filter, float alpha);
-	void setTextureAddressing(int addressing);
-	void setFog(int fog_mode, int r, int g, int b, float fog_near = -1.0f, float fog_far = -1.0f);
-	void setFillMode(int mode);
-	void setCullMode(int mode);
-	void setZBias(int bias);
-	void setCenterAlpha(int center_alpha);
-	void setLighting(bool mode);
-	void setBuffer(int buffer);
-	void setTeamColor(const team_color &color);
-	void setTeamColor();
-	void setAnimatedTimer(float time);
-	void setAnimatedEffect(int effect);
-	void setModelTransformBuffer(int model_num);
-	void startModelDraw(int n_models);
+	void reset_state();
+	void set_clip_plane(const vec3d &position, const vec3d &normal);
+	void set_clip_plane();
+	void set_thrust_scale(float scale = -1.0f);
+	void set_texture(int texture_type, int texture_handle);
+	void set_depth_mode(int depth_set);
+	void set_blend_filter(int filter, float alpha);
+	void set_texture_addressing(int addressing);
+	void set_fog(int fog_mode, int r, int g, int b, float fog_near = -1.0f, float fog_far = -1.0f);
+	void set_fill_mode(int mode);
+	void set_cull_mode(int mode);
+	void set_zbias(int bias);
+	void set_center_alpha(int center_alpha);
+	void set_lighting(bool mode);
+	void set_buffer(int buffer);
+	void set_team_color(const team_color &color);
+	void set_team_color();
+	void set_animated_timer(float time);
+	void set_animated_effect(int effect);
+	void add_submodel_to_batch(int model_num);
+	void start_model_batch(int n_models);
 
-	void addBufferDraw(vertex_buffer *buffer, int texi, uint tmap_flags, model_render_params *interp);
+	void add_buffer_draw(vertex_buffer *buffer, int texi, uint tmap_flags, model_render_params *interp);
 	
-	vec3d getViewPosition();
-	void clearTransforms();
-	void pushTransform(vec3d* pos, matrix* orient);
-	void popTransform();
-	void setScale(vec3d *scale = NULL);
+	vec3d get_view_position();
+	void clear_transforms();
+	void push_transform(vec3d* pos, matrix* orient);
+	void pop_transform();
+	void set_scale(vec3d *scale = NULL);
 
-	void addArc(vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width);
-	void renderArcs();
+	void add_arc(vec3d *v1, vec3d *v2, color *primary, color *secondary, float arc_width);
+	void render_arcs();
 
-	void addInsignia(polymodel *pm, int detail_level, int bitmap_num);
-	void renderInsignias();
+	void add_insignia(polymodel *pm, int detail_level, int bitmap_num);
+	void render_insignias();
 
-	void setLightFilter(int objnum, vec3d *pos, float rad);
-	void setLightFactor(float factor);
+	void set_light_filter(int objnum, vec3d *pos, float rad);
+	void set_light_factor(float factor);
 
-	void initRender();
-	void renderAll(int blend_filter = -1);
+	void init_render();
+	void render_all(int blend_filter = -1);
 	void reset();
 };
 
 class DrawListSorter
 {
-	static DrawList *Target;
+	static draw_list *Target;
 public:
-	static void sort(DrawList *target);
+	static void sort(draw_list *target);
 	static int sortDrawPair(const void* a, const void* b);
 };
 
 //void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL);
 void model_immediate_render(model_render_params *render_info, int model_num, matrix *orient, vec3d * pos, int render = MODEL_RENDER_ALL);
-void model_queue_render(model_render_params *render_info, DrawList* scene, int model_num, matrix *orient, vec3d *pos);
+void model_queue_render(model_render_params *render_info, draw_list* scene, int model_num, matrix *orient, vec3d *pos);
 //void model_queue_render(DrawList* scene, int model_num, int model_instance_num, matrix *orient, vec3d *pos, uint flags, int objnum, int *replacement_textures, const bool is_skybox = false);
 //void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int *replacement_textures = NULL);
 void submodel_immediate_render(model_render_params *render_info, int model_num, int submodel_num, matrix *orient, vec3d * pos);
-void submodel_queue_render(model_render_params *render_info, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos);
+void submodel_queue_render(model_render_params *render_info, draw_list *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos);
 //void submodel_queue_render(model_render_params *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1);
-void model_queue_render_buffers(DrawList* scene, model_render_params* interp, polymodel *pm, int mn, int detail_level, uint tmap_flags);
+void model_queue_render_buffers(draw_list* scene, model_render_params* interp, polymodel *pm, int mn, int detail_level, uint tmap_flags);
 void model_render_set_thrust(model_render_params *interp, int model_num, mst_info *mst);
 void model_render_set_clip_plane(model_render_params *interp, vec3d *pos = NULL, vec3d *normal = NULL);
 fix model_render_determine_base_frametime(int objnum, uint flags);

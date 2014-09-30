@@ -615,9 +615,8 @@ typedef struct screen {
 
 	int (*gf_maybe_create_shader)(unsigned int flags);
 
-	uint (*gf_create_transformation_tex)();
-	void (*gf_destroy_transformation_tex)(uint tex_id);
-	void (*gf_update_transformation_tex)(uint tex_id, int n_models, float *data);
+	void (*gf_set_animated_effect)(int effect, float timer);
+
 	void (*gf_flush_data_states)();
 
 	void (*gf_set_team_color)(team_color *colors);
@@ -956,6 +955,7 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_sphere_htl					GR_CALL(*gr_screen.gf_sphere_htl)
 
 #define gr_maybe_create_shader			GR_CALL(*gr_screen.gf_maybe_create_shader)
+#define gr_set_animated_effect			GR_CALL(*gr_screen.gf_set_animated_effect)
 
 #define gr_flush_data_states			GR_CALL(*gr_screen.gf_flush_data_states)
 

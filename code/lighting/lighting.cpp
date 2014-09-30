@@ -1108,7 +1108,7 @@ bool light_compare_by_type(const light &a, const light &b)
 	return false;
 }
 
-void SceneLights::addLight(light *light_ptr)
+void scene_lights::addLight(light *light_ptr)
 {
 	Assert(light_ptr != NULL);
 
@@ -1119,7 +1119,7 @@ void SceneLights::addLight(light *light_ptr)
 	}
 }
 
-void SceneLights::setLightFilter(int objnum, vec3d *pos, float rad)
+void scene_lights::setLightFilter(int objnum, vec3d *pos, float rad)
 {
 	size_t i;
 
@@ -1199,11 +1199,11 @@ void SceneLights::setLightFilter(int objnum, vec3d *pos, float rad)
 	}
 }
 
-SceneLights::LightIndexingInfo SceneLights::bufferLights()
+scene_lights::light_indexing_info scene_lights::bufferLights()
 {
 	size_t i;
 
-	SceneLights::LightIndexingInfo light_info;
+	scene_lights::light_indexing_info light_info;
 
 	light_info.index_start = 0;
 	light_info.num_lights = 0;
@@ -1224,18 +1224,18 @@ SceneLights::LightIndexingInfo SceneLights::bufferLights()
 	return light_info;
 }
 
-int SceneLights::getNumStaticLights()
+int scene_lights::getNumStaticLights()
 {
 	return StaticLightIndices.size();
 }
 
-void SceneLights::resetLightState()
+void scene_lights::resetLightState()
 {
 	current_light_index = -1;
 	current_num_lights = -1;
 }
 
-bool SceneLights::setLights(SceneLights::LightIndexingInfo *info)
+bool scene_lights::setLights(scene_lights::light_indexing_info *info)
 {
 	size_t i;
 

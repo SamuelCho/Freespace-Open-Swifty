@@ -599,7 +599,7 @@ void weapon_init();					// called at game startup
 void weapon_close();				// called at game shutdown
 void weapon_level_init();			// called before the start of each level
 void weapon_render_DEPRECATED(object * obj);
-void weapon_render(object* obj, DrawList *scene);
+void weapon_render(object* obj, draw_list *scene);
 void weapon_delete( object * obj );
 void weapon_process_pre( object *obj, float frame_time);
 void weapon_process_post( object *obj, float frame_time);

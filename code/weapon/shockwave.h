@@ -16,7 +16,7 @@
 #include "globalincs/globals.h"
 
 class object;
-class DrawList;
+class draw_list;
 
 #define	SW_USED				(1<<0)
 #define	SW_WEAPON			(1<<1)
@@ -95,7 +95,7 @@ void shockwave_delete(object *objp);
 void shockwave_move_all(float frametime);
 int  shockwave_create(int parent_objnum, vec3d *pos, shockwave_create_info *sci, int flag, int delay = -1);
 void shockwave_render_DEPRECATED(object *objp);
-void shockwave_render(object *objp, DrawList *scene);
+void shockwave_render(object *objp, draw_list *scene);
 int shockwave_load(char *s_name, bool shock_3D = false);
 
 int   shockwave_get_weapon_index(int index);

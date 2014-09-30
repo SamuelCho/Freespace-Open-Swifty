@@ -136,7 +136,7 @@ typedef struct obj_flag_name {
 extern obj_flag_name Object_flag_names[];
 
 struct dock_instance;
-class DrawList;
+class draw_list;
 
 class object
 {
@@ -248,7 +248,7 @@ void obj_render_DEPRECATED(object *obj);
 
 void obj_render(object* obj);
 
-void obj_queue_render(object* obj, DrawList* scene);
+void obj_queue_render(object* obj, draw_list* scene);
 
 //Sorts and renders all the ojbects
 void obj_render_all(void (*render_function)(object *objp), bool* render_viewer_last );

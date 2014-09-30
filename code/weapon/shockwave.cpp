@@ -457,7 +457,7 @@ void shockwave_render_DEPRECATED(object *objp)
 	}
 }
 
-void shockwave_render(object *objp, DrawList *scene)
+void shockwave_render(object *objp, draw_list *scene)
 {
 	shockwave		*sw;
 	vertex			p;

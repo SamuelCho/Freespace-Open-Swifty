@@ -220,7 +220,7 @@ void warpin_render(object *obj, matrix *orient, vec3d *pos, int texture_bitmap_n
 	gr_zbuffer_set( saved_gr_zbuffering );
 }
 
-void warpin_queue_render(DrawList *scene, object *obj, matrix *orient, vec3d *pos, int texture_bitmap_num, float radius, float life_percent, float max_radius, int warp_3d)
+void warpin_queue_render(draw_list *scene, object *obj, matrix *orient, vec3d *pos, int texture_bitmap_num, float radius, float life_percent, float max_radius, int warp_3d)
 {
 	vec3d center;
 	vec3d vecs[5];

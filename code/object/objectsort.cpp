@@ -348,7 +348,7 @@ void obj_render_queue_all()
 {
 	object *objp;
 	int i;
-	DrawList scene;
+	draw_list scene;
 
 	objp = Objects;
 
@@ -374,6 +374,12 @@ void obj_render_queue_all()
 				}
 			}
 
+			if ( obj_render_is_model(objp) ) {
+				if( (objp->type == OBJ_SHIP) && Ships[objp->instance].shader_effect_active ) {
+					effect_ships.push_back(objp);
+				}
+			}
+
 			objp->flags |= OF_WAS_RENDERED;
 			profile_begin("Queue Render");
 			obj_queue_render(objp, &scene);
@@ -381,10 +387,10 @@ void obj_render_queue_all()
 		}
 	}
 
-	scene.initRender();
+	scene.init_render();
 
 	gr_zbuffer_set(ZBUFFER_TYPE_FULL);
-	PROFILE("Submit Draws", scene.renderAll(GR_ALPHABLEND_NONE));
+	PROFILE("Submit Draws", scene.render_all(GR_ALPHABLEND_NONE));
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);
 	gr_zbias(0);
 	gr_set_cull(0);
@@ -402,11 +408,11 @@ void obj_render_queue_all()
 	gr_set_lighting(false, false);
 
 	// now render transparent meshes
-	PROFILE("Submit Draws", scene.renderAll(GR_ALPHABLEND_FILTER));
+	PROFILE("Submit Draws", scene.render_all(GR_ALPHABLEND_FILTER));
 
 	// render electricity effects and insignias
-	scene.renderInsignias();
-	scene.renderArcs();
+	scene.render_insignias();
+	scene.render_arcs();
 
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);
 	gr_zbias(0);
