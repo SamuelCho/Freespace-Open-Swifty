@@ -6066,9 +6066,9 @@ void ship_render_DEPRECATED(object * obj)
 
 		uint render_flags = MR_NORMAL;
 	#ifndef NDEBUG
-		if(Show_paths || Show_fpaths){
-			render_flags |= MR_BAY_PATHS;
-		}
+// 		if(Show_paths || Show_fpaths){
+// 			render_flags |= MR_BAY_PATHS;
+// 		}
 	#endif
 
 		// Only render electrical arcs if within 500m of the eye (for a 10m piece)
