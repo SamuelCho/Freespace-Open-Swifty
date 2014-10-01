@@ -1424,30 +1424,23 @@ void model_queue_render_children_buffers(draw_list* scene, model_render_params* 
 	scene->pop_transform();
 }
 
-float model_queue_render_determine_light(model_render_params* interp, vec3d *pos, uint flags)
+float model_render_determine_light_factor(model_render_params* interp, vec3d *pos, uint flags)
 {
-	if ( flags & MR_NO_LIGHTING ) {
-		return 1.0f;
-	} else if ( flags & MR_IS_ASTEROID ) {
+	if ( flags & MR_IS_ASTEROID ) {
 		// Dim it based on distance
 		float depth = vm_vec_dist_quick( pos, &Eye_position );
 		if ( depth > interp->get_depth_scale() )	{
 			float temp_light = interp->get_depth_scale()/depth;
 
-			// If it is too far, exit
-			if ( temp_light < (1.0f/32.0f) ) {
-				return 0.0f;
-			} else if ( temp_light > 1.0f )	{
-				return 1.0f;
-			}
+			if ( temp_light > 1.0f )	{
+ 				return 1.0f;
+ 			}
 
 			return temp_light;
-		} else {
-			return 1.0f;
 		}
-	} else {
-		return 1.0f;
 	}
+	
+	return 1.0f;
 }
 
 float model_render_determine_box_scale()
@@ -2591,7 +2584,7 @@ void model_immediate_render(model_render_params *render_info, int model_num, mat
 		gr_zbuffer_set(ZBUFFER_TYPE_FULL);
 		model_list.render_all(GR_ALPHABLEND_NONE);
 		gr_zbuffer_set(ZBUFFER_TYPE_READ);
-		model_list.render_all(GR_ALPHABLEND_FILTER);
+		//model_list.render_all(GR_ALPHABLEND_FILTER);
 		break;
 	}
 	
@@ -2624,6 +2617,15 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 
 	model_do_dumb_rotation(model_num);
 
+	float light_factor = model_render_determine_light_factor(interp, pos, model_flags);
+
+	if ( light_factor < (1.0f/32.0f) ) {
+		// If it is too far, exit
+		return;
+	}
+
+	scene->set_light_factor(light_factor);
+
 	if ( interp->is_clip_plane_set() ) {
 		scene->set_clip_plane(interp->get_clip_plane_pos(), interp->get_clip_plane_normal());
 	} else {
@@ -2647,8 +2649,6 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 	if ( !(model_flags & MR_NO_LIGHTING) ) {
 		scene->set_light_filter( objnum, pos, pm->rad );
 	}
-
-	scene->set_light_factor(model_queue_render_determine_light(interp, pos, model_flags));
 
 	ship *shipp = NULL;
 	object *objp = NULL;
