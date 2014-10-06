@@ -66,6 +66,23 @@ typedef struct bitmap {
 						// is not set, this palette just points to the screen palette. (gr_palette)
 } bitmap;
 
+class bitmap_lookup {
+	float *Bitmap_data;
+
+	int Width;
+	int Height;
+	int Num_channels;
+public:
+	bitmap_lookup(int bitmap_num);
+	~bitmap_lookup();
+
+	bool valid();
+
+	float get_channel_red(float u, float v);
+	float get_channel_green(float u, float v);
+	float get_channel_blue(float u, float v);
+	float get_channel_alpha(float u, float v);
+};
 
 extern int Bm_paging;
 

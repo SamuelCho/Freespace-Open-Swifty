@@ -4527,7 +4527,7 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 	int tex_num;
 
 	vertex_buffer &detail_buffer = pm->detail_buffers[detail_num];
-
+	detail_buffer.vertex_offset = 0;
 	detail_buffer.model_list = new(std::nothrow) poly_list;
 
 	// need to first count how many indexes there are in this entire detail model hierarchy
@@ -4581,6 +4581,99 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 	}
 
 	gr_config_buffer(pm->vertex_buffer_id, &detail_buffer, true);
+}
+
+void interp_create_transparency_index_buffer(polymodel *pm, int detail_num)
+{
+	const int NUM_VERTS_PER_TRI = 3;
+		
+	int mn = pm->detail[detail_num];
+
+	vertex_buffer &trans_buffer = pm->trans_buff[detail_num];
+
+	trans_buffer.model_list = new(std::nothrow) poly_list;
+	trans_buffer.vertex_offset = pm->submodel[mn].buffer.vertex_offset;
+	trans_buffer.stride = pm->submodel[mn].buffer.stride;
+	trans_buffer.flags = pm->submodel[mn].buffer.flags;
+
+	poly_list *model_list = pm->submodel[mn].buffer.model_list;
+
+	SCP_vector<buffer_data> &tex_buffers = pm->submodel[mn].buffer.tex_buf;
+	uint current_tri[NUM_VERTS_PER_TRI];
+	bool transparent_tri = false;
+	int num_tris = 0;
+
+	for ( int i = 0; i < tex_buffers.size(); ++i ) {
+		buffer_data *tex_buf = &tex_buffers[i];
+		const uint *indices = tex_buf->get_index();
+
+		texture_map *tmap = &pm->maps[tex_buf->texture];
+
+		int bitmap_handle = tmap->textures[TM_BASE_TYPE].GetTexture();
+
+		if ( bitmap_handle < 0 || !bm_has_alpha_channel(bitmap_handle) ) {
+			continue;
+		}
+
+		bitmap_lookup texture_lookup(bitmap_handle);
+
+		if ( !texture_lookup.valid() ) {
+			continue;
+		}
+
+		SCP_vector<int> transparent_indices;
+
+		transparent_tri = false;
+		num_tris = 0;
+
+		for ( int j = 0; j < tex_buf->n_verts; ++j ) {
+			uint index = indices[j];
+
+			// need the uv coords of the vert at this index
+			float u = model_list->vert[index].texture_position.u;
+			float v = model_list->vert[index].texture_position.v;
+
+			if ( texture_lookup.get_channel_alpha(u, v) < 0.95f) {
+				transparent_tri = true;
+			}
+
+			current_tri[num_tris] = index;
+			num_tris++;
+
+			if ( num_tris == NUM_VERTS_PER_TRI ) {
+				if ( transparent_tri ) {
+					// we have a triangle and it's transparent. 
+					// shove index into the transparency buffer
+					transparent_indices.push_back(current_tri[0]);
+					transparent_indices.push_back(current_tri[1]);
+					transparent_indices.push_back(current_tri[2]);
+				}
+				
+				transparent_tri = false;
+				num_tris = 0;
+			}
+		}
+
+		if ( transparent_indices.empty() ) {
+			continue;
+		}
+
+		pm->flags |= PM_FLAG_TRANS_BUFFER;
+		trans_buffer.flags |= VB_FLAG_TRANS;
+
+		trans_buffer.tex_buf.push_back ( buffer_data ( transparent_indices.size() ) );
+		
+		buffer_data &new_buff = trans_buffer.tex_buf.back();
+		new_buff.texture = tex_buf->texture;
+
+		for ( int j = 0; j < transparent_indices.size(); ++j ) {
+			new_buff.assign(j, transparent_indices[j]);
+		}
+	}
+
+	if ( pm->flags & PM_FLAG_TRANS_BUFFER ) {
+		gr_config_buffer(pm->vertex_buffer_id, &trans_buffer, true);
+	}
 }
 
 inline int in_box(vec3d *min, vec3d *max, vec3d *pos, vec3d *view_pos)

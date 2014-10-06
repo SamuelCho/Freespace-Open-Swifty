@@ -625,6 +625,7 @@ typedef struct insignia {
 
 #define PM_FLAG_ALLOW_TILING		(1<<0)					// Allow texture tiling
 #define PM_FLAG_AUTOCEN				(1<<1)					// contains autocentering info	
+#define PM_FLAG_TRANS_BUFFER		(1<<2)					// render transparency buffer
 
 // Goober5000
 class texture_info
@@ -818,6 +819,8 @@ public:
 	int vertex_buffer_id;			// HTL vertex buffer id
 
 	vertex_buffer detail_buffers[MAX_MODEL_DETAIL_LEVELS];
+
+	vertex_buffer trans_buff[MAX_MODEL_DETAIL_LEVELS];
 };
 
 // Call once to initialize the model system

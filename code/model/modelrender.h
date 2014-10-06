@@ -341,7 +341,7 @@ public:
 	void set_light_factor(float factor);
 
 	void init_render();
-	void render_all(int blend_filter = -1);
+	void render_all(int depth_mode = -1);
 	void reset();
 };
 
@@ -361,7 +361,7 @@ void model_queue_render(model_render_params *render_info, draw_list* scene, int 
 void submodel_immediate_render(model_render_params *render_info, int model_num, int submodel_num, matrix *orient, vec3d * pos);
 void submodel_queue_render(model_render_params *render_info, draw_list *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos);
 //void submodel_queue_render(model_render_params *interp, DrawList *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum = -1);
-void model_queue_render_buffers(draw_list* scene, model_render_params* interp, polymodel *pm, int mn, int detail_level, uint tmap_flags);
+void model_queue_render_buffers(draw_list* scene, model_render_params* interp, vertex_buffer *buffer, polymodel *pm, int mn, int detail_level, uint tmap_flags);
 void model_render_set_thrust(model_render_params *interp, int model_num, mst_info *mst);
 void model_render_set_clip_plane(model_render_params *interp, vec3d *pos = NULL, vec3d *normal = NULL);
 fix model_render_determine_base_frametime(int objnum, uint flags);

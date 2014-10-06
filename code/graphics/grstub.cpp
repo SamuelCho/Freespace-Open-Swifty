@@ -526,6 +526,11 @@ void gr_stub_update_texture(int bitmap_handle, int bpp, ubyte* data, int width, 
 {
 }
 
+void gr_stub_get_bitmap_from_texture(void* data_out, int bitmap_num)
+{
+
+}
+
 // bitmap functions
 int gr_stub_bm_load(ubyte type, int n, const char *filename, CFILE *img_cfp, int *w, int *h, int *bpp, ubyte *c_type, int *mm_lvl, int *size)
 {
@@ -976,5 +981,6 @@ bool gr_stub_init()
 	gr_screen.gf_disable_team_color = gr_stub_disable_team_color;
 
 	gr_screen.gf_update_texture = gr_stub_update_texture;
+	gr_screen.gf_get_bitmap_from_texture = gr_stub_get_bitmap_from_texture;
 	return true;
 }

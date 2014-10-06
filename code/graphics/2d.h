@@ -624,6 +624,7 @@ typedef struct screen {
 	void (*gf_disable_team_color)();
 
 	void (*gf_update_texture)(int bitmap_handle, int bpp, ubyte* data, int width, int height);
+	void (*gf_get_bitmap_from_texture)(void* data_out, int bitmap_num);
 
 	void (*gf_start_shadow_map)(float neardist, float middist, float fardist);
 	void (*gf_end_shadow_map)();
@@ -963,6 +964,7 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_disable_team_color			GR_CALL(*gr_screen.gf_disable_team_color)
 
 #define gr_update_texture				GR_CALL(*gr_screen.gf_update_texture)
+#define gr_get_bitmap_from_texture		GR_CALL(*gr_screen.gf_get_bitmap_from_texture)
 
 #define gr_start_shadow_map				GR_CALL(*gr_screen.gf_start_shadow_map)
 #define gr_end_shadow_map				GR_CALL(*gr_screen.gf_end_shadow_map)
@@ -1025,6 +1027,7 @@ void gr_pline_special(SCP_vector<vec3d> *pts, int thickness,int resize_mode=GR_R
 #define VB_FLAG_TANGENT		(1<<9)
 #define VB_FLAG_LARGE_INDEX	(1<<10)
 #define VB_FLAG_MODEL_ID	(1<<11)
+#define VB_FLAG_TRANS		(1<<12)
 
 struct vertex_format_data
 {

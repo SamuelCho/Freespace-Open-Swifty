@@ -389,8 +389,7 @@ void obj_render_queue_all()
 
 	scene.init_render();
 
-	gr_zbuffer_set(ZBUFFER_TYPE_FULL);
-	PROFILE("Submit Draws", scene.render_all(GR_ALPHABLEND_NONE));
+	PROFILE("Submit Draws", scene.render_all(GR_ZBUFF_FULL));
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);
 	gr_zbias(0);
 	gr_set_cull(0);
@@ -408,7 +407,8 @@ void obj_render_queue_all()
 	gr_set_lighting(false, false);
 
 	// now render transparent meshes
-	PROFILE("Submit Draws", scene.render_all(GR_ALPHABLEND_FILTER));
+	PROFILE("Submit Draws", scene.render_all(GR_ZBUFF_READ));
+	PROFILE("Submit Draws", scene.render_all(GR_ZBUFF_NONE));
 
 	// render electricity effects and insignias
 	scene.render_insignias();

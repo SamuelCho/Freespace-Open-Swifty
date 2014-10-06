@@ -1938,6 +1938,7 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_clear_shadow_map	= gr_opengl_clear_shadow_map;
 
 	gr_screen.gf_update_texture = gr_opengl_update_texture;
+	gr_screen.gf_get_bitmap_from_texture = gr_opengl_get_bitmap_from_texture;
 
 	gr_screen.gf_set_shader_flag	= gr_opengl_set_shader_flag;
 	gr_screen.gf_flush_data_states	= gr_opengl_flush_data_states;

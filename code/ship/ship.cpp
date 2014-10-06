@@ -17948,7 +17948,7 @@ void ship_set_thruster_info(mst_info *mst, object *obj, ship *shipp, ship_info *
 	mst->draw_distortion = sip->draw_distortion;
 }
 
-void ship_render_set_thrusters(object *obj)
+void ship_render_batch_thrusters(object *obj)
 {
 	int num = obj->instance;
 	ship *shipp = &Ships[num];
@@ -18315,7 +18315,7 @@ void ship_render(object* obj, draw_list* scene)
 		return;
 	}
 		
-	ship_render_set_thrusters(obj);
+	ship_render_batch_thrusters(obj);
 
 	model_render_params render_info;
 	

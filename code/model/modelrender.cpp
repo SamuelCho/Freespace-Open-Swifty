@@ -594,6 +594,14 @@ void draw_list::render_buffer(queued_buffer_draw &render_elements)
 
 	gr_zbuffer_set(render_elements.depth_mode);
 
+	if ( !in_shadow_map ) {
+		if ( render_elements.depth_mode == GR_ZBUFF_FULL ) {
+			gr_alpha_mask_set(1, 0.95f);
+		} else {
+			gr_alpha_mask_set(0, 1.0f);
+		}
+	}
+
 	gr_set_cull(draw_state.cull_mode);
 
 	gr_set_fill_mode(draw_state.fill_mode);
@@ -843,12 +851,12 @@ void draw_list::init_render()
 	TransformBufferHandler.submit_buffer_data();
 }
 
-void draw_list::render_all(int blend_filter)
+void draw_list::render_all(int depth_mode)
 {
 	for ( size_t i = 0; i < Render_keys.size(); ++i ) {
 		int render_index = Render_keys[i];
 
-		if ( blend_filter == -1 || Render_elements[render_index].blend_filter == blend_filter ) {
+		if ( depth_mode == -1 || Render_elements[render_index].depth_mode == depth_mode ) {
 			render_buffer(Render_elements[render_index]);
 		}
 	}
@@ -856,6 +864,8 @@ void draw_list::render_all(int blend_filter)
 	if ( Current_set_clip_plane >= 0 ) {
 		g3_stop_user_clip_plane();
 	}
+
+	gr_alpha_mask_set(0, 1.0f);
 }
 
 void draw_list::render_arc(arc_effect &arc)
@@ -933,6 +943,10 @@ bool draw_list::sort_draw_pair(const int a, const int b)
 
 	render_state *render_state_a = &Target->Render_states[draw_call_a->render_state_handle];
 	render_state *render_state_b = &Target->Render_states[draw_call_b->render_state_handle];
+
+	if ( draw_call_a->depth_mode != draw_call_b->depth_mode ) {
+		return draw_call_a->depth_mode > draw_call_b->depth_mode;
+	}
 
 	if ( render_state_a->clip_plane_handle != render_state_b->clip_plane_handle ) {
 		return render_state_a->clip_plane_handle < render_state_b->clip_plane_handle;
@@ -1115,24 +1129,21 @@ int model_queue_render_determine_detail(int obj_num, int model_num, matrix* orie
 	}
 }
 
-void model_queue_render_buffers(draw_list* scene, model_render_params* interp, polymodel *pm, int mn, int detail_level, uint tmap_flags)
+void model_queue_render_buffers(draw_list* scene, model_render_params* interp, vertex_buffer *buffer, polymodel *pm, int mn, int detail_level, uint tmap_flags)
 {
 	if ( pm->vertex_buffer_id < 0 ) {
 		return;
 	}
 
-	vertex_buffer *buffer;
 	bsp_info *model = NULL;
 	const uint model_flags = interp->get_model_flags();
 	const int obj_num = interp->get_object_number();
 
+	Assert(buffer != NULL);
 	Assert(detail_level >= 0);
 
-	if ( (mn < 0) || (mn >= pm->n_models) ) {
-		buffer = &pm->detail_buffers[detail_level];
-	} else {
+	if ( (mn >= 0) && (mn < pm->n_models) ) {
 		model = &pm->submodel[mn];
-		buffer = &model->buffer;
 	}
 
 	bool render_as_thruster = (model != NULL) && model->is_thruster && (model_flags & MR_SHOW_THRUSTERS);
@@ -1316,7 +1327,7 @@ void model_queue_render_buffers(draw_list* scene, model_render_params* interp, p
 			blend_filter = forced_blend_filter;
 		}
 
-		if (blend_filter != GR_ALPHABLEND_NONE) {
+		if (blend_filter != GR_ALPHABLEND_NONE || buffer->flags & VB_FLAG_TRANS) {
 			scene->set_depth_mode(GR_ZBUFF_READ);
 		} else {
 			if ( (model_flags & MR_NO_ZBUFFER) || (model_flags & MR_ALL_XPARENT) ) {
@@ -1401,7 +1412,7 @@ void model_queue_render_children_buffers(draw_list* scene, model_render_params* 
 
 	scene->push_transform(&model->offset, &submodel_matrix);
 
-	model_queue_render_buffers(scene, interp, pm, mn, detail_level, tmap_flags);
+	model_queue_render_buffers(scene, interp, &pm->submodel[mn].buffer, pm, mn, detail_level, tmap_flags);
 
 	if ( model->num_arcs ) {
 		model_queue_render_lightning( scene, interp, pm, &pm->submodel[mn] );
@@ -1523,10 +1534,10 @@ bool model_render_check_detail_box(vec3d *view_pos, polymodel *pm, int submodel_
 		vm_vec_copy_scale(&box_max, &model->render_box_max, box_scale);
 
 		if ( (-model->use_render_box + in_box(&box_min, &box_max, &model->offset, view_pos)) ) {
-			return true;
+			return false;
 		}
 
-		return false;
+		return true;
 	}
 
 	if ( !(flags & MR_FULL_DETAIL) && model->use_render_sphere ) {
@@ -1538,10 +1549,10 @@ bool model_render_check_detail_box(vec3d *view_pos, polymodel *pm, int submodel_
 		vm_vec_add2(&offset, &model->render_sphere_offset);
 
 		if ( (-model->use_render_sphere + in_sphere(&offset, sphere_radius, view_pos)) ) {
-			return true;
+			return false;
 		}
 
-		return false;
+		return true;
 	}
 
 	return true;
@@ -1693,7 +1704,7 @@ void submodel_queue_render(model_render_params *render_info, draw_list *scene, i
 	vec3d view_pos = scene->get_view_position();
 
 	if ( model_render_check_detail_box(&view_pos, pm, submodel_num, flags) ) {
-		model_queue_render_buffers(scene, render_info, pm, submodel_num, 0, tmap_flags);
+		model_queue_render_buffers(scene, render_info, &pm->submodel[submodel_num].buffer, pm, submodel_num, 0, tmap_flags);
 	}
 	
 	if ( pm->submodel[submodel_num].num_arcs )	{
@@ -2573,18 +2584,14 @@ void model_immediate_render(model_render_params *render_info, int model_num, mat
 
 	switch ( render ) {
 	case MODEL_RENDER_OPAQUE:
-		gr_zbuffer_set(ZBUFFER_TYPE_FULL);
-		model_list.render_all(GR_ALPHABLEND_NONE);
+		model_list.render_all(GR_ZBUFF_FULL);
 		break;
 	case MODEL_RENDER_TRANS:
-		gr_zbuffer_set(ZBUFFER_TYPE_READ);
-		model_list.render_all(GR_ALPHABLEND_FILTER);
+		model_list.render_all(GR_ZBUFF_READ);
+		model_list.render_all(GR_ZBUFF_NONE);
 		break;
 	case MODEL_RENDER_ALL:
-		gr_zbuffer_set(ZBUFFER_TYPE_FULL);
-		model_list.render_all(GR_ALPHABLEND_NONE);
-		gr_zbuffer_set(ZBUFFER_TYPE_READ);
-		//model_list.render_all(GR_ALPHABLEND_FILTER);
+		model_list.render_all();
 		break;
 	}
 	
@@ -2769,7 +2776,7 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 
 	if ( (tmap_flags & TMAP_FLAG_BATCH_TRANSFORMS) ) {
 		scene->start_model_batch(pm->n_models);
-		model_queue_render_buffers(scene, interp, pm, -1, detail_level, tmap_flags);
+		model_queue_render_buffers(scene, interp, &pm->detail_buffers[detail_level], pm, -1, detail_level, tmap_flags);
 	}
 		
 	// Draw the subobjects
@@ -2792,14 +2799,15 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 	vec3d view_pos = scene->get_view_position();
 
 	if ( model_render_check_detail_box(&view_pos, pm, pm->detail[detail_level], model_flags) ) {
-		model_queue_render_buffers(scene, interp, pm, pm->detail[detail_level], detail_level, tmap_flags);
+		int detail_model_num = pm->detail[detail_level];
+		model_queue_render_buffers(scene, interp, &pm->submodel[detail_model_num].buffer, pm, detail_model_num, detail_level, tmap_flags);
 	}
 	
+	// make sure batch rendering uncondtionally off.
+	tmap_flags &= ~TMAP_FLAG_BATCH_TRANSFORMS;
+
 	// Draw the thruster subobjects
 	if ( draw_thrusters ) {
-		// always turn off batching when drawing thrusters
-		tmap_flags &= ~TMAP_FLAG_BATCH_TRANSFORMS;
-
 		i = pm->submodel[pm->detail[detail_level]].first_child;
 
 		while( i >= 0 ) {
@@ -2809,6 +2817,10 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 			i = pm->submodel[i].next_sibling;
 		}
 	}
+
+ 	if ( pm->trans_buff[detail_level].flags & VB_FLAG_TRANS ) {
+ 		model_queue_render_buffers(scene, interp, &pm->trans_buff[detail_level], pm, -1, detail_level, tmap_flags);
+ 	}
 
 	if ( !( model_flags & MR_NO_TEXTURING ) ) {
 		scene->add_insignia(pm, detail_level, interp->get_insignia_bitmap());

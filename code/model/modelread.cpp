@@ -87,6 +87,7 @@ static int Model_signature = 0;
 void interp_configure_vertex_buffers(polymodel*, int);
 void interp_pack_vertex_buffers(polymodel* pm, int mn);
 void interp_create_detail_index_buffer(polymodel *pm, int detail);
+void interp_create_transparency_index_buffer(polymodel *pm, int detail_num);
 
 void model_set_subsys_path_nums(polymodel *pm, int n_subsystems, model_subsystem *subsystems);
 void model_set_bay_path_nums(polymodel *pm);
@@ -268,6 +269,7 @@ void model_unload(int modelnum, int force)
 
 	for ( int i = 0; i < MAX_MODEL_DETAIL_LEVELS; ++i ) {
 		pm->detail_buffers[i].clear();
+		pm->trans_buff[i].clear();
 	}
 
 	// run through Ship_info[] and if the model has been loaded we'll need to reset the modelnum to -1.
@@ -871,6 +873,10 @@ void create_vertex_buffer(polymodel *pm)
 		}
 	}
 
+	for ( i = 0; i < pm->n_detail_levels; i++ ) {
+		interp_create_transparency_index_buffer(pm, i);
+	}
+
 	// now actually fill the buffer with our info ...
 	for (i = 0; i < pm->n_models; i++) {
 		interp_pack_vertex_buffers(pm, i);
@@ -885,6 +891,16 @@ void create_vertex_buffer(polymodel *pm)
 			gr_pack_buffer(pm->vertex_buffer_id, &pm->detail_buffers[i]);
 
 			pm->detail_buffers[i].release();
+		}
+	}
+
+	if ( pm->flags & PM_FLAG_TRANS_BUFFER ) {
+		for ( i = 0; i < pm->n_detail_levels; i++ ) {
+			if ( pm->trans_buff[i].flags & VB_FLAG_TRANS ) {
+				gr_pack_buffer(pm->vertex_buffer_id, &pm->trans_buff[i]);
+
+				pm->trans_buff[i].release();
+			}
 		}
 	}
 

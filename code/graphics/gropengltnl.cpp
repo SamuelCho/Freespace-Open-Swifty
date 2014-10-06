@@ -465,9 +465,7 @@ bool gr_opengl_config_buffer(const int buffer_id, vertex_buffer *vb, bool update
 	}
 
 	// offsets for this chunk
-	if ( update_ibuffer_only ) {
-		vb->vertex_offset = 0;
-	} else {
+	if ( !update_ibuffer_only ) {
 		vb->vertex_offset = m_vbp->vbo_size;
 		m_vbp->vbo_size += vb->stride * vb->model_list->n_verts;
 	}
