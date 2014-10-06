@@ -1406,8 +1406,8 @@ int opengl_export_render_target( int slot, int width, int height, int alpha, int
 	GL_state.Texture.Enable(ts->texture_id);
 
 	for (int i = 0; i < faces; i++) {
-		m_offset += opengl_get_texture(
-			target, 
+		m_offset = opengl_get_texture(
+			target + i, 
 			(alpha) ? GL_BGRA : GL_BGR, 
 			(alpha) ? GL_UNSIGNED_INT_8_8_8_8_REV : GL_UNSIGNED_BYTE, 
 			ts->mipmap_levels, 
