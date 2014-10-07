@@ -3290,7 +3290,11 @@ void hud_show_message_sender()
 
 	// Karajorma - If we've gone to all the trouble to make our friendly ships stealthed they shouldn't then give away 
 	// their position cause they're feeling chatty
-	if ( Ships[Message_shipnum].flags2 & SF2_FRIENDLY_STEALTH_INVIS ) {
+	// MageKing17 - Make the check see if they're actually stealthed at the time, and may as well include a check for
+	// being hidden from sensors, too; logic copied from a similar check in hudescort.cpp
+	if ( (Ships[Message_shipnum].flags & SF_HIDDEN_FROM_SENSORS)
+		|| ((Ships[Message_shipnum].flags2 & SF2_STEALTH) && ((Ships[Message_shipnum].team != Player_ship->team) || (Ships[Message_shipnum].flags2 & SF2_FRIENDLY_STEALTH_INVIS)))
+	) {
 		return;
 	}
 
@@ -5550,12 +5554,13 @@ void HudGaugeWeaponEnergy::render(float frametime)
 
 	if(use_new_gauge)
 	{
-		int currentx, currenty;
+		int currentx, currenty, line_height;
 		int y;
 		int max_w = 100;
 		float remaining;
 		currentx = position[0] + 10;
 		currenty = position[1];
+		line_height = gr_get_font_height() + 1;
 		if(gr_screen.max_w_unscaled == 640) {
 			max_w = 60;
 		}
@@ -5566,7 +5571,7 @@ void HudGaugeWeaponEnergy::render(float frametime)
 		
 		//Draw name
 		renderString(currentx, currenty, "Energy");
-		currenty += 10;
+		currenty += line_height;
 
 		//Draw background
 		setGaugeColor(HUD_C_DIM);
@@ -5606,7 +5611,7 @@ void HudGaugeWeaponEnergy::render(float frametime)
 			}
 
 			//Next 'line'
-			currenty += 10;
+			currenty += line_height;
 
 			//Draw the background for the gauge
 			setGaugeColor(HUD_C_DIM);
