@@ -2621,7 +2621,7 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 
 	polymodel *pm = model_get(model_num);
 	polymodel_instance * pmi = NULL;
-
+		
 	model_do_dumb_rotation(model_num);
 
 	float light_factor = model_render_determine_light_factor(interp, pos, model_flags);
@@ -2659,6 +2659,14 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 
 	ship *shipp = NULL;
 	object *objp = NULL;
+
+	if (objnum >= 0) {
+		objp = &Objects[objnum];
+
+		if (objp->type == OBJ_SHIP) {
+			shipp = &Ships[objp->instance];
+		}
+	}
 	
 	int tmp_detail_level = Game_detail_level;
 	

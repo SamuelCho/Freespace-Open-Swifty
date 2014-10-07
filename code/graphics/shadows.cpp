@@ -667,12 +667,6 @@ void shadows_render_all(float fov, matrix *eye_orient, vec3d *eye_pos)
 	// maybe we could use a more programmatic algorithim? 
 	matrix light_matrix = shadows_start_render(eye_orient, eye_pos, fov, gr_screen.clip_aspect, 200.0f, 600.0f, 2500.0f, 8000.0f);
 
-	extern bool Glowpoint_override_save;
-	extern bool Glowpoint_override;
-
-	Glowpoint_override_save = Glowpoint_override;
-	Glowpoint_override = true;
-
 	draw_list scene;
 	object *objp = Objects;
 
@@ -732,8 +726,6 @@ void shadows_render_all(float fov, matrix *eye_orient, vec3d *eye_pos)
 
 	scene.init_render();
 	scene.render_all();
-
-	Glowpoint_override = Glowpoint_override_save;
 
 	shadows_end_render();
 
