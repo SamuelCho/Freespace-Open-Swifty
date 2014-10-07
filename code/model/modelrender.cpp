@@ -1558,11 +1558,6 @@ bool model_render_check_detail_box(vec3d *view_pos, polymodel *pm, int submodel_
 	return true;
 }
 
-void submodel_immediate_render(int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum, int *replacement_textures)
-{
-
-}
-
 void submodel_immediate_render(model_render_params *render_info, int model_num, int submodel_num, matrix *orient, vec3d * pos)
 {
 	draw_list model_list;
@@ -2565,11 +2560,6 @@ void model_render_debug(int model_num, matrix *orient, vec3d * pos, uint flags, 
 	g3_done_instance(true);
 
 	gr_zbuffer_set(save_gr_zbuffering_mode);
-}
-
-void model_immediate_render(int model_num, matrix *orient, vec3d * pos, uint flags, int objnum, int lighting_skip, int *replacement_textures)
-{
-
 }
 
 void model_immediate_render(model_render_params *render_info, int model_num, matrix *orient, vec3d * pos, int render)
