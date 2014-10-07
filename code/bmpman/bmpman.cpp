@@ -120,7 +120,7 @@ float bitmap_lookup::get_channel_red(float u, float v)
 	int x = u * (Width-1);
 	int y = v * (Height-1);
 
-	return Bitmap_data[y*Width + x];
+	return Bitmap_data[(y*Width + x)*Num_channels];
 }
 
 float bitmap_lookup::get_channel_green(float u, float v)
@@ -133,7 +133,7 @@ float bitmap_lookup::get_channel_green(float u, float v)
 	int x = u * (Width-1);
 	int y = v * (Height-1);
 
-	return Bitmap_data[y*Width + x + 1];
+	return Bitmap_data[(y*Width + x)*Num_channels + 1];
 }
 
 float bitmap_lookup::get_channel_blue(float u, float v)
@@ -143,7 +143,7 @@ float bitmap_lookup::get_channel_blue(float u, float v)
 	int x = u * (Width-1);
 	int y = v * (Height-1);
 
-	return Bitmap_data[y*Width + x + 2];
+	return Bitmap_data[(y*Width + x)*Num_channels + 2];
 }
 
 float bitmap_lookup::get_channel_alpha(float u, float v)
