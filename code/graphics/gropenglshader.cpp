@@ -1098,7 +1098,6 @@ void opengl_shader_compile_deferred_light_shader()
 	opengl_shader_init_uniform( "NormalBuffer" );
 	opengl_shader_init_uniform( "PositionBuffer" );
 	opengl_shader_init_uniform( "SpecBuffer" );
-	opengl_shader_init_uniform( "DepthBuffer" );
 	opengl_shader_init_uniform( "vpwidth" );
 	opengl_shader_init_uniform( "vpheight" );
 	opengl_shader_init_uniform( "lighttype" );
@@ -1109,14 +1108,11 @@ void opengl_shader_compile_deferred_light_shader()
 	opengl_shader_init_uniform( "coneDir" );
 	opengl_shader_init_uniform( "cone_angle" );
 	opengl_shader_init_uniform( "cone_inner_angle" );
-	opengl_shader_init_uniform( "farZ" );
-	opengl_shader_init_uniform( "nearZ" );
 	opengl_shader_init_uniform( "spec_factor" );
 
 	vglUniform1iARB( opengl_shader_get_uniform("NormalBuffer"), 0 );
 	vglUniform1iARB( opengl_shader_get_uniform("PositionBuffer"), 1 );
 	vglUniform1iARB( opengl_shader_get_uniform("SpecBuffer"), 2 );
-	vglUniform1iARB( opengl_shader_get_uniform("DepthBuffer"), 3 );
 	vglUniform1fARB( opengl_shader_get_uniform("vpwidth"), 1.0f/gr_screen.max_w );
 	vglUniform1fARB( opengl_shader_get_uniform("vpheight"), 1.0f/gr_screen.max_h );
 	vglUniform1fARB( opengl_shader_get_uniform("spec_factor"), Cmdline_ogl_spec );

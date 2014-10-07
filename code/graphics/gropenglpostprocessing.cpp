@@ -458,14 +458,7 @@ void gr_opengl_post_process_end()
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Scene_depth_texture);
 
-	if (GL_rendering_to_texture) {
-		opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, Scene_texture_v_scale, 1.0f, 1.0f, Scene_texture_u_scale, 0.0f);
-	} else {
-		opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, Scene_texture_u_scale, Scene_texture_u_scale);
-	}
-
-	GL_state.Texture.SetActiveUnit(1);
-	GL_state.Texture.Enable(0);
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, Scene_texture_u_scale, Scene_texture_u_scale);
 
 	//Shadow Map debug window
 //#define SHADOW_DEBUG

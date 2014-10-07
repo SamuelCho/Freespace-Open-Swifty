@@ -3008,10 +3008,10 @@ void gr_opengl_scene_texture_end()
 			};
 
 			GLfloat uvcoords[8] = {
-				0.0f, 0.0f,
 				Scene_texture_u_scale, 0.0f,
-				Scene_texture_u_scale, Scene_texture_v_scale,
+				0.0f, 0.0f,
 				0.0f, Scene_texture_v_scale,
+				Scene_texture_u_scale, Scene_texture_v_scale
 			};
 
 			GL_state.Array.EnableClientVertex();
@@ -3153,13 +3153,6 @@ void gr_opengl_deferred_lighting_finish()
 	GL_state.Texture.SetActiveUnit(2);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Scene_specular_texture);
-
-	GL_state.Texture.SetActiveUnit(3);
-	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Scene_depth_texture);
-
-	vglUniform1fARB(opengl_shader_get_uniform("nearZ"), Min_draw_distance);
-	vglUniform1fARB(opengl_shader_get_uniform("farZ"), Max_draw_distance);
 
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, Scene_stencil_buffer);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, Scene_stencil_buffer);

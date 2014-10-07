@@ -998,10 +998,10 @@ void labviewer_render_model(float frametime)
 
 		gr_opengl_deferred_lighting_begin();
 
-		render_info.set_animated_effect(
-			ANIMATED_SHADER_LOADOUTSELECT_FS1, 
-			MIN((timer_get_milliseconds()-anim_timer_start)/1500.0f, 2.0f)
-		);
+// 		render_info.set_animated_effect(
+// 			ANIMATED_SHADER_LOADOUTSELECT_FS1, 
+// 			MIN((timer_get_milliseconds()-anim_timer_start)/1500.0f, 2.0f)
+// 		);
 
 		//render weapon models if selected
 		if (Lab_mode == LAB_MODE_SHIP && (Lab_viewer_flags & LAB_FLAG_SHOW_WEAPONS)) {
@@ -1950,7 +1950,7 @@ void labviewer_make_render_options_window(Button *caller)
 	ADD_RENDER_BOOL("No Team Colors", Teamcolor_override);
 	ADD_RENDER_BOOL("No Glow Points", Glowpoint_override);
 	// model flags
-	ADD_RENDER_FLAG("Wireframe", Lab_model_flags, ((Cmdline_nohtl) ? MR_SHOW_OUTLINE : MR_SHOW_OUTLINE_HTL) | MR_NO_POLYS | MR_NO_TEXTURING);
+	ADD_RENDER_FLAG("Wireframe", Lab_model_flags, ((Cmdline_nohtl) ? MR_SHOW_OUTLINE | MR_NO_POLYS | MR_NO_TEXTURING : MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_NO_TEXTURING) );
 	ADD_RENDER_FLAG("Transparent", Lab_model_flags, MR_ALL_XPARENT);
 	ADD_RENDER_FLAG("No Lighting", Lab_model_flags, MR_NO_LIGHTING);
 	ADD_RENDER_FLAG("No Z-Buffer", Lab_model_flags, MR_NO_ZBUFFER);
