@@ -37,6 +37,7 @@
 
 GLuint Scene_framebuffer;
 GLuint Scene_color_texture;
+GLuint Scene_ao_texture;
 GLuint Scene_position_texture;
 GLuint Scene_normal_texture;
 GLuint Scene_specular_texture;
@@ -2639,6 +2640,21 @@ void opengl_setup_scene_textures()
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
 
+	// setup ambient occlusion texture
+	glGenTextures(1, &Scene_ao_texture);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_ao_texture);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Scene_texture_width, Scene_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+
 	// setup position render texture
 	glGenTextures(1, &Scene_position_texture);
 
@@ -3332,4 +3348,45 @@ void gr_opengl_update_distortion()
 	GL_state.Lighting(light);
 	GL_state.Blend(blend);
 	GL_state.CullFace(cull);
+}
+
+void gr_opengl_draw_ambient_occlusion()
+{
+	//GL_state.SetAlphaBlendMode( ALPHA_BLEND_ALPHA_ADDITIVE);
+	GL_state.SetAlphaBlendMode( ALPHA_BLEND_ALPHA_BLEND_ALPHA);
+	int zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
+
+	//GL_state.DepthFunc(GL_GREATER);
+	//GL_state.DepthMask(GL_FALSE);
+
+	opengl_shader_set_current( &Ambient_occlusion_shader );
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_normal_texture);
+
+	GL_state.Texture.SetActiveUnit(1);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_position_texture);
+
+	float aspect_ratio = (float)gr_screen.max_w/(float)gr_screen.max_h;
+	float fov = Proj_fov;
+
+	float near_height = tan(fov * 0.5) * 2.0f;
+	float near_width = near_height * aspect_ratio;
+	
+	// need the height in pixels of a 1m object if viewed from 1m away. 
+	float pixel_height_scale = near_height * Min_draw_distance/1.0f * gr_screen.max_h;
+
+	vglUniform1fARB( opengl_shader_get_uniform("projScale"), pixel_height_scale );
+
+	// set ambient occlusion framebuffer
+	//vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_ao_texture, 0);
+	//vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
+
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+	opengl_shader_set_current();
+
+	GL_state.Texture.DisableAll();
 }

@@ -1060,6 +1060,7 @@ void labviewer_render_model(float frametime)
 		model_immediate_render(&render_info, Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MODEL_RENDER_OPAQUE);
 		gr_opengl_deferred_lighting_end();
 		gr_opengl_deferred_lighting_finish();
+		gr_opengl_draw_ambient_occlusion();
 		bool gpo_save = Glowpoint_override;
 		Glowpoint_override = true;
 		model_immediate_render(&render_info, Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MODEL_RENDER_TRANS);

@@ -98,6 +98,8 @@ extern opengl_shader_t *Current_shader;
 extern opengl_shader_t Deferred_light_shader;
 extern opengl_shader_t Deferred_clear_shader;
 
+extern opengl_shader_t Ambient_occlusion_shader;
+
 extern geometry_sdr_params *Current_geo_sdr_params;
 
 int opengl_shader_get_effect_shader(uint flags);
@@ -127,6 +129,8 @@ float opengl_shader_get_animated_timer();
 
 void opengl_shader_compile_deferred_light_shader();
 void opengl_shader_compile_deferred_light_clear_shader();
+
+void opengl_shader_compile_ambient_occlusion_shader();
 
 #define ANIMATED_SHADER_LOADOUTSELECT_FS1	0
 #define ANIMATED_SHADER_LOADOUTSELECT_FS2	1

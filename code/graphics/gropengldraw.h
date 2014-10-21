@@ -68,6 +68,8 @@ void gr_opengl_deferred_lighting_begin();
 void gr_opengl_deferred_lighting_end();
 void gr_opengl_deferred_lighting_finish();
 
+void gr_opengl_draw_ambient_occlusion();
+
 bool gr_opengl_set_shader_flag(uint shader_flags);
 
 inline void opengl_draw_textured_quad_instanced(

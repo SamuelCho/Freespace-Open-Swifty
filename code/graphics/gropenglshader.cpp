@@ -34,6 +34,8 @@ SCP_vector<opengl_shader_t> GL_shader;
 opengl_shader_t Deferred_light_shader;
 opengl_shader_t Deferred_clear_shader;
 
+opengl_shader_t Ambient_occlusion_shader;
+
 SCP_vector<opengl_shader_t> GL_effect_shaders;
 
 static char *GLshader_info_log = NULL;
@@ -687,6 +689,7 @@ void opengl_shader_init()
 
 	opengl_shader_init_effects();
 
+	opengl_shader_compile_ambient_occlusion_shader();
 	opengl_shader_compile_deferred_light_shader();
 	opengl_shader_compile_deferred_light_clear_shader();
 	mprintf(("\n"));
@@ -1204,5 +1207,79 @@ Done:
 		Use_GLSL = 1;
 		Cmdline_height = 0;
 		Cmdline_normal = 0;
+	}
+}
+
+void opengl_shader_compile_ambient_occlusion_shader()
+{
+	char *vert = NULL, *frag = NULL;
+
+	mprintf(("Compiling ambient occlusion shader...\n"));
+
+	bool in_error = false;
+
+	// choose appropriate files
+	char vert_name[NAME_LENGTH];
+	char frag_name[NAME_LENGTH];
+
+	strcpy_s( vert_name, "ao-v.sdr");
+	strcpy_s( frag_name, "ao-f.sdr");
+
+	// read vertex shader
+	if ( (vert = opengl_load_shader(vert_name, 0)) == NULL ) {
+		in_error = true;
+		goto Done;
+	}
+
+	// read fragment shader
+	if ( (frag = opengl_load_shader(frag_name, 0)) == NULL ) {
+		in_error = true;
+		goto Done;
+	}
+
+	Verify( vert != NULL );
+	Verify( frag != NULL );
+
+	Ambient_occlusion_shader.program_id = opengl_shader_create(vert, frag, NULL);
+
+	if ( !Ambient_occlusion_shader.program_id ) {
+		in_error = true;
+		goto Done;
+	}
+	opengl_shader_set_current( &Ambient_occlusion_shader );
+
+	//Hardcoded Uniforms
+	opengl_shader_init_uniform( "normalMap" );
+	opengl_shader_init_uniform( "positionMap" );
+	opengl_shader_init_uniform( "projScale" );
+	opengl_shader_init_uniform( "worldRadius" );
+	opengl_shader_init_uniform( "intensityDivR6" );
+	opengl_shader_init_uniform( "bias" );
+
+	float intensity = 1.0f;
+	float radius = 2.0f;
+	
+	vglUniform1iARB( opengl_shader_get_uniform("normalMap"), 0 );
+	vglUniform1iARB( opengl_shader_get_uniform("positionMap"), 1 );
+	//vglUniform1fARB( opengl_shader_get_uniform("projScale"), proj_scale ); // height in pixels of a 1 unit length object viewed from 1 unit away.
+	vglUniform1fARB( opengl_shader_get_uniform("worldRadius"), radius ); // world-space AO radius in scene units
+	vglUniform1fARB( opengl_shader_get_uniform("intensityDivR6"), intensity / pow(radius, 6) ); // intensity / radius^6
+	vglUniform1fARB( opengl_shader_get_uniform("bias"), 0.01f ); // Bias to avoid AO in smooth corners. e.g. 0.01m
+
+	opengl_shader_set_current();
+
+Done:
+	if (vert != NULL) {
+		vm_free(vert);
+		vert = NULL;
+	}
+
+	if (frag != NULL) {
+		vm_free(frag);
+		frag = NULL;
+	}
+
+	if (in_error) {
+		mprintf(("  Shader in_error!  Disabling ambient occlusion!\n"));
 	}
 }

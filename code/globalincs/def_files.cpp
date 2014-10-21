@@ -54,6 +54,8 @@ extern char* Default_deferred_vertex_shader;
 extern char* Default_deferred_fragment_shader;
 extern char* Default_deferred_clear_vertex_shader;
 extern char* Default_deferred_clear_fragment_shader;
+extern char* Default_ambient_occlusion_vertex_shader;
+extern char* Default_ambient_occlusion_fragment_shader;
 //**********
 
 //:PART 2:
@@ -93,7 +95,9 @@ def_file Default_files[] =
 	{ "deferred-v.sdr",			Default_deferred_vertex_shader},
 	{ "deferred-f.sdr",			Default_deferred_fragment_shader},
 	{ "deferred-clear-v.sdr",	Default_deferred_clear_vertex_shader},
-	{ "deferred-clear-f.sdr",	Default_deferred_clear_fragment_shader}
+	{ "deferred-clear-f.sdr",	Default_deferred_clear_fragment_shader},
+	{ "ao-v.sdr",				Default_ambient_occlusion_vertex_shader},
+	{ "ao-f.sdr",				Default_ambient_occlusion_fragment_shader}
 };
 
 static int Num_default_files = sizeof(Default_files) / sizeof(def_file);
@@ -3077,4 +3081,81 @@ char *Default_deferred_clear_fragment_shader =
 "	gl_FragData[1] = vec4(0.0, 0.0, -1000000.0, 0.0); // position\n"
 "	gl_FragData[2] = vec4(0.0, 0.0, 0.0, 0.0); // normal\n"
 "	gl_FragData[3] = vec4(0.0, 0.0, 0.0, 0.0); // specular\n"
+"}\n";
+
+char *Default_ambient_occlusion_vertex_shader =
+"void main()\n"
+"{\n"
+"	gl_TexCoord[0] = gl_MultiTexCoord0;\n"
+"	gl_Position = gl_Vertex;\n"
+"	gl_FrontColor = vec4(1.0);\n"
+"	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
+"}";
+
+
+char *Default_ambient_occlusion_fragment_shader =
+"uniform sampler2D normalMap;\n"
+"uniform sampler2D positionMap;\n"
+"uniform float projScale;\n"
+"uniform float worldRadius;\n"
+"uniform float intensityDivR6;\n"
+"uniform float bias;\n"
+"#define NUM_SAMPLES 11\n"
+"#define FAR_PLANE_Z -50000.0\n"
+"#define NUM_SPIRAL_TURNS 7\n"
+"#define LOG_MAX_OFFSET 3\n"
+"vec2 tapLocation(int sampleNum, float rotation, out float screenRadius)\n"
+"{\n"
+"	float alpha = float(sampleNum + 0.5) * (1.0 / NUM_SAMPLES);\n"
+"	float angle = alpha * (NUM_SPIRAL_TURNS * 6.28) + rotation;\n"
+"	screenRadius = alpha;\n"
+"	return vec2(cos(angle), sin(angle));\n"
+"}\n"
+"float sampleAO(ivec2 screenCoord, vec3 pos, vec3 normal, float discRadius, int tapIndex, float randomAngle)\n"
+"{\n"
+"	float screenRadius;\n"
+"	vec2 unitOffset = tapLocation(tapIndex, randomAngle, screenRadius);\n"
+"	screenRadius *= discRadius;\n"
+"	// replace with MIP mapped version to improve performance\n"
+"	vec3 samplePos = texelFetch(positionMap, screenCoord + ivec2(unitOffset * screenRadius), 0);\n"
+"	vec3 offset = samplePos - pos;\n"
+"	float offsetSquared = dot(offset, offset);\n"
+"	float offsetDot = dot(offset, normal);\n"
+"	const float epsilon = 0.01;\n"
+"	//float fakeRad = -discRadius * eyePos.z / projScale;\n"
+"	float f = max((worldRadius * worldRadius) - offsetSquared, 0.0);\n"
+"	//float f = max((fakeRad * fakeRad) - offsetSquared, 0.0);\n"
+"	return f * f * f * max((offsetDot - bias) / (epsilon + offsetSquared), 0.0);\n"
+"	//return offsetDot;\n"
+"}\n"
+"vec3 getNormal(vec3 pos)\n"
+"{\n"
+"	return normalize( cross( dFdx(pos), dFdy(pos) ) );\n"
+"}\n"
+"void main()\n"
+"{\n"
+"	ivec2 screenCoord = ivec2(int(gl_FragCoord.x), int(gl_FragCoord.y));\n"
+"	vec3 eyePos = texelFetch(positionMap, screenCoord, 0).xyz;\n"
+"	// if this pixel is really far away, bail\n"
+"	if(eyePos.z < FAR_PLANE_Z) discard;\n"
+"	//vec3 normal = texelFetch(normalMap, screenCoord, 0).xyz;\n"
+"	vec3 normal = getNormal(eyePos);\n"
+"	float randomPatternRotationAngle = (3 * screenCoord.x ^ screenCoord.y + screenCoord.x * screenCoord.y) * 10;\n"
+"	float discRadius = -projScale * worldRadius / eyePos.z;\n"
+"	//float discRadius = 100.0;\n"
+"	float sum = 0.0;\n"
+"	for(int i = 0; i < NUM_SAMPLES; ++i) {\n"
+"		sum += sampleAO(screenCoord, eyePos, normal, discRadius, i, randomPatternRotationAngle);\n"
+"	}\n"
+"	float A = max(0.0, 1.0 - sum * intensityDivR6 * (5.0 / NUM_SAMPLES));\n"
+"	// Bilateral box-filter over a quad for free, respecting depth edges\n"
+"	// (the difference that this makes is subtle)\n"
+"	if (abs(dFdx(eyePos.z)) < 0.02) {\n"
+"		A -= dFdx(A) * ((screenCoord.x & 1) - 0.5);\n"
+"	}\n"
+"	if (abs(dFdy(eyePos.z)) < 0.02) {\n"
+"		A -= dFdy(A) * ((screenCoord.y & 1) - 0.5);\n"
+"	}\n"
+"	//gl_FragColor = vec4(1.0-A, 0.0, 0.0, 1.0);\n"
+"	gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0-A);\n"
 "}\n";

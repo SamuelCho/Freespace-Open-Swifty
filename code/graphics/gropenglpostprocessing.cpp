@@ -338,6 +338,9 @@ void gr_opengl_post_process_end()
 
 	GL_state.Texture.SetShaderMode(GL_TRUE);
 
+	// draw ambient occlusion texture
+
+
 	// Do FXAA
 	if (Cmdline_fxaa && !fxaa_unavailable && !GL_rendering_to_texture) {
 		opengl_post_pass_fxaa();
