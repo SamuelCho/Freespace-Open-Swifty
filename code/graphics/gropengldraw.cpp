@@ -71,6 +71,96 @@ GLuint deferred_light_cylinder_ibo = 0;
 GLushort deferred_light_cylinder_vcount = 0;
 GLuint deferred_light_cylinder_icount = 0;
 
+struct opengl_vertex_bind {
+	vertex_format_data::vertex_format format;
+
+	enum type {
+		POSITION,
+		COLOR,
+		TEXCOORD0,
+		TEXCOORD1,
+		NORMAL,
+		ATTRIB
+	};
+
+	opengl_vertex_bind::type binding_type;
+
+	GLint size;
+	GLenum data_type;
+
+	// used only by vertex attributes
+	SCP_string attrib_name;
+	GLboolean normalized;
+};
+
+static opengl_vertex_bind GL_array_binding_data[] =
+{
+	{ vertex_format_data::POSITION4,	opengl_vertex_bind::POSITION,	4, GL_FLOAT,			"",					GL_FALSE },
+	{ vertex_format_data::POSITION3,	opengl_vertex_bind::POSITION,	3, GL_FLOAT,			"",					GL_FALSE },
+	{ vertex_format_data::POSITION2,	opengl_vertex_bind::POSITION,	2, GL_FLOAT,			"",					GL_FALSE },
+	{ vertex_format_data::SCREEN_POS,	opengl_vertex_bind::POSITION,	2, GL_INT,				"",					GL_FALSE },
+	{ vertex_format_data::COLOR3,		opengl_vertex_bind::COLOR,		3, GL_UNSIGNED_BYTE,	"",					GL_FALSE },
+	{ vertex_format_data::COLOR4,		opengl_vertex_bind::COLOR,		4, GL_UNSIGNED_BYTE,	"",					GL_FALSE },
+	{ vertex_format_data::TEX_COORD,	opengl_vertex_bind::TEXCOORD0,	2, GL_FLOAT,			"",					GL_FALSE },
+	{ vertex_format_data::NORMAL,		opengl_vertex_bind::NORMAL,		3, GL_FLOAT,			"",					GL_FALSE },
+	{ vertex_format_data::TANGENT,		opengl_vertex_bind::TEXCOORD1,	4, GL_FLOAT,			"",					GL_FALSE },
+	{ vertex_format_data::MODEL_ID,		opengl_vertex_bind::ATTRIB,		1, GL_FLOAT,			"attrib_model_id",	GL_FALSE },
+	{ vertex_format_data::RADIUS,		opengl_vertex_bind::ATTRIB,		1, GL_FLOAT,			"radius",			GL_FALSE },
+	{ vertex_format_data::FVEC,			opengl_vertex_bind::ATTRIB,		3, GL_FLOAT,			"fvec",				GL_FALSE },
+	{ vertex_format_data::UVEC,			opengl_vertex_bind::ATTRIB,		3, GL_FLOAT,			"uvec",				GL_FALSE },
+	{ vertex_format_data::INTENSITY,	opengl_vertex_bind::ATTRIB,		1, GL_FLOAT,			"intensity",		GL_FALSE }
+};
+
+void opengl_bind_vertex_component(vertex_format_data &vert_component)
+{
+	opengl_vertex_bind &bind_info = GL_array_binding_data[vert_component.format_type];
+
+	switch ( bind_info.binding_type ) {
+	case opengl_vertex_bind::POSITION:
+		GL_state.Array.EnableClientVertex();
+		GL_state.Array.VertexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+		break;
+
+	case opengl_vertex_bind::TEXCOORD0:
+		GL_state.Array.EnableClientTexture();
+		GL_state.Array.SetActiveClientUnit(0);
+		GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+		break;
+
+	case opengl_vertex_bind::TEXCOORD1:
+		GL_state.Array.EnableClientTexture();
+		GL_state.Array.SetActiveClientUnit(1);
+		GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+		break;
+
+	case opengl_vertex_bind::COLOR:
+		GL_state.Array.EnableClientColor();
+		GL_state.Array.ColorPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+		GL_state.InvalidateColor();
+		break;
+
+	case opengl_vertex_bind::NORMAL:
+		GL_state.Array.EnableClientNormal();
+		GL_state.Array.NormalPointer(bind_info.data_type, vert_component.stride, vert_component.data_src);
+		break;
+
+	case opengl_vertex_bind::ATTRIB:
+		GLint index = opengl_shader_get_attribute(bind_info.attrib_name.c_str());
+
+		GL_state.Array.EnableVertexAttrib(index);
+		GL_state.Array.VertexAttribPointer(index, bind_info.size, bind_info.data_type, bind_info.normalized, vert_component.stride, vert_component.data_src);
+		break;
+	}
+}
+
+void opengl_bind_vertex_layout(vertex_layout &layout)
+{
+	uint num_vertex_bindings = layout.get_num_vertex_components();
+
+	for ( uint i = 0; i < num_vertex_bindings; ++i ) {
+		opengl_bind_vertex_component(*layout.get_vertex_component(i));
+	}
+}
 
 void gr_opengl_pixel(int x, int y, int resize_mode)
 {
@@ -519,12 +609,12 @@ void gr_opengl_string(int sx, int sy, const char *s, int resize_mode)
 
 	GL_state.Array.BindArrayBuffer(0);
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(struct v4), &glVert[0].x);
+	vertex_layout vert_def;
 
-	GL_state.Array.SetActiveClientUnit(0);
-	GL_state.Array.EnableClientTexture();
-	GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(struct v4), &glVert[0].u);
+	vert_def.add_vertex_component(vertex_format_data::POSITION2, sizeof(struct v4), &glVert[0].x);
+	vert_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(struct v4), &glVert[0].u);
+
+	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_TRIANGLES, 0, curChar * 6);
 
@@ -581,8 +671,11 @@ void gr_opengl_line(int x1,int y1,int x2,int y2, int resize_mode)
 		GLfloat vert[3]= {sx1, sy1, -0.99f};
 		GL_state.Color(gr_screen.current_color.red, gr_screen.current_color.green, gr_screen.current_color.blue, gr_screen.current_color.alpha);
 
-		GL_state.Array.EnableClientVertex();
-		GL_state.Array.VertexPointer(3, GL_FLOAT, 0, vert);
+		vertex_layout vert_def;
+
+		vert_def.add_vertex_component(vertex_format_data::POSITION3, 0, vert);
+
+		opengl_bind_vertex_layout(vert_def);
 
 		glDrawArrays(GL_POINTS, 0, 1);
 
@@ -618,8 +711,11 @@ void gr_opengl_line(int x1,int y1,int x2,int y2, int resize_mode)
 
 	GL_state.Color(gr_screen.current_color.red, gr_screen.current_color.green, gr_screen.current_color.blue, gr_screen.current_color.alpha);
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(3, GL_FLOAT, 0, line);
+	vertex_layout vert_def;
+
+	vert_def.add_vertex_component(vertex_format_data::POSITION3, 0, line);
+
+	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_LINES, 0, 2);
 
@@ -657,8 +753,11 @@ void gr_opengl_line_htl(vec3d *start, vec3d *end)
 	GL_state.Array.BindArrayBuffer(0);
 	opengl_shader_set_current();
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(3, GL_FLOAT, 0, line);
+	vertex_layout vert_def;
+
+	vert_def.add_vertex_component(vertex_format_data::POSITION3, 0, line);
+
+	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_LINES, 0, 2);
 
@@ -701,8 +800,11 @@ void gr_opengl_aaline(vertex *v1, vertex *v2)
 
 		GLfloat vert[3]= {sx1, sy1, -0.99f};
 
-		GL_state.Array.EnableClientVertex();
-		GL_state.Array.VertexPointer(3, GL_FLOAT, 0, vert);
+		vertex_layout vert_def;
+
+		vert_def.add_vertex_component(vertex_format_data::POSITION3, 0, vert);
+
+		opengl_bind_vertex_layout(vert_def);
 
 		glDrawArrays(GL_POINTS, 0, 1);
 
@@ -737,8 +839,11 @@ void gr_opengl_aaline(vertex *v1, vertex *v2)
 		sx1, sy1, -0.99f
 	};
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(3, GL_FLOAT, 0, line);
+	vertex_layout vert_def;
+
+	vert_def.add_vertex_component(vertex_format_data::POSITION3, 0, line);
+
+	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_LINES, 0, 2);
 
@@ -805,12 +910,13 @@ void gr_opengl_gradient(int x1, int y1, int x2, int y2, int resize_mode)
 		sx1, sy1
 	};
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(2, GL_FLOAT, 0, verts);
+	vertex_layout vert_def;
 
-	GL_state.Array.EnableClientColor();
-	GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, 0, colour);
-	GL_state.InvalidateColor();
+	vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, verts);
+	vert_def.add_vertex_component(vertex_format_data::COLOR4, 0, colour);
+
+	opengl_bind_vertex_layout(vert_def);
+
 	glDrawArrays(GL_LINES, 0, 2);
 
 	GL_state.Array.DisableClientVertex();
@@ -896,8 +1002,11 @@ void gr_opengl_unfilled_circle(int xc, int yc, int d, int resize_mode)
 
 	GL_state.Color(gr_screen.current_color.red, gr_screen.current_color.green, gr_screen.current_color.blue, gr_screen.current_color.alpha);
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(2, GL_FLOAT, 0, circle);
+	vertex_layout vert_def;
+
+	vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, circle);
+
+	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_QUAD_STRIP, 0, segments * 2);
 
@@ -1001,7 +1110,10 @@ void gr_opengl_arc(int xc, int yc, float r, float angle_start, float angle_end, 
 			y1 = y2;
 		}
 
-		GL_state.Array.VertexPointer(2, GL_FLOAT, 0, arc);
+		vertex_layout vert_def;
+		vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, arc);
+		opengl_bind_vertex_layout(vert_def);
+
 		glDrawArrays(GL_TRIANGLE_FAN, 0, segments + 1);
 	} else {
 		arc = new GLfloat[segments * 4];
@@ -1020,8 +1132,11 @@ void gr_opengl_arc(int xc, int yc, float r, float angle_start, float angle_end, 
 			x1 = x2;
 			y1 = y2;
 		}
+				
+		vertex_layout vert_def;
+		vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, arc);
+		opengl_bind_vertex_layout(vert_def);
 
-		GL_state.Array.VertexPointer(2, GL_FLOAT, 0, arc);
 		glDrawArrays(GL_QUAD_STRIP, 0, segments * 2);
 	}
 
@@ -1252,24 +1367,20 @@ void opengl_draw_primitive(int nv, vertex **verts, uint flags, float u_scale, fl
 
 	GL_state.Array.BindArrayBuffer(0);
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(4, GL_FLOAT, sizeof(struct v6), &vertPos[0].x);
+	vertex_layout vert_def;
+
+	vert_def.add_vertex_component(vertex_format_data::POSITION4, sizeof(struct v6), &vertPos[0].x);
 
 	if(flags & TMAP_FLAG_TEXTURED) {
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(struct v6), &vertPos[0].u);
-
-		GL_state.Array.SetActiveClientUnit(1);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(struct v6), &vertPos[0].u);
+		vert_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(struct v6), &vertPos[0].u);
+		//vert_def.add_vertex_component(vertex_format_data::TEX_COORD1, sizeof(struct v6), &vertPos[0].u);
 	}
 
 	if(flags & (TMAP_FLAG_NEBULA | TMAP_FLAG_GOURAUD)) {
-		GL_state.Array.EnableClientColor();
-		GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, 0, &vertCol[0].r);
-		GL_state.InvalidateColor();
+		vert_def.add_vertex_component(vertex_format_data::COLOR4, 0, &vertCol[0].r);
 	}
+
+	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(gl_mode, 0, nv);
 
@@ -1431,18 +1542,16 @@ void opengl_tmapper_internal3d(int nv, vertex **verts, uint flags)
 
 	GL_state.Array.BindArrayBuffer(0);
 
+	vertex_layout vert_def;
+
 	if (isRGB) {
-		GL_state.Array.EnableClientColor();
-		GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, 0, &colour.front());
-		GL_state.InvalidateColor();
+		vert_def.add_vertex_component(vertex_format_data::COLOR4, 0, &colour.front());
 	}
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(3, GL_FLOAT, 0, &vertvec.front());
+	vert_def.add_vertex_component(vertex_format_data::POSITION3, 0, &vertvec.front());
+	vert_def.add_vertex_component(vertex_format_data::TEX_COORD, 0, &uvcoords.front());
 
-	GL_state.Array.SetActiveClientUnit(0);
-	GL_state.Array.EnableClientTexture();
-	GL_state.Array.TexPointer(2, GL_FLOAT, 0, &uvcoords.front());
+	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(gl_mode, 0, nv);
 
@@ -1487,14 +1596,14 @@ void opengl_render_internal(int nverts, vertex *verts, uint flags)
 
 	GL_state.Array.BindArrayBuffer(0);
 
+	vertex_layout vert_def;
+
 	if (flags & TMAP_FLAG_TEXTURED) {
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
 			return;
 		}
 
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(vertex), &verts[0].texture_position.u);
+		vert_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(vertex), &verts[0].texture_position.u);
 
 		// adjust texture coords if needed
 		if ( (u_scale != 1.0f) || (v_scale != 1.0f) ) {
@@ -1510,15 +1619,11 @@ void opengl_render_internal(int nverts, vertex *verts, uint flags)
 	}
 
 	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) ) {
-		GL_state.Array.EnableClientColor();
-
 		if (flags & TMAP_FLAG_ALPHA) {
-			GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex), &verts[0].r);
-			GL_state.InvalidateColor();
+			vert_def.add_vertex_component(vertex_format_data::COLOR4, sizeof(vertex), &verts[0].r);
 		} else {
 			GL_state.Color( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
-			GL_state.Array.ColorPointer(3, GL_UNSIGNED_BYTE, sizeof(vertex), &verts[0].r);
-			GL_state.InvalidateColor();
+			vert_def.add_vertex_component(vertex_format_data::COLOR3, sizeof(vertex), &verts[0].r);
 		}
 	}
 	// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
@@ -1531,8 +1636,9 @@ void opengl_render_internal(int nverts, vertex *verts, uint flags)
 	glPushMatrix();
 	glTranslatef((float)gr_screen.offset_x, (float)gr_screen.offset_y, offset_z);
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(vertex), &verts[0].screen.xyw.x);
+	vert_def.add_vertex_component(vertex_format_data::POSITION2, sizeof(vertex), &verts[0].screen.xyw.x);
+
+	opengl_bind_vertex_layout(vert_def);
 
 	gr_opengl_set_2d_matrix();
 
@@ -1569,14 +1675,14 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 
 	GL_state.Array.BindArrayBuffer(0);
 
+	vertex_layout vert_def;
+
 	if (flags & TMAP_FLAG_TEXTURED) {
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
 			return;
 		}
 
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(vertex), &verts[0].texture_position.u);
+		vert_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(vertex), &verts[0].texture_position.u);
 	}
 
 	GLboolean cull_face = GL_state.CullFace(GL_FALSE);
@@ -1593,17 +1699,16 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 	}
 
 	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) ) {
-		GL_state.Array.EnableClientColor();
-		GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex), &verts[0].r);
-		GL_state.InvalidateColor();
+		vert_def.add_vertex_component(vertex_format_data::COLOR4, sizeof(vertex), &verts[0].r);
 	}
 	// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
 	else {
 		GL_state.Color( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
 	}
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(3, GL_FLOAT, sizeof(vertex), &verts[0].world.xyz.x);
+	vert_def.add_vertex_component(vertex_format_data::POSITION3, sizeof(vertex), &verts[0].world.xyz.x);
+
+	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(gl_mode, 0, nverts);
 
@@ -1634,6 +1739,8 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 	opengl_setup_render_states(r, g, b, alpha, tmap_type, flags);
 
 	GL_state.Array.BindArrayBuffer(0);
+
+	vertex_layout vert_def;
 
 	if ( flags & TMAP_FLAG_TEXTURED ) {
 		if ( flags & TMAP_FLAG_SOFT_QUAD ) {
@@ -1690,16 +1797,13 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 
 			if( !(flags & TMAP_FLAG_DISTORTION) && !(flags & TMAP_FLAG_DISTORTION_THRUSTER) ) // Only use vertex attribute with soft particles to avoid OpenGL Errors - Valathil
 			{
-				attrib_index = opengl_shader_get_attribute("radius_in");
-				GL_state.Array.EnableVertexAttrib(attrib_index);
-				GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
+				vert_def.add_vertex_component(vertex_format_data::RADIUS, 0, radius_list);
 
 			}
 			if(flags & TMAP_FLAG_DISTORTION_THRUSTER)
 			{
-				attrib_index = opengl_shader_get_attribute("offset_in");
-				GL_state.Array.EnableVertexAttrib(attrib_index);
-				GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, 0, radius_list);
+				vert_def.add_vertex_component(vertex_format_data::RADIUS, 0, radius_list);
+
 				vglUniform1fARB(opengl_shader_get_uniform("use_offset"), 1.0f);
 			}
 			GL_state.Texture.SetActiveUnit(1);
@@ -1711,9 +1815,7 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 			return;
 		}
 
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(vertex), &verts[0].texture_position.u);
+		vert_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(vertex), &verts[0].texture_position.u);
 	}
 
 	GLboolean cull_face = GL_state.CullFace(GL_FALSE);
@@ -1730,9 +1832,7 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 	}
 
 	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) ) {
-		GL_state.Array.EnableClientColor();
-		GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex), &verts[0].r);
-		GL_state.InvalidateColor();
+		vert_def.add_vertex_component(vertex_format_data::COLOR4, sizeof(vertex), &verts[0].r);
 	}
 	// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
 	else {
@@ -1741,6 +1841,10 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 
 	GL_state.Array.EnableClientVertex();
 	GL_state.Array.VertexPointer(3, GL_FLOAT, sizeof(vertex), &verts[0].world.xyz.x);
+
+	vert_def.add_vertex_component(vertex_format_data::POSITION3, sizeof(vertex), &verts[0].world.xyz.x);
+
+	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(gl_mode, 0, nverts);
 
@@ -3014,13 +3118,13 @@ void gr_opengl_scene_texture_end()
 				Scene_texture_u_scale, Scene_texture_v_scale
 			};
 
-			GL_state.Array.EnableClientVertex();
-			GL_state.Array.VertexPointer(2, GL_FLOAT, 0, vertices);
-			
-			GL_state.Array.SetActiveClientUnit(0);
-			GL_state.Array.EnableClientTexture();
-			GL_state.Array.TexPointer(2, GL_FLOAT, 0, uvcoords);
+			vertex_layout vert_def;
+
+			vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, vertices);
+			vert_def.add_vertex_component(vertex_format_data::TEX_COORD, 0, uvcoords);
 		
+			opengl_bind_vertex_layout(vert_def);
+
 			glDrawArrays(GL_QUADS, 0, 4);
 			
 			GL_state.Array.DisableClientVertex();
@@ -3042,12 +3146,12 @@ void gr_opengl_scene_texture_end()
 				0.0f, Scene_texture_v_scale
 			};
 
-			GL_state.Array.EnableClientVertex();
-			GL_state.Array.VertexPointer(2, GL_FLOAT, 0, vertices);
+			vertex_layout vert_def;
 
-			GL_state.Array.SetActiveClientUnit(0);
-			GL_state.Array.EnableClientTexture();
-			GL_state.Array.TexPointer(2, GL_FLOAT, 0, uvcoords);
+			vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, vertices);
+			vert_def.add_vertex_component(vertex_format_data::TEX_COORD, 0, uvcoords);
+
+			opengl_bind_vertex_layout(vert_def);
 		
 			glDrawArrays(GL_QUADS, 0, 4);
 			
@@ -3280,13 +3384,13 @@ void gr_opengl_update_distortion()
 
 	GL_state.Array.BindArrayBuffer(0);
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(2, GL_FLOAT, 0, vertices);
+	vertex_layout vert_def;
+
+	vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, vertices);
+	vert_def.add_vertex_component(vertex_format_data::TEX_COORD, 0, texcoord);
 	
-	GL_state.Array.SetActiveClientUnit(0);
-	GL_state.Array.EnableClientTexture();
-	GL_state.Array.TexPointer(2, GL_FLOAT, 0, texcoord);
-		
+	opengl_bind_vertex_layout(vert_def);
+
 	glDrawArrays(GL_QUADS, 0, 4);
 	
 	GL_state.Array.DisableClientVertex();
@@ -3309,12 +3413,12 @@ void gr_opengl_update_distortion()
 		distortion_vertex.push_back((float)gr_screen.max_h*0.03125f*i);
 	}
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(2, GL_FLOAT, 0, &distortion_vertex.front());
+	vert_def = vertex_layout();
 
-	GL_state.Array.EnableClientColor();
-	GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, 0, &colours.front());
-	GL_state.InvalidateColor();
+	vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, &distortion_vertex.front());
+	vert_def.add_vertex_component(vertex_format_data::COLOR4, 0, &colours.front());
+
+	opengl_bind_vertex_layout(vert_def);
 		
 	glDrawArrays(GL_POINTS, 0, 33);
 			

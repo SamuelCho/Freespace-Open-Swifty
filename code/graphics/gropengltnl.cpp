@@ -56,8 +56,7 @@ extern bool Heightmap_override;
 extern bool GLSL_override;
 extern bool Shadow_override;
 
-const float uniform_handler::EPSILON = FLT_EPSILON;
-uniform_handler Current_uniforms;
+opengl_uniform_state Current_uniforms;
 
 static int GL_modelview_matrix_depth = 1;
 static int GL_htl_projection_matrix_set = 0;
@@ -105,44 +104,6 @@ bool in_shadow_map = false;
 int parabolic = 0;
 
 int Transform_buffer_handle = -1;
-
-struct opengl_vertex_bind {
-	vertex_format_data::vertex_format format;
-	
-	enum type {
-		POSITION,
-		COLOR,
-		TEXCOORD0,
-		TEXCOORD1,
-		NORMAL,
-		ATTRIB
-	};
-
-	opengl_vertex_bind::type binding_type;
-
-	GLint size;
-	GLenum data_type;
-
-	// used only by vertex attributes
-	SCP_string attrib_name;
-	GLboolean normalized;
-};
-
-static opengl_vertex_bind GL_array_binding_data[] =
-{
-	{ vertex_format_data::POSITION3,	opengl_vertex_bind::POSITION,	3, GL_FLOAT,			"",				GL_FALSE },
-	{ vertex_format_data::POSITION2,	opengl_vertex_bind::POSITION,	2, GL_FLOAT,			"",				GL_FALSE },
-	{ vertex_format_data::COLOR3,		opengl_vertex_bind::COLOR,		3, GL_UNSIGNED_BYTE,	"",				GL_FALSE },
-	{ vertex_format_data::COLOR4,		opengl_vertex_bind::COLOR,		4, GL_UNSIGNED_BYTE,	"",				GL_FALSE },
-	{ vertex_format_data::TEX_COORD,	opengl_vertex_bind::TEXCOORD0,	2, GL_FLOAT,			"",				GL_FALSE },
-	{ vertex_format_data::NORMAL,		opengl_vertex_bind::NORMAL,		3, GL_FLOAT,			"",				GL_FALSE },
-	{ vertex_format_data::TANGENT,		opengl_vertex_bind::TEXCOORD1,	4, GL_FLOAT,			"",				GL_FALSE },
-	{ vertex_format_data::MODEL_ID,		opengl_vertex_bind::ATTRIB,		1, GL_FLOAT,			"model_id",		GL_FALSE },
-	{ vertex_format_data::RADIUS,		opengl_vertex_bind::ATTRIB,		1, GL_FLOAT,			"radius",		GL_FALSE },
-	{ vertex_format_data::FVEC,			opengl_vertex_bind::ATTRIB,		3, GL_FLOAT,			"fvec",			GL_FALSE },
-	{ vertex_format_data::UVEC,			opengl_vertex_bind::ATTRIB,		3, GL_FLOAT,			"uvec",			GL_FALSE },
-	{ vertex_format_data::INTENSITY,	opengl_vertex_bind::ATTRIB,		1, GL_FLOAT,			"intensity",	GL_FALSE }
-};
 
 struct opengl_buffer_object {
 	GLuint buffer_id;
@@ -806,41 +767,35 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 		ptr = (GLubyte*)vbp->array_list;
 	}
 
+	vertex_layout vert_def;
+
 	if (bufferp->flags & VB_FLAG_UV1) {
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(2, GL_FLOAT, bufferp->stride, ptr + offset);
+		vert_def.add_vertex_component(vertex_format_data::TEX_COORD, bufferp->stride, ptr + offset);
 		offset += (2 * sizeof(GLfloat));
 	}
 
 	if (bufferp->flags & VB_FLAG_NORMAL) {
-		GL_state.Array.EnableClientNormal();
-		GL_state.Array.NormalPointer(GL_FLOAT, bufferp->stride, ptr + offset);
+		vert_def.add_vertex_component(vertex_format_data::NORMAL, bufferp->stride, ptr + offset);
 		offset += (3 * sizeof(GLfloat));
 	}
 
 	if (bufferp->flags & VB_FLAG_TANGENT) {
 		// we treat this as texture coords for ease of use
 		// NOTE: this is forced on tex unit 1!!!
-		GL_state.Array.SetActiveClientUnit(1);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(4, GL_FLOAT, bufferp->stride, ptr + offset);
+		vert_def.add_vertex_component(vertex_format_data::TANGENT, bufferp->stride, ptr + offset);
 		offset += (4 * sizeof(GLfloat));
 	}
 
 	if (bufferp->flags & VB_FLAG_MODEL_ID) {
-		int attrib_index = opengl_shader_get_attribute("attrib_model_id");
-		if ( attrib_index >= 0 ) {
-			GL_state.Array.EnableVertexAttrib(attrib_index);
-			GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, bufferp->stride, ptr + offset);
-		}
+		vert_def.add_vertex_component(vertex_format_data::MODEL_ID, bufferp->stride, ptr + offset);
 		offset += (1 * sizeof(GLfloat));
 	}
 
 	Assert( bufferp->flags & VB_FLAG_POSITION );
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(3, GL_FLOAT, bufferp->stride, ptr + offset);
+	vert_def.add_vertex_component(vertex_format_data::POSITION3, bufferp->stride, ptr + offset);
 	offset += (3 * sizeof(GLfloat));
+
+	opengl_bind_vertex_layout(vert_def);
 }
 
 #define DO_RENDER()	\
@@ -1524,6 +1479,8 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 
 	opengl_setup_render_states(r, g, b, alpha, tmap_type, flags);
 
+	vertex_layout vert_def;
+
 	if ( flags & TMAP_FLAG_TEXTURED ) {
 		if ( flags & TMAP_FLAG_SOFT_QUAD ) {
 			int sdr_index;
@@ -1547,9 +1504,7 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 					vglUniform1iARB(opengl_shader_get_uniform("frameBuffer"), 2);
 
 					if ( radius_offset >= 0 ) {
-						attrib_index = opengl_shader_get_attribute("offset_in");
-						GL_state.Array.EnableVertexAttrib(attrib_index);
-						GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, stride, ptr + radius_offset);
+						vert_def.add_vertex_component(vertex_format_data::RADIUS, stride, ptr + radius_offset);
 					}
 				}
 
@@ -1586,21 +1541,15 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 					vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);
 
 					if ( fvec_offset >= 0 ) {
-						attrib_index = opengl_shader_get_attribute("fvec");
-						GL_state.Array.EnableVertexAttrib(attrib_index);
-						GL_state.Array.VertexAttribPointer(attrib_index, 3, GL_FLOAT, GL_FALSE, stride, ptr + fvec_offset);
+						vert_def.add_vertex_component(vertex_format_data::FVEC, stride, ptr + fvec_offset);
 					}
 
 					if ( radius_offset >= 0 ) {
-						attrib_index = opengl_shader_get_attribute("width");
-						GL_state.Array.EnableVertexAttrib(attrib_index);
-						GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, stride, ptr + radius_offset);
+						vert_def.add_vertex_component(vertex_format_data::RADIUS, stride, ptr + radius_offset);
 					}
 
 					if ( alpha_offset >= 0 ) {
-						attrib_index = opengl_shader_get_attribute("intensity");
-						GL_state.Array.EnableVertexAttrib(attrib_index);
-						GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, stride, ptr + alpha_offset);
+						vert_def.add_vertex_component(vertex_format_data::INTENSITY, stride, ptr + alpha_offset);
 					}
 				}
 			} else if ( Cmdline_softparticles ) {
@@ -1630,15 +1579,11 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 					}
 
 					if ( radius_offset >= 0 ) {
-						attrib_index = opengl_shader_get_attribute("radius_in");
-						GL_state.Array.EnableVertexAttrib(attrib_index);
-						GL_state.Array.VertexAttribPointer(attrib_index, 1, GL_FLOAT, GL_FALSE, stride, ptr + radius_offset);
+						vert_def.add_vertex_component(vertex_format_data::RADIUS, stride, ptr + radius_offset);
 					}
 
 					if ( up_offset >= 0 ) {
-						attrib_index = opengl_shader_get_attribute("up");
-						GL_state.Array.EnableVertexAttrib(attrib_index);
-						GL_state.Array.VertexAttribPointer(attrib_index, 3, GL_FLOAT, GL_FALSE, stride, ptr + up_offset);
+						vert_def.add_vertex_component(vertex_format_data::UVEC, stride, ptr + up_offset);
 					}
 				}
 
@@ -1668,9 +1613,7 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 		}
 
 		if ( tex_offset >= 0 ) {
-			GL_state.Array.SetActiveClientUnit(0);
-			GL_state.Array.EnableClientTexture();
-			GL_state.Array.TexPointer(2, GL_FLOAT, stride, ptr + tex_offset);
+			vert_def.add_vertex_component(vertex_format_data::TEX_COORD, stride, ptr + tex_offset);
 		}
 	} else {
 		GL_state.Array.SetActiveClientUnit(0);
@@ -1692,9 +1635,7 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 	}
 
 	if ( (flags & TMAP_FLAG_RGB) && (flags & TMAP_FLAG_GOURAUD) && color_offset >= 0 ) {
-		GL_state.Array.EnableClientColor();
-		GL_state.Array.ColorPointer(4, GL_UNSIGNED_BYTE, stride, ptr + color_offset);
-		GL_state.InvalidateColor();
+		vert_def.add_vertex_component(vertex_format_data::COLOR4, stride, ptr + color_offset);
 	} else {
 		// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
 		GL_state.Array.DisableClientColor();
@@ -1702,9 +1643,10 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 	}
 
 	if ( pos_offset >= 0 ) {
-		GL_state.Array.EnableClientVertex();
-		GL_state.Array.VertexPointer(3, GL_FLOAT, stride, ptr + pos_offset);
+		vert_def.add_vertex_component(vertex_format_data::POSITION3, stride, ptr + pos_offset);
 	}
+
+	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(gl_mode, offset, n_verts);
 
@@ -2465,7 +2407,6 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	int render_pass = 0;
 
 	Current_uniforms.setCurrentShader(Current_shader->program_id);
-	Current_uniforms.setUniformsBegin();
 
 	if ( flags & TMAP_ANIMATED_SHADER ) {
 		Current_uniforms.queueUniformf("anim_timer", opengl_shader_get_animated_timer());
@@ -2478,11 +2419,6 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	Current_uniforms.queueUniformi("n_lights", num_lights);
 	Current_uniforms.queueUniformf( "light_factor", GL_light_factor );
 	
-	if ( Using_Team_Color ) {
-		Current_uniforms.setTeamColor(Current_team_color->base.r, Current_team_color->base.g, Current_team_color->base.b, 
-			Current_team_color->stripe.r,  Current_team_color->stripe.g,  Current_team_color->stripe.b);
-	}
-
 	if ( shader_flags & SDR_FLAG_CLIP ) {
 		Current_uniforms.queueUniformi("use_clip_plane", G3_user_clip);
 
@@ -2699,140 +2635,13 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	if ( shader_flags & SDR_FLAG_THRUSTER ) {
 		Current_uniforms.queueUniformf("thruster_scale", GL_thrust_scale);
 	}
-
-	Current_uniforms.setUniformsFinish();
 }
 
-void opengl_bind_vertex_component(vertex_format_data &vert_component)
+opengl_uniform_state::opengl_uniform_state()
 {
-	opengl_vertex_bind &bind_info = GL_array_binding_data[vert_component.format_type];
-
-	switch ( bind_info.binding_type ) {
-	case opengl_vertex_bind::POSITION:
-		GL_state.Array.EnableClientVertex();
-		GL_state.Array.VertexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
-		break;
-
-	case opengl_vertex_bind::TEXCOORD0:
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
-		break;
-
-	case opengl_vertex_bind::TEXCOORD1:
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.SetActiveClientUnit(1);
-		GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
-		break;
-
-	case opengl_vertex_bind::COLOR:
-		GL_state.Array.EnableClientColor();
-		GL_state.Array.ColorPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
-		GL_state.InvalidateColor();
-		break;
-
-	case opengl_vertex_bind::NORMAL:
-		GL_state.Array.EnableClientNormal();
-		GL_state.Array.NormalPointer(bind_info.data_type, vert_component.stride, vert_component.data_src);
-		break;
-
-	case opengl_vertex_bind::ATTRIB:
-		GLint index = opengl_shader_get_attribute(bind_info.attrib_name.c_str());
-
-		GL_state.Array.EnableVertexAttrib(index);
-		GL_state.Array.VertexAttribPointer(index, bind_info.size, bind_info.data_type, bind_info.normalized, vert_component.stride, vert_component.data_src);
-		break;
-	}
 }
 
-void opengl_bind_vertex_layout(vertex_layout &layout)
-{
-	uint num_vertex_bindings = layout.get_num_vertex_components();
-
-	for ( uint i = 0; i < num_vertex_bindings; ++i ) {
-		opengl_bind_vertex_component(*layout.get_vertex_component(i));
-	}
-}
-
-uniform_handler::uniform_handler()
-{
-	loaded_block = NULL;
-}
-
-void uniform_handler::resetTextures()
-{
-	for ( int i = 0; i < TEX_SLOT_MAX; ++i ) {
-		current_textures[i] = -1;
-	}
-}
-
-void uniform_handler::setTexture(int texture_slot, int texture_handle)
-{
-	Assert(texture_slot > -1);
-	Assert(texture_slot < TEX_SLOT_MAX);
-
-	current_textures[texture_slot] = texture_handle;
-}
-
-void uniform_handler::setOrientation(matrix *orient)
-{
-	orientation = *orient;
-}
-
-void uniform_handler::setPosition(vec3d *pos)
-{
-	position = *pos;
-}
-
-void uniform_handler::setThrusterScale(float scale)
-{
-	thruster_scale = scale;
-}
-
-void uniform_handler::setNumLights(int num_lights)
-{
-	n_lights = num_lights;
-}
-
-void uniform_handler::setLightFactor(float factor)
-{
-	light_factor = factor;
-}
-
-void uniform_handler::setTeamColor(float base_r, float base_g, float base_b, float stripe_r, float stripe_g, float stripe_b)
-{
-	base_color.xyz.x = base_r;
-	base_color.xyz.y = base_g;
-	base_color.xyz.z = base_b;
-
-	stripe_color.xyz.x = stripe_r;
-	stripe_color.xyz.y = stripe_g;
-	stripe_color.xyz.z = stripe_b;
-}
-
-void uniform_handler::setTransformBufferOffset(int offset)
-{
-	transform_buffer_offset = offset;
-}
-
-void uniform_handler::loadUniformLookup(uniform_block *prev_block)
-{
-	uniform_lookup.clear();
-
-	if ( prev_block == NULL ) {
-		return;
-	}
-
-	// create a map of uniforms so we can do easy lookups for comparisons
-	int i = prev_block->uniform_start_index;
-	int end = i + prev_block->num_uniforms;
-
-	for ( ; i < end; ++i ) {
-		uniform_lookup[uniforms[i].name] = i;
-	}
-}
-
-int uniform_handler::findUniform(SCP_string &name)
+int opengl_uniform_state::findUniform(SCP_string &name)
 {
 	SCP_map<SCP_string, int>::iterator iter;
 	
@@ -2845,201 +2654,214 @@ int uniform_handler::findUniform(SCP_string &name)
 	}
 }
 
-void uniform_handler::queueUniformi(SCP_string name, int val)
+void opengl_uniform_state::queueUniformi(SCP_string name, int val)
 {
 	int uniform_index = findUniform(name);
+	bool resident = false;
 
 	if ( uniform_index >= 0) {
 		Assert( (size_t)uniform_index < uniforms.size() );
 
 		uniform_bind *bind_info = &uniforms[uniform_index];
 
-		if ( bind_info->type == uniform_bind::INT && uniform_data_ints[bind_info->index] == val ) {
-			return;
-		} else {
+		if ( bind_info->type == uniform_bind::INT ) {
+			if ( uniform_data_ints[bind_info->index] == val ) {
+				return;
+			} 
+
 			uniform_data_ints[bind_info->index] = val;
-			uniforms_to_set.push_back(uniform_index);
-			return;
+			resident = true;
 		}
+	} 
+	
+	if ( !resident ) {
+		// uniform doesn't exist in our previous uniform block so queue this new value
+		uniform_data_ints.push_back(val);
+
+		uniform_bind new_bind;
+
+		new_bind.count = 1;
+		new_bind.index = uniform_data_ints.size() - 1;
+		new_bind.type = uniform_bind::INT;
+		new_bind.name = name;
+		new_bind.tranpose = false;
+
+		uniforms.push_back(new_bind);
+
+		uniform_lookup[name] = uniforms.size()-1;
 	}
 
-	// uniform doesn't exist in our previous uniform block so queue this new value
-	uniform_data_ints.push_back(val);
-
-	uniform_bind new_bind;
-
-	new_bind.count = 1;
-	new_bind.index = uniform_data_ints.size() - 1;
-	new_bind.type = uniform_bind::INT;
-	new_bind.name = name;
-	new_bind.tranpose = false;
-
-	uniforms.push_back(new_bind);
-	uniforms_to_set.push_back(uniforms.size()-1);
-
-	uniform_lookup[name] = uniforms.size()-1;
+	vglUniform1iARB(opengl_shader_get_uniform(name.c_str()), val);
 }
 
-void uniform_handler::queueUniformf(SCP_string name, float val)
+void opengl_uniform_state::queueUniformf(SCP_string name, float val)
 {
 	int uniform_index = findUniform(name);
+	bool resident = false;
 
 	if ( uniform_index >= 0) {
 		Assert( (size_t)uniform_index < uniforms.size() );
 
 		uniform_bind *bind_info = &uniforms[uniform_index];
 
-		if ( bind_info->type == uniform_bind::FLOAT && (fl_abs(uniform_data_floats[bind_info->index] - val) < EPSILON) ) {
-			// if the values are close enough, pass.
-			return;
-		} else {
-			uniform_data_floats[bind_info->index] = val;
-			uniforms_to_set.push_back(uniform_index);
-			return;
-		}
-	}
-
-	// uniform doesn't exist in our previous uniform block so queue this new value
-	uniform_data_floats.push_back(val);
-
-	uniform_bind new_bind;
-
-	new_bind.count = 1;
-	new_bind.index = uniform_data_floats.size() - 1;
-	new_bind.type = uniform_bind::FLOAT;
-	new_bind.name = name;
-	new_bind.tranpose = false;
-
-	uniforms.push_back(new_bind);
-	uniforms_to_set.push_back(uniforms.size()-1);
-
-	uniform_lookup[name] = uniforms.size()-1;
-}
-
-void uniform_handler::queueUniform3f(SCP_string name, vec3d &val)
-{
-	int uniform_index = findUniform(name);
-
-	if ( uniform_index >= 0 ) {
-		Assert( (size_t)uniform_index < uniforms.size() );
-
-		uniform_bind *bind_info = &uniforms[uniform_index];
-
-		if ( bind_info->type == uniform_bind::VEC3 
-			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[0] - val.a1d[0]) < EPSILON 
-			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[1] - val.a1d[1]) < EPSILON 
-			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[2] - val.a1d[2]) < EPSILON 
-			) {
-				// if the values are close enough, pass.
-				return;
-		} else {
-			uniform_data_vec3d[bind_info->index] = val;
-			uniforms_to_set.push_back(uniform_index);
-			return;
-		}
-	}
-
-	// uniform doesn't exist in our previous uniform block so queue this new value
-	uniform_data_vec3d.push_back(val);
-
-	uniform_bind new_bind;
-
-	new_bind.count = 1;
-	new_bind.index = uniform_data_vec3d.size() - 1;
-	new_bind.type = uniform_bind::VEC3;
-	new_bind.name = name;
-	new_bind.tranpose = false;
-
-	uniforms.push_back(new_bind);
-	uniforms_to_set.push_back(uniforms.size()-1);
-
-	uniform_lookup[name] = uniforms.size()-1;
-}
-
-void uniform_handler::queueUniform4f(SCP_string name, vec4 &val)
-{
-	int uniform_index = findUniform(name);
-
-	if ( uniform_index >= 0 ) {
-		Assert( (size_t)uniform_index < uniforms.size() );
-
-		uniform_bind *bind_info = &uniforms[uniform_index];
-
-		if ( bind_info->type == uniform_bind::VEC4
-			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[0] - val.a1d[0]) < EPSILON 
-			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[1] - val.a1d[1]) < EPSILON 
-			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[2] - val.a1d[2]) < EPSILON 
-			&& fl_abs(uniform_data_vec3d[bind_info->index].a1d[3] - val.a1d[3]) < EPSILON 
-			) {
-				// if the values are close enough, pass.
-				return;
-		} else {
-			uniform_data_vec4[bind_info->index] = val;
-			uniforms_to_set.push_back(uniform_index);
-			return;
-		}
-	}
-
-	// uniform doesn't exist in our previous uniform block so queue this new value
-	uniform_data_vec4.push_back(val);
-
-	uniform_bind new_bind;
-
-	new_bind.count = 1;
-	new_bind.index = uniform_data_vec4.size() - 1;
-	new_bind.type = uniform_bind::VEC4;
-	new_bind.name = name;
-	new_bind.tranpose = false;
-
-	uniforms.push_back(new_bind);
-	uniforms_to_set.push_back(uniforms.size()-1);
-
-	uniform_lookup[name] = uniforms.size()-1;
-}
-
-void uniform_handler::queueUniformMatrix4f(SCP_string name, int transpose, matrix4 &val)
-{
-	int uniform_index = findUniform(name);
-
-	if ( uniform_index >= 0) {
-		Assert( (size_t)uniform_index < uniforms.size() );
-
-		uniform_bind *bind_info = &uniforms[uniform_index];
-
-		if ( bind_info->type == uniform_bind::MATRIX4 && bind_info->count == 1 ) {
-			if ( compareMatrix4(uniform_data_matrix4[bind_info->index], val) ) {
+		if ( bind_info->type == uniform_bind::FLOAT ) {
+			if ( fl_equal(uniform_data_floats[bind_info->index], val) ) {
 				return;
 			}
 
-			uniform_data_matrix4[bind_info->index] = val;
-			uniforms_to_set.push_back(uniform_index);
-			return;
+			uniform_data_floats[bind_info->index] = val;
+			resident = true;
 		}
+	} 
+	
+	if ( !resident ) {
+		// uniform doesn't exist in our previous uniform block so queue this new value
+		uniform_data_floats.push_back(val);
+
+		uniform_bind new_bind;
+
+		new_bind.count = 1;
+		new_bind.index = uniform_data_floats.size() - 1;
+		new_bind.type = uniform_bind::FLOAT;
+		new_bind.name = name;
+		new_bind.tranpose = false;
+
+		uniforms.push_back(new_bind);
+
+		uniform_lookup[name] = uniforms.size()-1;
 	}
 
-	// uniform doesn't exist in our previous uniform block so queue this new value
-	//matrix_uniform_data[num_matrix_uniforms] = val;
-	//memcpy(&(matrix_uniform_data[num_matrix_uniforms]), &val, sizeof(matrix4));
-	uniform_data_matrix4.push_back(val);
-//	num_matrix_uniforms += 1;
-
-	uniform_bind new_bind;
-	new_bind.count = 1;
-	new_bind.index = uniform_data_matrix4.size() - 1;
-//	new_bind.index = num_matrix_uniforms - 1;
-	new_bind.type = uniform_bind::MATRIX4;
-	new_bind.name = name;
-	new_bind.tranpose = transpose;
-
-	uniforms.push_back(new_bind);
-	uniforms_to_set.push_back(uniforms.size()-1);
-
-	uniform_lookup[name] = uniforms.size()-1;
+	vglUniform1fARB(opengl_shader_get_uniform(name.c_str()), val);
 }
 
-void uniform_handler::queueUniformMatrix4fv(SCP_string name, int count, int transpose, matrix4 *val)
+void opengl_uniform_state::queueUniform3f(SCP_string name, vec3d &val)
+{
+	int uniform_index = findUniform(name);
+	bool resident = false;
+
+	if ( uniform_index >= 0 ) {
+		Assert( (size_t)uniform_index < uniforms.size() );
+
+		uniform_bind *bind_info = &uniforms[uniform_index];
+
+		if ( bind_info->type == uniform_bind::VEC3 ) {
+			if ( vm_vec_equal(uniform_data_vec3d[bind_info->index], val) ) {
+				return;
+			}
+			
+			uniform_data_vec3d[bind_info->index] = val;
+			resident = true;
+		}
+	} 
+	
+	if ( !resident ) {
+		// uniform doesn't exist in our previous uniform block so queue this new value
+		uniform_data_vec3d.push_back(val);
+
+		uniform_bind new_bind;
+
+		new_bind.count = 1;
+		new_bind.index = uniform_data_vec3d.size() - 1;
+		new_bind.type = uniform_bind::VEC3;
+		new_bind.name = name;
+		new_bind.tranpose = false;
+
+		uniforms.push_back(new_bind);
+
+		uniform_lookup[name] = uniforms.size()-1;
+	}
+
+	vglUniform3fARB(opengl_shader_get_uniform(name.c_str()), val.a1d[0], val.a1d[1], val.a1d[2]);
+}
+
+void opengl_uniform_state::queueUniform4f(SCP_string name, vec4 &val)
+{
+	int uniform_index = findUniform(name);
+	bool resident = false;
+
+	if ( uniform_index >= 0 ) {
+		Assert( (size_t)uniform_index < uniforms.size() );
+
+		uniform_bind *bind_info = &uniforms[uniform_index];
+
+		if ( bind_info->type == uniform_bind::VEC4 ) {
+			if ( vm_vec_equal(uniform_data_vec4[bind_info->index], val) ) {
+				// if the values are close enough, pass.
+				return;
+			}
+
+			uniform_data_vec4[bind_info->index] = val;
+			resident = true;
+		}
+	} 
+	
+	if ( !resident ) {
+		// uniform doesn't exist in our previous uniform block so queue this new value
+		uniform_data_vec4.push_back(val);
+
+		uniform_bind new_bind;
+
+		new_bind.count = 1;
+		new_bind.index = uniform_data_vec4.size() - 1;
+		new_bind.type = uniform_bind::VEC4;
+		new_bind.name = name;
+		new_bind.tranpose = false;
+
+		uniforms.push_back(new_bind);
+
+		uniform_lookup[name] = uniforms.size()-1;
+	}
+
+	vglUniform4fARB(opengl_shader_get_uniform(name.c_str()), val.a1d[0], val.a1d[1], val.a1d[2], val.a1d[3]);
+}
+
+void opengl_uniform_state::queueUniformMatrix4f(SCP_string name, int transpose, matrix4 &val)
+{
+	int uniform_index = findUniform(name);
+	bool resident = false;
+
+	if ( uniform_index >= 0) {
+		Assert( (size_t)uniform_index < uniforms.size() );
+
+		uniform_bind *bind_info = &uniforms[uniform_index];
+
+		if ( bind_info->type == uniform_bind::MATRIX4 && bind_info->count == 1 && bind_info->tranpose == transpose ) {
+			if ( vm_matrix_equal(uniform_data_matrix4[bind_info->index], val) ) {
+				return;
+			}
+			
+			uniform_data_matrix4[bind_info->index] = val;
+			resident = true;
+		}
+	}
+	
+	if ( !resident ) {
+		// uniform doesn't exist in our previous uniform block so queue this new value
+		//matrix_uniform_data[num_matrix_uniforms] = val;
+		//memcpy(&(matrix_uniform_data[num_matrix_uniforms]), &val, sizeof(matrix4));
+		uniform_data_matrix4.push_back(val);
+		//	num_matrix_uniforms += 1;
+
+		uniform_bind new_bind;
+		new_bind.count = 1;
+		new_bind.index = uniform_data_matrix4.size() - 1;
+		//	new_bind.index = num_matrix_uniforms - 1;
+		new_bind.type = uniform_bind::MATRIX4;
+		new_bind.name = name;
+		new_bind.tranpose = transpose;
+
+		uniforms.push_back(new_bind);
+
+		uniform_lookup[name] = uniforms.size()-1;
+	}
+
+	vglUniformMatrix4fvARB(opengl_shader_get_uniform(name.c_str()), 1, transpose, (const GLfloat*)&val);
+}
+
+void opengl_uniform_state::queueUniformMatrix4fv(SCP_string name, int count, int transpose, matrix4 *val)
 {
  	int uniform_index = findUniform(name);
+	bool resident = false;
 
 	if ( uniform_index >= 0) {
 		Assert( (size_t)uniform_index < uniforms.size() );
@@ -3051,44 +2873,46 @@ void uniform_handler::queueUniformMatrix4fv(SCP_string name, int count, int tran
 
 			// if the values are close enough, pass.
 			for ( int i = 0; i < count; ++i ) {
-				if ( !compareMatrix4(val[i], uniform_data_matrix4[bind_info->index+i]) ) {
+				if ( !vm_matrix_equal(val[i], uniform_data_matrix4[bind_info->index+i]) ) {
 					equal = false;
 					break;
 				}
 			}
 
-			if ( !equal ) {
-				for ( int i = 0; i < count; ++i ) {
-					uniform_data_matrix4[bind_info->index+i] = val[i];
-				}
-
-				uniforms_to_set.push_back(uniform_index);
+			if ( equal ) {
+				return;
 			}
-
-			return;
+			
+			resident = true;
+			for ( int i = 0; i < count; ++i ) {
+				uniform_data_matrix4[bind_info->index+i] = val[i];
+			}
 		}
 	}
 
-	// uniform doesn't exist in our previous uniform block so queue this new value
-	for ( int i = 0; i < count; ++i ) {
-		uniform_data_matrix4.push_back(val[i]);
+	if ( !resident ) {
+		// uniform doesn't exist in our previous uniform block so queue this new value
+		for ( int i = 0; i < count; ++i ) {
+			uniform_data_matrix4.push_back(val[i]);
+		}
+
+		uniform_bind new_bind;
+		new_bind.count = count;
+		new_bind.index = uniform_data_matrix4.size() - count;
+	//	new_bind.index = num_matrix_uniforms - count;
+		new_bind.type = uniform_bind::MATRIX4;
+		new_bind.name = name;
+		new_bind.tranpose = transpose;
+	
+		uniforms.push_back(new_bind);
+
+		uniform_lookup[name] = uniforms.size()-1;
 	}
 
-	uniform_bind new_bind;
-	new_bind.count = count;
-	new_bind.index = uniform_data_matrix4.size() - count;
-//	new_bind.index = num_matrix_uniforms - count;
-	new_bind.type = uniform_bind::MATRIX4;
-	new_bind.name = name;
-	new_bind.tranpose = transpose;
-	
-	uniforms.push_back(new_bind);
-	uniforms_to_set.push_back(uniforms.size()-1);
-
-	uniform_lookup[name] = uniforms.size()-1;
+	vglUniformMatrix4fvARB(opengl_shader_get_uniform(name.c_str()), uniforms[uniform_index].count, (GLboolean)uniforms[uniform_index].tranpose, (const GLfloat*)val);
 }
 
-void uniform_handler::resetAll()
+void opengl_uniform_state::reset()
 {
 	uniforms.clear();
 
@@ -3099,75 +2923,4 @@ void uniform_handler::resetAll()
 	uniform_data_matrix4.clear();
 
 	uniform_lookup.clear();
-	uniforms_to_set.clear();
-}
-
-bool uniform_handler::compareMatrix4(matrix4 &a, matrix4 &b)
-{
-	if ( fl_abs(a.a1d[0] - b.a1d[0]) < EPSILON 
-		&& fl_abs(a.a1d[1] - b.a1d[1]) < EPSILON 
-		&& fl_abs(a.a1d[2] - b.a1d[2]) < EPSILON 
-		&& fl_abs(a.a1d[3] - b.a1d[3]) < EPSILON 
-		&& fl_abs(a.a1d[4] - b.a1d[4]) < EPSILON 
-		&& fl_abs(a.a1d[5] - b.a1d[5]) < EPSILON 
-		&& fl_abs(a.a1d[6] - b.a1d[6]) < EPSILON 
-		&& fl_abs(a.a1d[7] - b.a1d[7]) < EPSILON 
-		&& fl_abs(a.a1d[8] - b.a1d[8]) < EPSILON 
-		&& fl_abs(a.a1d[9] - b.a1d[9]) < EPSILON 
-		&& fl_abs(a.a1d[10] - b.a1d[10]) < EPSILON 
-		&& fl_abs(a.a1d[11] - b.a1d[11]) < EPSILON 
-		&& fl_abs(a.a1d[12] - b.a1d[12]) < EPSILON 
-		&& fl_abs(a.a1d[13] - b.a1d[13]) < EPSILON 
-		&& fl_abs(a.a1d[14] - b.a1d[14]) < EPSILON 
-		&& fl_abs(a.a1d[15] - b.a1d[15]) < EPSILON 
-		) {
-		return true;
-	}
-
-	return false;
-}
-
-void uniform_handler::setCurrentShader(GLhandleARB sdr_handle)
-{
-	if ( sdr_handle != current_sdr ) {
-		resetAll();
-	}
-
-	current_sdr = sdr_handle;
-}
-
-void uniform_handler::setUniformsBegin()
-{
-	uniforms_to_set.clear();
-}
-
-void uniform_handler::setUniformsFinish()
-{
-	for ( size_t i = 0; i < uniforms_to_set.size(); ++i ) {
-		int uniform_index = uniforms_to_set[i];
-
-		const char* name = uniforms[uniform_index].name.c_str();
-		int data_index = uniforms[uniform_index].index;
-
-		switch ( uniforms[uniform_index].type ) {
-			case uniform_bind::INT:
-				vglUniform1iARB(opengl_shader_get_uniform(name), uniform_data_ints[data_index]);
-				break;
-			case uniform_bind::FLOAT:
-				vglUniform1fARB(opengl_shader_get_uniform(name), uniform_data_floats[data_index]);
-				break;
-			case uniform_bind::VEC3:
-				vglUniform3fARB(opengl_shader_get_uniform(name), uniform_data_vec3d[data_index].a1d[0], uniform_data_vec3d[data_index].a1d[1], uniform_data_vec3d[data_index].a1d[2]);
-				break;
-			case uniform_bind::VEC4:
-				vglUniform4fARB(opengl_shader_get_uniform(name), uniform_data_vec4[data_index].a1d[0], uniform_data_vec4[data_index].a1d[1], uniform_data_vec4[data_index].a1d[2], uniform_data_vec4[data_index].a1d[3]);
-				break;
-			case uniform_bind::MATRIX4: {
-				vglUniformMatrix4fvARB(opengl_shader_get_uniform(name), uniforms[uniform_index].count, (GLboolean)uniforms[uniform_index].tranpose, (const GLfloat*)&(uniform_data_matrix4[data_index].a1d[0]));
-				break;
-			} default:
-				Int3();
-				break;
-		}
-	}
 }

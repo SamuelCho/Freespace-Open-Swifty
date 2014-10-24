@@ -1032,8 +1032,10 @@ void gr_pline_special(SCP_vector<vec3d> *pts, int thickness,int resize_mode=GR_R
 struct vertex_format_data
 {
 	enum vertex_format {
+		POSITION4,
 		POSITION3,
 		POSITION2,
+		SCREEN_POS,
 		COLOR3,
 		COLOR4,
 		TEX_COORD,

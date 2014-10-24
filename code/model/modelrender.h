@@ -222,7 +222,6 @@ struct queued_buffer_draw
 	int texi;
 	int flags;
 	int sdr_flags;
-	uniform_block uniform_handle;
 
 	float thrust_scale;
 

@@ -13,6 +13,7 @@
 
 #include "graphics/gropenglstate.h"
 #include "graphics/shadows.h"
+#include "graphics/2d.h"
 
 void gr_opengl_aabitmap_ex(int x, int y, int w, int h, int sx, int sy, int resize_mode, bool mirror);
 void gr_opengl_aabitmap(int x, int y, int resize_mode, bool mirror);
@@ -70,6 +71,8 @@ void gr_opengl_deferred_lighting_finish();
 
 bool gr_opengl_set_shader_flag(uint shader_flags);
 
+void opengl_bind_vertex_layout(vertex_layout &layout);
+
 inline void opengl_draw_textured_quad_instanced(
 	GLfloat x1, GLfloat y1, GLfloat u1, GLfloat v1,
 	GLfloat x2, GLfloat y2, GLfloat u2, GLfloat v2, 
@@ -84,12 +87,12 @@ inline void opengl_draw_textured_quad_instanced(
 
 	GL_state.Array.BindArrayBuffer(0);
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(glVertices[0]), glVertices);
+	vertex_layout vert_def;
 
-	GL_state.Array.SetActiveClientUnit(0);
-	GL_state.Array.EnableClientTexture();
-	GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(glVertices[0]), &(glVertices[0][2]));
+	vert_def.add_vertex_component(vertex_format_data::POSITION2, sizeof(glVertices[0]), glVertices);
+	vert_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(glVertices[0]), &(glVertices[0][2]));
+
+	opengl_bind_vertex_layout(vert_def);
 
 	//glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	vglDrawArraysInstancedARB(GL_TRIANGLE_STRIP, 0, 4, count);
@@ -111,12 +114,12 @@ inline void opengl_draw_textured_quad(
 
 	GL_state.Array.BindArrayBuffer(0);
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(glVertices[0]), glVertices);
+	vertex_layout vert_def;
 
-	GL_state.Array.SetActiveClientUnit(0);
-	GL_state.Array.EnableClientTexture();
-	GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(glVertices[0]), &(glVertices[0][2]));
+	vert_def.add_vertex_component(vertex_format_data::POSITION2, sizeof(glVertices[0]), glVertices);
+	vert_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(glVertices[0]), &(glVertices[0][2]));
+
+	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
@@ -135,8 +138,11 @@ inline void opengl_draw_coloured_quad(
 		x2, y2
 	};
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(2, GL_INT, 0, glVertices);
+	vertex_layout vert_def;
+
+	vert_def.add_vertex_component(vertex_format_data::SCREEN_POS, 0, glVertices);
+
+	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
@@ -154,8 +160,11 @@ inline void opengl_draw_coloured_quad(
 		x2, y2
 	};
 
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(2, GL_FLOAT, 0, glVertices);
+	vertex_layout vert_def;
+
+	vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, glVertices);
+
+	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 

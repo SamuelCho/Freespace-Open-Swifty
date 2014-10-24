@@ -57,23 +57,8 @@ struct uniform_bind
 	int tranpose;
 };
 
-struct uniform_block
+class opengl_uniform_state
 {
-	int uniform_start_index;
-	int num_uniforms;
-
-	int texture_slots[TEX_SLOT_MAX];
-
-	uniform_block() 
-	{
-		memset(texture_slots, -1, TEX_SLOT_MAX*sizeof(int));
-	}
-};
-
-class uniform_handler
-{
-	static const float EPSILON;
-
 	SCP_vector<uniform_bind> uniforms;
 
 	SCP_vector<int> uniform_data_ints;
@@ -82,57 +67,23 @@ class uniform_handler
 	SCP_vector<vec4> uniform_data_vec4;
 	SCP_vector<matrix4> uniform_data_matrix4;
 
-	SCP_vector<int> uniforms_to_set;
-
-	matrix orientation;
-	vec3d position;
-	int current_textures[TEX_SLOT_MAX];
-	vec3d base_color;
-	vec3d stripe_color;
-	float thruster_scale;
-	int n_lights;
-	float light_factor;
-	int transform_buffer_offset;
-
 	SCP_map<SCP_string, int> uniform_lookup;
 
-	GLhandleARB current_sdr;
-	uniform_block *loaded_block;
-
-	void loadUniformLookup(uniform_block *uniforms = NULL);
 	int findUniform(SCP_string &name);
-
-	bool compareMatrix4(matrix4 &a, matrix4 &b);
 public:
-	uniform_handler();
+	opengl_uniform_state();
 
-	void resetTextures();
+	void setUniformi(SCP_string name, int value);
+	void setUniformf(SCP_string name, float value);
+	void setUniform3f(SCP_string name, vec3d &value);
+	void setUniform4f(SCP_string name, vec4 &val);
+	void setUniformMatrix4fv(SCP_string name, int count, int transpose, matrix4 *value);
+	void setUniformMatrix4f(SCP_string name, int transpose, matrix4 &val);
 
-	void queueUniformi(SCP_string name, int value);
-	void queueUniformf(SCP_string name, float value);
-	void queueUniform3f(SCP_string name, vec3d &value);
-	void queueUniform4f(SCP_string name, vec4 &val);
-	void queueUniformMatrix4fv(SCP_string name, int count, int transpose, matrix4 *value);
-	void queueUniformMatrix4f(SCP_string name, int transpose, matrix4 &val);
-
-	void setCurrentShader(GLhandleARB sdr_handle);
-	void setUniformsBegin();
-
-	void setNumLights(int num_lights);
-	void setLightFactor(float factor);
-	void setOrientation(matrix *orient);
-	void setPosition(vec3d *pos);
-	void setThrusterScale(float scale);
-	void setTeamColor(float base_r, float base_g, float base_b, float stripe_r, float stripe_g, float stripe_b);
-	void setTransformBufferOffset(int offset);
-	void setTexture(int texture_type, int texture_handle);
-	
-	void setUniformsFinish();
-
-	void resetAll();
+	void reset();
 };
 
-extern uniform_handler Current_uniforms;
+extern opengl_uniform_state Current_uniforms;
 
 extern float shadow_veryneardist;
 extern float shadow_neardist;

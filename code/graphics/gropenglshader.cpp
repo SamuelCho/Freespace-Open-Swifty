@@ -115,7 +115,7 @@ void opengl_shader_set_current(opengl_shader_t *shader_obj)
 		if(!Current_shader || (Current_shader->program_id != shader_obj->program_id)) {
 			Current_shader = shader_obj;
 			vglUseProgramObjectARB(Current_shader->program_id);
-
+			GL_state.Uniform.resetAll();
 #ifndef NDEBUG
 			if ( opengl_check_for_errors("shader_set_current()") ) {
 				vglValidateProgramARB(Current_shader->program_id);

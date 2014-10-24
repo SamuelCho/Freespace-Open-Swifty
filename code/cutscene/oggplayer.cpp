@@ -17,6 +17,7 @@
 #include "graphics/gropenglextension.h"
 #include "graphics/gropenglshader.h"
 #include "graphics/gropenglstate.h"
+#include "graphics/gropengldraw.h"
 #include "graphics/2d.h"
 #include "io/key.h"
 #include "osapi/osapi.h"
@@ -559,12 +560,12 @@ static void OGG_video_init(theora_info *tinfo)
 
 		GL_state.Array.BindArrayBuffer(0);
 
-		GL_state.Array.EnableClientVertex();
-		GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(glVertices[0]), glVertices);
+		vertex_layout vert_def;
 
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(glVertices[0]), &(glVertices[0][2]));
+		vert_def.add_vertex_component(vertex_format_data::POSITION2, sizeof(glVertices[0]), glVertices);
+		vert_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(glVertices[0]), &(glVertices[0][2]));
+
+		opengl_bind_vertex_layout(vert_def);
 	}
 	if(!use_shaders && tinfo->frame_height > 450) {
 		mprintf(("VIDEO: No shader support and hd video is beeing played this can get choppy."));

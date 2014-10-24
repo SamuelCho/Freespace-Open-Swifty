@@ -322,7 +322,6 @@ class opengl_state
 		gr_alpha_blend Current_alpha_blend_mode;
 		gr_zbuffer_type Current_zbuffer_type;
         gr_stencil_type Current_stencil_type;
-
 	public:
 		opengl_state() : light_Status(NULL) {}
 		~opengl_state();
@@ -331,6 +330,7 @@ class opengl_state
 
 		opengl_texture_state Texture;
 		opengl_array_state Array;
+		uniform_handler Uniform;
 
 		void SetTextureSource(gr_texture_source ts);
 		void SetAlphaBlendMode(gr_alpha_blend ab);

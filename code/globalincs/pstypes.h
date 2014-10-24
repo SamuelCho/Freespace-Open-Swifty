@@ -75,7 +75,7 @@ struct vertex;
 typedef struct vec4 {
 	union {
 		struct {
-			float x,y,z;
+			float x,y,z,w;
 		} xyzw;
 		float a1d[4];
 	};
