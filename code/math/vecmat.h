@@ -218,13 +218,13 @@ void vm_vec_scale_add2(vec3d *dest,vec3d *src,float k);
 void vm_vec_scale2(vec3d *dest,float n,float d);
 #endif
 
-inline bool vm_vec_equal(const vec3d &self, const vec3d &other);
+bool vm_vec_equal(const vec3d &self, const vec3d &other);
 
-inline bool vm_vec_equal(const vec4 &self, const vec4 &other);
+bool vm_vec_equal(const vec4 &self, const vec4 &other);
 
-inline bool vm_matrix_equal(const matrix &self, const matrix &other);
+bool vm_matrix_equal(const matrix &self, const matrix &other);
 
-inline bool vm_matrix_equal(const matrix4 &self, const matrix4 &other);
+bool vm_matrix_equal(const matrix4 &self, const matrix4 &other);
 
 // finds the projection of source vector along a unit vector
 // returns the magnitude of the component

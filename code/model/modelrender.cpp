@@ -847,7 +847,6 @@ void draw_list::init_render()
 	sort_draws();
 
 	Scene_light_handler.resetLightState();
-	Current_uniforms.resetAll();
 	TransformBufferHandler.submit_buffer_data();
 }
 

@@ -330,7 +330,7 @@ class opengl_state
 
 		opengl_texture_state Texture;
 		opengl_array_state Array;
-		uniform_handler Uniform;
+		//opengl_uniform_state Uniform;
 
 		void SetTextureSource(gr_texture_source ts);
 		void SetAlphaBlendMode(gr_alpha_blend ab);
