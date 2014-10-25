@@ -145,6 +145,7 @@ void opengl_bind_vertex_component(vertex_format_data &vert_component)
 		break;
 
 	case opengl_vertex_bind::ATTRIB:
+		// grabbing a vertex attribute is dependent on what current shader has been set. i hope no one calls opengl_bind_vertex_layout before opengl_set_current_shader
 		GLint index = opengl_shader_get_attribute(bind_info.attrib_name.c_str());
 
 		GL_state.Array.EnableVertexAttrib(index);
@@ -1756,7 +1757,7 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 				}
 				opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
 				
-				vglUniform1iARB(opengl_shader_get_uniform("frameBuffer"), 2);
+				GL_state.Uniform.setUniformi("frameBuffer", 2);
 				
 				GL_state.Texture.SetActiveUnit(2);
 				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
@@ -1765,12 +1766,12 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 				if(flags & TMAP_FLAG_DISTORTION_THRUSTER)
 				{
-					vglUniform1iARB(opengl_shader_get_uniform("distMap"), 3);
+					GL_state.Uniform.setUniformi("distMap", 3);
 					GL_state.Texture.Enable(Distortion_texture[!Distortion_switch]);
 				}
 				else
 				{
-					vglUniform1iARB(opengl_shader_get_uniform("distMap"), 0);
+					GL_state.Uniform.setUniformi("distMap", 0);
 					GL_state.Texture.Disable();
 				}
 				zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
@@ -1786,14 +1787,14 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 				zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
 			}
 
-			vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);
-			vglUniform1iARB(opengl_shader_get_uniform("depthMap"), 1);
-			vglUniform1fARB(opengl_shader_get_uniform("window_width"), (float)gr_screen.max_w);
-			vglUniform1fARB(opengl_shader_get_uniform("window_height"), (float)gr_screen.max_h);
-			vglUniform1fARB(opengl_shader_get_uniform("nearZ"), Min_draw_distance);
-			vglUniform1fARB(opengl_shader_get_uniform("farZ"), Max_draw_distance);
-			vglUniform1fARB(opengl_shader_get_uniform("use_offset"), 0.0f);
-			vglUniform1iARB(opengl_shader_get_uniform("linear_depth"), 0);
+			GL_state.Uniform.setUniformi("baseMap", 0);
+			GL_state.Uniform.setUniformi("depthMap", 1);
+			GL_state.Uniform.setUniformf("window_width", (float)gr_screen.max_w);
+			GL_state.Uniform.setUniformf("window_height", (float)gr_screen.max_h);
+			GL_state.Uniform.setUniformf("nearZ", Min_draw_distance);
+			GL_state.Uniform.setUniformf("farZ", Max_draw_distance);
+			GL_state.Uniform.setUniformf("use_offset", 0.0f);
+			GL_state.Uniform.setUniformi("linear_depth", 0);
 
 			if( !(flags & TMAP_FLAG_DISTORTION) && !(flags & TMAP_FLAG_DISTORTION_THRUSTER) ) // Only use vertex attribute with soft particles to avoid OpenGL Errors - Valathil
 			{
@@ -1804,7 +1805,7 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 			{
 				vert_def.add_vertex_component(vertex_format_data::RADIUS, 0, radius_list);
 
-				vglUniform1fARB(opengl_shader_get_uniform("use_offset"), 1.0f);
+				GL_state.Uniform.setUniformf("use_offset", 1.0f);
 			}
 			GL_state.Texture.SetActiveUnit(1);
 			GL_state.Texture.SetTarget(GL_TEXTURE_2D);
@@ -1838,9 +1839,6 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 	else {
 		GL_state.Color( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
 	}
-
-	GL_state.Array.EnableClientVertex();
-	GL_state.Array.VertexPointer(3, GL_FLOAT, sizeof(vertex), &verts[0].world.xyz.x);
 
 	vert_def.add_vertex_component(vertex_format_data::POSITION3, sizeof(vertex), &verts[0].world.xyz.x);
 
@@ -2495,7 +2493,7 @@ void gr_opengl_draw_deferred_light_sphere(vec3d *position, float rad, bool clear
 
 	g3_start_instance_matrix(position, &vmd_identity_matrix, true);
 	
-	vglUniform3fARB(opengl_shader_get_uniform("Scale"), rad, rad, rad);
+	GL_state.Uniform.setUniform3f("Scale", rad, rad, rad);
 
 	GL_state.Array.BindArrayBuffer(deferred_light_sphere_vbo);
 	GL_state.Array.BindElementBuffer(deferred_light_sphere_ibo);
@@ -2642,7 +2640,7 @@ void gr_opengl_draw_deferred_light_cylinder(vec3d *position,matrix *orient, floa
 
 	g3_start_instance_matrix(position, orient, true);
 
-	vglUniform3fARB(opengl_shader_get_uniform("Scale"), rad, rad, length);
+	GL_state.Uniform.setUniform3f("Scale", rad, rad, length);
 
 	GL_state.Array.BindArrayBuffer(deferred_light_cylinder_vbo);
 	GL_state.Array.BindElementBuffer(deferred_light_cylinder_ibo);
@@ -3274,19 +3272,19 @@ void gr_opengl_deferred_lighting_finish()
 	for(int i = 0; i < Num_lights; ++i)
 	{
 		light *l = &lights_copy[i];
-		vglUniform1iARB( opengl_shader_get_uniform("lighttype"), 0 );
+		GL_state.Uniform.setUniformi( "lighttype", 0 );
 		switch(l->type)
 		{
 			case LT_CONE:
-				vglUniform1iARB( opengl_shader_get_uniform("lighttype"), 2 );
-				vglUniform1iARB( opengl_shader_get_uniform("dual_cone"), l->dual_cone );
-				vglUniform1fARB( opengl_shader_get_uniform("cone_angle"), l->cone_angle );
-				vglUniform1fARB( opengl_shader_get_uniform("cone_inner_angle"), l->cone_inner_angle );
-				vglUniform3fARB( opengl_shader_get_uniform("coneDir"), l->vec2.xyz.x, l->vec2.xyz.y, l->vec2.xyz.z); 
+				GL_state.Uniform.setUniformi( "lighttype", 2 );
+				GL_state.Uniform.setUniformi( "dual_cone", l->dual_cone );
+				GL_state.Uniform.setUniformf( "cone_angle", l->cone_angle );
+				GL_state.Uniform.setUniformf( "cone_inner_angle", l->cone_inner_angle );
+				GL_state.Uniform.setUniform3f( "coneDir", l->vec2.xyz.x, l->vec2.xyz.y, l->vec2.xyz.z); 
 			case LT_POINT:
-				vglUniform3fARB( opengl_shader_get_uniform("diffuselightcolor"), l->r * l->intensity * static_point_factor, l->g * l->intensity * static_point_factor, l->b * l->intensity * static_point_factor );
-				vglUniform3fARB( opengl_shader_get_uniform("speclightcolor"), l->spec_r * l->intensity * static_point_factor, l->spec_g * l->intensity * static_point_factor, l->spec_b * l->intensity * static_point_factor );
-				vglUniform1fARB( opengl_shader_get_uniform("lightradius"), l->radb );
+				GL_state.Uniform.setUniform3f( "diffuselightcolor", l->r * l->intensity * static_point_factor, l->g * l->intensity * static_point_factor, l->b * l->intensity * static_point_factor );
+				GL_state.Uniform.setUniform3f( "speclightcolor", l->spec_r * l->intensity * static_point_factor, l->spec_g * l->intensity * static_point_factor, l->spec_b * l->intensity * static_point_factor );
+				GL_state.Uniform.setUniformf( "lightradius", l->radb );
 
 				/*float dist;
 				vec3d a;
@@ -3297,10 +3295,10 @@ void gr_opengl_deferred_lighting_finish()
 				gr_opengl_draw_deferred_light_sphere(&l->vec, l->radb * 1.02f);
 				break;
 			case LT_TUBE:
-				vglUniform3fARB( opengl_shader_get_uniform("diffuselightcolor"), l->r * l->intensity * static_tube_factor, l->g * l->intensity * static_tube_factor, l->b * l->intensity * static_tube_factor );
-				vglUniform3fARB( opengl_shader_get_uniform("speclightcolor"), l->spec_r * l->intensity * static_tube_factor, l->spec_g * l->intensity * static_tube_factor, l->spec_b * l->intensity * static_tube_factor );
-				vglUniform1fARB( opengl_shader_get_uniform("lightradius"), l->radb * 1.5f );
-				vglUniform1iARB( opengl_shader_get_uniform("lighttype"), 1 );
+				GL_state.Uniform.setUniform3f( "diffuselightcolor", l->r * l->intensity * static_tube_factor, l->g * l->intensity * static_tube_factor, l->b * l->intensity * static_tube_factor );
+				GL_state.Uniform.setUniform3f( "speclightcolor", l->spec_r * l->intensity * static_tube_factor, l->spec_g * l->intensity * static_tube_factor, l->spec_b * l->intensity * static_tube_factor );
+				GL_state.Uniform.setUniformf( "lightradius", l->radb * 1.5f );
+				GL_state.Uniform.setUniformi( "lighttype", 1 );
 			
 				vec3d a, b;
 				matrix orient;
@@ -3323,7 +3321,7 @@ void gr_opengl_deferred_lighting_finish()
 
 				glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 				gr_opengl_draw_deferred_light_cylinder(&l->vec2, &orient, l->radb * 1.53f, length);
-				vglUniform1iARB( opengl_shader_get_uniform("lighttype"), 0 );
+				GL_state.Uniform.setUniformi( "lighttype", 0 );
 				gr_opengl_draw_deferred_light_sphere(&l->vec, l->radb * 1.53f, false);
 				gr_opengl_draw_deferred_light_sphere(&l->vec2, l->radb * 1.53f, false);
 				glStencilOp(GL_ZERO, GL_ZERO, GL_ZERO);

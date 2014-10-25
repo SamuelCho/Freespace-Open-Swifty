@@ -56,8 +56,6 @@ extern bool Heightmap_override;
 extern bool GLSL_override;
 extern bool Shadow_override;
 
-opengl_uniform_state Current_uniforms;
-
 static int GL_modelview_matrix_depth = 1;
 static int GL_htl_projection_matrix_set = 0;
 static int GL_htl_view_matrix_set = 0;
@@ -817,7 +815,6 @@ extern int Interp_thrust_scale_subobj;
 extern float Interp_thrust_scale;
 static void opengl_render_pipeline_program(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags)
 {
-	float u_scale, v_scale;
 	int render_pass = 0;
 	unsigned int shader_flags = 0;
 	int sdr_index = -1;
@@ -1370,7 +1367,6 @@ void gr_opengl_render_buffer(int start, const vertex_buffer *bufferp, int texi, 
 	GL_CHECK_FOR_ERRORS("end of render_buffer()");
 }
 
-int Stream_buffer_sdr = -1;
 GLboolean Stream_cull;
 GLboolean Stream_lighting;
 int Stream_zbuff_mode;
@@ -1386,7 +1382,6 @@ void gr_opengl_render_stream_buffer_start(int buffer_id)
 	Stream_zbuff_mode = gr_zbuffer_set(GR_ZBUFF_READ);
 
 	opengl_shader_set_current();
-	Stream_buffer_sdr = -1;
 }
 
 void gr_opengl_render_stream_buffer_end()
@@ -1396,7 +1391,6 @@ void gr_opengl_render_stream_buffer_end()
 	gr_opengl_flush_data_states();
 
 	opengl_shader_set_current();
-	Stream_buffer_sdr = -1;
 
 	GL_state.Texture.DisableAll();
 
@@ -1428,28 +1422,9 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 	int radius_offset = -1;
 	int color_offset = -1;
 	int up_offset = -1;
-	int fvec_offset = -1;
-	int alpha_offset = -1;
 
 	// this shit is pretty ugly. i'll make a cleaner render function once i know this works (Swifty)
-	if ( flags & TMAP_FLAG_VERTEX_GEN && flags & TMAP_FLAG_LINESTRIP ) {
-		stride = sizeof(trail_shader_info);
-
-		pos_offset = vert_offset;
-		vert_offset += sizeof(vec3d);
-
-		fvec_offset = vert_offset;
-		vert_offset += sizeof(vec3d);
-
-		alpha_offset = vert_offset;
-		vert_offset += sizeof(float);
-
-		radius_offset = vert_offset;
-		vert_offset += sizeof(float);
-
-		tex_offset = vert_offset;
-		vert_offset += sizeof(uv_pair);
-	} else if ( flags & TMAP_FLAG_VERTEX_GEN ) {	
+	if ( flags & TMAP_FLAG_VERTEX_GEN ) {	
 		stride = sizeof(particle_pnt);
 
 		pos_offset = vert_offset;
@@ -1488,24 +1463,21 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 			if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) ) {
 				sdr_index = opengl_shader_get_effect_shader(SDR_EFFECT_DISTORTION);
 
-				if ( sdr_index != Stream_buffer_sdr ) {
-					glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+				glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
-					opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
-					Stream_buffer_sdr = sdr_index;
+				opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
 
-					vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);
-					vglUniform1iARB(opengl_shader_get_uniform("depthMap"), 1);
-					vglUniform1fARB(opengl_shader_get_uniform("window_width"), (float)gr_screen.max_w);
-					vglUniform1fARB(opengl_shader_get_uniform("window_height"), (float)gr_screen.max_h);
-					vglUniform1fARB(opengl_shader_get_uniform("nearZ"), Min_draw_distance);
-					vglUniform1fARB(opengl_shader_get_uniform("farZ"), Max_draw_distance);
+				GL_state.Uniform.setUniformi("baseMap", 0);
+				GL_state.Uniform.setUniformi("depthMap", 1);
+				GL_state.Uniform.setUniformf("window_width", (float)gr_screen.max_w);
+				GL_state.Uniform.setUniformf("window_height", (float)gr_screen.max_h);
+				GL_state.Uniform.setUniformf("nearZ", Min_draw_distance);
+				GL_state.Uniform.setUniformf("farZ", Max_draw_distance);
 
-					vglUniform1iARB(opengl_shader_get_uniform("frameBuffer"), 2);
+				GL_state.Uniform.setUniformi("frameBuffer", 2);
 
-					if ( radius_offset >= 0 ) {
-						vert_def.add_vertex_component(vertex_format_data::RADIUS, stride, ptr + radius_offset);
-					}
+				if ( radius_offset >= 0 ) {
+					vert_def.add_vertex_component(vertex_format_data::RADIUS, stride, ptr + radius_offset);
 				}
 
 				GL_state.Texture.SetActiveUnit(2);
@@ -1513,15 +1485,15 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 				GL_state.Texture.Enable(Scene_effect_texture);
 				
 				if(flags & TMAP_FLAG_DISTORTION_THRUSTER) {
-					vglUniform1iARB(opengl_shader_get_uniform("distMap"), 3);
+					GL_state.Uniform.setUniformi("distMap", 3);
 
 					GL_state.Texture.SetActiveUnit(3);
 					GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 					GL_state.Texture.Enable(Distortion_texture[!Distortion_switch]);
-					vglUniform1fARB(opengl_shader_get_uniform("use_offset"), 1.0f);
+					GL_state.Uniform.setUniformf("use_offset", 1.0f);
 				} else {
-					vglUniform1iARB(opengl_shader_get_uniform("distMap"), 0);
-					vglUniform1fARB(opengl_shader_get_uniform("use_offset"), 0.0f);
+					GL_state.Uniform.setUniformi("distMap", 0);
+					GL_state.Uniform.setUniformf("use_offset", 0.0f);
 				}
 
 				zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
@@ -1531,27 +1503,6 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 				GL_state.Texture.SetActiveUnit(1);
 				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 				GL_state.Texture.Enable(Scene_depth_texture);
-			} else if ( flags & TMAP_FLAG_VERTEX_GEN && flags & TMAP_FLAG_LINESTRIP ) {
-				sdr_index = opengl_shader_get_effect_shader(SDR_EFFECT_TRAILS|SDR_EFFECT_GEOMETRY);
-
-				if ( sdr_index != Stream_buffer_sdr ) {
-					opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
-					Stream_buffer_sdr = sdr_index;
-
-					vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);
-
-					if ( fvec_offset >= 0 ) {
-						vert_def.add_vertex_component(vertex_format_data::FVEC, stride, ptr + fvec_offset);
-					}
-
-					if ( radius_offset >= 0 ) {
-						vert_def.add_vertex_component(vertex_format_data::RADIUS, stride, ptr + radius_offset);
-					}
-
-					if ( alpha_offset >= 0 ) {
-						vert_def.add_vertex_component(vertex_format_data::INTENSITY, stride, ptr + alpha_offset);
-					}
-				}
 			} else if ( Cmdline_softparticles ) {
 				uint sdr_effect_flags = SDR_EFFECT_SOFT_QUAD;
 
@@ -1561,32 +1512,29 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 
 				sdr_index = opengl_shader_get_effect_shader(sdr_effect_flags);
 
-				if ( sdr_index != Stream_buffer_sdr ) {
-					opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
-					Stream_buffer_sdr = sdr_index;
+				opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
 
-					vglUniform1iARB(opengl_shader_get_uniform("baseMap"), 0);
-					vglUniform1iARB(opengl_shader_get_uniform("depthMap"), 1);
-					vglUniform1fARB(opengl_shader_get_uniform("window_width"), (float)gr_screen.max_w);
-					vglUniform1fARB(opengl_shader_get_uniform("window_height"), (float)gr_screen.max_h);
-					vglUniform1fARB(opengl_shader_get_uniform("nearZ"), Min_draw_distance);
-					vglUniform1fARB(opengl_shader_get_uniform("farZ"), Max_draw_distance);
+				GL_state.Uniform.setUniformi("baseMap", 0);
+				GL_state.Uniform.setUniformi("depthMap", 1);
+				GL_state.Uniform.setUniformf("window_width", (float)gr_screen.max_w);
+				GL_state.Uniform.setUniformf("window_height", (float)gr_screen.max_h);
+				GL_state.Uniform.setUniformf("nearZ", Min_draw_distance);
+				GL_state.Uniform.setUniformf("farZ", Max_draw_distance);
 					
-					if ( Cmdline_no_deferred_lighting ) {
-						vglUniform1iARB(opengl_shader_get_uniform("linear_depth"), 0);
-					} else {
-						vglUniform1iARB(opengl_shader_get_uniform("linear_depth"), 1);
-					}
-
-					if ( radius_offset >= 0 ) {
-						vert_def.add_vertex_component(vertex_format_data::RADIUS, stride, ptr + radius_offset);
-					}
-
-					if ( up_offset >= 0 ) {
-						vert_def.add_vertex_component(vertex_format_data::UVEC, stride, ptr + up_offset);
-					}
+				if ( Cmdline_no_deferred_lighting ) {
+					GL_state.Uniform.setUniformi("linear_depth", 0);
+				} else {
+					GL_state.Uniform.setUniformi("linear_depth", 1);
 				}
 
+				if ( radius_offset >= 0 ) {
+					vert_def.add_vertex_component(vertex_format_data::RADIUS, stride, ptr + radius_offset);
+				}
+
+				if ( up_offset >= 0 ) {
+					vert_def.add_vertex_component(vertex_format_data::UVEC, stride, ptr + up_offset);
+				}
+				
 				zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
 
 				if ( !Cmdline_no_deferred_lighting ) {
@@ -2407,18 +2355,18 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	int render_pass = 0;
 
 	if ( flags & TMAP_ANIMATED_SHADER ) {
-		Current_uniforms.setUniformf("anim_timer", opengl_shader_get_animated_timer());
-		Current_uniforms.setUniformi("effect_num", opengl_shader_get_animated_effect());
-		Current_uniforms.setUniformf("vpwidth", 1.0f/gr_screen.max_w);
-		Current_uniforms.setUniformf("vpheight", 1.0f/gr_screen.max_h);
+		GL_state.Uniform.setUniformf("anim_timer", opengl_shader_get_animated_timer());
+		GL_state.Uniform.setUniformi("effect_num", opengl_shader_get_animated_effect());
+		GL_state.Uniform.setUniformf("vpwidth", 1.0f/gr_screen.max_w);
+		GL_state.Uniform.setUniformf("vpheight", 1.0f/gr_screen.max_h);
 	}
 
 	int num_lights = MIN(Num_active_gl_lights, GL_max_lights) - 1;
-	Current_uniforms.setUniformi("n_lights", num_lights);
-	Current_uniforms.setUniformf( "light_factor", GL_light_factor );
+	GL_state.Uniform.setUniformi("n_lights", num_lights);
+	GL_state.Uniform.setUniformf( "light_factor", GL_light_factor );
 	
 	if ( shader_flags & SDR_FLAG_CLIP ) {
-		Current_uniforms.setUniformi("use_clip_plane", G3_user_clip);
+		GL_state.Uniform.setUniformi("use_clip_plane", G3_user_clip);
 
 		if ( G3_user_clip ) {
 			vec3d normal, pos;
@@ -2447,25 +2395,24 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 			model_matrix.a1d[14] = Object_position.xyz.z;
 			model_matrix.a1d[15] = 1.0f;
 
-			Current_uniforms.setUniform3f("clip_normal", normal);
-			Current_uniforms.setUniform3f("clip_position", pos);
-			Current_uniforms.setUniformMatrix4f("world_matrix", 0, model_matrix);
-			//Current_uniforms.queueUniform4f("clip_plane", clip_plane_equation);
+			GL_state.Uniform.setUniform3f("clip_normal", normal);
+			GL_state.Uniform.setUniform3f("clip_position", pos);
+			GL_state.Uniform.setUniformMatrix4f("world_matrix", 0, model_matrix);
 		}
 	}
 
 	if ( shader_flags & SDR_FLAG_DIFFUSE_MAP ) {
-		Current_uniforms.setUniformi("sBasemap", render_pass);
+		GL_state.Uniform.setUniformi("sBasemap", render_pass);
 		
 		int desaturate = 0;
 		if ( flags & TMAP_FLAG_DESATURATE ) {
 			desaturate = 1;
 		}
 
-		Current_uniforms.setUniformi("desaturate", desaturate);
-		Current_uniforms.setUniformf("desaturate_r", gr_screen.current_color.red/255.0f);
-		Current_uniforms.setUniformf("desaturate_g", gr_screen.current_color.green/255.0f);
-		Current_uniforms.setUniformf("desaturate_b", gr_screen.current_color.blue/255.0f);
+		GL_state.Uniform.setUniformi("desaturate", desaturate);
+		GL_state.Uniform.setUniformf("desaturate_r", gr_screen.current_color.red/255.0f);
+		GL_state.Uniform.setUniformf("desaturate_g", gr_screen.current_color.green/255.0f);
+		GL_state.Uniform.setUniformf("desaturate_b", gr_screen.current_color.blue/255.0f);
 
 		gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale, render_pass);
 
@@ -2473,7 +2420,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	}
 
 	if ( shader_flags & SDR_FLAG_GLOW_MAP ) {
-		Current_uniforms.setUniformi("sGlowmap", render_pass);
+		GL_state.Uniform.setUniformi("sGlowmap", render_pass);
 
 		gr_opengl_tcache_set(GLOWMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
@@ -2481,7 +2428,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	}
 
 	if ( shader_flags & SDR_FLAG_SPEC_MAP ) {
-		Current_uniforms.setUniformi("sSpecmap", render_pass);
+		GL_state.Uniform.setUniformi("sSpecmap", render_pass);
 
 		gr_opengl_tcache_set(SPECMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
@@ -2497,9 +2444,9 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 				texture_mat.a1d[i] = GL_env_texture_matrix[i];
 			}
 
-			Current_uniforms.setUniformi("alpha_spec", alpha_spec);
-			Current_uniforms.setUniformMatrix4fv("envMatrix", 1, GL_FALSE, &texture_mat);
-			Current_uniforms.setUniformi("sEnvmap", render_pass);
+			GL_state.Uniform.setUniformi("alpha_spec", alpha_spec);
+			GL_state.Uniform.setUniformMatrix4fv("envMatrix", 1, GL_FALSE, &texture_mat);
+			GL_state.Uniform.setUniformi("sEnvmap", render_pass);
 
 			gr_opengl_tcache_set(ENVMAP, TCACHE_TYPE_CUBEMAP, &u_scale, &v_scale, render_pass);
 
@@ -2508,7 +2455,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	}
 
 	if ( shader_flags & SDR_FLAG_NORMAL_MAP ) {
-		Current_uniforms.setUniformi("sNormalmap", render_pass);
+		GL_state.Uniform.setUniformi("sNormalmap", render_pass);
 
 		gr_opengl_tcache_set(NORMMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
@@ -2516,7 +2463,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	}
 
 	if ( shader_flags & SDR_FLAG_HEIGHT_MAP ) {
-		Current_uniforms.setUniformi("sHeightmap", render_pass);
+		GL_state.Uniform.setUniformi("sHeightmap", render_pass);
 		
 		gr_opengl_tcache_set(HEIGHTMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
@@ -2524,7 +2471,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	}
 
 	if ( shader_flags & SDR_FLAG_MISC_MAP ) {
-		Current_uniforms.setUniformi("sMiscmap", render_pass);
+		GL_state.Uniform.setUniformi("sMiscmap", render_pass);
 
 		gr_opengl_tcache_set(MISCMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
@@ -2556,14 +2503,14 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 			}
 		}
 
-		Current_uniforms.setUniformMatrix4f("shadow_mv_matrix", GL_FALSE, l_matrix);
-		Current_uniforms.setUniformMatrix4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
-		Current_uniforms.setUniformMatrix4f("model_matrix", GL_FALSE, model_matrix);
-		Current_uniforms.setUniformf("veryneardist", shadow_veryneardist);
-		Current_uniforms.setUniformf("neardist", shadow_neardist);
-		Current_uniforms.setUniformf("middist", shadow_middist);
-		Current_uniforms.setUniformf("fardist", shadow_fardist);
-		Current_uniforms.setUniformi("shadow_map", render_pass);
+		GL_state.Uniform.setUniformMatrix4f("shadow_mv_matrix", GL_FALSE, l_matrix);
+		GL_state.Uniform.setUniformMatrix4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
+		GL_state.Uniform.setUniformMatrix4f("model_matrix", GL_FALSE, model_matrix);
+		GL_state.Uniform.setUniformf("veryneardist", shadow_veryneardist);
+		GL_state.Uniform.setUniformf("neardist", shadow_neardist);
+		GL_state.Uniform.setUniformf("middist", shadow_middist);
+		GL_state.Uniform.setUniformf("fardist", shadow_fardist);
+		GL_state.Uniform.setUniformi("shadow_map", render_pass);
 		
 		GL_state.Texture.SetActiveUnit(render_pass);
 		GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY_EXT);
@@ -2581,11 +2528,11 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 			}
 		}
 
-		Current_uniforms.setUniformMatrix4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
+		GL_state.Uniform.setUniformMatrix4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
 	}
 
 	if ( shader_flags & SDR_FLAG_ANIMATED ) {
-		Current_uniforms.setUniformi("sFramebuffer", render_pass);
+		GL_state.Uniform.setUniformi("sFramebuffer", render_pass);
 		
 		GL_state.Texture.SetActiveUnit(render_pass);
 		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
@@ -2601,8 +2548,8 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	}
 
 	if ( shader_flags & SDR_FLAG_TRANSFORM ) {
-		Current_uniforms.setUniformi("transform_tex", render_pass);
-		Current_uniforms.setUniformi("buffer_matrix_offset", GL_transform_buffer_offset);
+		GL_state.Uniform.setUniformi("transform_tex", render_pass);
+		GL_state.Uniform.setUniformi("buffer_matrix_offset", GL_transform_buffer_offset);
 		
 		GL_state.Texture.SetActiveUnit(render_pass);
 		GL_state.Texture.SetTarget(GL_TEXTURE_BUFFER_ARB);
@@ -2626,299 +2573,11 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		base_color.xyz.y = Current_team_color->base.g;
 		base_color.xyz.z = Current_team_color->base.b;
 
-		Current_uniforms.setUniform3f("stripe_color", stripe_color);
-		Current_uniforms.setUniform3f("base_color", base_color);
+		GL_state.Uniform.setUniform3f("stripe_color", stripe_color);
+		GL_state.Uniform.setUniform3f("base_color", base_color);
 	}
 
 	if ( shader_flags & SDR_FLAG_THRUSTER ) {
-		Current_uniforms.setUniformf("thruster_scale", GL_thrust_scale);
+		GL_state.Uniform.setUniformf("thruster_scale", GL_thrust_scale);
 	}
-}
-
-opengl_uniform_state::opengl_uniform_state()
-{
-}
-
-int opengl_uniform_state::findUniform(SCP_string &name)
-{
-	SCP_map<SCP_string, int>::iterator iter;
-	
-	iter = uniform_lookup.find(name);
-
-	if ( iter == uniform_lookup.end() ) {
-		return -1;
-	} else {
-		return iter->second;
-	}
-}
-
-void opengl_uniform_state::setUniformi(SCP_string name, int val)
-{
-	int uniform_index = findUniform(name);
-	bool resident = false;
-
-	if ( uniform_index >= 0) {
-		Assert( (size_t)uniform_index < uniforms.size() );
-
-		uniform_bind *bind_info = &uniforms[uniform_index];
-
-		if ( bind_info->type == uniform_bind::INT ) {
-			if ( uniform_data_ints[bind_info->index] == val ) {
-				return;
-			} 
-
-			uniform_data_ints[bind_info->index] = val;
-			resident = true;
-		}
-	} 
-	
-	if ( !resident ) {
-		// uniform doesn't exist in our previous uniform block so queue this new value
-		uniform_data_ints.push_back(val);
-
-		uniform_bind new_bind;
-
-		new_bind.count = 1;
-		new_bind.index = uniform_data_ints.size() - 1;
-		new_bind.type = uniform_bind::INT;
-		new_bind.name = name;
-		new_bind.tranpose = false;
-
-		uniforms.push_back(new_bind);
-
-		uniform_lookup[name] = uniforms.size()-1;
-	}
-
-	vglUniform1iARB(opengl_shader_get_uniform(name.c_str()), val);
-}
-
-void opengl_uniform_state::setUniformf(SCP_string name, float val)
-{
-	int uniform_index = findUniform(name);
-	bool resident = false;
-
-	if ( uniform_index >= 0) {
-		Assert( (size_t)uniform_index < uniforms.size() );
-
-		uniform_bind *bind_info = &uniforms[uniform_index];
-
-		if ( bind_info->type == uniform_bind::FLOAT ) {
-			if ( fl_equal(uniform_data_floats[bind_info->index], val) ) {
-				return;
-			}
-
-			uniform_data_floats[bind_info->index] = val;
-			resident = true;
-		}
-	} 
-	
-	if ( !resident ) {
-		// uniform doesn't exist in our previous uniform block so queue this new value
-		uniform_data_floats.push_back(val);
-
-		uniform_bind new_bind;
-
-		new_bind.count = 1;
-		new_bind.index = uniform_data_floats.size() - 1;
-		new_bind.type = uniform_bind::FLOAT;
-		new_bind.name = name;
-		new_bind.tranpose = false;
-
-		uniforms.push_back(new_bind);
-
-		uniform_lookup[name] = uniforms.size()-1;
-	}
-
-	vglUniform1fARB(opengl_shader_get_uniform(name.c_str()), val);
-}
-
-void opengl_uniform_state::setUniform3f(SCP_string name, vec3d &val)
-{
-	int uniform_index = findUniform(name);
-	bool resident = false;
-
-	if ( uniform_index >= 0 ) {
-		Assert( (size_t)uniform_index < uniforms.size() );
-
-		uniform_bind *bind_info = &uniforms[uniform_index];
-
-		if ( bind_info->type == uniform_bind::VEC3 ) {
-			if ( vm_vec_equal(uniform_data_vec3d[bind_info->index], val) ) {
-				return;
-			}
-			
-			uniform_data_vec3d[bind_info->index] = val;
-			resident = true;
-		}
-	} 
-	
-	if ( !resident ) {
-		// uniform doesn't exist in our previous uniform block so queue this new value
-		uniform_data_vec3d.push_back(val);
-
-		uniform_bind new_bind;
-
-		new_bind.count = 1;
-		new_bind.index = uniform_data_vec3d.size() - 1;
-		new_bind.type = uniform_bind::VEC3;
-		new_bind.name = name;
-		new_bind.tranpose = false;
-
-		uniforms.push_back(new_bind);
-
-		uniform_lookup[name] = uniforms.size()-1;
-	}
-
-	vglUniform3fARB(opengl_shader_get_uniform(name.c_str()), val.a1d[0], val.a1d[1], val.a1d[2]);
-}
-
-void opengl_uniform_state::setUniform4f(SCP_string name, vec4 &val)
-{
-	int uniform_index = findUniform(name);
-	bool resident = false;
-
-	if ( uniform_index >= 0 ) {
-		Assert( (size_t)uniform_index < uniforms.size() );
-
-		uniform_bind *bind_info = &uniforms[uniform_index];
-
-		if ( bind_info->type == uniform_bind::VEC4 ) {
-			if ( vm_vec_equal(uniform_data_vec4[bind_info->index], val) ) {
-				// if the values are close enough, pass.
-				return;
-			}
-
-			uniform_data_vec4[bind_info->index] = val;
-			resident = true;
-		}
-	} 
-	
-	if ( !resident ) {
-		// uniform doesn't exist in our previous uniform block so queue this new value
-		uniform_data_vec4.push_back(val);
-
-		uniform_bind new_bind;
-
-		new_bind.count = 1;
-		new_bind.index = uniform_data_vec4.size() - 1;
-		new_bind.type = uniform_bind::VEC4;
-		new_bind.name = name;
-		new_bind.tranpose = false;
-
-		uniforms.push_back(new_bind);
-
-		uniform_lookup[name] = uniforms.size()-1;
-	}
-
-	vglUniform4fARB(opengl_shader_get_uniform(name.c_str()), val.a1d[0], val.a1d[1], val.a1d[2], val.a1d[3]);
-}
-
-void opengl_uniform_state::setUniformMatrix4f(SCP_string name, int transpose, matrix4 &val)
-{
-	int uniform_index = findUniform(name);
-	bool resident = false;
-
-	if ( uniform_index >= 0) {
-		Assert( (size_t)uniform_index < uniforms.size() );
-
-		uniform_bind *bind_info = &uniforms[uniform_index];
-
-		if ( bind_info->type == uniform_bind::MATRIX4 && bind_info->count == 1 && bind_info->tranpose == transpose ) {
-			if ( vm_matrix_equal(uniform_data_matrix4[bind_info->index], val) ) {
-				return;
-			}
-			
-			uniform_data_matrix4[bind_info->index] = val;
-			resident = true;
-		}
-	}
-	
-	if ( !resident ) {
-		// uniform doesn't exist in our previous uniform block so queue this new value
-		//matrix_uniform_data[num_matrix_uniforms] = val;
-		//memcpy(&(matrix_uniform_data[num_matrix_uniforms]), &val, sizeof(matrix4));
-		uniform_data_matrix4.push_back(val);
-		//	num_matrix_uniforms += 1;
-
-		uniform_bind new_bind;
-		new_bind.count = 1;
-		new_bind.index = uniform_data_matrix4.size() - 1;
-		//	new_bind.index = num_matrix_uniforms - 1;
-		new_bind.type = uniform_bind::MATRIX4;
-		new_bind.name = name;
-		new_bind.tranpose = transpose;
-
-		uniforms.push_back(new_bind);
-
-		uniform_lookup[name] = uniforms.size()-1;
-	}
-
-	vglUniformMatrix4fvARB(opengl_shader_get_uniform(name.c_str()), 1, transpose, (const GLfloat*)&val);
-}
-
-void opengl_uniform_state::setUniformMatrix4fv(SCP_string name, int count, int transpose, matrix4 *val)
-{
- 	int uniform_index = findUniform(name);
-	bool resident = false;
-
-	if ( uniform_index >= 0) {
-		Assert( (size_t)uniform_index < uniforms.size() );
-
-		uniform_bind *bind_info = &uniforms[uniform_index];
-
-		if ( bind_info->type == uniform_bind::MATRIX4 && bind_info->count == count ) {
-			bool equal = true;
-
-			// if the values are close enough, pass.
-			for ( int i = 0; i < count; ++i ) {
-				if ( !vm_matrix_equal(val[i], uniform_data_matrix4[bind_info->index+i]) ) {
-					equal = false;
-					break;
-				}
-			}
-
-			if ( equal ) {
-				return;
-			}
-			
-			resident = true;
-			for ( int i = 0; i < count; ++i ) {
-				uniform_data_matrix4[bind_info->index+i] = val[i];
-			}
-		}
-	}
-
-	if ( !resident ) {
-		// uniform doesn't exist in our previous uniform block so queue this new value
-		for ( int i = 0; i < count; ++i ) {
-			uniform_data_matrix4.push_back(val[i]);
-		}
-
-		uniform_bind new_bind;
-		new_bind.count = count;
-		new_bind.index = uniform_data_matrix4.size() - count;
-	//	new_bind.index = num_matrix_uniforms - count;
-		new_bind.type = uniform_bind::MATRIX4;
-		new_bind.name = name;
-		new_bind.tranpose = transpose;
-	
-		uniforms.push_back(new_bind);
-
-		uniform_lookup[name] = uniforms.size()-1;
-	}
-
-	vglUniformMatrix4fvARB(opengl_shader_get_uniform(name.c_str()), uniforms[uniform_index].count, (GLboolean)uniforms[uniform_index].tranpose, (const GLfloat*)val);
-}
-
-void opengl_uniform_state::reset()
-{
-	uniforms.clear();
-
-	uniform_data_ints.clear();
-	uniform_data_floats.clear();
-	uniform_data_vec3d.clear();
-	uniform_data_vec4.clear();
-	uniform_data_matrix4.clear();
-
-	uniform_lookup.clear();
 }

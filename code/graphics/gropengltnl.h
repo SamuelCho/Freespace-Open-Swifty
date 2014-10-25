@@ -25,66 +25,6 @@ extern GLint GL_max_elements_indices;
 class poly_list;
 class vertex_buffer;
 
-#define TEX_SLOT_DIFFUSE	0
-#define TEX_SLOT_GLOW		1
-#define TEX_SLOT_SPEC		2
-#define TEX_SLOT_ENV		3
-#define TEX_SLOT_NORMAL		4
-#define TEX_SLOT_HEIGHT		5
-#define TEX_SLOT_MISC		6
-#define TEX_SLOT_SHADOW		7
-#define TEX_SLOT_TRANSFORM	8
-#define TEX_SLOT_ANIMATED	9
-
-#define TEX_SLOT_MAX		10
-
-struct uniform_bind
-{
-	SCP_string name;
-
-	enum data_type {
-		INT,
-		FLOAT,
-		VEC3,
-		VEC4,
-		MATRIX4
-	};
-
-	uniform_bind::data_type type;
-	int index;
-
-	int count;
-	int tranpose;
-};
-
-class opengl_uniform_state
-{
-	SCP_vector<uniform_bind> uniforms;
-
-	SCP_vector<int> uniform_data_ints;
-	SCP_vector<float> uniform_data_floats;
-	SCP_vector<vec3d> uniform_data_vec3d;
-	SCP_vector<vec4> uniform_data_vec4;
-	SCP_vector<matrix4> uniform_data_matrix4;
-
-	SCP_map<SCP_string, int> uniform_lookup;
-
-	int findUniform(SCP_string &name);
-public:
-	opengl_uniform_state();
-
-	void setUniformi(SCP_string name, int value);
-	void setUniformf(SCP_string name, float value);
-	void setUniform3f(SCP_string name, vec3d &value);
-	void setUniform4f(SCP_string name, vec4 &val);
-	void setUniformMatrix4fv(SCP_string name, int count, int transpose, matrix4 *value);
-	void setUniformMatrix4f(SCP_string name, int transpose, matrix4 &val);
-
-	void reset();
-};
-
-extern opengl_uniform_state Current_uniforms;
-
 extern float shadow_veryneardist;
 extern float shadow_neardist;
 extern float shadow_middist;

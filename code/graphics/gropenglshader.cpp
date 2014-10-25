@@ -82,18 +82,15 @@ static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main)
 static opengl_shader_file_t GL_effect_shader_files[] = {
 
 	// soft particles
-	{ "effect-v.sdr", "effect-particle-f.sdr", 0, SDR_EFFECT_SOFT_QUAD, 7, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth"}, 1, {"radius_in"} },
+	{ "effect-v.sdr", "effect-particle-f.sdr", 0, SDR_EFFECT_SOFT_QUAD, 7, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth"}, 1, {"radius"} },
 
 	// geometry shader soft particles
 	{ "effect-v.sdr", "effect-particle-f.sdr", "effect-screen-g.sdr", SDR_EFFECT_SOFT_QUAD | SDR_EFFECT_GEOMETRY, 7, 
-		{"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth"}, 2, {"radius_in", "up"}, },
+		{"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth"}, 2, {"radius", "uvec"}, },
 
 	// distortion effect
 	{ "effect-v.sdr", "effect-distort-f.sdr", 0, SDR_EFFECT_DISTORTION, 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 
-		1, { "offset_in" } },
-
-	// geometry shader trails
-	{ "effect-v.sdr", "effect-f.sdr", "effect-ribbon-g.sdr", SDR_EFFECT_TRAILS | SDR_EFFECT_GEOMETRY, 1, {"baseMap"}, 3, { "fvec", "intensity", "width" } }
+		1, { "offset_in" } }
 
 	// { char *vert, char *frag, char *geo, int flags, int num_uniforms, char* uniforms[MAX_SHADER_UNIFORMS], int num_attributes, char* attributes[MAX_SDR_ATTRIBUTES] }
 };
@@ -115,7 +112,7 @@ void opengl_shader_set_current(opengl_shader_t *shader_obj)
 		if(!Current_shader || (Current_shader->program_id != shader_obj->program_id)) {
 			Current_shader = shader_obj;
 			vglUseProgramObjectARB(Current_shader->program_id);
-			Current_uniforms.reset();
+			GL_state.Uniform.reset();
 #ifndef NDEBUG
 			if ( opengl_check_for_errors("shader_set_current()") ) {
 				vglValidateProgramARB(Current_shader->program_id);
@@ -1110,12 +1107,12 @@ void opengl_shader_compile_deferred_light_shader()
 	opengl_shader_init_uniform( "cone_inner_angle" );
 	opengl_shader_init_uniform( "spec_factor" );
 
-	vglUniform1iARB( opengl_shader_get_uniform("NormalBuffer"), 0 );
-	vglUniform1iARB( opengl_shader_get_uniform("PositionBuffer"), 1 );
-	vglUniform1iARB( opengl_shader_get_uniform("SpecBuffer"), 2 );
-	vglUniform1fARB( opengl_shader_get_uniform("vpwidth"), 1.0f/gr_screen.max_w );
-	vglUniform1fARB( opengl_shader_get_uniform("vpheight"), 1.0f/gr_screen.max_h );
-	vglUniform1fARB( opengl_shader_get_uniform("spec_factor"), Cmdline_ogl_spec );
+	GL_state.Uniform.setUniformi( "NormalBuffer", 0 );
+	GL_state.Uniform.setUniformi( "PositionBuffer", 1 );
+	GL_state.Uniform.setUniformi( "SpecBuffer", 2 );
+	GL_state.Uniform.setUniformf( "vpwidth", 1.0f/gr_screen.max_w );
+	GL_state.Uniform.setUniformf( "vpheight", 1.0f/gr_screen.max_h );
+	GL_state.Uniform.setUniformf( "spec_factor", Cmdline_ogl_spec );
 
 
 	opengl_shader_set_current();

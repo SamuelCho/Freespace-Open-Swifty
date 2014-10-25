@@ -218,6 +218,8 @@ void vm_vec_scale_add2(vec3d *dest,vec3d *src,float k);
 void vm_vec_scale2(vec3d *dest,float n,float d);
 #endif
 
+bool vm_vec_equal(const vec2d &self, const vec2d &other);
+
 bool vm_vec_equal(const vec3d &self, const vec3d &other);
 
 bool vm_vec_equal(const vec4 &self, const vec4 &other);

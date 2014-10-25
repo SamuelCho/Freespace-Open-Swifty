@@ -278,6 +278,56 @@ class opengl_array_state
 		void BindUniformBufferBindingIndex(GLuint id, GLuint index);
 };
 
+struct uniform_bind
+{
+	SCP_string name;
+
+	enum data_type {
+		INT,
+		FLOAT,
+		VEC2,
+		VEC3,
+		VEC4,
+		MATRIX4
+	};
+
+	uniform_bind::data_type type;
+	int index;
+
+	int count;
+	int tranpose;
+};
+
+class opengl_uniform_state
+{
+	SCP_vector<uniform_bind> uniforms;
+
+	SCP_vector<int> uniform_data_ints;
+	SCP_vector<float> uniform_data_floats;
+	SCP_vector<vec2d> uniform_data_vec2d;
+	SCP_vector<vec3d> uniform_data_vec3d;
+	SCP_vector<vec4> uniform_data_vec4;
+	SCP_vector<matrix4> uniform_data_matrix4;
+
+	SCP_map<SCP_string, int> uniform_lookup;
+
+	int findUniform(SCP_string &name);
+public:
+	opengl_uniform_state();
+
+	void setUniformi(SCP_string name, int value);
+	void setUniformf(SCP_string name, float value);
+	void setUniform2f(SCP_string name, float x, float y);
+	void setUniform2f(SCP_string name, vec2d &val);
+	void setUniform3f(SCP_string name, float x, float y, float z);
+	void setUniform3f(SCP_string name, vec3d &value);
+	void setUniform4f(SCP_string name, vec4 &val);
+	void setUniformMatrix4fv(SCP_string name, int count, int transpose, matrix4 *value);
+	void setUniformMatrix4f(SCP_string name, int transpose, matrix4 &val);
+
+	void reset();
+};
+
 class opengl_state
 {
 	friend class opengl_texture_state;
@@ -330,7 +380,7 @@ class opengl_state
 
 		opengl_texture_state Texture;
 		opengl_array_state Array;
-		//opengl_uniform_state Uniform;
+		opengl_uniform_state Uniform;
 
 		void SetTextureSource(gr_texture_source ts);
 		void SetAlphaBlendMode(gr_alpha_blend ab);
