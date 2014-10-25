@@ -70,7 +70,7 @@ static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
 	{ SDR_FLAG_SHADOW_MAP,	2, { "shadow_map_num", "shadow_proj_matrix" }, 0, { NULL }, 0, {}, "Shadow Mapping" },
 	{ SDR_FLAG_SHADOWS,		8, { "shadow_map", "shadow_mv_matrix", "shadow_proj_matrix", "model_matrix", "veryneardist", "neardist", "middist", "fardist" }, 0, { NULL }, 0, {}, "Shadows" },
 	{ SDR_FLAG_THRUSTER,	1, {"thruster_scale"}, 0, { NULL }, 0, {}, "Thruster scaling" },
-	{ SDR_FLAG_TRANSFORM,	2, {"transform_tex", "buffer_matrix_offset"}, 1, {"attrib_model_id"}, 0, { NULL }, "Submodel Transforms" },
+	{ SDR_FLAG_TRANSFORM,	2, {"transform_tex", "buffer_matrix_offset"}, 1, {"model_id"}, 0, { NULL }, "Submodel Transforms" },
 	{ SDR_FLAG_CLIP,		4, {"use_clip_plane", "world_matrix", "clip_normal", "clip_position"}, 0, { NULL }, 0, { NULL }, "Clip Plane" }
 };
 
