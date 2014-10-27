@@ -1749,67 +1749,18 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 			if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) )
 			{
 				glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
-				sdr_index = opengl_shader_get_effect_shader(SDR_EFFECT_DISTORTION);
-				if (sdr_index == -1) {
-					//If we failed to compile a shader for this for whatever reason, bail out and make sure we don't get to this point again
-					Use_Shaders_for_effect_rendering = false;
-					return;
-				}
-				opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
-				
-				GL_state.Uniform.setUniformi("frameBuffer", 2);
-				
-				GL_state.Texture.SetActiveUnit(2);
-				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-				GL_state.Texture.Enable(Scene_effect_texture);
-				GL_state.Texture.SetActiveUnit(3);
-				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-				if(flags & TMAP_FLAG_DISTORTION_THRUSTER)
-				{
-					GL_state.Uniform.setUniformi("distMap", 3);
-					GL_state.Texture.Enable(Distortion_texture[!Distortion_switch]);
-				}
-				else
-				{
-					GL_state.Uniform.setUniformi("distMap", 0);
-					GL_state.Texture.Disable();
-				}
+
+				opengl_tnl_set_material_distortion(flags);
+
 				zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
 			}
 			else
 			{
-				sdr_index = opengl_shader_get_effect_shader(SDR_EFFECT_SOFT_QUAD);
-				if (sdr_index == -1) {
-					Use_Shaders_for_effect_rendering = false;
-					return;
-				}
-				opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
+				opengl_tnl_set_material_soft_particle(flags);
 				zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
 			}
-
-			GL_state.Uniform.setUniformi("baseMap", 0);
-			GL_state.Uniform.setUniformi("depthMap", 1);
-			GL_state.Uniform.setUniformf("window_width", (float)gr_screen.max_w);
-			GL_state.Uniform.setUniformf("window_height", (float)gr_screen.max_h);
-			GL_state.Uniform.setUniformf("nearZ", Min_draw_distance);
-			GL_state.Uniform.setUniformf("farZ", Max_draw_distance);
-			GL_state.Uniform.setUniformf("use_offset", 0.0f);
-			GL_state.Uniform.setUniformi("linear_depth", 0);
-
-			if( !(flags & TMAP_FLAG_DISTORTION) && !(flags & TMAP_FLAG_DISTORTION_THRUSTER) ) // Only use vertex attribute with soft particles to avoid OpenGL Errors - Valathil
-			{
-				vert_def.add_vertex_component(vertex_format_data::RADIUS, 0, radius_list);
-
-			}
-			if(flags & TMAP_FLAG_DISTORTION_THRUSTER)
-			{
-				vert_def.add_vertex_component(vertex_format_data::RADIUS, 0, radius_list);
-
-				GL_state.Uniform.setUniformf("use_offset", 1.0f);
-			}
-			GL_state.Texture.SetActiveUnit(1);
-			GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-			GL_state.Texture.Enable(Scene_depth_texture);
+			
+			vert_def.add_vertex_component(vertex_format_data::RADIUS, 0, radius_list);
 		}
 		
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
@@ -3342,7 +3293,7 @@ void gr_opengl_deferred_lighting_finish()
 	gr_zbuffer_set(zbuff);
 	opengl_shader_set_current( 0 );
 
-	gr_flush_data_states();
+	gr_clear_states();
 }
 
 void gr_opengl_update_distortion()

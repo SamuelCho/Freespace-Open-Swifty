@@ -3200,7 +3200,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	}
 
 	if ( !Interp_no_flush ) {
-		gr_flush_data_states();
+		gr_clear_states();
 
 		if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
 			gr_set_buffer(-1);
@@ -3459,7 +3459,7 @@ void submodel_render_DEPRECATED(int model_num, int submodel_num, matrix *orient,
 		gr_fog_set(GR_FOGMODE_NONE, 0, 0, 0);
 	}
 
-	gr_flush_data_states();
+	gr_clear_states();
 }
 
 // Fills in an array with points from a model.

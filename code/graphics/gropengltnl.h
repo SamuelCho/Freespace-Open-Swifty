@@ -62,9 +62,7 @@ void gr_opengl_update_transform_buffer(void* data, uint size);
 void gr_opengl_set_transform_buffer_offset(int offset);
 
 int gr_opengl_create_stream_buffer_object();
-void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags);
-void gr_opengl_render_stream_buffer_start(int buffer_id);
-void gr_opengl_render_stream_buffer_end();
+void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, int flags);
 
 void gr_opengl_start_state_block();
 int gr_opengl_end_state_block();
@@ -75,6 +73,9 @@ void gr_opengl_set_team_color(team_color *colors);
 void gr_opengl_disable_team_color();
 
 void opengl_tnl_shutdown();
+
 void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type);
+void opengl_tnl_set_material_distortion(uint flags);
+void opengl_tnl_set_material_soft_particle(uint flags);
 
 #endif //_GROPENGLTNL_H

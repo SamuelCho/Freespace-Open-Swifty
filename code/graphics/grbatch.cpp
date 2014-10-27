@@ -560,7 +560,7 @@ void geometry_batcher::load_buffer(effect_vertex* buffer, int *n_verts)
 	*n_verts = *n_verts + verts_to_render;
 }
 
-void geometry_batcher::render_buffer(int flags)
+void geometry_batcher::render_buffer(int buffer_handle, int flags)
 {
 	if ( buffer_offset < 0 ) {
 		return;
@@ -569,15 +569,19 @@ void geometry_batcher::render_buffer(int flags)
 	if ( !n_to_render ) {
 		return;
 	}
+
+	if ( buffer_handle < 0 ) {
+		return;
+	}
 	
-	gr_render_stream_buffer(buffer_offset, n_to_render * 3, flags | TMAP_FLAG_TRILIST);
+	gr_render_stream_buffer(buffer_handle, buffer_offset, n_to_render * 3, flags | TMAP_FLAG_TRILIST);
 	
 	use_radius = true;
 	n_to_render = 0;
 	buffer_offset = -1;
 }
 
-void geometry_shader_batcher::render_buffer(int flags)
+void geometry_shader_batcher::render_buffer(int buffer_handle, int flags)
 {
 	if ( buffer_offset < 0 ) {
 		return;
@@ -587,7 +591,11 @@ void geometry_shader_batcher::render_buffer(int flags)
 		return;
 	}
 
-	gr_render_stream_buffer(buffer_offset, vertices.size(), flags | TMAP_FLAG_POINTLIST);
+	if ( buffer_handle < 0 ) {
+		return;
+	}
+
+	gr_render_stream_buffer(buffer_handle, buffer_offset, vertices.size(), flags | TMAP_FLAG_POINTLIST);
 
 	vertices.clear();
 	buffer_offset = -1;
@@ -772,7 +780,7 @@ float batch_add_laser(int texture, vec3d *p0, float width1, vec3d *p1, float wid
 
 	item->batch.add_allocate(1);
 
-	int num = item->batch.draw_laser(p0, width1, p1, width2, r, g, b);
+	float num = item->batch.draw_laser(p0, width1, p1, width2, r, g, b);
 
 	return num;
 }
@@ -1063,7 +1071,7 @@ int batch_add_beam(int texture, int tmap_flags, vec3d *start, vec3d *end, float 
 	return 0;
 }
 
-void batch_render_lasers(bool stream_buffer)
+void batch_render_lasers(int buffer_handle)
 {
 	for (SCP_map<int, batch_item>::iterator bi = geometry_map.begin(); bi != geometry_map.end(); ++bi) {
 
@@ -1075,8 +1083,8 @@ void batch_render_lasers(bool stream_buffer)
 
 		Assert( bi->second.texture >= 0 );
 		gr_set_bitmap(bi->second.texture, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 0.99999f);
-		if ( stream_buffer ) {
-			bi->second.batch.render_buffer(TMAP_FLAG_TEXTURED | TMAP_FLAG_XPARENT | TMAP_HTL_3D_UNLIT | TMAP_FLAG_RGB | TMAP_FLAG_GOURAUD | TMAP_FLAG_CORRECT);
+		if ( buffer_handle >= 0 ) {
+			bi->second.batch.render_buffer(buffer_handle, TMAP_FLAG_TEXTURED | TMAP_FLAG_XPARENT | TMAP_HTL_3D_UNLIT | TMAP_FLAG_RGB | TMAP_FLAG_GOURAUD | TMAP_FLAG_CORRECT);
 		} else {
 			bi->second.batch.render(TMAP_FLAG_TEXTURED | TMAP_FLAG_XPARENT | TMAP_HTL_3D_UNLIT | TMAP_FLAG_RGB | TMAP_FLAG_GOURAUD | TMAP_FLAG_CORRECT);
 		}
@@ -1098,7 +1106,7 @@ void batch_load_buffer_lasers(effect_vertex* buffer, int *n_verts)
 	}
 }
 
-void batch_render_geometry_map_bitmaps(bool stream_buffer)
+void batch_render_geometry_map_bitmaps(int buffer_handle)
 {
 	for (SCP_map<int, batch_item>::iterator bi = geometry_map.begin(); bi != geometry_map.end(); ++bi) {
 
@@ -1110,15 +1118,15 @@ void batch_render_geometry_map_bitmaps(bool stream_buffer)
 
 		Assert( bi->second.texture >= 0 );
 		gr_set_bitmap(bi->second.texture, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, bi->second.alpha);
-		if ( stream_buffer ) {
-			bi->second.batch.render_buffer(bi->second.tmap_flags);
+		if ( buffer_handle >= 0 ) {
+			bi->second.batch.render_buffer(buffer_handle, bi->second.tmap_flags);
 		} else {
 			bi->second.batch.render( bi->second.tmap_flags);
 		}
 	}
 }
 
-void batch_render_geometry_shader_map_bitmaps()
+void batch_render_geometry_shader_map_bitmaps(int buffer_handle)
 {
 	for (SCP_map<int, g_sdr_batch_item>::iterator bi = geometry_shader_map.begin(); bi != geometry_shader_map.end(); ++bi) {
 
@@ -1130,7 +1138,7 @@ void batch_render_geometry_shader_map_bitmaps()
 
 		Assert( bi->second.texture >= 0 );
 		gr_set_bitmap(bi->second.texture, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, bi->second.alpha);
-		bi->second.batch.render_buffer(bi->second.tmap_flags);
+		bi->second.batch.render_buffer(buffer_handle, bi->second.tmap_flags);
 	}
 }
 
@@ -1184,11 +1192,9 @@ void geometry_batch_render(int stream_buffer)
 
 	batch_load_buffer_geometry_shader_map_bitmaps((particle_pnt*)Batch_geometry_buffer, &n_verts);
 
-	gr_render_stream_buffer_start(stream_buffer);
 	gr_update_buffer_object(stream_buffer, Batch_geometry_buffer_size, Batch_geometry_buffer);
 
-	batch_render_geometry_shader_map_bitmaps();
-	gr_render_stream_buffer_end();
+	batch_render_geometry_shader_map_bitmaps(stream_buffer);
 }
 
 void batch_render_all(int stream_buffer)
@@ -1206,8 +1212,6 @@ void batch_render_all(int stream_buffer)
 			Batch_buffer_size = n_to_render * sizeof(effect_vertex);
 			Batch_buffer = vm_malloc(Batch_buffer_size);
 		}
-
-		gr_render_stream_buffer_start(stream_buffer);
 		
 		batch_load_buffer_lasers((effect_vertex*)Batch_buffer, &n_verts);
 		batch_load_buffer_geometry_map_bitmaps((effect_vertex*)Batch_buffer, &n_verts);
@@ -1216,15 +1220,16 @@ void batch_render_all(int stream_buffer)
 
 		Assert(n_verts <= n_to_render);
 
-		batch_render_lasers(true);
-		batch_render_geometry_map_bitmaps(true);
+		batch_render_lasers(stream_buffer);
+		batch_render_geometry_map_bitmaps(stream_buffer);
 		//batch_render_distortion_map_bitmaps(true);
-		gr_render_stream_buffer_end();
 	} else {
 		batch_render_lasers();
 		batch_render_geometry_map_bitmaps();
 		//batch_render_distortion_map_bitmaps();
 	}
+
+	gr_clear_states();
 }
 
 void batch_reset()
@@ -1303,7 +1308,7 @@ int distortion_add_beam(int texture, int tmap_flags, vec3d *start, vec3d *end, f
 	return 0;
 }
 
-void batch_render_distortion_map_bitmaps(bool stream_buffer)
+void batch_render_distortion_map_bitmaps(int buffer_handle)
 {
 	for (SCP_map<int,batch_item>::iterator bi = distortion_map.begin(); bi != distortion_map.end(); ++bi) {
 
@@ -1316,8 +1321,8 @@ void batch_render_distortion_map_bitmaps(bool stream_buffer)
 		Assert( bi->second.texture >= 0 );
 		gr_set_bitmap(bi->second.texture, GR_ALPHABLEND_NONE, GR_BITBLT_MODE_NORMAL, bi->second.alpha);
 
-		if ( stream_buffer ) {
-			bi->second.batch.render_buffer(bi->second.tmap_flags);
+		if ( buffer_handle >= 0 ) {
+			bi->second.batch.render_buffer(buffer_handle, bi->second.tmap_flags);
 		} else {
 			bi->second.batch.render( bi->second.tmap_flags);
 		}

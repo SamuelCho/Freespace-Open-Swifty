@@ -172,7 +172,7 @@ int opengl_create_buffer_object(GLenum type, GLenum usage)
 	return GL_buffer_objects.size() - 1;
 }
 
-void gr_opengl_update_buffer_object(int handle, uint size, void* data)
+void opengl_bind_buffer_object(int handle)
 {
 	Assert(handle >= 0);
 	Assert((size_t)handle < GL_buffer_objects.size());
@@ -196,6 +196,16 @@ void gr_opengl_update_buffer_object(int handle, uint size, void* data)
 		return;
 		break;
 	}
+}
+
+void gr_opengl_update_buffer_object(int handle, uint size, void* data)
+{
+	Assert(handle >= 0);
+	Assert((size_t)handle < GL_buffer_objects.size());
+
+	opengl_buffer_object &buffer_obj = GL_buffer_objects[handle];
+
+	opengl_bind_buffer_object(handle);
 
 	GL_vertex_data_in -= buffer_obj.size;
 	buffer_obj.size = size;
@@ -1367,43 +1377,11 @@ void gr_opengl_render_buffer(int start, const vertex_buffer *bufferp, int texi, 
 	GL_CHECK_FOR_ERRORS("end of render_buffer()");
 }
 
-GLboolean Stream_cull;
-GLboolean Stream_lighting;
-int Stream_zbuff_mode;
-void gr_opengl_render_stream_buffer_start(int buffer_id)
-{
-	Assert( buffer_id >= 0 );
-	Assert( buffer_id < (int)GL_vertex_buffers.size() );
-
-	GL_state.Array.BindArrayBuffer(GL_vertex_buffers[buffer_id].vbo);
-
-	Stream_cull = GL_state.CullFace(GL_FALSE);
-	Stream_lighting = GL_state.Lighting(GL_FALSE);
-	Stream_zbuff_mode = gr_zbuffer_set(GR_ZBUFF_READ);
-
-	opengl_shader_set_current();
-}
-
-void gr_opengl_render_stream_buffer_end()
-{
-	GL_state.Array.BindArrayBuffer(0);
-
-	gr_opengl_flush_data_states();
-
-	opengl_shader_set_current();
-
-	GL_state.Texture.DisableAll();
-
-	GL_state.CullFace(Stream_cull);
-	GL_state.Lighting(Stream_lighting);
-	gr_zbuffer_set(Stream_zbuff_mode);
-}
-
 extern GLuint Scene_depth_texture;
 extern GLuint Scene_position_texture;
 extern GLuint Distortion_texture[2];
 extern int Distortion_switch;
-void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
+void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, int flags)
 {
 	int alpha, tmap_type, r, g, b;
 	float u_scale = 1.0f, v_scale = 1.0f;
@@ -1423,7 +1401,6 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 	int color_offset = -1;
 	int up_offset = -1;
 
-	// this shit is pretty ugly. i'll make a cleaner render function once i know this works (Swifty)
 	if ( flags & TMAP_FLAG_VERTEX_GEN ) {	
 		stride = sizeof(particle_pnt);
 
@@ -1454,6 +1431,8 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 
 	opengl_setup_render_states(r, g, b, alpha, tmap_type, flags);
 
+	opengl_bind_buffer_object(buffer_handle);
+
 	vertex_layout vert_def;
 
 	if ( flags & TMAP_FLAG_TEXTURED ) {
@@ -1461,71 +1440,18 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 			int sdr_index;
 
 			if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) ) {
-				sdr_index = opengl_shader_get_effect_shader(SDR_EFFECT_DISTORTION);
+				opengl_tnl_set_material_distortion(flags);
 
 				glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
-
-				opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
-
-				GL_state.Uniform.setUniformi("baseMap", 0);
-				GL_state.Uniform.setUniformi("depthMap", 1);
-				GL_state.Uniform.setUniformf("window_width", (float)gr_screen.max_w);
-				GL_state.Uniform.setUniformf("window_height", (float)gr_screen.max_h);
-				GL_state.Uniform.setUniformf("nearZ", Min_draw_distance);
-				GL_state.Uniform.setUniformf("farZ", Max_draw_distance);
-
-				GL_state.Uniform.setUniformi("frameBuffer", 2);
 
 				if ( radius_offset >= 0 ) {
 					vert_def.add_vertex_component(vertex_format_data::RADIUS, stride, ptr + radius_offset);
 				}
-
-				GL_state.Texture.SetActiveUnit(2);
-				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-				GL_state.Texture.Enable(Scene_effect_texture);
-				
-				if(flags & TMAP_FLAG_DISTORTION_THRUSTER) {
-					GL_state.Uniform.setUniformi("distMap", 3);
-
-					GL_state.Texture.SetActiveUnit(3);
-					GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-					GL_state.Texture.Enable(Distortion_texture[!Distortion_switch]);
-					GL_state.Uniform.setUniformf("use_offset", 1.0f);
-				} else {
-					GL_state.Uniform.setUniformi("distMap", 0);
-					GL_state.Uniform.setUniformf("use_offset", 0.0f);
-				}
-
 				zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
-
-				Assert(Scene_depth_texture != 0);
-
-				GL_state.Texture.SetActiveUnit(1);
-				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-				GL_state.Texture.Enable(Scene_depth_texture);
 			} else if ( Cmdline_softparticles ) {
-				uint sdr_effect_flags = SDR_EFFECT_SOFT_QUAD;
+				opengl_tnl_set_material_soft_particle(flags);
 
-				if ( flags & TMAP_FLAG_VERTEX_GEN ) {
-					sdr_effect_flags |= SDR_EFFECT_GEOMETRY;
-				}
-
-				sdr_index = opengl_shader_get_effect_shader(sdr_effect_flags);
-
-				opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
-
-				GL_state.Uniform.setUniformi("baseMap", 0);
-				GL_state.Uniform.setUniformi("depthMap", 1);
-				GL_state.Uniform.setUniformf("window_width", (float)gr_screen.max_w);
-				GL_state.Uniform.setUniformf("window_height", (float)gr_screen.max_h);
-				GL_state.Uniform.setUniformf("nearZ", Min_draw_distance);
-				GL_state.Uniform.setUniformf("farZ", Max_draw_distance);
-					
-				if ( Cmdline_no_deferred_lighting ) {
-					GL_state.Uniform.setUniformi("linear_depth", 0);
-				} else {
-					GL_state.Uniform.setUniformi("linear_depth", 1);
-				}
+				zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
 
 				if ( radius_offset >= 0 ) {
 					vert_def.add_vertex_component(vertex_format_data::RADIUS, stride, ptr + radius_offset);
@@ -1534,26 +1460,7 @@ void gr_opengl_render_stream_buffer(int offset, int n_verts, int flags)
 				if ( up_offset >= 0 ) {
 					vert_def.add_vertex_component(vertex_format_data::UVEC, stride, ptr + up_offset);
 				}
-				
-				zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
-
-				if ( !Cmdline_no_deferred_lighting ) {
-					Assert(Scene_position_texture != 0);
-
-					GL_state.Texture.SetActiveUnit(1);
-					GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-					GL_state.Texture.Enable(Scene_position_texture);
-				} else {
-					Assert(Scene_depth_texture != 0);
-
-					GL_state.Texture.SetActiveUnit(1);
-					GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-					GL_state.Texture.Enable(Scene_depth_texture);
-				}
 			}
-		} else {
-			GL_state.Array.ResetVertexAttribUsed();
-			GL_state.Array.DisabledVertexAttribUnused();
 		}
 
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
@@ -2580,4 +2487,81 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	if ( shader_flags & SDR_FLAG_THRUSTER ) {
 		GL_state.Uniform.setUniformf("thruster_scale", GL_thrust_scale);
 	}
+}
+
+void opengl_tnl_set_material_soft_particle(uint flags)
+{
+	uint sdr_effect_flags = SDR_EFFECT_SOFT_QUAD;
+
+	if ( flags & TMAP_FLAG_VERTEX_GEN ) {
+		sdr_effect_flags |= SDR_EFFECT_GEOMETRY;
+	}
+
+	int sdr_index = opengl_shader_get_effect_shader(sdr_effect_flags);
+
+	opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
+
+	GL_state.Uniform.setUniformi("baseMap", 0);
+	GL_state.Uniform.setUniformi("depthMap", 1);
+	GL_state.Uniform.setUniformf("window_width", (float)gr_screen.max_w);
+	GL_state.Uniform.setUniformf("window_height", (float)gr_screen.max_h);
+	GL_state.Uniform.setUniformf("nearZ", Min_draw_distance);
+	GL_state.Uniform.setUniformf("farZ", Max_draw_distance);
+
+	if ( Cmdline_no_deferred_lighting ) {
+		GL_state.Uniform.setUniformi("linear_depth", 0);
+	} else {
+		GL_state.Uniform.setUniformi("linear_depth", 1);
+	}
+
+	if ( !Cmdline_no_deferred_lighting ) {
+		Assert(Scene_position_texture != 0);
+
+		GL_state.Texture.SetActiveUnit(1);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(Scene_position_texture);
+	} else {
+		Assert(Scene_depth_texture != 0);
+
+		GL_state.Texture.SetActiveUnit(1);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(Scene_depth_texture);
+	}
+}
+
+void opengl_tnl_set_material_distortion(uint flags)
+{
+	int sdr_index = opengl_shader_get_effect_shader(SDR_EFFECT_DISTORTION);
+	
+	opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
+
+	GL_state.Uniform.setUniformi("baseMap", 0);
+	GL_state.Uniform.setUniformi("depthMap", 1);
+	GL_state.Uniform.setUniformf("window_width", (float)gr_screen.max_w);
+	GL_state.Uniform.setUniformf("window_height", (float)gr_screen.max_h);
+	GL_state.Uniform.setUniformf("nearZ", Min_draw_distance);
+	GL_state.Uniform.setUniformf("farZ", Max_draw_distance);
+	GL_state.Uniform.setUniformi("frameBuffer", 2);
+
+	GL_state.Texture.SetActiveUnit(2);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_effect_texture);
+
+	if(flags & TMAP_FLAG_DISTORTION_THRUSTER) {
+		GL_state.Uniform.setUniformi("distMap", 3);
+
+		GL_state.Texture.SetActiveUnit(3);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(Distortion_texture[!Distortion_switch]);
+		GL_state.Uniform.setUniformf("use_offset", 1.0f);
+	} else {
+		GL_state.Uniform.setUniformi("distMap", 0);
+		GL_state.Uniform.setUniformf("use_offset", 0.0f);
+	}
+
+	Assert(Scene_depth_texture != 0);
+
+	GL_state.Texture.SetActiveUnit(1);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_depth_texture);
 }

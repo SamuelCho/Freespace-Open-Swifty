@@ -1871,8 +1871,6 @@ void opengl_setup_function_pointers()
 
 	gr_screen.gf_create_stream_buffer		= gr_opengl_create_stream_buffer_object;
 	gr_screen.gf_render_stream_buffer		= gr_opengl_render_stream_buffer;
-	gr_screen.gf_render_stream_buffer_start	= gr_opengl_render_stream_buffer_start;
-	gr_screen.gf_render_stream_buffer_end	= gr_opengl_render_stream_buffer_end;
 
 	gr_screen.gf_start_instance_matrix			= gr_opengl_start_instance_matrix;
 	gr_screen.gf_end_instance_matrix			= gr_opengl_end_instance_matrix;
@@ -1941,7 +1939,7 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_get_bitmap_from_texture = gr_opengl_get_bitmap_from_texture;
 
 	gr_screen.gf_set_shader_flag	= gr_opengl_set_shader_flag;
-	gr_screen.gf_flush_data_states	= gr_opengl_flush_data_states;
+	gr_screen.gf_clear_states	= gr_opengl_clear_states;
 
 	gr_screen.gf_set_team_color		= gr_opengl_set_team_color;
 	gr_screen.gf_disable_team_color = gr_opengl_disable_team_color;

@@ -275,7 +275,6 @@ void gr_stub_set_buffer(int idx)
 {
 }
 
-
 void gr_stub_update_buffer_object(int handle, uint size, void* data)
 {
 
@@ -296,15 +295,7 @@ int gr_stub_create_stream_buffer()
 	return -1;
 }
 
-void gr_stub_render_stream_buffer(int offset, int n_verts, int flags)
-{
-}
-
-void gr_stub_render_stream_buffer_start(int buffer_id)
-{
-}
-
-void gr_stub_render_stream_buffer_end()
+void gr_stub_render_stream_buffer(int buffer_handle, int offset, int n_verts, int flags)
 {
 }
 
@@ -518,7 +509,7 @@ void gr_stub_draw_line_list(colored_vector *lines, int num)
 {
 }
 
-void gr_stub_flush_data_states()
+void gr_stub_clear_states()
 {
 }
 
@@ -906,8 +897,6 @@ bool gr_stub_init()
 
 	gr_screen.gf_create_stream_buffer		= gr_stub_create_stream_buffer;
 	gr_screen.gf_render_stream_buffer		= gr_stub_render_stream_buffer;
-	gr_screen.gf_render_stream_buffer_start	= gr_stub_render_stream_buffer_start;
-	gr_screen.gf_render_stream_buffer_end	= gr_stub_render_stream_buffer_end;
 
 	gr_screen.gf_start_instance_matrix			= gr_stub_start_instance_matrix;
 	gr_screen.gf_end_instance_matrix			= gr_stub_end_instance_matrix;
@@ -974,7 +963,7 @@ bool gr_stub_init()
 
 	gr_screen.gf_set_animated_effect = gr_stub_set_animated_effect;
 
-	gr_screen.gf_flush_data_states	= gr_stub_flush_data_states;
+	gr_screen.gf_clear_states	= gr_stub_clear_states;
 
 	gr_screen.gf_set_team_color		= gr_stub_set_team_color;
 	gr_screen.gf_enable_team_color  = gr_stub_enable_team_color;

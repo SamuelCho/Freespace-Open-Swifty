@@ -733,7 +733,7 @@ void shadows_render_all(float fov, matrix *eye_orient, vec3d *eye_pos)
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);
 	gr_set_cull(0);
 
-	gr_flush_data_states();
+	gr_clear_states();
 	gr_set_buffer(-1);
 
 	GL_state.Texture.DisableAll();

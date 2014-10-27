@@ -1572,7 +1572,7 @@ void submodel_immediate_render(model_render_params *render_info, int model_num, 
 	gr_set_cull(0);
 	gr_set_fill_mode(GR_FILL_MODE_SOLID);
 
-	gr_flush_data_states();
+	gr_clear_states();
 	gr_set_buffer(-1);
 
 	gr_reset_lighting();
@@ -2589,7 +2589,7 @@ void model_immediate_render(model_render_params *render_info, int model_num, mat
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);
 	gr_set_fill_mode(GR_FILL_MODE_SOLID);
 
-	gr_flush_data_states();
+	gr_clear_states();
 	gr_set_buffer(-1);
 
 	gr_reset_lighting();

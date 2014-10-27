@@ -611,6 +611,7 @@ void opengl_shader_init_effects()
 
 		if ( !new_shader.program_id ) {
 			in_error = true;
+			Use_Shaders_for_effect_rendering = false;
 			goto Done;
 		}
 

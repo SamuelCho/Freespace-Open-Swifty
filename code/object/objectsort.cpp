@@ -298,7 +298,7 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 	Interp_no_flush = 0;
 
 	// we're done rendering models so flush render states
-	gr_flush_data_states();
+	gr_clear_states();
 	gr_set_buffer(-1);
 
 	// render everything else that isn't a model
@@ -394,7 +394,7 @@ void obj_render_queue_all()
 	gr_zbias(0);
 	gr_set_cull(0);
 
-	gr_flush_data_states();
+	gr_clear_states();
 	gr_set_buffer(-1);
 	gr_set_fill_mode(GR_FILL_MODE_SOLID);
 
@@ -419,7 +419,7 @@ void obj_render_queue_all()
 	gr_set_cull(0);
 	gr_set_fill_mode(GR_FILL_MODE_SOLID);
 
-	gr_flush_data_states();
+	gr_clear_states();
 	gr_set_buffer(-1);
 
 	gr_reset_lighting();
@@ -441,7 +441,7 @@ void obj_render_queue_all()
 	gr_set_cull(0);
 	gr_set_fill_mode(GR_FILL_MODE_SOLID);
 
-	gr_flush_data_states();
+	gr_clear_states();
 	gr_set_buffer(-1);
 
 	gr_reset_lighting();

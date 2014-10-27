@@ -1660,7 +1660,7 @@ void opengl_uniform_state::reset()
 	uniform_lookup.clear();
 }
 
-void gr_opengl_flush_data_states()
+void gr_opengl_clear_states()
 {
 	GL_state.Array.SetActiveClientUnit(1);
 	GL_state.Array.DisableClientTexture();
@@ -1674,6 +1674,17 @@ void gr_opengl_flush_data_states()
 
 	GL_state.Array.ResetVertexAttribUsed();
 	GL_state.Array.DisabledVertexAttribUnused();
+
+	GL_state.Texture.DisableAll();
+
+	gr_zbias(0);
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+	gr_set_cull(0);
+	gr_set_fill_mode(GR_FILL_MODE_SOLID);
+	gr_reset_lighting();
+	gr_set_lighting(false, false);
+
+	opengl_shader_set_current();
 }
 
 void opengl_setup_render_states(int &r, int &g, int &b, int &alpha, int &tmap_type, int flags, int is_scaler)

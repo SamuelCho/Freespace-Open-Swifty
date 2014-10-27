@@ -547,9 +547,7 @@ typedef struct screen {
 	void (*gf_set_transform_buffer_offset)(int offset);
 
 	int (*gf_create_stream_buffer)();
-	void (*gf_render_stream_buffer)(int offset, int n_verts, int flags);
-	void (*gf_render_stream_buffer_start)(int buffer_id);
-	void (*gf_render_stream_buffer_end)();
+	void (*gf_render_stream_buffer)(int buffer_handle, int offset, int n_verts, int flags);
 
 	int	 (*gf_make_flat_buffer)(poly_list*);
 	int	 (*gf_make_line_buffer)(line_list*);
@@ -617,7 +615,7 @@ typedef struct screen {
 
 	void (*gf_set_animated_effect)(int effect, float timer);
 
-	void (*gf_flush_data_states)();
+	void (*gf_clear_states)();
 
 	void (*gf_set_team_color)(team_color *colors);
 	void (*gf_enable_team_color)();
@@ -958,7 +956,7 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_maybe_create_shader			GR_CALL(*gr_screen.gf_maybe_create_shader)
 #define gr_set_animated_effect			GR_CALL(*gr_screen.gf_set_animated_effect)
 
-#define gr_flush_data_states			GR_CALL(*gr_screen.gf_flush_data_states)
+#define gr_clear_states					GR_CALL(*gr_screen.gf_clear_states)
 
 #define gr_set_team_color				GR_CALL(*gr_screen.gf_set_team_color)
 #define gr_disable_team_color			GR_CALL(*gr_screen.gf_disable_team_color)

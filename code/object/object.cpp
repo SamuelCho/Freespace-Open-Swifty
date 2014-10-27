@@ -1611,7 +1611,7 @@ void obj_render(object *obj)
 	gr_zbuffer_set(ZBUFFER_TYPE_READ);
 	gr_set_fill_mode(GR_FILL_MODE_SOLID);
 
-	gr_flush_data_states();
+	gr_clear_states();
 	gr_set_buffer(-1);
 
 	gr_reset_lighting();

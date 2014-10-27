@@ -66,7 +66,7 @@ public:
 
 	void load_buffer(effect_vertex* buffer, int *n_verts);
 
-	void render_buffer(int flags);
+	void render_buffer(int buffer_handle, int flags);
 
 	// determine if we even need to try and render this (helpful for particle system)
 	int need_to_render() { return n_to_render; }
@@ -88,7 +88,7 @@ public:
 
 	void load_buffer(particle_pnt* buffer, int *n_verts);
 
-	void render_buffer(int flags);
+	void render_buffer(int buffer_handle, int flags);
 
 	int need_to_render() { return vertices.size(); };
 };
@@ -104,12 +104,12 @@ int batch_add_quad(int texture, int tmap_flags, vertex *verts, float alpha = 1.0
 int distortion_add_bitmap_rotated(int texture, int tmap_flags, vertex *pnt, float angle, float rad, float alpha = 1.0f, float depth = 0.0f);
 int distortion_add_beam(int texture, int tmap_flags, vec3d *start, vec3d *end, float width, float intensity = 1.0f, float offset = 0.0f);
 void batch_render_all(int stream_buffer = -1);
-void batch_render_geometry_map_bitmaps(bool stream_buffer = false);
+void batch_render_geometry_map_bitmaps(int buffer_handle = -1);
 void batch_load_buffer_geometry_map_bitmaps(effect_vertex* buffer, int *n_verts);
-void batch_render_lasers(bool stream_buffer = false);
+void batch_render_lasers(int buffer_handle = -1);
 void batch_load_buffer_lasers(effect_vertex* buffer, int *n_verts);
 void batch_reset();
-void batch_render_distortion_map_bitmaps(bool stream_buffer = false);
+void batch_render_distortion_map_bitmaps(int buffer_handle = -1);
 void batch_load_buffer_distortion_map_bitmaps(effect_vertex* buffer, int *n_verts);
 
 int batch_get_size();
