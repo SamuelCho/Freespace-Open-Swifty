@@ -116,15 +116,15 @@ struct opengl_vertex_buffer {
 	GLfloat *array_list;	// interleaved array
 	GLubyte *index_list;
 
-	GLuint vbo;			// buffer for VBO
-	GLuint ibo;
+	int vb_handle;
+	int ib_handle;
 
 	uint vbo_size;
 	uint ibo_size;
 
 	opengl_vertex_buffer() :
-		array_list(NULL), index_list(NULL), vbo(0), ibo(0),
-		vbo_size(0), ibo_size(0)
+		array_list(NULL), index_list(NULL), 
+		vbo_size(0), ibo_size(0), vb_handle(-1), ib_handle(-1)
 	{
 	}
 
@@ -136,20 +136,13 @@ void opengl_vertex_buffer::clear()
 	if (array_list) {
 		vm_free(array_list);
 	}
-
-	if (vbo) {
-		vglDeleteBuffersARB(1, &vbo);
-		GL_vertex_data_in -= vbo_size;
-	}
-
+	
 	if (index_list) {
 		vm_free(index_list);
 	}
-
-	if (ibo) {
-		vglDeleteBuffersARB(1, &ibo);
-		GL_vertex_data_in -= ibo_size;
-	}
+	
+	opengl_delete_buffer_object(vb_handle);
+	opengl_delete_buffer_object(ib_handle);
 }
 
 static SCP_vector<opengl_buffer_object> GL_buffer_objects;
@@ -309,26 +302,23 @@ static void opengl_gen_buffer(opengl_vertex_buffer *vbp)
 		// clear any existing errors
 		glGetError();
 
-		vglGenBuffersARB(1, &vbp->vbo);
+		vbp->vb_handle = opengl_create_buffer_object(GL_ARRAY_BUFFER_ARB, GL_STATIC_DRAW_ARB);
 
 		// make sure we have one
-		if (vbp->vbo) {
-			GL_state.Array.BindArrayBuffer(vbp->vbo);
-			vglBufferDataARB(GL_ARRAY_BUFFER_ARB, vbp->vbo_size, vbp->array_list, GL_STATIC_DRAW_ARB);
+		if ( vbp->vb_handle >= 0 ) {
+			gr_opengl_update_buffer_object(vbp->vb_handle, vbp->vbo_size, vbp->array_list);
 
 			// just in case
 			if ( opengl_check_for_errors() ) {
-				vglDeleteBuffersARB(1, &vbp->vbo);
-				vbp->vbo = 0;
+				opengl_delete_buffer_object(vbp->vb_handle);
+				vbp->vb_handle = -1;
 				return;
 			}
 
 			GL_state.Array.BindArrayBuffer(0);
 
 			vm_free(vbp->array_list);
-			vbp->array_list = NULL;	
-
-			GL_vertex_data_in += vbp->vbo_size;
+			vbp->array_list = NULL;
 		}
 	}
 
@@ -337,17 +327,16 @@ static void opengl_gen_buffer(opengl_vertex_buffer *vbp)
 		// clear any existing errors
 		glGetError();
 
-		vglGenBuffersARB(1, &vbp->ibo);
+		vbp->ib_handle = opengl_create_buffer_object(GL_ELEMENT_ARRAY_BUFFER_ARB, GL_STATIC_DRAW_ARB);
 
 		// make sure we have one
-		if (vbp->ibo) {
-			GL_state.Array.BindElementBuffer(vbp->ibo);
-			vglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, vbp->ibo_size, vbp->index_list, GL_STATIC_DRAW_ARB);
+		if ( vbp->ib_handle >= 0 ) {
+			gr_opengl_update_buffer_object(vbp->ib_handle, vbp->ibo_size, vbp->index_list);
 
 			// just in case
 			if ( opengl_check_for_errors() ) {
-				vglDeleteBuffersARB(1, &vbp->ibo);
-				vbp->ibo = 0;
+				opengl_delete_buffer_object(vbp->ib_handle);
+				vbp->ib_handle = -1;
 				return;
 			}
 
@@ -355,8 +344,6 @@ static void opengl_gen_buffer(opengl_vertex_buffer *vbp)
 
 			vm_free(vbp->index_list);
 			vbp->index_list = NULL;
-
-			GL_vertex_data_in += vbp->ibo_size;
 		}
 	}
 }
@@ -769,8 +756,8 @@ static void opengl_init_arrays(opengl_vertex_buffer *vbp, const vertex_buffer *b
 
 	// vertex buffer
 
-	if (vbp->vbo) {
-		GL_state.Array.BindArrayBuffer(vbp->vbo);
+	if ( vbp->vb_handle >= 0 ) {
+		opengl_bind_buffer_object(vbp->vb_handle);
 	} else {
 		ptr = (GLubyte*)vbp->array_list;
 	}
@@ -893,8 +880,8 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	// basic setup of all data
 	opengl_init_arrays(vbp, bufferp);
 
-	if (vbp->ibo) {
-		GL_state.Array.BindElementBuffer(vbp->ibo);
+	if ( vbp->ib_handle >= 0 ) {
+		opengl_bind_buffer_object(vbp->ib_handle);
 	} else {
 		ibuffer = (GLubyte*)vbp->index_list;
 	}
@@ -1038,13 +1025,13 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 	// basic setup of all data
 	opengl_init_arrays(vbp, bufferp);
 
-	if (vbp->ibo) {
-		GL_state.Array.BindElementBuffer(vbp->ibo);
+	if ( vbp->ib_handle >= 0 ) {
+		opengl_bind_buffer_object(vbp->ib_handle);
 	} else {
 		ibuffer = (GLubyte*)vbp->index_list;
 	}
 
-	if ( !vbp->vbo ) {
+	if ( vbp->vb_handle < 0 ) {
 		vbuffer = (GLubyte*)vbp->array_list;
 	}
 

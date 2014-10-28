@@ -57,6 +57,7 @@ void gr_opengl_render_buffer(int start, const vertex_buffer *bufferp, int texi, 
 void gr_opengl_render_to_env(int FACE);
 
 void gr_opengl_update_buffer_object(int handle, uint size, void* data);
+void opengl_delete_buffer_object(int handle);
 
 void gr_opengl_update_transform_buffer(void* data, uint size);
 void gr_opengl_set_transform_buffer_offset(int offset);

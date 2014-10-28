@@ -1091,7 +1091,6 @@ void gr_opengl_arc(int xc, int yc, float r, float angle_start, float angle_end, 
 
 	gr_opengl_set_2d_matrix();
 	GL_state.Color(gr_screen.current_color.red, gr_screen.current_color.green, gr_screen.current_color.blue, gr_screen.current_color.alpha);
-	GL_state.Array.EnableClientVertex();
 
 	if (fill) {
 		arc = new GLfloat[segments * 2 + 2];
