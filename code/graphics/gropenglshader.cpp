@@ -56,7 +56,7 @@ geometry_sdr_params *Current_geo_sdr_params = NULL;
 static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
 	{ SDR_FLAG_LIGHT,		2, {"n_lights", "light_factor"}, 0, {}, 0, {}, "Lighting" },
 	{ SDR_FLAG_FOG,			0, { NULL }, 0, { NULL }, 0, {}, "Fog Effect" },
-	{ SDR_FLAG_DIFFUSE_MAP, 5, {"sBasemap", "desaturate", "desaturate_r", "desaturate_g", "desaturate_b"}, 0, { NULL }, 0, {}, "Diffuse Mapping"},
+	{ SDR_FLAG_DIFFUSE_MAP, 3, {"sBasemap", "desaturate", "desaturate_clr"}, 0, { NULL }, 0, {}, "Diffuse Mapping"},
 	{ SDR_FLAG_GLOW_MAP,	1, {"sGlowmap"}, 0, { NULL }, 0, {}, "Glow Mapping" },
 	{ SDR_FLAG_SPEC_MAP,	1, {"sSpecmap"}, 0, { NULL }, 0, {}, "Specular Mapping" },
 	{ SDR_FLAG_NORMAL_MAP,	1, {"sNormalmap"}, 0, { NULL }, 0, {}, "Normal Mapping" },

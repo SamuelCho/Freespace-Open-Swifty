@@ -2301,13 +2301,11 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		int desaturate = 0;
 		if ( flags & TMAP_FLAG_DESATURATE ) {
 			desaturate = 1;
+			GL_state.Uniform.setUniform3f("desaturate_clr", gr_screen.current_color.red/255.0f, gr_screen.current_color.green/255.0f, gr_screen.current_color.blue/255.0f);
 		}
 
 		GL_state.Uniform.setUniformi("desaturate", desaturate);
-		GL_state.Uniform.setUniformf("desaturate_r", gr_screen.current_color.red/255.0f);
-		GL_state.Uniform.setUniformf("desaturate_g", gr_screen.current_color.green/255.0f);
-		GL_state.Uniform.setUniformf("desaturate_b", gr_screen.current_color.blue/255.0f);
-
+		
 		gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale, render_pass);
 
 		++render_pass;
