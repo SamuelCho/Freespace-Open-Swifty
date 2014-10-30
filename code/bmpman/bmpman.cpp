@@ -1281,7 +1281,7 @@ ubyte bm_get_type(int handle)
 	return bm_bitmaps[bitmapnum].type;
 }
 
-static void bm_convert_format( int bitmapnum, bitmap *bmp, ubyte bpp, ubyte flags )
+static void bm_convert_format( bitmap *bmp, ubyte flags )
 {
 	int idx;
 
@@ -1360,7 +1360,7 @@ void bm_lock_pcx( int handle, int bitmapnum, bitmap_entry *be, bitmap *bmp, ubyt
 	
 	bmp->flags = 0;	
 
-	bm_convert_format( bitmapnum, bmp, bpp, flags );
+	bm_convert_format( bmp, flags );
 }
 
 void bm_lock_ani( int handle, int bitmapnum, bitmap_entry *be, bitmap *bmp, ubyte bpp, ubyte flags )
@@ -1472,7 +1472,7 @@ void bm_lock_ani( int handle, int bitmapnum, bitmap_entry *be, bitmap *bmp, ubyt
 			memcpy(dptr, sptr, size);
 		}		
 
-		bm_convert_format( first_frame+i, bm, bpp, flags );
+		bm_convert_format( bm, flags );
 
 		// Skip a frame
 		if ( (i < nframes-1)  && can_drop_frames )	{
@@ -1524,7 +1524,7 @@ void bm_lock_user( int handle, int bitmapnum, bitmap_entry *be, bitmap *bmp, uby
 			break;
 	}
 
-	bm_convert_format( bitmapnum, bmp, bpp, flags );
+	bm_convert_format( bmp, flags );
 }
 
 void bm_lock_tga( int handle, int bitmapnum, bitmap_entry *be, bitmap *bmp, ubyte bpp, ubyte flags )
@@ -1583,7 +1583,7 @@ void bm_lock_tga( int handle, int bitmapnum, bitmap_entry *be, bitmap *bmp, ubyt
 
 	bmp->flags = 0;	
 	
-	bm_convert_format( bitmapnum, bmp, bpp, flags );
+	bm_convert_format( bmp, flags );
 }
 
 /**
@@ -2108,15 +2108,15 @@ int bm_unload_fast( int handle, int clear_render_targets )
 	be = &bm_bitmaps[n];
 	bmp = &be->bm;
 
-	if ( !clear_render_targets && ((be->type == BM_TYPE_RENDER_TARGET_STATIC) || (be->type == BM_TYPE_RENDER_TARGET_DYNAMIC)) ) {
-		return -1;
-	}
-
 	if ( be->type == BM_TYPE_NONE ) {
 		return -1;		// Already been released
 	}
 
 	if ( be->type == BM_TYPE_USER ) {
+		return -1;
+	}
+
+	if ( !clear_render_targets && ((be->type == BM_TYPE_RENDER_TARGET_STATIC) || (be->type == BM_TYPE_RENDER_TARGET_DYNAMIC)) ) {
 		return -1;
 	}
 
@@ -2464,6 +2464,7 @@ int bm_get_cache_slot( int bitmap_id, int separate_ani_frames )
 {
 	int n = bitmap_id % MAX_BITMAPS;
 
+	Assert( n >= 0 );
 	Assert( bm_bitmaps[n].handle == bitmap_id );		// INVALID BITMAP HANDLE
 
 	bitmap_entry	*be = &bm_bitmaps[n];
@@ -2630,6 +2631,8 @@ void bm_get_filename(int bitmapnum, char *filename)
 
 	int n = bitmapnum % MAX_BITMAPS;
 
+	Assert( n >= 0 );
+
 	// return filename
 	strcpy(filename, bm_bitmaps[n].filename);
 }
@@ -2646,8 +2649,8 @@ int bm_is_compressed(int num)
 	if (!Use_compressed_textures)
 		return 0;
 
-	Assert( (n >= 0) && (n < MAX_BITMAPS) );
-	Assert(num == bm_bitmaps[n].handle);
+	Assert( n >= 0 );
+	Assert( num == bm_bitmaps[n].handle);
 
 	type = bm_bitmaps[n].comp_type;
 
@@ -2682,7 +2685,7 @@ int bm_has_alpha_channel(int handle)
 {
 	int n = handle % MAX_BITMAPS;
 
-	Assert( (n >= 0) && (n < MAX_BITMAPS) );
+	Assert( n >= 0 );
 	Assert( handle == bm_bitmaps[n].handle );
 
 	// assume that PCX never has a real alpha channel (it may be 32-bit, but without any alpha)
@@ -2710,8 +2713,8 @@ int bm_get_size(int num)
 {
 	int n = num % MAX_BITMAPS;
 
-	Assert( (n >= 0) && (n < MAX_BITMAPS) );
-	Assert(num == bm_bitmaps[n].handle);
+	Assert( n >= 0 );
+	Assert( num == bm_bitmaps[n].handle );
 
 	return bm_bitmaps[n].mem_taken;
 }
@@ -2720,7 +2723,7 @@ int bm_get_num_mipmaps(int num)
 {
 	int n = num % MAX_BITMAPS;
 
-	Assert( (n >= 0) && (n < MAX_BITMAPS) );
+	Assert( n >= 0 );
 	Assert( num == bm_bitmaps[n].handle );
 
 	if (bm_bitmaps[n].num_mipmaps == 0)
@@ -2743,6 +2746,7 @@ int bm_convert_color_index_to_BGR(int num, ubyte **out_data)
 	int index = 0, mult = 3;
 
 	Assert( out_data != NULL );
+	Assert( n >= 0 );
 	Assert( num == bm_bitmaps[n].handle );
 
 	if ( num != bm_bitmaps[n].handle )
@@ -2918,7 +2922,8 @@ int bm_is_render_target(int bitmap_id)
 {
 	int n = bitmap_id % MAX_BITMAPS;
 
-	Assert(bitmap_id == bm_bitmaps[n].handle);
+	Assert( n >= 0 );
+	Assert( bitmap_id == bm_bitmaps[n].handle );
 
 	if ( !((bm_bitmaps[n].type == BM_TYPE_RENDER_TARGET_STATIC) || (bm_bitmaps[n].type == BM_TYPE_RENDER_TARGET_DYNAMIC)) ) {
 		return 0;

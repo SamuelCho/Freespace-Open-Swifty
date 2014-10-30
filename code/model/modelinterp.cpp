@@ -1974,13 +1974,13 @@ void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint fl
 
 	polymodel *pm = model_get(model_num);
 
-
 	model_do_dumb_rotation(model_num);
 
 	if (flags & MR_FORCE_CLAMP)
 		gr_set_texture_addressing(TMAP_ADDRESS_CLAMP);
 
 	int time = timestamp();
+
 	glow_point_bank_override *gpo = NULL;
 	bool override_all = false;
 	SCP_hash_map<int, void*>::iterator gpoi;
@@ -2018,12 +2018,12 @@ void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint fl
 				if(bank->is_on){
 					if( ((gpo && gpo->on_time_override)?gpo->on_time:bank->on_time) > ((time - ((gpo && gpo->disp_time_override)?gpo->disp_time:bank->disp_time)) % (((gpo && gpo->on_time_override)?gpo->on_time:bank->on_time) + ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time))) ){
 						bank->glow_timestamp=time;
-						bank->is_on=0;
+						bank->is_on=false;
 					}
 				}else{
 					if( ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time) < ((time - ((gpo && gpo->disp_time_override)?gpo->disp_time:bank->disp_time)) % (((gpo && gpo->on_time_override)?gpo->on_time:bank->on_time) + ((gpo && gpo->off_time_override)?gpo->off_time:bank->off_time))) ){
 						bank->glow_timestamp=time;
-						bank->is_on=1;
+						bank->is_on=true;
 					}
 				}
 			}
@@ -5109,8 +5109,7 @@ int model_interp_get_texture(texture_info *tinfo, fix base_frametime)
 
 		// get animation frame
 		frame = fl2i((cur_time * num_frames) / total_time);
-		if (frame < 0) frame = 0;
-		if (frame >= num_frames) frame = num_frames - 1;
+		CLAMP(frame, 0, num_frames - 1);
 
 		// advance to the correct frame
 		texture += frame;
