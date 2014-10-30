@@ -3736,16 +3736,6 @@ void game_render_frame( camid cid )
 	PROFILE("Build Shadow Map", shadows_render_all(Proj_fov, &Eye_matrix, &Eye_position));
 	PROFILE("Render Scene", obj_render_queue_all());
 
-//	render_shadow_maps();
-// 	gr_deferred_lighting_begin();
-// 	bool draw_viewer_last = false;
-// 	extern int ship_render_mode;
-// 	ship_render_mode = MODEL_RENDER_OPAQUE;
-// 	obj_render_all(obj_render, &draw_viewer_last);
-// 	ship_render_mode = MODEL_RENDER_ALL;
-//	gr_deferred_lighting_end();
-// 	gr_deferred_lighting_finish();
-
 	render_shields();
 
 	PROFILE("Trails", trail_render_all());						// render missilie trails after everything else.
