@@ -242,6 +242,9 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 
 	Interp_no_flush = 1;
 
+	bool full_neb = ((The_mission.flags & MISSION_FLAG_FULLNEB) && (Neb2_render_mode != NEB2_RENDER_NONE) && !Fred_running);
+	bool c_viewer = (!Viewer_mode || (Viewer_mode & VM_PADLOCK_ANY) || (Viewer_mode & VM_OTHER_SHIP) || (Viewer_mode & VM_TRACK));
+
 	// now draw them
 	// only render models in this loop in order to minimize state changes
 	SCP_vector<sorted_obj>::iterator os;
@@ -253,15 +256,15 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 		//This is for ship cockpits. Bobb, feel free to optimize this any way you see fit
 		if ( (obj == Viewer_obj)
 			&& (obj->type == OBJ_SHIP)
-			&& (Ship_info[Ships[obj->instance].ship_info_index].flags2 & SIF2_SHOW_SHIP_MODEL)
-			&& (!Viewer_mode || (Viewer_mode & VM_PADLOCK_ANY) || (Viewer_mode & VM_OTHER_SHIP) || (Viewer_mode & VM_TRACK)) )
+			&& c_viewer
+			&& (Ship_info[Ships[obj->instance].ship_info_index].flags2 & SIF2_SHOW_SHIP_MODEL) )
 		{
 			(*draw_viewer_last) = true;
 			continue;
 		}
 
 		// if we're fullneb, fire up the fog - this also generates a fog table
-		if((The_mission.flags & MISSION_FLAG_FULLNEB) && (Neb2_render_mode != NEB2_RENDER_NONE) && !Fred_running){
+		if (full_neb) {
 			// get the fog values
 			neb2_get_adjusted_fog_values(&fog_near, &fog_far, obj);
 
@@ -307,7 +310,7 @@ void obj_render_all(void (*render_function)(object *objp), bool *draw_viewer_las
 
 			// only reset fog if the fog mode has changed - since regenerating a fog table takes
 			// a bit of time
-			if((fog_near != gr_screen.fog_near) || (fog_far != gr_screen.fog_far)){
+			if((GR_FOGMODE_FOG != gr_screen.current_fog_mode) || (fog_near != gr_screen.fog_near) || (fog_far != gr_screen.fog_far)) {
 				gr_fog_set(GR_FOGMODE_FOG, gr_screen.current_fog_color.red, gr_screen.current_fog_color.green, gr_screen.current_fog_color.blue, fog_near, fog_far);
 			}
 

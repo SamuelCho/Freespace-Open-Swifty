@@ -3,6 +3,7 @@
 #include "asteroid/asteroid.h"
 #include "camera/camera.h"
 #include "cfile/cfilesystem.h"
+#include "cutscene/movie.h"
 #include "debris/debris.h"
 #include "cmdline/cmdline.h"
 #include "freespace2/freespace.h"
@@ -1522,7 +1523,7 @@ ADE_VIRTVAR(Name, l_HudGauge, "string", "Custom HUD Gauge name", "string", "Cust
 	if (!ade_get_args(L, "o", l_HudGauge.GetPtr(&gauge)))
 		return ADE_RETURN_NIL;
 
-	if (gauge->getConfigType() != HUD_OBJECT_CUSTOM)
+	if (gauge->getObjectType() != HUD_OBJECT_CUSTOM)
 		return ADE_RETURN_NIL;
 
 	return ade_set_args(L, "s", gauge->getCustomGaugeName());
@@ -1536,7 +1537,7 @@ ADE_VIRTVAR(Text, l_HudGauge, "string", "Custom HUD Gauge text", "string", "Cust
 	if (!ade_get_args(L, "o|s", l_HudGauge.GetPtr(&gauge), text))
 		return ADE_RETURN_NIL;
 
-	if (gauge->getConfigType() != HUD_OBJECT_CUSTOM)
+	if (gauge->getObjectType() != HUD_OBJECT_CUSTOM)
 		return ADE_RETURN_NIL;
 
 	if (ADE_SETTING_VAR && text != NULL)
@@ -3349,7 +3350,7 @@ ADE_FUNC(__gc, l_Texture, NULL, "Auto-deletes texture", NULL, NULL)
 	// use, and in order to prevent that we want to double-check the load count
 	// here before unloading the bitmap. -zookeeper
 	if(idx > -1 && bm_is_valid(idx) && bm_bitmaps[bm_get_cache_slot(idx, 0)].load_count < 1)
-		bm_unload(idx);
+		bm_release(idx);
 
 	return ADE_RETURN_NIL;
 }
@@ -3419,7 +3420,7 @@ ADE_FUNC(unload, l_Texture, NULL, "Unloads a texture from memory", NULL, NULL)
 	if(!bm_is_valid(*idx))
 		return ADE_RETURN_NIL;
 
-	bm_unload(*idx);
+	bm_release(*idx);
 
 	//WMC - invalidate this handle
 	*idx = -1;
@@ -4688,7 +4689,7 @@ ADE_FUNC(__tostring, l_Object, NULL, "Returns name of object (if any)", "string"
 			sprintf(buf, "%s projectile", Weapon_info[Weapons[objh->objp->instance].weapon_info_index].name);
 			break;
 		default:
-			sprintf(buf, "Object %ld [%d]", OBJ_INDEX(objh->objp), objh->sig);
+			sprintf(buf, "Object %td [%d]", OBJ_INDEX(objh->objp), objh->sig);
 	}
 
 	return ade_set_args(L, "s", buf);
@@ -6041,7 +6042,7 @@ ADE_FUNC(renderTechModel, l_Shipclass, "X1, Y1, X2, Y2, [Rotation %, Pitch %, Ba
 	ship_info *sip = &Ship_info[idx];
 
 	if (sip->uses_team_colors) {
-		gr_set_team_color(sip->default_team_name, "<none>", 0, 0);
+		gr_set_team_color(sip->default_team_name, "none", 0, 0);
 	}
 
 	//Make sure model is loaded
@@ -6119,7 +6120,7 @@ ADE_FUNC(renderTechModel2, l_Shipclass, "X1, Y1, X2, Y2, orientation Orientation
 	ship_info *sip = &Ship_info[idx];
 
 	if (sip->uses_team_colors) {
-		gr_set_team_color(sip->default_team_name, "<none>", 0, 0);
+		gr_set_team_color(sip->default_team_name, "none", 0, 0);
 	}
 
 	//Make sure model is loaded
@@ -10031,7 +10032,7 @@ ADE_FUNC(doManeuver, l_Ship, "number Duration, number Heading, number Pitch, num
 	}
 
 	if(f_rot) {
-		aip->ai_override_flags = AIORF_FULL;
+		aip->ai_override_flags |= AIORF_FULL;
 		cip->heading = arr[0];
 		cip->pitch = arr[1];
 		cip->bank = arr[2];
@@ -10050,10 +10051,10 @@ ADE_FUNC(doManeuver, l_Ship, "number Duration, number Heading, number Pitch, num
 		} 
 	}
 	if(f_move) {
-		aip->ai_override_flags = AIORF_FULL_LAT;
+		aip->ai_override_flags |= AIORF_FULL_LAT;
 		cip->vertical = arr[3];
 		cip->sideways = arr[4];
-		cip->forward = arr[5];
+		cip->forward = arr[5];	
 	} else {
 		if (arr[3] != 0) {
 			cip->vertical = arr[3];
@@ -12007,7 +12008,7 @@ ADE_FUNC(play3DSound, l_Audio, "soundentry[, vector source[, vector listener]]",
 
 ADE_FUNC(playGameSound, l_Audio, "Sound index, [Panning (-1.0 left to 1.0 right), Volume %, Priority 0-3, Voice Message?]", "Plays a sound from #Game Sounds in sounds.tbl. A priority of 0 indicates that the song must play; 1-3 will specify the maximum number of that sound that can be played", "boolean", "True if sound was played, false if not (Replaced with a sound instance object in the future)")
 {
-	int idx;
+	int idx, gamesnd_idx;
 	float pan=0.0f;
 	float vol=100.0f;
 	int pri=0;
@@ -12024,20 +12025,32 @@ ADE_FUNC(playGameSound, l_Audio, "Sound index, [Panning (-1.0 left to 1.0 right)
     CLAMP(pan, -1.0f, 1.0f);
     CLAMP(vol, 0.0f, 100.0f);
 
-	idx = snd_play(&Snds[gamesnd_get_by_tbl_index(idx)], pan, vol*0.01f, pri, voice_msg);
+	gamesnd_idx = gamesnd_get_by_tbl_index(idx);
 
-	return ade_set_args(L, "b", idx > -1);
+	if (gamesnd_idx >= 0) {
+		int sound_handle = snd_play(&Snds[gamesnd_idx], pan, vol*0.01f, pri, voice_msg);
+		return ade_set_args(L, "b", sound_handle >= 0);
+	} else {
+		LuaError(L, "Invalid sound index %i (Snds[%i]) in playGameSound()", idx, gamesnd_idx);
+		return ADE_RETURN_FALSE;
+	}
 }
 
 ADE_FUNC(playInterfaceSound, l_Audio, "Sound index", "Plays a sound from #Interface Sounds in sounds.tbl", "boolean", "True if sound was played, false if not")
 {
-	int idx;
+	int idx, gamesnd_idx;
 	if(!ade_get_args(L, "i", &idx))
 		return ade_set_error(L, "b", false);
 
-	gamesnd_play_iface(gamesnd_get_by_iface_tbl_index(idx));
+	gamesnd_idx = gamesnd_get_by_iface_tbl_index(idx);
 
-	return ade_set_args(L, "b", idx > -1);
+	if (gamesnd_idx >= 0) {
+		gamesnd_play_iface(gamesnd_idx);
+		return ade_set_args(L, "b", true);
+	} else {
+		LuaError(L, "Invalid sound index %i (Snds[%i]) in playInterfaceSound()", idx, gamesnd_idx);
+		return ADE_RETURN_FALSE;
+	}
 }
 
 extern float Master_event_music_volume;
@@ -12141,6 +12154,11 @@ ADE_FUNC(createVector, l_Base, "[x, y, z]", "Creates a vector object", "vector",
 	ade_get_args(L, "|fff", &v3.xyz.x, &v3.xyz.y, &v3.xyz.z);
 
 	return ade_set_args(L, "o", l_Vector.Set(v3));
+}
+
+ADE_FUNC(getFrametimeOverall, l_Base, NULL, "The overall frame time in seconds since the engine has started", "number", "Overall time (seconds)")
+{
+	return ade_set_args(L, "x", game_get_overall_frametime());
 }
 
 ADE_FUNC(getFrametime, l_Base, "[Do not adjust for time compression (Boolean)]", "Gets how long this frame is calculated to take. Use it to for animations, physics, etc to make incremental changes.", "number", "Frame time (seconds)")
@@ -12268,6 +12286,11 @@ ADE_FUNC(setTips, l_Base, "True or false", "Sets whether to display tips of the 
 		Player->tips = 0;
 
 	return ADE_RETURN_NIL;
+}
+
+ADE_FUNC(getGameDifficulty, l_Base, NULL, "Returns the difficulty level from 1-5, 1 being the lowest, (Very Easy) and 5 being the highest (Insane)", "integer", "Difficulty level as integer")
+{
+	return ade_set_args(L, "i", Game_skill_level+1);
 }
 
 ADE_FUNC(postGameEvent, l_Base, "gameevent Event", "Sets current game event. Note that you can crash FreeSpace 2 by posting an event at an improper time, so test extensively if you use it.", "boolean", "True if event was posted, false if passed event was invalid")
@@ -13782,21 +13805,25 @@ ADE_FUNC(drawString, l_Graphics, "string Message, [number X1, number Y1, number 
 		int linelengths[MAX_TEXT_LINES];
 		const char *linestarts[MAX_TEXT_LINES];
 
+		if (y2 >= 0 && y2 < y)
+		{
+			// Invalid y2 value
+			Warning(LOCATION, "Illegal y2 value passed to drawString. Got %d y2 value but %d for y.", y2, y);
+		
+			int temp = y;
+			y = y2;
+			y2 = temp;
+		}
+
 		num_lines = split_str(s, x2-x, linelengths, linestarts, MAX_TEXT_LINES);
 
 		//Make sure we don't go over size
 		int line_ht = gr_get_font_height();
-		y2 = line_ht * (y2-y);
-		if(y2 < num_lines)
-			num_lines = y2;
+		num_lines = MIN(num_lines, (y2 - y) / line_ht);
 
-		y2 = y;
-
+		int curr_y = y;
 		for(int i = 0; i < num_lines; i++)
 		{
-			//Increment line height
-			y2 += line_ht;
-
 			//Contrary to WMC's previous comment, let's make a new string each line
 			int len = linelengths[i];
 			char *buf = new char[len+1];
@@ -13804,13 +13831,23 @@ ADE_FUNC(drawString, l_Graphics, "string Message, [number X1, number Y1, number 
 			buf[len] = '\0';
 
 			//Draw the string
-			gr_string(x,y2,buf,GR_RESIZE_NONE);
+			gr_string(x,curr_y,buf,GR_RESIZE_NONE);
 
 			//Free the string we made
 			delete[] buf;
-		}
 
-		NextDrawStringPos[1] = y2+gr_get_font_height();
+			//Increment line height
+			curr_y += line_ht;
+		}
+		
+		if (num_lines <= 0)
+		{
+			// If no line was drawn then we need to add one so the next line is 
+			// aligned right
+			curr_y += line_ht;
+		}
+		
+		NextDrawStringPos[1] = curr_y;
 	}
 	return ade_set_error(L, "i", num_lines);
 }
@@ -14330,7 +14367,24 @@ ADE_FUNC(runSEXP, l_Mission, "string", "Runs the defined SEXP script", "boolean"
 	if(!ade_get_args(L, "s", &s))
 		return ADE_RETURN_FALSE;
 
-	snprintf(buf, 8191, "( when ( true ) ( %s ) )", s);
+	while (is_white_space(*s))
+		s++;
+	if (*s != '(')
+	{
+		static bool Warned_about_runSEXP_parentheses = false;
+		if (!Warned_about_runSEXP_parentheses)
+		{
+			Warned_about_runSEXP_parentheses = true;
+			Warning(LOCATION, "Invalid SEXP syntax: SEXPs must be surrounded by parentheses.  For backwards compatibility, the string has been enclosed in parentheses.  This may not be correct in all use cases.");
+		}
+		// this is the old sexp handling method, which is incorrect
+		snprintf(buf, 8191, "( when ( true ) ( %s ) )", s);
+	}
+	else
+	{
+		// this is correct usage
+		snprintf(buf, 8191, "( when ( true ) %s )", s);
+	}
 
 	r_val = run_sexp(buf);
 
@@ -14459,7 +14513,7 @@ ADE_FUNC(__len, l_Mission_Events, NULL, "Number of events in mission", "number",
 //****SUBLIBRARY: Mission/SEXPVariables
 ade_lib l_Mission_SEXPVariables("SEXPVariables", &l_Mission, NULL, "SEXP Variables");
 
-ADE_INDEXER(l_Mission_SEXPVariables, "number Index/string Name", "Array of SEXP variables. Note that you can set a sexp variable using the array, eg \'SEXPVariables[1] = \"newvalue\"\'", "sexpvariable", "Handle to SEXP variable, or invalid sexpvariable handle if index was invalid")
+ADE_INDEXER(l_Mission_SEXPVariables, "number Index/string Name", "Array of SEXP variables. Note that you can set a sexp variable using the array, eg \'SEXPVariables[\"newvariable\"] = \"newvalue\"\'", "sexpvariable", "Handle to SEXP variable, or invalid sexpvariable handle if index was invalid")
 {
 	char *name = NULL;
 	char *newval = NULL;
@@ -15106,9 +15160,6 @@ ADE_FUNC(createWeapon, l_Mission, "[weaponclass Class=WeaponClass[1], orientatio
 
 ADE_FUNC(getMissionFilename, l_Mission, NULL, "Gets mission filename", "string", "Mission filename, or empty string if game is not in a mission")
 {
-	if(!(Game_mode & GM_IN_MISSION))
-		return ade_set_error(L, "s", "");
-
 	return ade_set_args(L, "s", Game_current_mission_filename);
 }
 
@@ -15261,6 +15312,17 @@ ADE_FUNC(applyShudder, l_Mission, "number time, number intesity", "Applies a shu
 	game_shudder_apply(int_time, intensity * 0.01f);
 
 	return ADE_RETURN_TRUE;
+}
+
+ADE_FUNC(isInCampaign, l_Mission, NULL, "Get whether or not the current mission being played in a campaign (as opposed to the tech room's simulator)", "boolean", "true if in campaign, false if not")
+{
+	bool b = false;
+
+	if (Game_mode & GM_CAMPAIGN_MODE) {
+		b = true;
+	}
+
+	return ade_set_args(L, "b", b);
 }
 
 //**********LIBRARY: Bitwise Ops
@@ -15548,6 +15610,18 @@ ADE_FUNC(isPXOEnabled, l_Testing, NULL, "Returns whether PXO is currently enable
 	return ADE_RETURN_TRUE;
 }
 
+ADE_FUNC(playCutscene, l_Testing, NULL, "Forces a cutscene by the specified filename string to play. Should really only be used in a non-gameplay state (i.e. start of GS_STATE_BRIEFING) otherwise odd side effects may occur. Highly Experimental.", "string", NULL)
+{
+	//This whole thing is a quick hack and can probably be done way better, but is currently functioning fine for my purposes.
+	char *filename;
+
+	if (!ade_get_args(L, "s", &filename))
+		return ADE_RETURN_FALSE;
+
+	movie_play(filename);
+
+	return ADE_RETURN_TRUE;
+}
 
 // *************************Helper functions*********************
 //WMC - This should be used anywhere that an 'object' is set, so
@@ -15897,7 +15971,7 @@ bool Ade_get_args_lfunction = false;
 //from the stack in series, so it can easily be used
 //to get the return values from a chunk of Lua code
 //after it has been executed. See RunByteCode()
-int ade_get_args(lua_State *L, char *fmt, ...)
+int ade_get_args(lua_State *L, const char *fmt, ...)
 {
 	//Check that we have all the arguments that we need
 	//If we don't, return 0
@@ -16097,7 +16171,7 @@ int ade_get_args(lua_State *L, char *fmt, ...)
 //
 //NOTE: You can also use this to push arguments
 //on to the stack in series. See script_state::SetHookVar
-int ade_set_args(lua_State *L, char *fmt, ...)
+int ade_set_args(lua_State *L, const char *fmt, ...)
 {
 	//Start throught
 	va_list vl;

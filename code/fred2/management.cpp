@@ -64,6 +64,7 @@
 #include "iff_defs/iff_defs.h"
 #include "menuui/techmenu.h"
 #include "missionui/fictionviewer.h"
+#include "mod_table/mod_table.h"
 
 #include <direct.h>
 #include "cmdline/cmdline.h"
@@ -71,6 +72,8 @@
 #define MAX_DOCKS 1000
 
 #define UNKNOWN_USER		"Unknown"
+
+extern void ssm_init();	// Need this to populate Ssm_info so OPF_SSM_CLASS does something. -MageKing17
 
 int cur_wing = -1;
 int cur_wing_index;
@@ -308,6 +311,9 @@ bool fred_init()
 		exit(1);
 	}
 
+	// Load game_settings.tbl
+	mod_table_init();
+
 	// initialize localization module. Make sure this is done AFTER initialzing OS.
 	// NOTE : Fred should ALWAYS run in English. Otherwise it might swap in another language
 	// when saving - which would cause inconsistencies when externalizing to tstrings.tbl via Exstr
@@ -393,9 +399,7 @@ bool fred_init()
 
 	hud_init_comm_orders();		// Goober5000
 
-	if (!new_alpha_colors_init()) {
-		old_alpha_colors_init();
-	}
+	alpha_colors_init();
 	
 	gamesnd_parse_soundstbl();		// needs to be loaded after species stuff but before interface/weapon/ship stuff - taylor
 	mission_brief_common_init();	
@@ -418,6 +422,7 @@ bool fred_init()
 	create_new_mission();
 	neb2_init();						// fullneb stuff
 	stars_init();
+	ssm_init();		// The game calls this after stars_init(), and we need Ssm_info initialized for OPF_SSM_CLASS. -MageKing17
 	brief_init_colors();
 	fred_preload_all_briefing_icons(); //phreak.  This needs to be done or else the briefing icons won't show up
 	event_music_init();
@@ -927,8 +932,8 @@ void clear_mission()
 	event_music_reset_choices();
 	clear_texture_replacements();
 
-	// alternate ship type names
-	mission_parse_reset_alt();
+	mission_parse_reset_alt();		// alternate ship type names
+	mission_parse_reset_callsign();
 
 	strcpy(Cargo_names[0], "Nothing");
 	Num_cargo = 1;

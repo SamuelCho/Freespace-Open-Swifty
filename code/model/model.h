@@ -460,8 +460,7 @@ typedef struct glow_point_bank {  // glow bank structure -Bobboau
 	int			on_time; 
 	int			off_time; 
 	int			disp_time; 
-	int			is_on; 
-	int			is_active; 
+	bool		is_on;
 	int			submodel_parent; 
 	int			LOD; 
 	int			num_points; 
@@ -846,7 +845,7 @@ void model_set_detail_level(int n);
 
 // Renders a model and all it's submodels.
 // See MR_? defines for values for flags
-void model_render(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL);
+void model_render(int model_num, matrix *orient, vec3d * pos, uint flags = MR_NORMAL, int objnum = -1, int lighting_skip = -1, int *replacement_textures = NULL, const bool is_skybox = false);
 
 // Renders just one particular submodel on a model.
 // See MR_? defines for values for flags

@@ -354,7 +354,6 @@ int beam_fire(beam_fire_info *fire_info)
 	new_item->objp = fire_info->shooter;
 	new_item->sig = fire_info->shooter->signature;
 	new_item->subsys = fire_info->turret;	
-	new_item->local_pnt = fire_info->turret->system_info->pnt;
 	new_item->life_left = wip->b_info.beam_life;	
 	new_item->life_total = wip->b_info.beam_life;
 	new_item->r_collision_count = 0;
@@ -1158,6 +1157,8 @@ void beam_render(beam *b, float u_offset)
 	// turn off backface culling
 	int cull = gr_set_cull(0);
 
+	length = vm_vec_dist(&b->last_start, &b->last_shot);					// beam tileing -Bobboau
+
 	bwi = &Weapon_info[b->weapon_info_index].b_info;
 
 	// draw all sections	
@@ -1187,10 +1188,8 @@ void beam_render(beam *b, float u_offset)
 		P_VERTICES();						
 		STUFF_VERTICES();		// stuff the beam with creamy goodness (texture coords)
 
-		length = vm_vec_dist(&b->last_start, &b->last_shot);					// beam tileing -Bobboau
-		
 		if (bwsi->tile_type == 1)
-			u_scale = length / (bwsi->width /2) / bwsi->tile_factor;	// beam tileing, might make a tileing factor in beam index later -Bobboau
+			u_scale = length / (bwsi->width * 0.5f) / bwsi->tile_factor;	// beam tileing, might make a tileing factor in beam index later -Bobboau
 		else
 			u_scale = bwsi->tile_factor;
 
@@ -1206,14 +1205,16 @@ void beam_render(beam *b, float u_offset)
 		//this should never happen but, just to be safe
 		CLAMP(per, 0.0f, 1.0f);
 
-		verts[1]->r = (ubyte)(255 * per);
-		verts[2]->r = (ubyte)(255 * per);
-		verts[1]->g = (ubyte)(255 * per);
-		verts[2]->g = (ubyte)(255 * per);
-		verts[1]->b = (ubyte)(255 * per);
-		verts[2]->b = (ubyte)(255 * per);
-		verts[1]->a = (ubyte)(255 * per);
-		verts[2]->a = (ubyte)(255 * per);
+		ubyte alpha = (ubyte)(255.0f * per);
+
+		verts[1]->r = alpha;
+		verts[2]->r = alpha;
+		verts[1]->g = alpha;
+		verts[2]->g = alpha;
+		verts[1]->b = alpha;
+		verts[2]->b = alpha;
+		verts[1]->a = alpha;
+		verts[2]->a = alpha;
 
 		verts[0]->r = 255;
 		verts[3]->r = 255;
@@ -1267,7 +1268,7 @@ void beam_generate_muzzle_particles(beam *b)
 	int particle_count;
 	int idx;
 	weapon_info *wip;
-	vec3d turret_norm, turret_pos, particle_pos, particle_dir, p_temp;
+	vec3d turret_norm, turret_pos, particle_pos, particle_dir;
 	matrix m;
 	particle_info pinfo;
 
@@ -1296,7 +1297,7 @@ void beam_generate_muzzle_particles(beam *b)
 	particle_count = (int)frand_range(0.0f, (float)wip->b_info.beam_particle_count);
 
 	// get turret info - position and normal
-	turret_pos = b->local_pnt;
+	turret_pos = b->last_start;
 	turret_norm = b->subsys->system_info->turret_norm;	
 
 	// randomly perturb a vector within a cone around the normal
@@ -1304,14 +1305,7 @@ void beam_generate_muzzle_particles(beam *b)
 	for(idx=0; idx<particle_count; idx++){
 		// get a random point in the cone
 		vm_vec_random_cone(&particle_dir, &turret_norm, wip->b_info.beam_particle_angle, &m);
-		p_temp = turret_pos;
-		vm_vec_scale_add(&p_temp, &turret_pos, &particle_dir, wip->b_info.beam_muzzle_radius * frand_range(0.75f, 0.9f));
-
-		// transform into world coords		
-		vm_vec_unrotate(&particle_pos, &p_temp, &b->objp->orient);
-		vm_vec_add2(&particle_pos, &b->objp->pos);
-		p_temp = particle_dir;
-		vm_vec_unrotate(&particle_dir, &p_temp, &b->objp->orient);
+		vm_vec_scale_add(&particle_pos, &turret_pos, &particle_dir, wip->b_info.beam_muzzle_radius * frand_range(0.75f, 0.9f));
 
 		// now generate some interesting values for the particle
 		float p_time_ref = wip->b_info.beam_life + ((float)wip->b_info.beam_warmup / 1000.0f);		
@@ -1333,6 +1327,32 @@ void beam_generate_muzzle_particles(beam *b)
 		pinfo.tracer_length = -1.0f;		
 		particle_create(&pinfo);
 	}
+}
+
+static float get_current_alpha(vec3d *pos)
+{
+	float dist;
+	float alpha;
+
+	const float inner_radius = 15.0f;
+	const float magic_num = 2.75f;
+
+	// determine what alpha to draw this bitmap with
+	// higher alpha the closer the bitmap gets to the eye
+	dist = vm_vec_dist_quick(&Eye_position, pos);	
+
+	// if the point is inside the inner radius, alpha is based on distance to the player's eye,
+	// becoming more transparent as it gets close
+	if (dist <= inner_radius) {
+		// alpha per meter between the magic # and the inner radius
+		alpha = 0.8f / (inner_radius - magic_num);
+
+		// above value times the # of meters away we are
+		alpha *= (dist - magic_num);
+		return (alpha < 0.005f) ? 0.0f : alpha;
+	}
+
+	return 0.8f;
 }
 
 // render the muzzle glow for a beam weapon
@@ -1373,6 +1393,11 @@ void beam_render_muzzle_glow(beam *b)
 	if (rad <= 0.0f)
 		return;
 
+	float alpha = get_current_alpha(&b->last_start);
+
+	if (alpha <= 0.0f)
+		return;
+
 	// draw the bitmap
 	if (Cmdline_nohtl)
 		g3_rotate_vertex(&pt, &b->last_start);
@@ -1388,7 +1413,7 @@ void beam_render_muzzle_glow(beam *b)
 		// Sanity checks
 		if (b->beam_glow_frame < 0.0f)
 			b->beam_glow_frame = 0.0f;
-		if (b->beam_glow_frame > 100.0f)
+		else if (b->beam_glow_frame > 100.0f)
 			b->beam_glow_frame = 0.0f;
 
 		while (b->beam_glow_frame > bwi->beam_glow.total_time)
@@ -1399,7 +1424,7 @@ void beam_render_muzzle_glow(beam *b)
 		CLAMP(framenum, 0, bwi->beam_glow.num_frames-1);
 	}
 
-	gr_set_bitmap(bwi->beam_glow.first_frame + framenum, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, 0.8f * pct);
+	gr_set_bitmap(bwi->beam_glow.first_frame + framenum, GR_ALPHABLEND_FILTER, GR_BITBLT_MODE_NORMAL, alpha * pct);
 
 	// draw 1 bitmap
 	g3_draw_bitmap(&pt, 0, rad, tmap_flags);
@@ -1475,8 +1500,8 @@ void beam_calc_facing_pts( vec3d *top, vec3d *bot, vec3d *fvec, vec3d *pos, floa
 	// VECMAT-ERROR: NULL VEC3D (value of, fvec == rvec)
 	vm_vec_normalize_safe(&uvec);
 
-	vm_vec_scale_add( top, &temp, &uvec, w/2.0f );
-	vm_vec_scale_add( bot, &temp, &uvec, -w/2.0f );	
+	vm_vec_scale_add( top, &temp, &uvec, w * 0.5f );
+	vm_vec_scale_add( bot, &temp, &uvec, -w * 0.5f );	
 }
 
 // light scale factor
@@ -2885,6 +2910,8 @@ void beam_handle_collisions(beam *b)
 		r_coll[r_coll_count].c_sig = Objects[target].signature;
 		r_coll[r_coll_count].c_stamp = -1;
 		r_coll[r_coll_count].cinfo = b->f_collisions[idx].cinfo;
+		r_coll[r_coll_count].quadrant = -1;
+		r_coll[r_coll_count].is_exit_collision = 0;
 		
 		// if he was already on the recent collision list, copy his timestamp
 		// also, be sure not to play the impact sound again.

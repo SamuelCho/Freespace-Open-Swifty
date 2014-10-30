@@ -161,7 +161,6 @@ ship_obj		Ship_obj_list;							// head of linked list of ship_obj structs
 
 ship_info		Ship_info[MAX_SHIP_CLASSES];
 reinforcements	Reinforcements[MAX_REINFORCEMENTS];
-SCP_vector<ship_info> Ship_templates;
 
 static char **tspecies_names = NULL;
 
@@ -374,6 +373,7 @@ ship_flag_name Ship_flag_names[] = {
 	{SF2_STEALTH,					"stealth",						2,	},
 	{SF2_FRIENDLY_STEALTH_INVIS,	"friendly-stealth-invisible",	2,	},
 	{SF2_HIDE_SHIP_NAME,			"hide-ship-name",				2,	},
+	{SF2_PRIMITIVE_SENSORS,			"primitive-sensors",			2,	},
 	{SF2_AFTERBURNER_LOCKED,		"afterburners-locked",			2,	},
 	{SF2_PRIMARIES_LOCKED,			"primaries-locked",				2,	},
 	{SF2_SECONDARIES_LOCKED,		"secondaries-locked",			2,	},
@@ -1098,98 +1098,12 @@ int parse_ship(const char *filename, bool replace)
 
 	// Use a template for this ship.
 	if( optional_string( "+Use Template:" ) ) {
-		// Should never resolve to true, but just in case...
-		if( !create_if_not_found ) {
-			Warning(LOCATION, "Both '+nocreate' and '+Use Template:' were specified for ship class '%s', ignoring '+Use Template:'", buf);
-		}
-		else {
-			char template_name[SHIP_MULTITEXT_LENGTH];
-			stuff_string(template_name, F_NAME, SHIP_MULTITEXT_LENGTH);
-			int template_id = ship_template_lookup( template_name);
-			if ( template_id != -1 ) {
-				first_time = false;
-
-				// TODO: whoever implemented ship templates should implement this method
-				// sip->assign(&Ship_templates[template_id]);
-				Warning(LOCATION, "Ship templates have been broken since they were added, and are not currently supported.");
-
-				strcpy_s(sip->name, buf);
-			}
-			else {
-				Warning(LOCATION, "Unable to find ship template '%s' requested by ship class '%s', ignoring template request...", template_name, buf);
-			}
-		}
+		Warning(LOCATION, "Ignoring '+Use Template' field for '%s'.  Ship templates have been broken since they were added, and are not currently supported.", sip->name);
 	}
 
-	rtn = parse_ship_values(sip, false, first_time, replace);
+	rtn = parse_ship_values(sip, first_time, replace);
 
 	return rtn;	//0 for success
-}
-
-/**
- * Parse the information for a specific ship type template.
- */
-int parse_ship_template()
-{
-	char buf[SHIP_MULTITEXT_LENGTH];
-	ship_info new_template;
-	ship_info *sip = &new_template;
-	int rtn = 0;
-	
-	required_string("$Template:");
-	stuff_string(buf, F_NAME, SHIP_MULTITEXT_LENGTH);
-	
-	if( optional_string("+nocreate") ) {
-		Warning(LOCATION, "+nocreate flag used on ship template. Ship templates can not be modified. Ignoring +nocreate.");
-	}
-	
-	diag_printf ("Ship template name -- %s\n", buf);
-	//Check if the template exists already
-	int template_id;
-	template_id = ship_template_lookup( buf );
-	
-	if( template_id != -1 ) {
-		sip = &Ship_templates[template_id];
-		Warning(LOCATION, "Error:  Ship template %s already exists. All ship template names must be unique.", sip->name);
-		if ( !skip_to_start_of_string_either("$Template:", "#End")) {
-			Int3();
-		}
-		return -1;
-	}
-	else {
-		
-		init_ship_entry(sip);
-		strcpy_s(sip->name, buf);
-		//Use another template for this template. This allows for template hierarchies. - Turey
-		if( optional_string("+Use Template:") ) {
-			char template_name[SHIP_MULTITEXT_LENGTH];
-			stuff_string(template_name, F_NAME, SHIP_MULTITEXT_LENGTH);
-			template_id = ship_template_lookup( template_name);
-			
-			if ( template_id != -1 ) {
-				// TODO: whoever implemented ship templates should implement this method
-				// sip->assign(&Ship_templates[template_id]);
-				Warning(LOCATION, "Ship templates have been broken since they were added, and are not currently supported.");
-				
-				strcpy_s(sip->name, buf);
-			}
-			else {
-				Warning(LOCATION, "Unable to find ship template '%s' requested by ship template '%s', ignoring template request...", template_name, buf);
-			}
-		}
-	}
-	
-	rtn = parse_ship_values( sip, true, true, false );
-	
-	// Now that we're done everything, check to see if the template exists already, and if it doesn't, add it to the vector.
-	if ( ship_template_lookup( sip->name ) != -1 ) {
-		Warning(LOCATION, "Ship Template '%s' already exists, discarding duplicate...", sip->name);
-	}
-	else {
-		Ship_templates.push_back(*sip);
-	}
-	
-	return rtn;
 }
 
 void parse_ship_sound(char *name, GameSoundsIndex id, ship_info *sip)
@@ -1432,22 +1346,14 @@ int parse_and_add_briefing_icon_info()
 /**
  * Puts values into a ship_info.
  */
-int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool replace)
+int parse_ship_values(ship_info* sip, bool first_time, bool replace)
 {
 	char buf[SHIP_MULTITEXT_LENGTH];
-	char* info_type_name;
 	int i, j, num_allowed;
 	int allowed_weapons[MAX_WEAPON_TYPES];
 	int rtn = 0;
 	char name_tmp[NAME_LENGTH];
 	
-	if ( !isTemplate ) {
-		info_type_name = "Ship Class";
-	}
-	else {
-		info_type_name = "Ship Template";
-	}	
-
 	if(optional_string("$Alt name:"))
 		stuff_string(sip->alt_name, F_NAME, NAME_LENGTH);
 
@@ -1684,7 +1590,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 
 		// Goober5000 - if this is a modular table, and we're replacing an existing file name, and the file doesn't exist, don't replace it
 		if (replace)
-			if (sip->pof_file[0] != '\0')
+			if (sip->pof_file_hud[0] != '\0')
 				if (!cf_exists_full(temp, CF_TYPE_MODELS))
 					valid = false;
 
@@ -1726,7 +1632,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		char temp[NAME_LENGTH];
 		stuff_string(temp, F_NAME, NAME_LENGTH);
 		SCP_string name = temp;
-		if (name == "None") {
+		if (!stricmp(temp, "none")) {
 			sip->uses_team_colors = true;
 		} else {
 			if (Team_Colors.find(name) != Team_Colors.end()) {
@@ -1864,32 +1770,32 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		if(optional_string("+Min Lifetime:"))	{
 			stuff_float(&sip->debris_min_lifetime);
 			if(sip->debris_min_lifetime < 0.0f)
-				Warning(LOCATION, "Debris min lifetime on %s '%s' is below 0 and will be ignored", info_type_name, sip->name);
+				Warning(LOCATION, "Debris min lifetime on ship class '%s' is below 0 and will be ignored", sip->name);
 		}
 		if(optional_string("+Max Lifetime:"))	{
 			stuff_float(&sip->debris_max_lifetime);
 			if(sip->debris_max_lifetime < 0.0f)
-				Warning(LOCATION, "Debris max lifetime on %s '%s' is below 0 and will be ignored", info_type_name, sip->name);
+				Warning(LOCATION, "Debris max lifetime on ship class '%s' is below 0 and will be ignored", sip->name);
 		}
 		if(optional_string("+Min Speed:"))	{
 			stuff_float(&sip->debris_min_speed);
 			if(sip->debris_min_speed < 0.0f)
-				Warning(LOCATION, "Debris min speed on %s '%s' is below 0 and will be ignored", info_type_name, sip->name);
+				Warning(LOCATION, "Debris min speed on ship class '%s' is below 0 and will be ignored", sip->name);
 		}
 		if(optional_string("+Max Speed:"))	{
 			stuff_float(&sip->debris_max_speed);
 			if(sip->debris_max_speed < 0.0f)
-				Warning(LOCATION, "Debris max speed on %s '%s' is below 0 and will be ignored", info_type_name, sip->name);
+				Warning(LOCATION, "Debris max speed on ship class '%s' is below 0 and will be ignored", sip->name);
 		}
 		if(optional_string("+Min Rotation speed:"))	{
 			stuff_float(&sip->debris_min_rotspeed);
 			if(sip->debris_min_rotspeed < 0.0f)
-				Warning(LOCATION, "Debris min speed on %s '%s' is below 0 and will be ignored", info_type_name, sip->name);
+				Warning(LOCATION, "Debris min speed on ship class '%s' is below 0 and will be ignored", sip->name);
 		}
 		if(optional_string("+Max Rotation speed:"))	{
 			stuff_float(&sip->debris_max_rotspeed);
 			if(sip->debris_max_rotspeed < 0.0f)
-				Warning(LOCATION, "Debris max speed on %s '%s' is below 0 and will be ignored", info_type_name, sip->name);
+				Warning(LOCATION, "Debris max speed on ship class '%s' is below 0 and will be ignored", sip->name);
 		}
 		if(optional_string("+Damage Type:")) {
 			stuff_string(buf, F_NAME, NAME_LENGTH);
@@ -1898,22 +1804,22 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		if(optional_string("+Min Hitpoints:")) {
 			stuff_float(&sip->debris_min_hitpoints);
 			if(sip->debris_min_hitpoints < 0.0f)
-				Warning(LOCATION, "Debris min hitpoints on %s '%s' is below 0 and will be ignored", info_type_name, sip->name);
+				Warning(LOCATION, "Debris min hitpoints on ship class '%s' is below 0 and will be ignored", sip->name);
 		}
 		if(optional_string("+Max Hitpoints:")) {
 			stuff_float(&sip->debris_max_hitpoints);
 			if(sip->debris_max_hitpoints < 0.0f)
-				Warning(LOCATION, "Debris max hitpoints on %s '%s' is below 0 and will be ignored", info_type_name, sip->name);
+				Warning(LOCATION, "Debris max hitpoints on ship class '%s' is below 0 and will be ignored", sip->name);
 		}
 		if(optional_string("+Damage Multiplier:")) {
 			stuff_float(&sip->debris_damage_mult);
 			if(sip->debris_damage_mult < 0.0f)
-				Warning(LOCATION, "Debris damage multiplier on %s '%s' is below 0 and will be ignored", info_type_name, sip->name);
+				Warning(LOCATION, "Debris damage multiplier on ship class '%s' is below 0 and will be ignored", sip->name);
 		}
 		if(optional_string("+Lightning Arc Percent:")) {
 			stuff_float(&sip->debris_arc_percent);
 			if(sip->debris_arc_percent < 0.0f || sip->debris_arc_percent > 100.0f) {
-				Warning(LOCATION, "Lightning Arc Percent on %s '%s' should be between 0 and 100.0 (read %f). Entry will be ignored.", info_type_name, sip->name, sip->debris_arc_percent);
+				Warning(LOCATION, "Lightning Arc Percent on ship class '%s' should be between 0 and 100.0 (read %f). Entry will be ignored.", sip->name, sip->debris_arc_percent);
 				sip->debris_arc_percent = 50.0;
 			}
 			//Percent is nice for modders, but here in the code we want it betwwen 0 and 1.0
@@ -1923,19 +1829,19 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 	}
 	//WMC - sanity checking
 	if(sip->debris_min_speed > sip->debris_max_speed && sip->debris_max_speed >= 0.0f) {
-		Warning(LOCATION, "Debris min speed (%f) on %s '%s' is greater than debris max speed (%f), and will be set to debris max speed.", sip->debris_min_speed, info_type_name, sip->name, sip->debris_max_speed);
+		Warning(LOCATION, "Debris min speed (%f) on ship class '%s' is greater than debris max speed (%f), and will be set to debris max speed.", sip->debris_min_speed, sip->name, sip->debris_max_speed);
 		sip->debris_min_speed = sip->debris_max_speed;
 	}
 	if(sip->debris_min_rotspeed > sip->debris_max_rotspeed && sip->debris_max_rotspeed >= 0.0f) {
-		Warning(LOCATION, "Debris min rotation speed (%f) on %s '%s' is greater than debris max rotation speed (%f), and will be set to debris max rotation speed.", sip->debris_min_rotspeed, info_type_name, sip->name, sip->debris_max_rotspeed);
+		Warning(LOCATION, "Debris min rotation speed (%f) on ship class '%s' is greater than debris max rotation speed (%f), and will be set to debris max rotation speed.", sip->debris_min_rotspeed, sip->name, sip->debris_max_rotspeed);
 		sip->debris_min_rotspeed = sip->debris_max_rotspeed;
 	}
 	if(sip->debris_min_lifetime > sip->debris_max_lifetime && sip->debris_max_lifetime >= 0.0f) {
-		Warning(LOCATION, "Debris min lifetime (%f) on %s '%s' is greater than debris max lifetime (%f), and will be set to debris max lifetime.", sip->debris_min_lifetime, info_type_name, sip->name, sip->debris_max_lifetime);
+		Warning(LOCATION, "Debris min lifetime (%f) on ship class '%s' is greater than debris max lifetime (%f), and will be set to debris max lifetime.", sip->debris_min_lifetime, sip->name, sip->debris_max_lifetime);
 		sip->debris_min_lifetime = sip->debris_max_lifetime;
 	}
 	if(sip->debris_min_hitpoints > sip->debris_max_hitpoints && sip->debris_max_hitpoints >= 0.0f) {
-		Warning(LOCATION, "Debris min hitpoints (%f) on %s '%s' is greater than debris max hitpoints (%f), and will be set to debris max hitpoints.", sip->debris_min_hitpoints, info_type_name, sip->name, sip->debris_max_hitpoints);
+		Warning(LOCATION, "Debris min hitpoints (%f) on ship class '%s' is greater than debris max hitpoints (%f), and will be set to debris max hitpoints.", sip->debris_min_hitpoints, sip->name, sip->debris_max_hitpoints);
 		sip->debris_min_hitpoints = sip->debris_max_hitpoints;
 	}
 
@@ -1953,7 +1859,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 
 	if(optional_string("$Banking Constant:"))
 		stuff_float( &(sip->delta_bank_const) );
-	diag_printf ("%s '%s' delta_bank_const -- %7.3f\n", info_type_name, sip->name, sip->delta_bank_const);
+	diag_printf ("Ship class '%s' delta_bank_const -- %7.3f\n", sip->name, sip->delta_bank_const);
 
 	if(optional_string("$Max Velocity:"))
 	{
@@ -2882,8 +2788,14 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		model_unload(model_idx);
 	}
 
-	if(optional_string("$Closeup_zoom:"))
+	if (optional_string("$Closeup_zoom:")) {
 		stuff_float(&sip->closeup_zoom);
+
+		if (sip->closeup_zoom <= 0.0f) {
+			mprintf(("Warning!  Ship '%s' has a $Closeup_zoom value that is less than or equal to 0 (%f). Setting to default value.\n", sip->name, sip->closeup_zoom));
+			sip->closeup_zoom = 0.5f;
+		}
+	}
 		
 	if(optional_string("$Topdown offset:")) {
 		sip->topdown_offset_def = true;
@@ -3343,7 +3255,7 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 	}
 
 	while (cont_flag) {
-		int r = required_string_4("#End", "$Subsystem:", "$Name", "$Template" );
+		int r = required_string_3("#End", "$Subsystem:", "$Name" );
 		switch (r) {
 		case 0:
 			cont_flag = 0;
@@ -3811,12 +3723,12 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 							current_trigger->end = 0;
 
 						if(optional_string("$Sound:")){
-							required_string("+Start:");
-							stuff_int(&current_trigger->start_sound );
-							required_string("+Loop:");
-							stuff_int(&current_trigger->loop_sound );
-							required_string("+End:");
-							stuff_int(&current_trigger->end_sound );
+							parse_sound("+Start:", &current_trigger->start_sound, sip->name);
+
+							parse_sound("+Loop:", &current_trigger->loop_sound, sip->name);
+
+							parse_sound("+End:", &current_trigger->end_sound, sip->name);
+
 							required_string("+Radius:");
 							stuff_float(&current_trigger->snd_rad );
 						}else{
@@ -3841,11 +3753,6 @@ int parse_ship_values(ship_info* sip, bool isTemplate, bool first_time, bool rep
 		case 2:
 			cont_flag = 0;
 			break;
-		case 3:
-			if (isTemplate) {
-				cont_flag = 0;
-				break;
-			}
 		default:
 			Int3();	// Impossible return value from required_string_3.
 		}
@@ -4123,12 +4030,8 @@ void parse_shiptype_tbl(const char *filename)
 {
 	int rval;
 
-	// open localization
-	lcl_ext_open();
-
 	if ((rval = setjmp(parse_abort)) != 0) {
 		mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", filename, rval));
-		lcl_ext_close();
 		return;
 	}
 
@@ -4165,9 +4068,6 @@ void parse_shiptype_tbl(const char *filename)
 
 	// add tbl/tbm to multiplayer validation list
 	fs2netd_add_table_validation(filename);
-
-	// close localization
-	lcl_ext_close();
 }
 
 // The E - Simple lookup function for FRED.
@@ -4224,14 +4124,10 @@ void ship_set_default_player_ship()
 void parse_shiptbl(const char *filename)
 {
 	int rval;
-
-	// open localization
-	lcl_ext_open();
 	
 	if ((rval = setjmp(parse_abort)) != 0)
 	{
 		mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", filename, rval));
-		lcl_ext_close();
 		return;
 	}
 
@@ -4258,17 +4154,6 @@ void parse_shiptbl(const char *filename)
 		required_string("#End");
 	}
 
-	if( optional_string("#Ship Templates") ) {
-		while ( required_string_either("#End","$Template:") ) {
-			
-			if ( parse_ship_template() ) {
-				continue;
-			}
-		}
-		
-		required_string("#End");
-	}
-
 	//Add ship classes
 	if(optional_string("#Ship Classes"))
 	{
@@ -4288,9 +4173,6 @@ void parse_shiptbl(const char *filename)
 
 	// add tbl/tbm to multiplayer validation list
 	fs2netd_add_table_validation(filename);
-
-	// close localization
-	lcl_ext_close();
 }
 
 int ship_show_velocity_dot = 0;
@@ -4460,9 +4342,6 @@ void ship_init()
 			ships_inited = 1;
 
 			// cleanup
-			
-			//Unload ship templates, we don't need them anymore.
-			Ship_templates.clear();
 			
 			vm_free(tspecies_names);
 			tspecies_names = NULL;
@@ -4707,7 +4586,7 @@ void physics_ship_init(object *objp)
 		float vmass=size.xyz.x*size.xyz.y*size.xyz.z;
 		float amass=4.65f*(float)pow(vmass,(2.0f/3.0f));
 
-		nprintf(("Physics", "pi->mass==0.0f. setting to %f",amass));
+		nprintf(("Physics", "pi->mass==0.0f. setting to %f\n",amass));
 		Warning(LOCATION, "%s (%s) has no mass! setting to %f", sinfo->name, sinfo->pof_file, amass);
 		pm->mass=amass;
 		pi->mass=amass*sinfo->density;
@@ -4719,7 +4598,7 @@ void physics_ship_init(object *objp)
 		&& IS_VEC_NULL(&pm->moment_of_inertia.vec.uvec)
 		&& IS_VEC_NULL(&pm->moment_of_inertia.vec.fvec) )
 	{
-		nprintf(("Physics", "pm->moment_of_inertia is invalid for %s!", pm->filename));
+		nprintf(("Physics", "pm->moment_of_inertia is invalid for %s!\n", pm->filename));
 		Warning(LOCATION, "%s (%s) has a null moment of inertia!", sinfo->name, sinfo->pof_file);
 
 		// TODO: generate MOI properly
@@ -5265,6 +5144,11 @@ void ship_set(int ship_index, int objnum, int ship_type)
 	if (sip->flags & SIF_SHIP_CLASS_DONT_COLLIDE_INVIS)
 		shipp->flags2 |= SF2_DONT_COLLIDE_INVIS;
 
+	if (sip->flags & SIF_NO_COLLIDE)
+		obj_set_flags(objp, objp->flags & ~OF_COLLIDES);
+	else
+		obj_set_flags(objp, objp->flags | OF_COLLIDES);
+
 	if (sip->flags2 & SIF2_NO_ETS)
 		shipp->flags2 |= SF2_NO_ETS;
 
@@ -5326,7 +5210,7 @@ void ship_set(int ship_index, int objnum, int ship_type)
 
 	// Team colors
 	shipp->team_name.assign( sip->default_team_name);
-	shipp->secondary_team_name = "<none>";
+	shipp->secondary_team_name = "none";
 
 	shipp->autoaim_fov = sip->autoaim_fov;
 }
@@ -5664,7 +5548,7 @@ int subsys_set(int objnum, int ignore_subsys_info)
 		// previous things... ugh.
 		ship_system->max_hits = model_system->max_subsys_strength;	// * shipp->ship_max_hull_strength / sinfo->max_hull_strength;
 
-		if ( !Fred_running ){
+		if ( !Fred_running ) {
 			ship_system->current_hits = ship_system->max_hits;		// set the current hits
 		} else {
 			ship_system->current_hits = 0.0f;				// Jason wants this to be 0 in Fred.
@@ -7211,6 +7095,8 @@ int ship_explode_area_calc_damage( vec3d *pos1, vec3d *pos2, float inner_rad, fl
 	return 1;
 }
 
+static const float MAX_SHOCK_ANGLE_RANGE = 1.99f * PI;
+
 /**
  * Applies damage to ship close to others when a ship dies and blows up
  *
@@ -7276,9 +7162,9 @@ void ship_blow_up_area_apply_blast( object *exp_objp)
 		sci.blast = max_blast;
 		sci.damage = max_damage;
 		sci.speed = shockwave_speed;
-		sci.rot_angles.p = frand_range(0.0f, 1.99f*PI);
-		sci.rot_angles.b = frand_range(0.0f, 1.99f*PI);
-		sci.rot_angles.h = frand_range(0.0f, 1.99f*PI);
+		sci.rot_angles.p = frand_range(0.0f, MAX_SHOCK_ANGLE_RANGE);
+		sci.rot_angles.b = frand_range(0.0f, MAX_SHOCK_ANGLE_RANGE);
+		sci.rot_angles.h = frand_range(0.0f, MAX_SHOCK_ANGLE_RANGE);
 		shipfx_do_shockwave_stuff(shipp, &sci);
 	} else {
 		object *objp;
@@ -9550,10 +9436,10 @@ void change_ship_type(int n, int ship_type, int by_sexp)
 	else if (sip_orig->flags & SIF_SHIP_CLASS_DONT_COLLIDE_INVIS)	// changing FROM a don't-collide-invisible ship class
 		sp->flags2 &= ~SF2_DONT_COLLIDE_INVIS;
 
-	if (sip->flags & SIF_NO_COLLIDE)								// changing TO a no_collide ship
-		Objects[sp->objnum].flags &= ~OF_COLLIDES;
-	else if (sip_orig->flags & SIF_NO_COLLIDE)						// changing FROM a no_collide ship
-		Objects[sp->objnum].flags |= OF_COLLIDES;
+	if (sip->flags & SIF_NO_COLLIDE)								// changing TO a no-collision ship class
+		obj_set_flags(objp, objp->flags & ~OF_COLLIDES);
+	else if (sip_orig->flags & SIF_NO_COLLIDE)						// changing FROM a no-collision ship class
+		obj_set_flags(objp, objp->flags | OF_COLLIDES);
 
 	if (sip->flags2 & SIF2_NO_ETS)
 		sp->flags2 |= SF2_NO_ETS;
@@ -10231,14 +10117,15 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 		polymodel *pm = model_get( sip->model_num );
 		
 		// Goober5000 (thanks to _argv[-1] for the original idea)
-		if ( !((winfo_p->wi_flags3 & WIF3_NO_LINKED_PENALTY) || (The_mission.ai_profile->flags & AIPF_DISABLE_LINKED_FIRE_PENALTY)) )
+		if ( (num_primary_banks > 1) &&  !(winfo_p->wi_flags3 & WIF3_NO_LINKED_PENALTY) && !(The_mission.ai_profile->flags & AIPF_DISABLE_LINKED_FIRE_PENALTY) )
 		{
 			int effective_primary_banks = 0;
 			for (int it = 0; it < num_primary_banks; it++)
-				if (Weapon_info[swp->primary_bank_weapons[it]].wi_flags3 & (WIF3_NOLINK | WIF3_NO_LINKED_PENALTY))
-					continue;
-				else
+			{
+				if ((it == bank_to_fire) || !(Weapon_info[swp->primary_bank_weapons[it]].wi_flags3 & (WIF3_NOLINK | WIF3_NO_LINKED_PENALTY)))
 					effective_primary_banks++;
+			}
+			Assert(effective_primary_banks >= 1);
 
 			next_fire_delay *= 1.0f + (effective_primary_banks - 1) * 0.5f;		//	50% time penalty if banks linked
 		}
@@ -10382,7 +10269,7 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 				shipp->beam_sys_info.turret_norm.xyz.z = 1.0f;
 				shipp->beam_sys_info.model_num = sip->model_num;
 				shipp->beam_sys_info.turret_gun_sobj = pm->detail[0];
-				shipp->beam_sys_info.turret_num_firing_points = 1;
+				shipp->beam_sys_info.turret_num_firing_points = 1;  // dummy turret info is used per firepoint
 				shipp->beam_sys_info.turret_fov = (float)cos((winfo_p->field_of_fire != 0.0f)?winfo_p->field_of_fire:180);
 
 				shipp->fighter_beam_turret_data.disruption_timestamp = timestamp(0);
@@ -10401,7 +10288,7 @@ int ship_fire_primary(object * obj, int stream_weapons, int force)
 					fbfire_info.target = NULL;
 				}
 				fbfire_info.turret = &shipp->fighter_beam_turret_data;
-				fbfire_info.bfi_flags |= BFIF_IS_FIGHTER_BEAM;
+				fbfire_info.bfi_flags = BFIF_IS_FIGHTER_BEAM;
 				fbfire_info.bank = bank_to_fire;
 
 				for ( v = 0; v < points; v++ ){
@@ -10915,7 +10802,7 @@ void ship_process_targeting_lasers()
  * @param src	Source of weapon
  * @return true if detonated, else return false.
  * 
- *	Calls ::weapon_hit() to detonate weapon.
+ *	Calls ::weapon_hit(), indirectly via ::weapon_detonate(), to detonate weapon.
  *	If it's a weapon that spawns particles, those will be released.
  */
 int maybe_detonate_weapon(ship_weapon *swp, object *src)
@@ -10924,6 +10811,10 @@ int maybe_detonate_weapon(ship_weapon *swp, object *src)
 	object		*objp;
 	weapon_info	*wip;
 
+	if ((objnum < 0) || (objnum >= MAX_OBJECTS)) {
+		return 0;
+	}
+    
 	objp = &Objects[objnum];
 
 	if (objp->type != OBJ_WEAPON){
@@ -10944,17 +10835,15 @@ int maybe_detonate_weapon(ship_weapon *swp, object *src)
 
 	if (wip->wi_flags & WIF_REMOTE) {
 
-		if ((objnum >= 0) && (objnum < MAX_OBJECTS)) {
-			int	weapon_sig;
+		int	weapon_sig;
 
-			weapon_sig = objp->signature;
+		weapon_sig = objp->signature;
 
-			if (swp->last_fired_weapon_signature == weapon_sig) {				
-				weapon_detonate(objp);
-				swp->last_fired_weapon_index = -1;
+		if (swp->last_fired_weapon_signature == weapon_sig) {
+			weapon_detonate(objp);
+			swp->last_fired_weapon_index = -1;
 
-				return 1;
-			}
+			return 1;
 		}
 	}
 
@@ -12029,21 +11918,6 @@ int ship_info_lookup_sub(const char *token)
 	return -1;
 }
 
-/**
- * Return the index of Ship_templates[].name that is *token.
- */
-int ship_template_lookup(const char *token)
-{
-	int	i;
-
-	for ( i = 0; i < (int)Ship_templates.size(); i++ ) {
-		if ( !stricmp(token, Ship_templates[i].name) ) {
-			return i;
-		}
-	}
-	return -1;
-}
-
 // Goober5000
 int ship_info_lookup(const char *token)
 {
@@ -12109,6 +11983,14 @@ int ship_info_lookup(const char *token)
 			return idx;
 
 		idx = ship_info_lookup_sub("SF Dragon (Terrans)");
+		if (idx >= 0)
+			return idx;
+
+		return -1;
+	}
+	else if (!stricmp(token, "GTSC Faustus#2 (big blast)"))
+	{
+		idx = ship_info_lookup_sub("GTSC Faustus#bigblast");
 		if (idx >= 0)
 			return idx;
 
@@ -12299,9 +12181,7 @@ void ship_model_start(object *objp)
 			case SUBSYSTEM_SOLAR:
 			case SUBSYSTEM_GAS_COLLECT:
 			case SUBSYSTEM_ACTIVATION:
-				break;
 			case SUBSYSTEM_TURRET:
-				Assertion( !(psub->flags & MSS_FLAG_ROTATES), "Turret %s on ship %s has the $rotate or $triggered subobject property defined. Please fix the model.\n", psub->name, Ship_info[shipp->ship_info_index].name ); // Turrets can't rotate!!! See John!
 				break;
 			default:
 				Error(LOCATION, "Illegal subsystem type.\n");
@@ -13550,6 +13430,12 @@ void ship_close()
 		}
 	}
 
+	for (i = 0; i < (int)Ship_types.size(); i++) {
+		Ship_types[i].ai_actively_pursues.clear();
+		Ship_types[i].ai_actively_pursues_temp.clear();
+	}
+	Ship_types.clear();
+	
 	if(CLOAKMAP != -1)
 		bm_release(CLOAKMAP);
 }	
@@ -15250,7 +15136,7 @@ void ship_maybe_tell_about_low_ammo(ship *sp)
 			{
 				if (swp->primary_bank_start_ammo[i] > 0)
 				{
-					if (swp->primary_bank_ammo[i] / swp->primary_bank_start_ammo[i] < 0.3f)
+					if ((float)swp->primary_bank_ammo[i] / (float)swp->primary_bank_start_ammo[i] < 0.3f)
 					{
 						// multiplayer tvt
 						if(MULTI_TEAM) {
@@ -15312,7 +15198,7 @@ void ship_maybe_tell_about_rearm(ship *sp)
 		{
 			if (swp->secondary_bank_start_ammo[i] > 0)
 			{
-				if (swp->secondary_bank_ammo[i] / swp->secondary_bank_start_ammo[i] < 0.5f)
+				if ((float)swp->secondary_bank_ammo[i] / (float)swp->secondary_bank_start_ammo[i] < 0.5f)
 				{
 					message_type = MESSAGE_REARM_REQUEST;
 					break;
@@ -15331,7 +15217,7 @@ void ship_maybe_tell_about_rearm(ship *sp)
 				{
 					if (swp->primary_bank_start_ammo[i] > 0)
 					{
-						if (swp->primary_bank_ammo[i] / swp->primary_bank_start_ammo[i] < 0.3f)
+						if ((float)swp->primary_bank_ammo[i] / (float)swp->primary_bank_start_ammo[i] < 0.3f)
 						{
 							message_type = MESSAGE_REARM_PRIMARIES;
 							break;
@@ -16187,15 +16073,21 @@ int is_support_allowed(object *objp, bool do_simple_check)
 		return 0;
 	}
 
-// this is a mod problem, so let's only do it in debug mode
-#ifndef NDEBUG
-	// Goober5000 - extra check to make sure this guy has a rearming dockpoint
-	if (model_find_dock_index(Ship_info[shipp->ship_info_index].model_num, DOCK_TYPE_REARM) < 0)
+	// this is also somewhat expensive
+	if (!do_simple_check)
 	{
-		Warning(LOCATION, "Support not allowed for %s because its model lacks a rearming dockpoint!", shipp->ship_name);
-		return 0;
+		// Goober5000 - extra check to make sure this guy has a rearming dockpoint
+		if (model_find_dock_index(Ship_info[shipp->ship_info_index].model_num, DOCK_TYPE_REARM) < 0)
+		{
+			static bool warned_about_rearm_dockpoint = false;
+			if (!warned_about_rearm_dockpoint)
+			{
+				Warning(LOCATION, "Support not allowed for %s because its model lacks a rearming dockpoint!", shipp->ship_name);
+				warned_about_rearm_dockpoint = true;
+			}
+			return 0;
+		}
 	}
-#endif
 
 	// Goober5000 - if we got this far, we can request support
 	return 1;
@@ -17699,12 +17591,8 @@ void armor_parse_table(const char *filename)
 {
 	int rval;
 
-	// open localization
-	lcl_ext_open();
-
 	if ((rval = setjmp(parse_abort)) != 0) {
 		mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", filename, rval));
-		lcl_ext_close();
 		return;
 	}
 
@@ -17723,9 +17611,6 @@ void armor_parse_table(const char *filename)
 
 	// add tbl/tbm to multiplayer validation list
 	fs2netd_add_table_validation(filename);
-
-	// close localization
-	lcl_ext_close();
 }
 
 void armor_init()
