@@ -848,12 +848,14 @@ void hud_lock_acquire_uncaged_subsystem(weapon_info *wip, lock_info *lock, float
 
 			// check for existing locks
 			current_num_locks = 0;
+			bool actively_locking = false;
 
 			for ( size_t i = 0; i < Player_ship->missile_locks.size(); ++i ) {
 				if ( Player_ship->missile_locks[i].obj != NULL && OBJ_INDEX(Player_ship->missile_locks[i].obj) == OBJ_INDEX(lock->obj) ) {
 					if ( Player_ship->missile_locks[i].subsys != NULL && Player_ship->missile_locks[i].subsys == ss ) {
 						if ( !Player_ship->missile_locks[i].locked ) {
 							// we're already currently locking on this subsystem so let's not throw another aspect lock on it.
+							actively_locking = true;
 							continue;
 						}
 
@@ -862,7 +864,8 @@ void hud_lock_acquire_uncaged_subsystem(weapon_info *wip, lock_info *lock, float
 				}
 			}
 
-			if ( current_num_locks < wip->max_seekers_per_target
+			if ( !actively_locking 
+				&& current_num_locks < wip->max_seekers_per_target
 				&& current_num_locks <= *least_num_locks
 				&& ss_dot > *best_dot ) {
 					lock->subsys = ss;
@@ -898,7 +901,14 @@ void hud_lock_acquire_uncaged_target(lock_info *current_lock, weapon_info *wip)
 			continue;
 		}
 
+		sp = &Ships[A->instance];
+		ss = NULL;
+
 		if ( A->flags & OF_SHOULD_BE_DEAD ) {
+			continue;
+		}
+
+		if ( sp->flags & SF_DYING ) {
 			continue;
 		}
 
@@ -915,9 +925,6 @@ void hud_lock_acquire_uncaged_target(lock_info *current_lock, weapon_info *wip)
 			// broad test to see if we should bother to even check
 			continue;
 		}*/
-
-		sp = &Ships[A->instance];
-		ss = NULL;
 
 		if ( !weapon_can_lock_on_ship_type(wip, Ship_info[sp->ship_info_index].class_type) ) {
 			continue;
