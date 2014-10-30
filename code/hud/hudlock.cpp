@@ -1560,6 +1560,11 @@ void hud_do_lock_indicators(float frametime)
 			continue;
 		}
 
+		if ( lock_slot->obj->type == OBJ_SHIP && Ships[lock_slot->obj->instance].flags & SF_DYING ) {
+			ship_clear_lock(lock_slot);
+			continue;
+		}
+
 		hud_lock_determine_lock_point(lock_slot, wip);
 
 		hud_lock_check_if_target_in_lock_cone(lock_slot, wip);
