@@ -1199,11 +1199,11 @@ void scene_lights::setLightFilter(int objnum, vec3d *pos, float rad)
 	}
 }
 
-scene_lights::light_indexing_info scene_lights::bufferLights()
+light_indexing_info scene_lights::bufferLights()
 {
 	size_t i;
 
-	scene_lights::light_indexing_info light_info;
+	light_indexing_info light_info;
 
 	light_info.index_start = 0;
 	light_info.num_lights = 0;
@@ -1235,7 +1235,7 @@ void scene_lights::resetLightState()
 	current_num_lights = -1;
 }
 
-bool scene_lights::setLights(scene_lights::light_indexing_info *info)
+bool scene_lights::setLights(light_indexing_info *info)
 {
 	size_t i;
 

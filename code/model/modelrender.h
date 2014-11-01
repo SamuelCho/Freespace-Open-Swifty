@@ -160,7 +160,7 @@ struct render_state
 	int animated_effect;
 
 	bool lighting;
-	scene_lights::light_indexing_info lights;
+	light_indexing_info lights;
 	float light_factor;
 	
 	float thrust_scale;
@@ -278,7 +278,7 @@ class draw_list
 	int Current_depth_mode;
 
 	int Current_set_clip_plane;
-	scene_lights::light_indexing_info Current_lights_set;
+	light_indexing_info Current_lights_set;
 
 	void render_arc(arc_effect &arc);
 	void render_insignia(insignia_draw_data &insignia_info);
