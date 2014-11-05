@@ -523,7 +523,7 @@ float geometry_batcher::draw_laser(vec3d *p0, float width1, vec3d *p1, float wid
 void geometry_batcher::render(int flags, float radius)
 {
 	if (n_to_render) {
-		if ( (Use_Shaders_for_effect_rendering && Use_GLSL > 2 && ((flags & TMAP_FLAG_SOFT_QUAD) && Cmdline_softparticles)) || (flags & TMAP_FLAG_DISTORTION) || ((flags & TMAP_FLAG_DISTORTION_THRUSTER) && use_radius) ) {
+		if ( Use_Shaders_for_effect_rendering && (flags & TMAP_FLAG_SOFT_QUAD || flags & TMAP_FLAG_DISTORTION || flags & TMAP_FLAG_DISTORTION_THRUSTER) && use_radius ) {
 			gr_render_effect(n_to_render * 3, vert, radius_list, flags | TMAP_FLAG_TRILIST);
 		} else {
 			gr_render(n_to_render * 3, vert, flags | TMAP_FLAG_TRILIST);
@@ -792,7 +792,12 @@ int batch_add_bitmap(int texture, int tmap_flags, vertex *pnt, int orient, float
 		return 1;
 	}
 
-	if ( Cmdline_softparticles && !Cmdline_no_geo_sdr_effects && Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) && (tmap_flags & TMAP_FLAG_VERTEX_GEN) ) {
+	if ( tmap_flags & TMAP_FLAG_SOFT_QUAD && ( !Cmdline_softparticles || Use_GLSL <= 2 ) ) {
+		// don't render this as a soft particle if we don't support soft particles
+		tmap_flags &= ~(TMAP_FLAG_SOFT_QUAD);
+	}
+
+	if ( Use_GLSL > 2 && Cmdline_softparticles && !Cmdline_no_geo_sdr_effects && Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) && (tmap_flags & TMAP_FLAG_VERTEX_GEN) ) {
 		geometry_batch_add_bitmap(texture, tmap_flags, pnt, orient, rad, alpha, depth);
 		return 0;
 	} else if ( tmap_flags & TMAP_FLAG_VERTEX_GEN ) {
@@ -876,6 +881,11 @@ int batch_add_bitmap_rotated(int texture, int tmap_flags, vertex *pnt, float ang
 	if (texture < 0) {
 		Int3();
 		return 1;
+	}
+
+	if ( tmap_flags & TMAP_FLAG_SOFT_QUAD && ( !Cmdline_softparticles || Use_GLSL <= 2 ) ) {
+		// don't render this as a soft particle if we don't support soft particles
+		tmap_flags &= ~(TMAP_FLAG_SOFT_QUAD);
 	}
 
 	batch_item *item = NULL;
@@ -1255,6 +1265,11 @@ int distortion_add_bitmap_rotated(int texture, int tmap_flags, vertex *pnt, floa
 		return 1;
 	}
 
+	if ( Use_GLSL <= 2 ) {
+		// don't render distortions if we can't support them.
+		return 0;
+	}
+
 	batch_item *item = NULL;
 
 	SCP_map<int, batch_item>::iterator it = distortion_map.find(texture);
@@ -1283,6 +1298,11 @@ int distortion_add_beam(int texture, int tmap_flags, vec3d *start, vec3d *end, f
 	if (texture < 0) {
 		Int3();
 		return 1;
+	}
+
+	if ( Use_GLSL <= 2 ) {
+		// don't render distortions if we can't support them.
+		return 0;
 	}
 
 	batch_item *item = NULL;

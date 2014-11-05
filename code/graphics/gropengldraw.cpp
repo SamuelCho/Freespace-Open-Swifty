@@ -3207,6 +3207,10 @@ extern float static_tube_factor;
 
 void gr_opengl_deferred_lighting_finish()
 {
+	if ( Use_GLSL < 2 ) {
+		return;
+	}
+
 	GL_state.SetAlphaBlendMode( ALPHA_BLEND_ALPHA_ADDITIVE);
 	int zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
 
