@@ -381,6 +381,7 @@ public:
 	
 	// buffers used by HT&L
 	vertex_buffer buffer;
+	vertex_buffer trans_buffer;
 
 	vec3d	render_box_min;
 	vec3d	render_box_max;

@@ -847,6 +847,10 @@ void create_vertex_buffer(polymodel *pm)
 
 	memset( &ibuffer_info, 0, sizeof(IBX) );
 
+	for ( i = 0; i < pm->n_models; i++ ) {
+		interp_create_transparency_index_buffer(pm, i);
+	}
+
 	bool use_shader_transforms = false;
 
 	if ( Use_GLSL >= 3 ) {
@@ -856,6 +860,11 @@ void create_vertex_buffer(polymodel *pm)
 		// see if all submodel vertices have the same stride.
 		for ( i = 1; i < pm->n_models; ++i ) {
 			if ( pm->submodel[i].buffer.model_list != NULL && stride != pm->submodel[i].buffer.stride ) {
+				unequal_stride = true;
+				break;
+			}
+
+			if ( pm->submodel[i].trans_buffer.model_list != NULL && stride != pm->submodel[i].trans_buffer.stride ) {
 				unequal_stride = true;
 				break;
 			}
@@ -873,16 +882,13 @@ void create_vertex_buffer(polymodel *pm)
 		}
 	}
 
-	for ( i = 0; i < pm->n_detail_levels; i++ ) {
-		interp_create_transparency_index_buffer(pm, i);
-	}
-
 	// now actually fill the buffer with our info ...
 	for (i = 0; i < pm->n_models; i++) {
 		interp_pack_vertex_buffers(pm, i);
 
 		// release temporary memory
 		pm->submodel[i].buffer.release();
+		pm->submodel[i].trans_buffer.release();
 	}
 
 	if ( use_shader_transforms ) {
@@ -891,12 +897,8 @@ void create_vertex_buffer(polymodel *pm)
 			gr_pack_buffer(pm->vertex_buffer_id, &pm->detail_buffers[i]);
 
 			pm->detail_buffers[i].release();
-		}
-	}
 
-	if ( pm->flags & PM_FLAG_TRANS_BUFFER ) {
-		for ( i = 0; i < pm->n_detail_levels; i++ ) {
-			if ( pm->trans_buff[i].flags & VB_FLAG_TRANS ) {
+			if ( pm->flags & PM_FLAG_TRANS_BUFFER && pm->trans_buff[i].flags & VB_FLAG_TRANS ) {
 				gr_pack_buffer(pm->vertex_buffer_id, &pm->trans_buff[i]);
 
 				pm->trans_buff[i].release();

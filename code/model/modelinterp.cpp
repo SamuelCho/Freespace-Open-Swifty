@@ -4256,6 +4256,7 @@ void interp_pack_vertex_buffers(polymodel *pm, int mn)
 	}
 
 	bool rval = gr_pack_buffer(pm->vertex_buffer_id, &model->buffer);
+	gr_pack_buffer(pm->vertex_buffer_id, &model->trans_buffer);
 
 	if ( !rval ) {
 		Error( LOCATION, "Unable to pack vertex buffer for '%s'\n", pm->filename );
@@ -4508,27 +4509,21 @@ void interp_copy_index_buffer(vertex_buffer *src, vertex_buffer *dest, int *inde
 	}
 }
 
-void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
+void interp_fill_detail_index_buffer(SCP_vector<int> &submodel_list, polymodel *pm, vertex_buffer *buffer)
 {
-	size_t i, j;
-	int model_num;
-	SCP_vector<int> submodel_list;
 	int index_counts[MAX_MODEL_TEXTURES];
+	int i;
+	int model_num;
 
 	for ( i = 0; i < MAX_MODEL_TEXTURES; ++i ) {
 		index_counts[i] = 0;
 	}
 
-	submodel_list.clear();
-
-	model_get_submodel_tree_list(submodel_list, pm, pm->detail[detail_num]);
+	buffer->vertex_offset = 0;
+	buffer->model_list = new(std::nothrow) poly_list;
 
 	size_t num_buffers;
 	int tex_num;
-
-	vertex_buffer &detail_buffer = pm->detail_buffers[detail_num];
-	detail_buffer.vertex_offset = 0;
-	detail_buffer.model_list = new(std::nothrow) poly_list;
 
 	// need to first count how many indexes there are in this entire detail model hierarchy
 	for ( i = 0; i < submodel_list.size(); ++i ) {
@@ -4540,7 +4535,7 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 
 		num_buffers = pm->submodel[model_num].buffer.tex_buf.size();
 
-		detail_buffer.flags |= pm->submodel[model_num].buffer.flags;
+		buffer->flags |= pm->submodel[model_num].buffer.flags;
 
 		for ( j = 0; j < num_buffers; ++j ) {
 			tex_num = pm->submodel[model_num].buffer.tex_buf[j].texture;
@@ -4555,46 +4550,61 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 			continue;
 		}
 
-		detail_buffer.tex_buf.push_back(buffer_data(index_counts[i]));
+		buffer->tex_buf.push_back(buffer_data(index_counts[i]));
 
-		buffer_data &new_buffer = detail_buffer.tex_buf.back();
+		buffer_data &new_buffer = buffer->tex_buf.back();
 		//new_buffer.n_verts = 0;
 		new_buffer.texture = i;
 	}
 
-	for ( i = 0; i < detail_buffer.tex_buf.size(); ++i ) {
-		detail_buffer.tex_buf[i].n_verts = 0;
+	for ( i = 0; i < buffer->tex_buf.size(); ++i ) {
+		buffer->tex_buf[i].n_verts = 0;
 	}
 
 	// finally copy over the indexes
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
 
-		interp_copy_index_buffer(&pm->submodel[model_num].buffer, &detail_buffer, index_counts);
+		interp_copy_index_buffer(&pm->submodel[model_num].buffer, buffer, index_counts);
 	}
 
 	// check which buffers need to have the > USHORT flag
-	for ( i = 0; i < detail_buffer.tex_buf.size(); ++i ) {
-		if ( detail_buffer.tex_buf[i].i_last >= USHRT_MAX ) {
-			detail_buffer.tex_buf[i].flags |= VB_FLAG_LARGE_INDEX;
+	for ( i = 0; i < buffer->tex_buf.size(); ++i ) {
+		if ( buffer->tex_buf[i].i_last >= USHRT_MAX ) {
+			buffer->tex_buf[i].flags |= VB_FLAG_LARGE_INDEX;
 		}
 	}
-
-	gr_config_buffer(pm->vertex_buffer_id, &detail_buffer, true);
 }
 
-void interp_create_transparency_index_buffer(polymodel *pm, int detail_num)
+void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
+{
+	size_t i, j;
+	int model_num;
+	SCP_vector<int> submodel_list;
+
+	submodel_list.clear();
+
+	model_get_submodel_tree_list(submodel_list, pm, pm->detail[detail_num]);
+
+	interp_fill_detail_index_buffer(submodel_list, pm, &pm->detail_buffers[detail_num]);
+	interp_fill_detail_index_buffer(submodel_list, pm, &pm->trans_buff[detail_num]);
+	
+	gr_config_buffer(pm->vertex_buffer_id, &pm->detail_buffers[detail_num], true);
+	gr_config_buffer(pm->vertex_buffer_id, &pm->trans_buff[detail_num], true);
+}
+
+void interp_create_transparency_index_buffer(polymodel *pm, int mn)
 {
 	const int NUM_VERTS_PER_TRI = 3;
-		
-	int mn = pm->detail[detail_num];
 
-	vertex_buffer &trans_buffer = pm->trans_buff[detail_num];
+	bsp_info *sub_model = &pm->submodel[mn];
 
-	trans_buffer.model_list = new(std::nothrow) poly_list;
-	trans_buffer.vertex_offset = pm->submodel[mn].buffer.vertex_offset;
-	trans_buffer.stride = pm->submodel[mn].buffer.stride;
-	trans_buffer.flags = pm->submodel[mn].buffer.flags;
+	vertex_buffer *trans_buffer = &sub_model->trans_buffer;
+
+	trans_buffer->model_list = new(std::nothrow) poly_list;
+	trans_buffer->vertex_offset = pm->submodel[mn].buffer.vertex_offset;
+	trans_buffer->stride = pm->submodel[mn].buffer.stride;
+	trans_buffer->flags = pm->submodel[mn].buffer.flags;
 
 	poly_list *model_list = pm->submodel[mn].buffer.model_list;
 
@@ -4648,7 +4658,7 @@ void interp_create_transparency_index_buffer(polymodel *pm, int detail_num)
 					transparent_indices.push_back(current_tri[1]);
 					transparent_indices.push_back(current_tri[2]);
 				}
-				
+
 				transparent_tri = false;
 				num_tris = 0;
 			}
@@ -4659,11 +4669,11 @@ void interp_create_transparency_index_buffer(polymodel *pm, int detail_num)
 		}
 
 		pm->flags |= PM_FLAG_TRANS_BUFFER;
-		trans_buffer.flags |= VB_FLAG_TRANS;
+		trans_buffer->flags |= VB_FLAG_TRANS;
 
-		trans_buffer.tex_buf.push_back ( buffer_data ( transparent_indices.size() ) );
-		
-		buffer_data &new_buff = trans_buffer.tex_buf.back();
+		trans_buffer->tex_buf.push_back ( buffer_data ( transparent_indices.size() ) );
+
+		buffer_data &new_buff = trans_buffer->tex_buf.back();
 		new_buff.texture = tex_buf->texture;
 
 		for ( int j = 0; j < transparent_indices.size(); ++j ) {
@@ -4671,8 +4681,8 @@ void interp_create_transparency_index_buffer(polymodel *pm, int detail_num)
 		}
 	}
 
-	if ( pm->flags & PM_FLAG_TRANS_BUFFER ) {
-		gr_config_buffer(pm->vertex_buffer_id, &trans_buffer, true);
+	if ( trans_buffer->flags & VB_FLAG_TRANS ) {
+		gr_config_buffer(pm->vertex_buffer_id, trans_buffer, true);
 	}
 }
 
