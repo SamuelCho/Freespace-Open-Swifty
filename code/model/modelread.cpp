@@ -863,11 +863,6 @@ void create_vertex_buffer(polymodel *pm)
 				unequal_stride = true;
 				break;
 			}
-
-			if ( pm->submodel[i].trans_buffer.model_list != NULL && stride != pm->submodel[i].trans_buffer.stride ) {
-				unequal_stride = true;
-				break;
-			}
 		}
 
 		if ( !unequal_stride ) {

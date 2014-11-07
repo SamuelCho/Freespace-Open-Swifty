@@ -1349,7 +1349,7 @@ void model_queue_render_buffers(draw_list* scene, model_render_params* interp, v
 	}
 }
 
-void model_queue_render_children_buffers(draw_list* scene, model_render_params* interp, polymodel* pm, int mn, int detail_level, uint tmap_flags)
+void model_queue_render_children_buffers(draw_list* scene, model_render_params* interp, polymodel* pm, int mn, int detail_level, uint tmap_flags, bool trans_buffer)
 {
 	int i;
 
@@ -1411,7 +1411,11 @@ void model_queue_render_children_buffers(draw_list* scene, model_render_params* 
 
 	scene->push_transform(&model->offset, &submodel_matrix);
 
-	model_queue_render_buffers(scene, interp, &pm->submodel[mn].buffer, pm, mn, detail_level, tmap_flags);
+	if ( !trans_buffer ) {
+		model_queue_render_buffers(scene, interp, &pm->submodel[mn].buffer, pm, mn, detail_level, tmap_flags);
+	} else if ( pm->submodel[mn].trans_buffer.flags & VB_FLAG_TRANS ) {
+		model_queue_render_buffers(scene, interp, &pm->submodel[mn].trans_buffer, pm, mn, detail_level, tmap_flags);
+	}
 
 	if ( model->num_arcs ) {
 		model_queue_render_lightning( scene, interp, pm, &pm->submodel[mn] );
@@ -1421,7 +1425,7 @@ void model_queue_render_children_buffers(draw_list* scene, model_render_params* 
 
 	while ( i >= 0 ) {
 		if ( !pm->submodel[i].is_thruster ) {
-			model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags );
+			model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags, trans_buffer );
 		}
 
 		i = pm->submodel[i].next_sibling;
@@ -1579,11 +1583,6 @@ void submodel_immediate_render(model_render_params *render_info, int model_num, 
 	gr_set_lighting(false, false);
 }
 
-void submodel_queue_render(model_render_params *render_info, draw_list *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos, uint flags, int objnum)
-{
-
-}
-
 void submodel_queue_render(model_render_params *render_info, draw_list *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos)
 {
 	polymodel * pm;
@@ -1699,6 +1698,10 @@ void submodel_queue_render(model_render_params *render_info, draw_list *scene, i
 
 	if ( model_render_check_detail_box(&view_pos, pm, submodel_num, flags) ) {
 		model_queue_render_buffers(scene, render_info, &pm->submodel[submodel_num].buffer, pm, submodel_num, 0, tmap_flags);
+
+		if ( pm->flags & PM_FLAG_TRANS_BUFFER && pm->submodel[submodel_num].trans_buffer.flags & VB_FLAG_TRANS ) {
+			model_queue_render_buffers(scene, render_info, &pm->submodel[submodel_num].trans_buffer, pm, submodel_num, 0, tmap_flags);
+		}
 	}
 	
 	if ( pm->submodel[submodel_num].num_arcs )	{
@@ -2778,11 +2781,12 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 		
 	// Draw the subobjects
 	bool draw_thrusters = false;
+	bool trans_buffer = false;
 	i = pm->submodel[pm->detail[detail_level]].first_child;
 
 	while( i >= 0 )	{
 		if ( !pm->submodel[i].is_thruster ) {
-			model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags );
+			model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags, trans_buffer );
 		} else {
 			draw_thrusters = true;
 		}
@@ -2800,24 +2804,40 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 		model_queue_render_buffers(scene, interp, &pm->submodel[detail_model_num].buffer, pm, detail_model_num, detail_level, tmap_flags);
 	}
 	
-	// make sure batch rendering uncondtionally off.
+	// make sure batch rendering is uncondtionally off.
 	tmap_flags &= ~TMAP_FLAG_BATCH_TRANSFORMS;
+
+	if ( pm->flags & PM_FLAG_TRANS_BUFFER ) {
+		trans_buffer = true;
+
+		while( i >= 0 )	{
+			if ( !pm->submodel[i].is_thruster ) {
+				model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags, trans_buffer );
+			}
+
+			i = pm->submodel[i].next_sibling;
+		}
+
+		vec3d view_pos = scene->get_view_position();
+
+		if ( model_render_check_detail_box(&view_pos, pm, pm->detail[detail_level], model_flags) ) {
+			int detail_model_num = pm->detail[detail_level];
+			model_queue_render_buffers(scene, interp, &pm->submodel[detail_model_num].trans_buffer, pm, detail_model_num, detail_level, tmap_flags);
+		}
+	}
 
 	// Draw the thruster subobjects
 	if ( draw_thrusters ) {
 		i = pm->submodel[pm->detail[detail_level]].first_child;
+		trans_buffer = false;
 
 		while( i >= 0 ) {
 			if (pm->submodel[i].is_thruster) {
-				model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags );
+				model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags, trans_buffer );
 			}
 			i = pm->submodel[i].next_sibling;
 		}
 	}
-
- 	if ( pm->trans_buff[detail_level].flags & VB_FLAG_TRANS ) {
- 		model_queue_render_buffers(scene, interp, &pm->trans_buff[detail_level], pm, -1, detail_level, tmap_flags);
- 	}
 
 	if ( !( model_flags & MR_NO_TEXTURING ) ) {
 		scene->add_insignia(pm, detail_level, interp->get_insignia_bitmap());

@@ -4512,7 +4512,7 @@ void interp_copy_index_buffer(vertex_buffer *src, vertex_buffer *dest, int *inde
 void interp_fill_detail_index_buffer(SCP_vector<int> &submodel_list, polymodel *pm, vertex_buffer *buffer)
 {
 	int index_counts[MAX_MODEL_TEXTURES];
-	int i;
+	int i, j;
 	int model_num;
 
 	for ( i = 0; i < MAX_MODEL_TEXTURES; ++i ) {
@@ -4587,10 +4587,10 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 	model_get_submodel_tree_list(submodel_list, pm, pm->detail[detail_num]);
 
 	interp_fill_detail_index_buffer(submodel_list, pm, &pm->detail_buffers[detail_num]);
-	interp_fill_detail_index_buffer(submodel_list, pm, &pm->trans_buff[detail_num]);
+	//interp_fill_detail_index_buffer(submodel_list, pm, &pm->trans_buff[detail_num]);
 	
 	gr_config_buffer(pm->vertex_buffer_id, &pm->detail_buffers[detail_num], true);
-	gr_config_buffer(pm->vertex_buffer_id, &pm->trans_buff[detail_num], true);
+	//gr_config_buffer(pm->vertex_buffer_id, &pm->trans_buff[detail_num], true);
 }
 
 void interp_create_transparency_index_buffer(polymodel *pm, int mn)
