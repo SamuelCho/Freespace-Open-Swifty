@@ -593,15 +593,7 @@ void draw_list::render_buffer(queued_buffer_draw &render_elements)
 	gr_fog_set(draw_state.fog_mode, draw_state.r, draw_state.g, draw_state.b, draw_state.fog_near, draw_state.fog_far);
 
 	gr_zbuffer_set(render_elements.depth_mode);
-
-	if ( !in_shadow_map ) {
-		if ( render_elements.depth_mode == GR_ZBUFF_FULL ) {
-			gr_alpha_mask_set(1, 0.95f);
-		} else {
-			gr_alpha_mask_set(0, 1.0f);
-		}
-	}
-
+	
 	gr_set_cull(draw_state.cull_mode);
 
 	gr_set_fill_mode(draw_state.fill_mode);
@@ -1314,23 +1306,28 @@ void model_queue_render_buffers(draw_list* scene, model_render_params* interp, v
 			continue;
 		}
 
+		uint alpha_flag = 0;
+
 		// trying to get transparent textures-Bobboau
 		if (tmap->is_transparent) {
 			// for special shockwave/warp map usage
 			alpha = (interp->get_warp_alpha() != -1.0f) ? interp->get_warp_alpha() : 0.8f;
 			blend_filter = GR_ALPHABLEND_FILTER;
-
+		} else if ( buffer->flags & VB_FLAG_TRANS ) {
+			blend_filter = GR_ALPHABLEND_FILTER;
 		}
 
 		if (forced_blend_filter != GR_ALPHABLEND_NONE) {
 			blend_filter = forced_blend_filter;
 		}
 
-		if (blend_filter != GR_ALPHABLEND_NONE || buffer->flags & VB_FLAG_TRANS) {
+		if (blend_filter != GR_ALPHABLEND_NONE ) {
 			scene->set_depth_mode(GR_ZBUFF_READ);
+			alpha_flag |= TMAP_FLAG_ALPHA;
 		} else {
 			if ( (model_flags & MR_NO_ZBUFFER) || (model_flags & MR_ALL_XPARENT) ) {
 				scene->set_depth_mode(GR_ZBUFF_NONE);
+				alpha_flag |= TMAP_FLAG_ALPHA;
 			} else {
 				scene->set_depth_mode(GR_ZBUFF_FULL);
 			}
@@ -1345,7 +1342,7 @@ void model_queue_render_buffers(draw_list* scene, model_render_params* interp, v
 		scene->set_texture(TM_HEIGHT_TYPE, texture_maps[TM_HEIGHT_TYPE]);
 		scene->set_texture(TM_MISC_TYPE,	texture_maps[TM_MISC_TYPE]);
 
-		scene->add_buffer_draw(buffer, i, tmap_flags, interp);
+		scene->add_buffer_draw(buffer, i, tmap_flags | alpha_flag, interp);
 	}
 }
 
@@ -2809,6 +2806,7 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 
 	if ( pm->flags & PM_FLAG_TRANS_BUFFER ) {
 		trans_buffer = true;
+		i = pm->submodel[pm->detail[detail_level]].first_child;
 
 		while( i >= 0 )	{
 			if ( !pm->submodel[i].is_thruster ) {

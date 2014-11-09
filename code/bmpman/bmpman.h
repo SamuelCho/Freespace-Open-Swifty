@@ -72,6 +72,8 @@ class bitmap_lookup {
 	int Width;
 	int Height;
 	int Num_channels;
+
+	float map_texture_address(float address);
 public:
 	bitmap_lookup(int bitmap_num);
 	~bitmap_lookup();

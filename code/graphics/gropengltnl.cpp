@@ -1035,6 +1035,11 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 		vbuffer = (GLubyte*)vbp->array_list;
 	}
 
+	// if we're not doing an alpha pass, turn on the alpha mask
+	if ( !(flags & TMAP_FLAG_ALPHA) ) {
+		gr_alpha_mask_set(1, 0.95f);
+	}
+
 	#define BUFFER_OFFSET(off) (vbuffer+bufferp->vertex_offset+(off))
 
 // -------- Begin 1st PASS (base texture, glow) ---------------------------------- //
@@ -1319,6 +1324,7 @@ static void opengl_render_pipeline_fixed(int start, const vertex_buffer *bufferp
 // -------- End 4th PASS --------------------------------------------------------- //
 
 	// make sure everthing gets turned back off
+	gr_alpha_mask_set(0, 1.0f);
 	GL_state.Texture.DisableAll();
 	GL_state.Normalize(GL_FALSE);
 	GL_state.Array.SetActiveClientUnit(1);
@@ -2298,14 +2304,19 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	if ( shader_flags & SDR_FLAG_DIFFUSE_MAP ) {
 		GL_state.Uniform.setUniformi("sBasemap", render_pass);
 		
-		int desaturate = 0;
 		if ( flags & TMAP_FLAG_DESATURATE ) {
-			desaturate = 1;
+			GL_state.Uniform.setUniformi("desaturate", 1);
 			GL_state.Uniform.setUniform3f("desaturate_clr", gr_screen.current_color.red/255.0f, gr_screen.current_color.green/255.0f, gr_screen.current_color.blue/255.0f);
+		} else {
+			GL_state.Uniform.setUniformi("desaturate", 0);
 		}
 
-		GL_state.Uniform.setUniformi("desaturate", desaturate);
-		
+		if ( flags & TMAP_FLAG_ALPHA ) {
+			GL_state.Uniform.setUniformi("blend_alpha", 1);
+		} else {
+			GL_state.Uniform.setUniformi("blend_alpha", 0);
+		}
+
 		gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale, render_pass);
 
 		++render_pass;
