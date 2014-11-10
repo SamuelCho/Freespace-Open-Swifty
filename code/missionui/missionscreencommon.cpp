@@ -1605,7 +1605,7 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 	model_clear_instance(model_id);
 
 	render_info.set_flags(flags);
-	model_immediate_render(&render_info, model_id, &object_orient, &vmd_zero_vector);
+	model_render_immediate(&render_info, model_id, &object_orient, &vmd_zero_vector);
 	Glowpoint_override = false;
 
 	if (!Cmdline_nohtl) 
@@ -1771,7 +1771,7 @@ void draw_model_rotating(model_render_params *render_info, int model_id, int x1,
 					shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 2000.0f, -closeup_pos->xyz.z + pm->rad + 10000.0f);
 				}
 
-				model_immediate_render(&shadow_render_info, model_id, &model_orient, &vmd_zero_vector);
+				model_render_immediate(&shadow_render_info, model_id, &model_orient, &vmd_zero_vector);
 				shadows_end_render();
 
 				gr_set_clip(x1, y1, x2, y2, resize_mode);
@@ -1791,14 +1791,14 @@ void draw_model_rotating(model_render_params *render_info, int model_id, int x1,
 				
 				render_info->set_flags(flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS);
 
-				model_immediate_render(render_info, model_id, &model_orient, &vmd_zero_vector);
+				model_render_immediate(render_info, model_id, &model_orient, &vmd_zero_vector);
 			}
 
 			if (time >= 1.5f) { // Render the ship in Phase 2 onwards
 				render_info->set_clip_plane(plane_point,ship_normal);
 				render_info->set_flags(flags);
 
-				model_immediate_render(render_info, model_id, &model_orient, &vmd_zero_vector);
+				model_render_immediate(render_info, model_id, &model_orient, &vmd_zero_vector);
 			}
 
 			if (time < 2.5f) { // Render the scanline in Phase 1 and 2
@@ -1879,7 +1879,7 @@ void draw_model_rotating(model_render_params *render_info, int model_id, int x1,
 			shadow_render_info.set_flags(flags | MR_NO_TEXTURING | MR_NO_LIGHTING);
 			shadow_render_info.set_detail_level_lock(0);
 
-			model_immediate_render(&shadow_render_info, model_id, &model_orient, &vmd_zero_vector);
+			model_render_immediate(&shadow_render_info, model_id, &model_orient, &vmd_zero_vector);
 			shadows_end_render();
 		}
 
@@ -1897,7 +1897,7 @@ void draw_model_rotating(model_render_params *render_info, int model_id, int x1,
 			render_info->set_flags(flags);
 		}
 
-		model_immediate_render(render_info, model_id, &model_orient, &vmd_zero_vector);
+		model_render_immediate(render_info, model_id, &model_orient, &vmd_zero_vector);
 
 		batch_render_all();
 

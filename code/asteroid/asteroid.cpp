@@ -1201,7 +1201,7 @@ void asteroid_render(object * obj, draw_list *scene)
 		render_info.set_object_number( OBJ_INDEX(obj) );
 		render_info.set_flags(MR_IS_ASTEROID);
 
-		model_queue_render(&render_info, scene, Asteroid_info[asp->asteroid_type].model_num[asp->asteroid_subtype], &obj->orient, &obj->pos);	//	Replace MR_NORMAL with 0x07 for big yellow blobs
+		model_render_queue(&render_info, scene, Asteroid_info[asp->asteroid_type].model_num[asp->asteroid_subtype], &obj->orient, &obj->pos);	//	Replace MR_NORMAL with 0x07 for big yellow blobs
 	}
 }
 

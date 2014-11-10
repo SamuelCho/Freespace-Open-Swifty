@@ -7159,7 +7159,7 @@ void weapon_render(object* obj, draw_list *scene)
 
 			render_info.set_flags(render_flags);
 
-			model_queue_render(&render_info, scene, wip->model_num, &obj->orient, &obj->pos);
+			model_render_queue(&render_info, scene, wip->model_num, &obj->orient, &obj->pos);
 			wp->weapon_flags |= WF_CONSIDER_FOR_FLYBY_SOUND;
 
 			break;

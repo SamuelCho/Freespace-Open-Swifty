@@ -982,7 +982,7 @@ bool draw_list::sort_draw_pair(const int a, const int b)
 	return render_state_a->lights.index_start < render_state_b->lights.index_start;
 }
 
-void model_queue_render_lightning( draw_list *scene, model_render_params* interp, polymodel *pm, bsp_info * sm )
+void model_render_add_lightning( draw_list *scene, model_render_params* interp, polymodel *pm, bsp_info * sm )
 {
 	int i;
 	float width = 0.9f;
@@ -1049,7 +1049,7 @@ void model_queue_render_lightning( draw_list *scene, model_render_params* interp
 	}
 }
 
-int model_queue_render_determine_detail(int obj_num, int model_num, matrix* orient, vec3d* pos, int flags, int detail_level_locked)
+int model_render_determine_detail(int obj_num, int model_num, matrix* orient, vec3d* pos, int flags, int detail_level_locked)
 {
 	int tmp_detail_level = Game_detail_level;
 
@@ -1120,7 +1120,7 @@ int model_queue_render_determine_detail(int obj_num, int model_num, matrix* orie
 	}
 }
 
-void model_queue_render_buffers(draw_list* scene, model_render_params* interp, vertex_buffer *buffer, polymodel *pm, int mn, int detail_level, uint tmap_flags)
+void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_buffer *buffer, polymodel *pm, int mn, int detail_level, uint tmap_flags)
 {
 	if ( pm->vertex_buffer_id < 0 ) {
 		return;
@@ -1346,7 +1346,7 @@ void model_queue_render_buffers(draw_list* scene, model_render_params* interp, v
 	}
 }
 
-void model_queue_render_children_buffers(draw_list* scene, model_render_params* interp, polymodel* pm, int mn, int detail_level, uint tmap_flags, bool trans_buffer)
+void model_render_children_buffers(draw_list* scene, model_render_params* interp, polymodel* pm, int mn, int detail_level, uint tmap_flags, bool trans_buffer)
 {
 	int i;
 
@@ -1409,20 +1409,20 @@ void model_queue_render_children_buffers(draw_list* scene, model_render_params* 
 	scene->push_transform(&model->offset, &submodel_matrix);
 
 	if ( !trans_buffer ) {
-		model_queue_render_buffers(scene, interp, &pm->submodel[mn].buffer, pm, mn, detail_level, tmap_flags);
+		model_render_buffers(scene, interp, &pm->submodel[mn].buffer, pm, mn, detail_level, tmap_flags);
 	} else if ( pm->submodel[mn].trans_buffer.flags & VB_FLAG_TRANS ) {
-		model_queue_render_buffers(scene, interp, &pm->submodel[mn].trans_buffer, pm, mn, detail_level, tmap_flags);
+		model_render_buffers(scene, interp, &pm->submodel[mn].trans_buffer, pm, mn, detail_level, tmap_flags);
 	}
 
 	if ( model->num_arcs ) {
-		model_queue_render_lightning( scene, interp, pm, &pm->submodel[mn] );
+		model_render_add_lightning( scene, interp, pm, &pm->submodel[mn] );
 	}
 
 	i = model->first_child;
 
 	while ( i >= 0 ) {
 		if ( !pm->submodel[i].is_thruster ) {
-			model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags, trans_buffer );
+			model_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags, trans_buffer );
 		}
 
 		i = pm->submodel[i].next_sibling;
@@ -1558,13 +1558,13 @@ bool model_render_check_detail_box(vec3d *view_pos, polymodel *pm, int submodel_
 	return true;
 }
 
-void submodel_immediate_render(model_render_params *render_info, int model_num, int submodel_num, matrix *orient, vec3d * pos)
+void submodel_render_immediate(model_render_params *render_info, int model_num, int submodel_num, matrix *orient, vec3d * pos)
 {
 	draw_list model_list;
 	
 	model_list.init();
 
-	submodel_queue_render(render_info, &model_list, model_num, submodel_num, orient, pos);
+	submodel_render_queue(render_info, &model_list, model_num, submodel_num, orient, pos);
 	
 	model_list.render_all();
 
@@ -1580,7 +1580,7 @@ void submodel_immediate_render(model_render_params *render_info, int model_num, 
 	gr_set_lighting(false, false);
 }
 
-void submodel_queue_render(model_render_params *render_info, draw_list *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos)
+void submodel_render_queue(model_render_params *render_info, draw_list *scene, int model_num, int submodel_num, matrix *orient, vec3d * pos)
 {
 	polymodel * pm;
 
@@ -1694,15 +1694,15 @@ void submodel_queue_render(model_render_params *render_info, draw_list *scene, i
 	vec3d view_pos = scene->get_view_position();
 
 	if ( model_render_check_detail_box(&view_pos, pm, submodel_num, flags) ) {
-		model_queue_render_buffers(scene, render_info, &pm->submodel[submodel_num].buffer, pm, submodel_num, 0, tmap_flags);
+		model_render_buffers(scene, render_info, &pm->submodel[submodel_num].buffer, pm, submodel_num, 0, tmap_flags);
 
 		if ( pm->flags & PM_FLAG_TRANS_BUFFER && pm->submodel[submodel_num].trans_buffer.flags & VB_FLAG_TRANS ) {
-			model_queue_render_buffers(scene, render_info, &pm->submodel[submodel_num].trans_buffer, pm, submodel_num, 0, tmap_flags);
+			model_render_buffers(scene, render_info, &pm->submodel[submodel_num].trans_buffer, pm, submodel_num, 0, tmap_flags);
 		}
 	}
 	
 	if ( pm->submodel[submodel_num].num_arcs )	{
-		model_queue_render_lightning( scene, render_info, pm, &pm->submodel[submodel_num] );
+		model_render_add_lightning( scene, render_info, pm, &pm->submodel[submodel_num] );
 	}
 
 	if ( set_autocen ) {
@@ -1712,7 +1712,7 @@ void submodel_queue_render(model_render_params *render_info, draw_list *scene, i
 	scene->pop_transform();
 }
 
-void model_queue_render_glowpoint(int point_num, vec3d *pos, matrix *orient, glow_point_bank *bank, glow_point_bank_override *gpo, polymodel *pm, ship* shipp, bool use_depth_buffer)
+void model_render_glowpoint(int point_num, vec3d *pos, matrix *orient, glow_point_bank *bank, glow_point_bank_override *gpo, polymodel *pm, ship* shipp, bool use_depth_buffer)
 {
 	glow_point *gpt = &bank->points[point_num];
 	vec3d loc_offset = gpt->pnt;
@@ -1970,7 +1970,7 @@ void model_queue_render_glowpoint(int point_num, vec3d *pos, matrix *orient, glo
 	}
 }
 
-void model_queue_render_set_glow_points(polymodel *pm, int objnum)
+void model_render_set_glow_points(polymodel *pm, int objnum)
 {
 	int time = timestamp();
 	glow_point_bank_override *gpo = NULL;
@@ -2027,7 +2027,7 @@ void model_queue_render_set_glow_points(polymodel *pm, int objnum)
 	}
 }
 
-void model_queue_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d *pos, bool use_depth_buffer = true)
+void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d *pos, bool use_depth_buffer = true)
 {
 	if ( in_shadow_map ) {
 		return;
@@ -2086,7 +2086,7 @@ void model_queue_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, 
 				}
 
 				if (flick == 1) {
-					model_queue_render_glowpoint(j, pos, orient, bank, gpo, pm, shipp, use_depth_buffer);
+					model_render_glowpoint(j, pos, orient, bank, gpo, pm, shipp, use_depth_buffer);
 				} // flick
 			} // for slot
 		} // bank is on
@@ -2509,7 +2509,7 @@ void model_render_debug(int model_num, matrix *orient, vec3d * pos, uint flags, 
 		}
 	}
 
-	int detail_level = model_queue_render_determine_detail(objnum, model_num, orient, pos, flags, detail_level_locked);
+	int detail_level = model_render_determine_detail(objnum, model_num, orient, pos, flags, detail_level_locked);
 
 	vec3d auto_back = ZERO_VECTOR;
 	bool set_autocen = model_render_determine_autocenter(&auto_back, pm, detail_level, flags);
@@ -2561,13 +2561,13 @@ void model_render_debug(int model_num, matrix *orient, vec3d * pos, uint flags, 
 	gr_zbuffer_set(save_gr_zbuffering_mode);
 }
 
-void model_immediate_render(model_render_params *render_info, int model_num, matrix *orient, vec3d * pos, int render)
+void model_render_immediate(model_render_params *render_info, int model_num, matrix *orient, vec3d * pos, int render)
 {
 	draw_list model_list;
 
 	model_list.init();
 
-	model_queue_render(render_info, &model_list, model_num, orient, pos);
+	model_render_queue(render_info, &model_list, model_num, orient, pos);
 
 	model_list.init_render();
 
@@ -2600,7 +2600,7 @@ void model_immediate_render(model_render_params *render_info, int model_num, mat
 	model_render_debug(model_num, orient, pos, render_info->get_model_flags(), render_info->get_debug_flags(), render_info->get_object_number(), render_info->get_detail_level_lock());
 }
 
-void model_queue_render(model_render_params *interp, draw_list *scene, int model_num, matrix *orient, vec3d *pos)
+void model_render_queue(model_render_params *interp, draw_list *scene, int model_num, matrix *orient, vec3d *pos)
 {
 	int i;
 	int cull = 0;
@@ -2640,7 +2640,7 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 		scene->set_texture_addressing(TMAP_ADDRESS_WRAP);
 	}
 
-	model_queue_render_set_glow_points(pm, objnum);
+	model_render_set_glow_points(pm, objnum);
 
 	if ( !(model_flags & MR_NO_LIGHTING) ) {
 		scene->set_light_filter( objnum, pos, pm->rad );
@@ -2694,7 +2694,7 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 
 	scene->push_transform(pos, orient);
 
-	int detail_level = model_queue_render_determine_detail(objnum, model_num, orient, pos, model_flags, interp->get_detail_level_lock());
+	int detail_level = model_render_determine_detail(objnum, model_num, orient, pos, model_flags, interp->get_detail_level_lock());
 
 // #ifndef NDEBUG
 // 	if ( Interp_detail_level == 0 )	{
@@ -2773,7 +2773,7 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 
 	if ( (tmap_flags & TMAP_FLAG_BATCH_TRANSFORMS) ) {
 		scene->start_model_batch(pm->n_models);
-		model_queue_render_buffers(scene, interp, &pm->detail_buffers[detail_level], pm, -1, detail_level, tmap_flags);
+		model_render_buffers(scene, interp, &pm->detail_buffers[detail_level], pm, -1, detail_level, tmap_flags);
 	}
 		
 	// Draw the subobjects
@@ -2783,7 +2783,7 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 
 	while( i >= 0 )	{
 		if ( !pm->submodel[i].is_thruster ) {
-			model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags, trans_buffer );
+			model_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags, trans_buffer );
 		} else {
 			draw_thrusters = true;
 		}
@@ -2798,7 +2798,7 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 
 	if ( model_render_check_detail_box(&view_pos, pm, pm->detail[detail_level], model_flags) ) {
 		int detail_model_num = pm->detail[detail_level];
-		model_queue_render_buffers(scene, interp, &pm->submodel[detail_model_num].buffer, pm, detail_model_num, detail_level, tmap_flags);
+		model_render_buffers(scene, interp, &pm->submodel[detail_model_num].buffer, pm, detail_model_num, detail_level, tmap_flags);
 	}
 	
 	// make sure batch rendering is uncondtionally off.
@@ -2810,7 +2810,7 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 
 		while( i >= 0 )	{
 			if ( !pm->submodel[i].is_thruster ) {
-				model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags, trans_buffer );
+				model_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags, trans_buffer );
 			}
 
 			i = pm->submodel[i].next_sibling;
@@ -2820,7 +2820,7 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 
 		if ( model_render_check_detail_box(&view_pos, pm, pm->detail[detail_level], model_flags) ) {
 			int detail_model_num = pm->detail[detail_level];
-			model_queue_render_buffers(scene, interp, &pm->submodel[detail_model_num].trans_buffer, pm, detail_model_num, detail_level, tmap_flags);
+			model_render_buffers(scene, interp, &pm->submodel[detail_model_num].trans_buffer, pm, detail_model_num, detail_level, tmap_flags);
 		}
 	}
 
@@ -2831,7 +2831,7 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 
 		while( i >= 0 ) {
 			if (pm->submodel[i].is_thruster) {
-				model_queue_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags, trans_buffer );
+				model_render_children_buffers( scene, interp, pm, i, detail_level, tmap_flags, trans_buffer );
 			}
 			i = pm->submodel[i].next_sibling;
 		}
@@ -2849,7 +2849,7 @@ void model_queue_render(model_render_params *interp, draw_list *scene, int model
 
 	// start rendering glow points -Bobboau
 	if ( (pm->n_glow_point_banks) && !is_outlines_only && !is_outlines_only_htl && !Glowpoint_override ) {
-		model_queue_render_glow_points(pm, shipp, orient, pos, Glowpoint_use_depth_buffer);
+		model_render_glow_points(pm, shipp, orient, pos, Glowpoint_use_depth_buffer);
 	}
 
 	// Draw the thruster glow

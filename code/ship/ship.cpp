@@ -6547,7 +6547,7 @@ void ship_render_cockpit(object *objp)
 	render_info.set_flags(MR_NO_FOGGING);
 	render_info.set_replacement_textures(Player_cockpit_textures);
 
-	model_immediate_render(&render_info, sip->cockpit_model_num, &eye_ori, &pos);
+	model_render_immediate(&render_info, sip->cockpit_model_num, &eye_ori, &pos);
 
 	if (!Cmdline_nohtl) 
 	{
@@ -6576,7 +6576,7 @@ void ship_render_show_ship_cockpit(object *objp)
 	render_info.set_object_number(OBJ_INDEX(objp));
 	render_info.set_detail_level_lock(0);
 
-	model_immediate_render(&render_info, Ship_info[Ships[objp->instance].ship_info_index].model_num, &objp->orient, &vmd_zero_vector); // Render ship model with fixed detail level 0 so its not switching LOD when moving away from origin
+	model_render_immediate(&render_info, Ship_info[Ships[objp->instance].ship_info_index].model_num, &objp->orient, &vmd_zero_vector); // Render ship model with fixed detail level 0 so its not switching LOD when moving away from origin
 	Glowpoint_override = false;
 
 	gr_end_view_matrix();
@@ -18128,7 +18128,7 @@ void ship_render_weapon_models(model_render_params *ship_render_info, draw_list 
 
 			render_info.set_flags(render_flags);
 
-			model_queue_render(&render_info, scene, Weapon_info[swp->primary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k]);
+			model_render_queue(&render_info, scene, Weapon_info[swp->primary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k]);
 
 			pm->gun_submodel_rotation = 0.0f;
 		}
@@ -18150,7 +18150,7 @@ void ship_render_weapon_models(model_render_params *ship_render_info, draw_list 
 			for(k = 0; k < bank->num_slots; k++) {
 				render_info.set_flags(render_flags);
 
-				model_queue_render(&render_info, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k]);
+				model_render_queue(&render_info, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k]);
 			}
 		} else {
 			num_secondaries_rendered = 0;
@@ -18172,7 +18172,7 @@ void ship_render_weapon_models(model_render_params *ship_render_info, draw_list 
 
 				render_info.set_flags(render_flags);
 
-				model_queue_render(&render_info, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos);
+				model_render_queue(&render_info, scene, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos);
 			}
 		}
 	}
@@ -18401,7 +18401,7 @@ void ship_render(object* obj, draw_list* scene)
 			}
 		}
 
-		model_queue_render(&render_info, scene, sip->model_num, &obj->orient, &obj->pos);
+		model_render_queue(&render_info, scene, sip->model_num, &obj->orient, &obj->pos);
 	}
 
 	ship_model_stop(obj);

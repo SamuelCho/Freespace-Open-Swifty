@@ -900,7 +900,7 @@ void wl_render_overhead_view(float frametime)
 
 				render_info.set_flags(MR_NO_TEXTURING | MR_NO_LIGHTING | MR_AUTOCENTER);
 
-				model_immediate_render(&render_info, wl_ship->model_num, &object_orient, &vmd_zero_vector);
+				model_render_immediate(&render_info, wl_ship->model_num, &object_orient, &vmd_zero_vector);
 				shadows_end_render();
 				gr_set_clip(Wl_overhead_coords[gr_screen.res][0], Wl_overhead_coords[gr_screen.res][1], gr_screen.res == 0 ? 291 : 467, gr_screen.res == 0 ? 226 : 362, GR_RESIZE_MENU);
 			}
@@ -912,7 +912,7 @@ void wl_render_overhead_view(float frametime)
 
 			render_info.set_flags(MR_AUTOCENTER | MR_NO_FOGGING);
 
-			model_immediate_render(&render_info, wl_ship->model_num, &object_orient, &vmd_zero_vector);
+			model_render_immediate(&render_info, wl_ship->model_num, &object_orient, &vmd_zero_vector);
 
             Glowpoint_use_depth_buffer = true;
             

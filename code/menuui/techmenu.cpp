@@ -570,7 +570,7 @@ void techroom_ships_render(float frametime)
 		shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -sip->closeup_pos.xyz.z + pm->rad, -sip->closeup_pos.xyz.z + pm->rad + 200.0f, -sip->closeup_pos.xyz.z + pm->rad + 2000.0f, -sip->closeup_pos.xyz.z + pm->rad + 10000.0f);
         render_info.set_flags(MR_NO_TEXTURING | MR_NO_LIGHTING | MR_AUTOCENTER);
 		
-		model_immediate_render(&render_info, Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector);
+		model_render_immediate(&render_info, Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector);
         shadows_end_render();
 
 		gr_set_clip(Tech_ship_display_coords[gr_screen.res][SHIP_X_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_Y_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_W_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_H_COORD]);
@@ -588,7 +588,7 @@ void techroom_ships_render(float frametime)
 
 	render_info.set_flags(render_flags);
 
-	model_immediate_render(&render_info, Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector);
+	model_render_immediate(&render_info, Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector);
 
 	Glowpoint_use_depth_buffer = true;
 

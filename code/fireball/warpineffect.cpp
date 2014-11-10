@@ -139,7 +139,7 @@ void warpin_render(object *obj, matrix *orient, vec3d *pos, int texture_bitmap_n
 
 		render_info.set_flags(MR_NO_LIGHTING | MR_NORMAL | MR_NO_FOGGING | MR_NO_CULL | MR_NO_BATCH);
 
-		model_immediate_render( &render_info, Warp_model, orient, pos );
+		model_render_immediate( &render_info, Warp_model, orient, pos );
 	} else {
 		float Grid_depth = radius/2.5f;
 
@@ -291,7 +291,7 @@ void warpin_queue_render(draw_list *scene, object *obj, matrix *orient, vec3d *p
 		render_info.set_detail_level_lock((int)(dist / (radius * 10.0f)));
 		render_info.set_flags(MR_NO_LIGHTING | MR_NORMAL | MR_NO_FOGGING | MR_NO_CULL | MR_NO_BATCH);
 
-		model_queue_render( &render_info, scene, Warp_model, orient, pos);
+		model_render_queue( &render_info, scene, Warp_model, orient, pos);
 	} else {
 		float Grid_depth = radius/2.5f;
 

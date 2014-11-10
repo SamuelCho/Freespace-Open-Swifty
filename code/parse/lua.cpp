@@ -6090,7 +6090,7 @@ ADE_FUNC(renderTechModel, l_Shipclass, "X1, Y1, X2, Y2, [Rotation %, Pitch %, Ba
 
 	render_info.set_flags(render_flags);
 
-	model_immediate_render(&render_info, sip->model_num, &orient, &vmd_zero_vector);
+	model_render_immediate(&render_info, sip->model_num, &orient, &vmd_zero_vector);
 
 	//OK we're done
 	gr_end_view_matrix();
@@ -6163,7 +6163,7 @@ ADE_FUNC(renderTechModel2, l_Shipclass, "X1, Y1, X2, Y2, orientation Orientation
 
 	render_info.set_flags(render_flags);
 
-	model_immediate_render(&render_info, sip->model_num, orient, &vmd_zero_vector);
+	model_render_immediate(&render_info, sip->model_num, orient, &vmd_zero_vector);
 
 	//OK we're done
 	gr_end_view_matrix();
@@ -13479,7 +13479,7 @@ ADE_FUNC(drawModel, l_Graphics, "model, position, orientation", "Draws the given
 
 	render_info.set_detail_level_lock(0);
 
-	model_immediate_render(&render_info, model_num, orient, v);
+	model_render_immediate(&render_info, model_num, orient, v);
 
 	//OK we're done
 	gr_end_view_matrix();
@@ -13524,7 +13524,7 @@ ADE_FUNC(drawModelOOR, l_Graphics, "model Model, vector Position, matrix Orienta
 	model_render_params render_info;
 	render_info.set_flags(flags);
 
-	model_immediate_render(&render_info, model_num, orient, v);
+	model_render_immediate(&render_info, model_num, orient, v);
 
 	return ade_set_args(L, "i", 0);
 }

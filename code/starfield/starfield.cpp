@@ -1429,7 +1429,7 @@ void subspace_render()
 	if (!Cmdline_nohtl)
 		gr_set_texture_panning(Interp_subspace_offset_v, Interp_subspace_offset_u, true);
 
-	model_immediate_render( &render_info, Subspace_model_outer, &tmp, &Eye_position);	//MR_NO_CORRECT|MR_SHOW_OUTLINE
+	model_render_immediate( &render_info, Subspace_model_outer, &tmp, &Eye_position);	//MR_NO_CORRECT|MR_SHOW_OUTLINE
 
 	if (!Cmdline_nohtl)
 		gr_set_texture_panning(0, 0, false);
@@ -1449,7 +1449,7 @@ void subspace_render()
 	if (!Cmdline_nohtl)
 		gr_set_texture_panning(Interp_subspace_offset_v, Interp_subspace_offset_u, true);
 
-	model_immediate_render( &render_info, Subspace_model_inner, &tmp, &Eye_position );	//MR_NO_CORRECT|MR_SHOW_OUTLINE
+	model_render_immediate( &render_info, Subspace_model_inner, &tmp, &Eye_position );	//MR_NO_CORRECT|MR_SHOW_OUTLINE
 
 	if (!Cmdline_nohtl)
 		gr_set_texture_panning(0, 0, false);
@@ -2156,7 +2156,7 @@ void stars_draw_background()
 	render_info.set_alpha(1.0f);
 	render_info.set_flags(Nmodel_flags | MR_SKYBOX);
 
-	model_immediate_render(&render_info, Nmodel_num, &Nmodel_orient, &Eye_position, MODEL_RENDER_ALL);
+	model_render_immediate(&render_info, Nmodel_num, &Nmodel_orient, &Eye_position, MODEL_RENDER_ALL);
 }
 
 // call this to set a specific model as the background model

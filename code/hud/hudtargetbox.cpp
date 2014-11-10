@@ -634,11 +634,11 @@ void HudGaugeTargetBox::renderTargetShip(object *target_objp)
 
 		// maybe render a special hud-target-only model
 		if(target_sip->model_num_hud >= 0){
-			model_immediate_render( &render_info, target_sip->model_num_hud, &target_objp->orient, &obj_pos);
+			model_render_immediate( &render_info, target_sip->model_num_hud, &target_objp->orient, &obj_pos);
 		} else {
 			render_info.set_replacement_textures(target_shipp->ship_replacement_textures);
 
-			model_immediate_render( &render_info, target_sip->model_num, &target_objp->orient, &obj_pos);
+			model_render_immediate( &render_info, target_sip->model_num, &target_objp->orient, &obj_pos);
 		}
 
 		Interp_desaturate = false;
@@ -769,7 +769,7 @@ void HudGaugeTargetBox::renderTargetDebris(object *target_objp)
 		render_info.set_flags(flags | MR_NO_FOGGING);
 
 		// This calls the colour that doesn't get reset
-		submodel_immediate_render( &render_info, debrisp->model_num, debrisp->submodel_num, &target_objp->orient, &obj_pos);
+		submodel_render_immediate( &render_info, debrisp->model_num, debrisp->submodel_num, &target_objp->orient, &obj_pos);
 
 		if ( Monitor_mask >= 0 ) {
 			gr_stencil_set(GR_STENCIL_NONE);
@@ -984,19 +984,19 @@ void HudGaugeTargetBox::renderTargetWeapon(object *target_objp)
 			render_info.set_flags(flags | MR_AUTOCENTER | MR_IS_MISSILE | MR_NO_FOGGING);
 			render_info.set_replacement_textures(replacement_textures);
 
-			model_immediate_render( &render_info, viewed_model_num, &viewed_obj->orient, &obj_pos );
+			model_render_immediate( &render_info, viewed_model_num, &viewed_obj->orient, &obj_pos );
 		} else {
 			// maybe render a special hud-target-only model
 			// autocentering is bad in this one
 			if(homing_sip->model_num_hud >= 0){
 				render_info.set_flags(flags | MR_NO_FOGGING);
 
-				model_immediate_render( &render_info, homing_sip->model_num_hud, &viewed_obj->orient, &obj_pos);
+				model_render_immediate( &render_info, homing_sip->model_num_hud, &viewed_obj->orient, &obj_pos);
 			} else {
 				render_info.set_flags(flags | MR_NO_FOGGING);
 				render_info.set_replacement_textures(homing_shipp->ship_replacement_textures);
 
-				model_immediate_render( &render_info, homing_sip->model_num, &viewed_obj->orient, &obj_pos );
+				model_render_immediate( &render_info, homing_sip->model_num, &viewed_obj->orient, &obj_pos );
 			}
 		}
 
@@ -1142,7 +1142,7 @@ void HudGaugeTargetBox::renderTargetAsteroid(object *target_objp)
 
 		render_info.set_flags(flags | MR_NO_FOGGING);
 
-		model_immediate_render( &render_info, Asteroid_info[asteroidp->asteroid_type].model_num[pof], &target_objp->orient, &obj_pos );
+		model_render_immediate( &render_info, Asteroid_info[asteroidp->asteroid_type].model_num[pof], &target_objp->orient, &obj_pos );
 
 		if ( Monitor_mask >= 0 ) {
 			gr_stencil_set(GR_STENCIL_NONE);

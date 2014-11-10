@@ -7933,7 +7933,7 @@ void Time_model( int modelnum )
 		model_render_params render_info;
 		render_info.set_detail_level_lock(0);
 		model_set_detail_level(0);		// use highest detail level
-		model_immediate_render( &render_info, modelnum, &model_orient, &model_pos );	//|MR_NO_POLYS );
+		model_render_immediate( &render_info, modelnum, &model_orient, &model_pos );	//|MR_NO_POLYS );
 
 		g3_end_frame();
 //		gr_flip();

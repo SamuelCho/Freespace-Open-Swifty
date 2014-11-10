@@ -488,7 +488,7 @@ void shockwave_render(object *objp, draw_list *scene)
 		render_info.set_flags(MR_NO_LIGHTING | MR_NO_FOGGING | MR_NORMAL | MR_CENTER_ALPHA | MR_NO_CULL | MR_NO_BATCH);
 		render_info.set_object_number(sw->objnum);
 
-		model_queue_render( &render_info, scene, sw->model_id, &Objects[sw->objnum].orient, &sw->pos);
+		model_render_queue( &render_info, scene, sw->model_id, &Objects[sw->objnum].orient, &sw->pos);
 
 		if ( Cmdline_fb_explosions ) {
 			g3_transfer_vertex(&p, &sw->pos);

@@ -1956,7 +1956,7 @@ void shipfx_queue_render_ship_halves_and_debris(draw_list *scene, clip_ship* hal
 				render_info.set_replacement_textures(shipp->ship_replacement_textures);
 				render_info.set_flags(render_flags);
 
-				submodel_queue_render(&render_info, scene, pm->id, pm->debris_objects[i], &half_ship->orient, &tmp);
+				submodel_render_queue(&render_info, scene, pm->id, pm->debris_objects[i], &half_ship->orient, &tmp);
 			}
 
 			// make free piece of debris
@@ -2006,7 +2006,7 @@ void shipfx_queue_render_ship_halves_and_debris(draw_list *scene, clip_ship* hal
 	render_info.set_clip_plane(model_clip_plane_pt, clip_plane_norm);
 	render_info.set_replacement_textures(shipp->ship_replacement_textures);
 
-	model_queue_render(&render_info, scene, pm->id, &half_ship->orient, &orig_ship_world_center);
+	model_render_queue(&render_info, scene, pm->id, &half_ship->orient, &orig_ship_world_center);
 }
 
 void shipfx_large_blowup_level_init()

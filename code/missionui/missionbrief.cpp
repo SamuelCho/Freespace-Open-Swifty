@@ -1074,7 +1074,7 @@ void brief_render_closeup(int ship_class, float frametime)
 		render_info.set_flags(MR_NO_LIGHTING | MR_AUTOCENTER);
 	}
 
-	model_immediate_render( &render_info, Closeup_icon->modelnum, &Closeup_orient, &Closeup_pos );
+	model_render_immediate( &render_info, Closeup_icon->modelnum, &Closeup_orient, &Closeup_pos );
 
 	if (is_neb) {
 		The_mission.flags |= MISSION_FLAG_FULLNEB;

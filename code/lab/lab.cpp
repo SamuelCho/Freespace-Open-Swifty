@@ -871,7 +871,7 @@ void labviewer_render_model(float frametime)
 
 			render_info.set_flags(Lab_model_flags);
 
-			submodel_immediate_render(&render_info, Lab_model_num, pm->debris_objects[i], &Lab_viewer_orient, &world_point);
+			submodel_render_immediate(&render_info, Lab_model_num, pm->debris_objects[i], &Lab_viewer_orient, &world_point);
 			Shadow_override = false;
 		}
 	}
@@ -935,7 +935,7 @@ void labviewer_render_model(float frametime)
 
 			render_info.set_flags(MR_NO_TEXTURING | MR_NO_LIGHTING | MR_AUTOCENTER);
 
-			model_immediate_render(&render_info, Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector);
+			model_render_immediate(&render_info, Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector);
 
 			//render weapon models if selected
 			if ( Lab_mode == LAB_MODE_SHIP && ( Lab_viewer_flags & LAB_FLAG_SHOW_WEAPONS ) ) {
@@ -955,7 +955,7 @@ void labviewer_render_model(float frametime)
 						for(k = 0; k < bank->num_slots; k++) {	
 
 							render_info.set_flags(render_flags);
-							model_immediate_render(&render_info, Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k]);
+							model_render_immediate(&render_info, Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k]);
 						}
 					}
 					l++;
@@ -972,14 +972,14 @@ void labviewer_render_model(float frametime)
 						if (Weapon_info[sip->secondary_bank_weapons[j]].wi_flags2 & WIF2_EXTERNAL_WEAPON_LNCH) {
 							for(k = 0; k < bank->num_slots; k++) {
 								render_info.set_flags(render_flags);
-								model_immediate_render(&render_info, Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k]);
+								model_render_immediate(&render_info, Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k]);
 							}
 						} else {
 							for(k = 0; k < bank->num_slots; k++)
 							{
 								secondary_weapon_pos = bank->pnt[k];
 								render_info.set_flags(render_flags);
-								model_immediate_render(&render_info, Lab_weaponmodel_num[l], &vmd_identity_matrix, &secondary_weapon_pos);
+								model_render_immediate(&render_info, Lab_weaponmodel_num[l], &vmd_identity_matrix, &secondary_weapon_pos);
 							}
 						}
 					}
@@ -1021,7 +1021,7 @@ void labviewer_render_model(float frametime)
 					w_bank *bank = &model_get(Lab_model_num)->gun_banks[j];
 					for(k = 0; k < bank->num_slots; k++) {	
 						render_info.set_flags(render_flags);
-						model_immediate_render(&render_info, Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k]);
+						model_render_immediate(&render_info, Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k]);
 					}
 				}
 				l++;
@@ -1038,14 +1038,14 @@ void labviewer_render_model(float frametime)
 					if (Weapon_info[sip->secondary_bank_weapons[j]].wi_flags2 & WIF2_EXTERNAL_WEAPON_LNCH) {
 						for(k = 0; k < bank->num_slots; k++) {
 							render_info.set_flags(render_flags);
-							model_immediate_render(&render_info, Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k]);
+							model_render_immediate(&render_info, Lab_weaponmodel_num[l], &vmd_identity_matrix, &bank->pnt[k]);
 						}
 					} else {
 						for(k = 0; k < bank->num_slots; k++)
 						{
 							secondary_weapon_pos = bank->pnt[k];
 							render_info.set_flags(render_flags);
-							model_immediate_render(&render_info, Lab_weaponmodel_num[l], &vmd_identity_matrix, &secondary_weapon_pos);
+							model_render_immediate(&render_info, Lab_weaponmodel_num[l], &vmd_identity_matrix, &secondary_weapon_pos);
 						}
 					}
 				}
@@ -1057,12 +1057,12 @@ void labviewer_render_model(float frametime)
 		render_info.set_flags(flagggs);
 		render_info.set_object_number(Lab_selected_object);
 
-		model_immediate_render(&render_info, Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MODEL_RENDER_OPAQUE);
+		model_render_immediate(&render_info, Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MODEL_RENDER_OPAQUE);
 		gr_opengl_deferred_lighting_end();
 		gr_opengl_deferred_lighting_finish();
 		bool gpo_save = Glowpoint_override;
 		Glowpoint_override = true;
-		model_immediate_render(&render_info, Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MODEL_RENDER_TRANS);
+		model_render_immediate(&render_info, Lab_model_num, &Lab_viewer_orient, &vmd_zero_vector, MODEL_RENDER_TRANS);
 		Glowpoint_override = gpo_save;
 	}
 

@@ -781,7 +781,7 @@ void render_one_model_nohtl(object *objp)
 			render_info.set_debug_flags(debug_flags);
 			render_info.set_replacement_textures(Ships[z].ship_replacement_textures);
 
-			model_immediate_render(&render_info, Ship_info[Ships[z].ship_info_index].model_num, &objp->orient, &objp->pos);
+			model_render_immediate(&render_info, Ship_info[Ships[z].ship_info_index].model_num, &objp->orient, &objp->pos);
 		}
 	
 	} else {
@@ -927,7 +927,7 @@ void render_one_model_htl(object *objp)
 		render_info.set_replacement_textures(Ships[z].ship_replacement_textures);
 
 		g3_done_instance(0);
-	  	model_immediate_render(&render_info, Ship_info[Ships[z].ship_info_index].model_num, &objp->orient, &objp->pos);
+	  	model_render_immediate(&render_info, Ship_info[Ships[z].ship_info_index].model_num, &objp->orient, &objp->pos);
 	} else {
 		int r = 0, g = 0, b = 0;
 

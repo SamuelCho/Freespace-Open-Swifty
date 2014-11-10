@@ -195,8 +195,8 @@ void model_interp_sortnorm_b2f(ubyte * p,polymodel * pm, bsp_info *sm, int do_bo
 void model_interp_sortnorm_f2b(ubyte * p,polymodel * pm, bsp_info *sm, int do_box_check);
 void (*model_interp_sortnorm)(ubyte * p,polymodel * pm, bsp_info *sm, int do_box_check) = model_interp_sortnorm_b2f;
 int model_should_render_engine_glow(int objnum, int bank_obj);
-void model_render_buffers(polymodel *pm, int mn,int render, bool is_child = false);
-void model_render_children_buffers(polymodel * pm, int mn, int detail_level, int render);
+void model_render_buffers_DEPRECATED(polymodel *pm, int mn,int render, bool is_child = false);
+void model_render_children_buffers_DEPRECATED(polymodel * pm, int mn, int detail_level, int render);
 int model_interp_get_texture(texture_info *tinfo, fix base_frametime);
 
 void model_deallocate_interp_data()
@@ -2544,7 +2544,7 @@ void model_render_thrusters(polymodel *pm, int objnum, ship *shipp, matrix *orie
 	gr_zbuffer_set(zbuff_save);
 }
 
-void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d *pos, bool use_depth_buffer = true)
+void model_render_glow_points_DEPRECATED(polymodel *pm, ship *shipp, matrix *orient, vec3d *pos, bool use_depth_buffer = true)
 {
 	int i, j;
 
@@ -3158,7 +3158,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		if ( !pm->submodel[i].is_thruster ) {
 			// When in htl mode render with htl method unless its a jump node
 			if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-				model_render_children_buffers( pm, i, Interp_detail_level, render );
+				model_render_children_buffers_DEPRECATED( pm, i, Interp_detail_level, render );
 			} else {
 				model_interp_subcall( pm, i, Interp_detail_level );
 			}
@@ -3177,7 +3177,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 	// When in htl mode render with htl method unless its a jump node
 	if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-		model_render_buffers(pm, pm->detail[Interp_detail_level], render);
+		model_render_buffers_DEPRECATED(pm, pm->detail[Interp_detail_level], render);
 	} else {
 		model_interp_subcall(pm, pm->detail[Interp_detail_level], Interp_detail_level);
 	}
@@ -3190,7 +3190,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 			if (pm->submodel[i].is_thruster) {
 				// When in htl mode render with htl method unless its a jump node
 				if (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) {
-					model_render_children_buffers( pm, i, Interp_detail_level, render );
+					model_render_children_buffers_DEPRECATED( pm, i, Interp_detail_level, render );
 				} else {
 					model_interp_subcall( pm, i, Interp_detail_level );
 				}
@@ -3267,7 +3267,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 	// start rendering glow points -Bobboau
 	if ( (pm->n_glow_point_banks) && !is_outlines_only && !is_outlines_only_htl && !Glowpoint_override ) {
-		model_render_glow_points(pm, shipp, orient, pos, Glowpoint_use_depth_buffer);
+		model_render_glow_points_DEPRECATED(pm, shipp, orient, pos, Glowpoint_use_depth_buffer);
 	}
 
 	// Draw the thruster glow
@@ -3423,7 +3423,7 @@ void submodel_render_DEPRECATED(int model_num, int submodel_num, matrix *orient,
 			gr_zbias(0);
 		gr_set_buffer(pm->vertex_buffer_id);
 
-		model_render_buffers(pm, submodel_num, render);
+		model_render_buffers_DEPRECATED(pm, submodel_num, render);
 
 		gr_set_buffer(-1);
 	} else {
@@ -4710,7 +4710,7 @@ inline int in_sphere(vec3d *pos, float radius, vec3d *view_pos)
 		return -1;
 }
 
-void model_render_children_buffers(polymodel *pm, int mn, int detail_level, int render)
+void model_render_children_buffers_DEPRECATED(polymodel *pm, int mn, int detail_level, int render)
 {
 	int i;
 
@@ -4789,7 +4789,7 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level, int 
 
 	g3_start_instance_matrix(&model->offset, &submodel_matrix, true);
 	
-	model_render_buffers(pm, mn, render, true);
+	model_render_buffers_DEPRECATED(pm, mn, render, true);
 
 // 	if (Interp_flags & MR_SHOW_PIVOTS)
 // 		model_draw_debug_points( pm, &pm->submodel[mn], Interp_flags );
@@ -4801,7 +4801,7 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level, int 
 
 	while (i >= 0) {
 		if ( !pm->submodel[i].is_thruster ) {
-			model_render_children_buffers( pm, i, detail_level, render );
+			model_render_children_buffers_DEPRECATED( pm, i, detail_level, render );
 		}
 
 		i = pm->submodel[i].next_sibling;
@@ -4820,7 +4820,7 @@ void model_render_children_buffers(polymodel *pm, int mn, int detail_level, int 
 	g3_done_instance(true);
 }
 
-void model_render_buffers(polymodel *pm, int mn, int render, bool is_child)
+void model_render_buffers_DEPRECATED(polymodel *pm, int mn, int render, bool is_child)
 {
 	if (pm->vertex_buffer_id < 0)
 		return;

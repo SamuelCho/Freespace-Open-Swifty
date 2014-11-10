@@ -682,7 +682,7 @@ void HudGaugeShield::showShields(object *objp, int mode)
 			render_info.set_replacement_textures(sp->ship_replacement_textures);
 			render_info.set_detail_level_lock(1);
 
-			model_immediate_render( &render_info, sip->model_num, &object_orient, &vmd_zero_vector );
+			model_render_immediate( &render_info, sip->model_num, &object_orient, &vmd_zero_vector );
 		}
 		/*else
 		{

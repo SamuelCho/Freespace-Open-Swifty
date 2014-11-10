@@ -7156,7 +7156,7 @@ void HudGaugeHardpoints::render(float frametime)
 	render_info.set_flags(MR_NO_LIGHTING | MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_TEXTURING | MR_NO_CULL);
 
 	ship_model_start(objp);
-	model_immediate_render( &render_info, sip->model_num, &object_orient, &vmd_zero_vector);
+	model_render_immediate( &render_info, sip->model_num, &object_orient, &vmd_zero_vector);
 
 	gr_set_color_buffer(1);
 	gr_stencil_set(GR_STENCIL_READ);
@@ -7167,7 +7167,7 @@ void HudGaugeHardpoints::render(float frametime)
 	//model_set_forced_texture(0);
 	render_info.set_flags(MR_NO_LIGHTING | MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_TEXTURING | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_NO_ZBUFFER | MR_NO_CULL);
 
-	model_immediate_render( 
+	model_render_immediate( 
 		&render_info,
 		sip->model_num, 
 		&object_orient, 
@@ -7211,7 +7211,7 @@ void HudGaugeHardpoints::render(float frametime)
 					weapon_render_info.set_flags(render_flags);
 					weapon_render_info.set_alpha(alpha);
 
-					model_immediate_render(&weapon_render_info, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k]);
+					model_render_immediate(&weapon_render_info, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k]);
 				}
 			} else {
 				num_secondaries_rendered = 0;
@@ -7243,7 +7243,7 @@ void HudGaugeHardpoints::render(float frametime)
 					weapon_render_info.set_flags(render_flags);
 					weapon_render_info.set_alpha(alpha);
 
-					model_immediate_render(&weapon_render_info, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos);
+					model_render_immediate(&weapon_render_info, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos);
 				}
 			}
 		}
@@ -7284,7 +7284,7 @@ void HudGaugeHardpoints::render(float frametime)
 					weapon_render_info.set_alpha(alpha);
 
 					pm->gun_submodel_rotation = sp->primary_rotate_ang[i];
-					model_immediate_render(&weapon_render_info, Weapon_info[swp->primary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k]);
+					model_render_immediate(&weapon_render_info, Weapon_info[swp->primary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k]);
 					pm->gun_submodel_rotation = 0.0f;
 				}
 			}

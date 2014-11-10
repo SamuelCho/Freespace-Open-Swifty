@@ -1144,7 +1144,7 @@ void debris_render(object * obj, draw_list *scene)
 	}
 
 	MONITOR_INC(NumHullDebrisRend,1);
-	submodel_queue_render( &render_info, scene, db->model_num, db->submodel_num, &obj->orient, &obj->pos );
+	submodel_render_queue( &render_info, scene, db->model_num, db->submodel_num, &obj->orient, &obj->pos );
 
 	if (tbase != NULL && (swapped!=-1) && pm)	{
 		tbase->SetTexture(swapped);
