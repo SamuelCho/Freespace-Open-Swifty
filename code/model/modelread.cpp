@@ -847,31 +847,36 @@ void create_vertex_buffer(polymodel *pm)
 
 	memset( &ibuffer_info, 0, sizeof(IBX) );
 
+	// figure out which vertices are transparent
 	for ( i = 0; i < pm->n_models; i++ ) {
-		interp_create_transparency_index_buffer(pm, i);
+		if ( !pm->submodel[i].is_thruster ) {
+			interp_create_transparency_index_buffer(pm, i);
+		}
 	}
 
-	bool use_shader_transforms = false;
+	bool use_batched_rendering = true;
 
-	if ( Use_GLSL >= 3 ) {
+	if ( Use_GLSL >= 3 && !Cmdline_no_batching ) {
 		bool unequal_stride = false;
-		uint stride = pm->submodel[0].buffer.stride;
+		uint stride = 0;
 
-		// see if all submodel vertices have the same stride.
-		for ( i = 1; i < pm->n_models; ++i ) {
-			if ( pm->submodel[i].buffer.model_list != NULL && stride != pm->submodel[i].buffer.stride ) {
-				unequal_stride = true;
-				break;
+		// figure out if the vertex stride of this entire model matches. if not, turn off batched rendering for this model
+		for ( i = 0; i < pm->n_models; ++i ) {
+			if ( pm->submodel[i].buffer.model_list != NULL && pm->submodel[i].buffer.stride != stride) {
+				if ( stride == 0 ) {
+					stride = pm->submodel[i].buffer.stride;
+				} else {
+					use_batched_rendering = false;
+					break;
+				}
 			}
 		}
-
-		if ( !unequal_stride ) {
-			use_shader_transforms = true;
-		}
+	} else {
+		use_batched_rendering = false;
 	}
 
 	// create another set of indexes for the detail buffers
-	if ( use_shader_transforms ) {
+	if ( use_batched_rendering ) {
 		for ( i = 0; i < pm->n_detail_levels; i++ )	{
 			interp_create_detail_index_buffer(pm, i);
 		}
@@ -886,8 +891,8 @@ void create_vertex_buffer(polymodel *pm)
 		pm->submodel[i].trans_buffer.release();
 	}
 
-	if ( use_shader_transforms ) {
-		// pack the detail index buffers to the vbo.
+	if ( use_batched_rendering ) {
+		// pack the merged index buffers to the vbo.
 		for ( i = 0; i < pm->n_detail_levels; ++i ) {
 			gr_pack_buffer(pm->vertex_buffer_id, &pm->detail_buffers[i]);
 
@@ -899,6 +904,8 @@ void create_vertex_buffer(polymodel *pm)
 				pm->trans_buff[i].release();
 			}
 		}
+
+		pm->flags |= PM_FLAG_BATCHED;
 	}
 
 	// ... and then finalize buffer

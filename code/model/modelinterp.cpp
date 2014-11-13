@@ -4256,7 +4256,10 @@ void interp_pack_vertex_buffers(polymodel *pm, int mn)
 	}
 
 	bool rval = gr_pack_buffer(pm->vertex_buffer_id, &model->buffer);
-	gr_pack_buffer(pm->vertex_buffer_id, &model->trans_buffer);
+
+	if ( model->trans_buffer.flags & VB_FLAG_TRANS ) {
+		gr_pack_buffer(pm->vertex_buffer_id, &model->trans_buffer);
+	}
 
 	if ( !rval ) {
 		Error( LOCATION, "Unable to pack vertex buffer for '%s'\n", pm->filename );
@@ -4618,6 +4621,11 @@ void interp_create_transparency_index_buffer(polymodel *pm, int mn)
 		const uint *indices = tex_buf->get_index();
 
 		texture_map *tmap = &pm->maps[tex_buf->texture];
+
+		// skip if this is already designated to be a transparent pass by the modeller
+// 		if ( tmap->is_transparent ) {
+// 			continue;
+// 		}
 
 		int bitmap_handle = tmap->textures[TM_BASE_TYPE].GetTexture();
 

@@ -626,6 +626,7 @@ typedef struct insignia {
 #define PM_FLAG_ALLOW_TILING		(1<<0)					// Allow texture tiling
 #define PM_FLAG_AUTOCEN				(1<<1)					// contains autocentering info	
 #define PM_FLAG_TRANS_BUFFER		(1<<2)					// render transparency buffer
+#define PM_FLAG_BATCHED				(1<<3)					// this model can be batch rendered
 
 // Goober5000
 class texture_info
