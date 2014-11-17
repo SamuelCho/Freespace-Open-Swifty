@@ -11,6 +11,7 @@
 #include "graphics/gropenglextension.h"
 #include "graphics/gropenglstate.h"
 #include "graphics/gropengldraw.h"
+#include "graphics/gropenglshader.h"
 
 #include "globalincs/pstypes.h"
 #include "cutscene/mvelib.h"
@@ -609,6 +610,8 @@ void mve_video_display()
 
 	if (gr_screen.mode == GR_OPENGL) {
 		glTexSubImage2D(GL_state.Texture.GetTarget(), 0, 0, 0, g_width, g_height, GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV, pixelbuf);
+
+		opengl_shader_set_passthrough(true);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	} else {

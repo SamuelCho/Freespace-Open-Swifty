@@ -33,6 +33,7 @@
 SCP_vector<opengl_shader_t> GL_shader;
 opengl_shader_t Deferred_light_shader;
 opengl_shader_t Deferred_clear_shader;
+opengl_shader_t Passthrough_shader;
 
 SCP_vector<opengl_shader_t> GL_effect_shaders;
 
@@ -137,6 +138,27 @@ void opengl_shader_set_current(opengl_shader_t *shader_obj)
 	} else {
 		Current_shader = NULL;
 		vglUseProgramObjectARB(0);
+	}
+}
+
+void opengl_shader_set_passthrough(bool textured, bool alpha)
+{
+	if ( Use_GLSL < 2 ) {
+		return;
+	}
+
+	opengl_shader_set_current(&Passthrough_shader);
+
+	if ( textured ) {
+		GL_state.Uniform.setUniformi("no_texturing", 1);
+	} else {
+		GL_state.Uniform.setUniformi("no_texturing", 0);
+	}
+
+	if ( alpha ) {
+		GL_state.Uniform.setUniformi("alpha_texture", 1);
+	} else {
+		GL_state.Uniform.setUniformi("alpha_texture", 0);
 	}
 }
 
@@ -687,6 +709,8 @@ void opengl_shader_init()
 
 	opengl_shader_compile_deferred_light_shader();
 	opengl_shader_compile_deferred_light_clear_shader();
+	opengl_shader_compile_passthrough_shader();
+
 	mprintf(("\n"));
 }
 
@@ -1198,6 +1222,78 @@ Done:
 		// We died on a lighting shader, probably due to instruction count.
 		// Drop down to a special var that will use fixed-function rendering
 		// but still allow for post-processing to work
+		mprintf(("  Shader in_error!  Disabling GLSL model rendering!\n"));
+		Use_GLSL = 1;
+		Cmdline_height = 0;
+		Cmdline_normal = 0;
+	}
+}
+
+/**
+* Compile the deferred light clear shader.
+*/
+void opengl_shader_compile_passthrough_shader()
+{
+	char *vert = NULL, *frag = NULL;
+
+	mprintf(("Compiling passthrough shader...\n"));
+
+	bool in_error = false;
+
+	// choose appropriate files
+	char vert_name[NAME_LENGTH];
+	char frag_name[NAME_LENGTH];
+
+	strcpy_s(vert_name, "passthrough-v.sdr");
+	strcpy_s(frag_name, "passthrough-f.sdr");
+
+	// read vertex shader
+	if ((vert = opengl_load_shader(vert_name, 0)) == NULL) {
+		in_error = true;
+		goto Done;
+	}
+
+	// read fragment shader
+	if ((frag = opengl_load_shader(frag_name, 0)) == NULL) {
+		in_error = true;
+		goto Done;
+	}
+
+	Verify(vert != NULL);
+	Verify(frag != NULL);
+
+	Passthrough_shader.program_id = opengl_shader_create(vert, frag, NULL);
+
+	if (!Passthrough_shader.program_id) {
+		in_error = true;
+		goto Done;
+	}
+	opengl_shader_set_current(&Passthrough_shader);
+
+	//Hardcoded Uniforms
+	opengl_shader_init_uniform("baseMap");
+	opengl_shader_init_uniform("no_texturing");
+	opengl_shader_init_uniform("alpha_texture");
+
+	GL_state.Uniform.setUniformi("baseMap", 0);
+	GL_state.Uniform.setUniformi("no_texturing", 0);
+	GL_state.Uniform.setUniformi("alpha_texture", 0);
+
+	opengl_shader_set_current();
+
+Done:
+	if (vert != NULL) {
+		vm_free(vert);
+		vert = NULL;
+	}
+
+	if (frag != NULL) {
+		vm_free(frag);
+		frag = NULL;
+	}
+
+	if (in_error) {
+		// The passthrough shader doesn't work? That's not good.
 		mprintf(("  Shader in_error!  Disabling GLSL model rendering!\n"));
 		Use_GLSL = 1;
 		Cmdline_height = 0;

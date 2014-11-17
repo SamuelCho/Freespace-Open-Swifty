@@ -54,6 +54,8 @@ extern char* Default_deferred_vertex_shader;
 extern char* Default_deferred_fragment_shader;
 extern char* Default_deferred_clear_vertex_shader;
 extern char* Default_deferred_clear_fragment_shader;
+extern char *Default_passthrough_vertex_shader;
+extern char* Default_passthrough_fragment_shader;
 //**********
 
 //:PART 2:
@@ -92,7 +94,9 @@ def_file Default_files[] =
 	{ "deferred-v.sdr",			Default_deferred_vertex_shader},
 	{ "deferred-f.sdr",			Default_deferred_fragment_shader},
 	{ "deferred-clear-v.sdr",	Default_deferred_clear_vertex_shader},
-	{ "deferred-clear-f.sdr",	Default_deferred_clear_fragment_shader}
+	{ "deferred-clear-f.sdr",	Default_deferred_clear_fragment_shader},
+	{ "passthrough-v.sdr",		Default_passthrough_vertex_shader },
+	{ "passthrough-f.sdr",		Default_passthrough_fragment_shader }
 };
 
 static int Num_default_files = sizeof(Default_files) / sizeof(def_file);
@@ -2678,11 +2682,12 @@ char* Default_effect_distortion_fragment_shader =
 "	gl_FragColor.a = alpha;\n"
 "}";
 
-char* Default_effect_fragment_shader = 
+char* Default_effect_fragment_shader =
 "uniform sampler2D baseMap;\n"
+"uniform int textured;\n"
 "void main()\n"
 "{\n"
-"	vec4 fragmentColor = texture2D(baseMap, gl_TexCoord[0].xy)*gl_Color.a;\n"
+"	vec4 fragmentColor = mix(gl_Color, texture2D(baseMap, gl_TexCoord[0].xy)*gl_Color.a, (float)textured);\n"
 "	gl_FragColor = fragmentColor;\n"
 "}";
 
@@ -2813,6 +2818,25 @@ char * Default_video_fragment_shader =
 "	gl_FragColor.g = dot(val, vec3(1.1640625, -0.390625, -0.8125));\n"
 "	gl_FragColor.b = dot(val, vec3(1.1640625, 2.015625, 0.0));\n"
 "	gl_FragColor.a = 1.0;\n"
+"}";
+
+char *Default_passthrough_vertex_shader =
+"void main()\n"
+"{\n"
+"	gl_TexCoord[0] = gl_MultiTexCoord0;\n"
+"	gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_Vertex;\n"
+"	gl_FrontColor = gl_Color;\n"
+"	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
+"}";
+
+char* Default_passthrough_fragment_shader =
+"uniform sampler2D baseMap;\n"
+"uniform int alpha_texture;\n"
+"uniform int no_texturing;\n"
+"void main()\n"
+"{\n"
+"	vec4 baseColor = texture2D(baseMap, gl_TexCoord[0].xy)*gl_Color;\n"
+"	gl_FragColor = mix(gl_Color, mix(baseColor, vec4(gl_Color.rgb, baseColor.a), float(alpha_texture)), float(no_texturing));\n"
 "}";
 
 char *Default_deferred_vertex_shader =

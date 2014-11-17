@@ -229,6 +229,8 @@ void opengl_aabitmap_ex_internal(int x, int y, int w, int h, int sx, int sy, int
 
 	GLboolean cull_face = GL_state.CullFace(GL_FALSE);
 
+	opengl_shader_set_passthrough(true, true);
+
 	opengl_draw_textured_quad(x1,y1,u0,v0, x2,y2,u1,v1);
 
 	GL_state.CullFace(cull_face);
@@ -495,6 +497,8 @@ void gr_opengl_string(float sx, float sy, const char *s, int resize_mode)
 	vert_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(v4), &GL_string_render_buff[0].u);
 
 	opengl_bind_vertex_layout(vert_def);
+	//opengl_shader_set_current();
+	opengl_shader_set_passthrough(true, true);
 
 	// pick out letter coords, draw it, goto next letter and do the same
 	while (*s)	{
@@ -698,6 +702,7 @@ void gr_opengl_line(int x1,int y1,int x2,int y2, int resize_mode)
 		vert_def.add_vertex_component(vertex_format_data::POSITION3, 0, vert);
 
 		opengl_bind_vertex_layout(vert_def);
+		opengl_shader_set_passthrough(false);
 
 		glDrawArrays(GL_POINTS, 0, 1);
 
@@ -738,6 +743,7 @@ void gr_opengl_line(int x1,int y1,int x2,int y2, int resize_mode)
 	vert_def.add_vertex_component(vertex_format_data::POSITION3, 0, line);
 
 	opengl_bind_vertex_layout(vert_def);
+	opengl_shader_set_passthrough(false);
 
 	glDrawArrays(GL_LINES, 0, 2);
 
@@ -780,6 +786,7 @@ void gr_opengl_line_htl(vec3d *start, vec3d *end)
 	vert_def.add_vertex_component(vertex_format_data::POSITION3, 0, line);
 
 	opengl_bind_vertex_layout(vert_def);
+	opengl_shader_set_passthrough(false);
 
 	glDrawArrays(GL_LINES, 0, 2);
 
@@ -827,6 +834,7 @@ void gr_opengl_aaline(vertex *v1, vertex *v2)
 		vert_def.add_vertex_component(vertex_format_data::POSITION3, 0, vert);
 
 		opengl_bind_vertex_layout(vert_def);
+		opengl_shader_set_passthrough(false);
 
 		glDrawArrays(GL_POINTS, 0, 1);
 
@@ -866,6 +874,7 @@ void gr_opengl_aaline(vertex *v1, vertex *v2)
 	vert_def.add_vertex_component(vertex_format_data::POSITION3, 0, line);
 
 	opengl_bind_vertex_layout(vert_def);
+	opengl_shader_set_passthrough(false);
 
 	glDrawArrays(GL_LINES, 0, 2);
 
@@ -938,6 +947,7 @@ void gr_opengl_gradient(int x1, int y1, int x2, int y2, int resize_mode)
 	vert_def.add_vertex_component(vertex_format_data::COLOR4, 0, colour);
 
 	opengl_bind_vertex_layout(vert_def);
+	opengl_shader_set_passthrough(false);
 
 	glDrawArrays(GL_LINES, 0, 2);
 
@@ -1029,6 +1039,7 @@ void gr_opengl_unfilled_circle(int xc, int yc, int d, int resize_mode)
 	vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, circle);
 
 	opengl_bind_vertex_layout(vert_def);
+	opengl_shader_set_passthrough(false);
 
 	glDrawArrays(GL_QUAD_STRIP, 0, segments * 2);
 
@@ -1134,6 +1145,7 @@ void gr_opengl_arc(int xc, int yc, float r, float angle_start, float angle_end, 
 		vertex_layout vert_def;
 		vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, arc);
 		opengl_bind_vertex_layout(vert_def);
+		opengl_shader_set_passthrough(false);
 
 		glDrawArrays(GL_TRIANGLE_FAN, 0, segments + 1);
 	} else {
@@ -1157,6 +1169,7 @@ void gr_opengl_arc(int xc, int yc, float r, float angle_start, float angle_end, 
 		vertex_layout vert_def;
 		vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, arc);
 		opengl_bind_vertex_layout(vert_def);
+		opengl_shader_set_passthrough(false);
 
 		glDrawArrays(GL_QUAD_STRIP, 0, segments * 2);
 	}
@@ -1392,9 +1405,13 @@ void opengl_draw_primitive(int nv, vertex **verts, uint flags, float u_scale, fl
 
 	vert_def.add_vertex_component(vertex_format_data::POSITION4, sizeof(struct v6), &vertPos[0].x);
 
+	bool textured = false;
+
 	if(flags & TMAP_FLAG_TEXTURED) {
 		vert_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(struct v6), &vertPos[0].u);
 		//vert_def.add_vertex_component(vertex_format_data::TEX_COORD1, sizeof(struct v6), &vertPos[0].u);
+
+		textured = true;
 	}
 
 	if(flags & (TMAP_FLAG_NEBULA | TMAP_FLAG_GOURAUD)) {
@@ -1402,6 +1419,7 @@ void opengl_draw_primitive(int nv, vertex **verts, uint flags, float u_scale, fl
 	}
 
 	opengl_bind_vertex_layout(vert_def);
+	opengl_shader_set_passthrough(textured);
 
 	glDrawArrays(gl_mode, 0, nv);
 
@@ -1504,13 +1522,15 @@ void opengl_tmapper_internal3d(int nv, vertex **verts, uint flags)
 
 	opengl_setup_render_states(r, g, b, alpha, tmap_type, flags);
 
+	bool textured = false;
+
 	if (flags & TMAP_FLAG_TEXTURED) {
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
 			return;
 		}
-	}
 
-	opengl_shader_set_current();
+		textured = true;
+	}
 
 	GLboolean cull_face = GL_state.CullFace(GL_FALSE);
 
@@ -1573,6 +1593,7 @@ void opengl_tmapper_internal3d(int nv, vertex **verts, uint flags)
 	vert_def.add_vertex_component(vertex_format_data::TEX_COORD, 0, &uvcoords.front());
 
 	opengl_bind_vertex_layout(vert_def);
+	opengl_shader_set_passthrough(textured);
 
 	glDrawArrays(gl_mode, 0, nv);
 
@@ -1618,11 +1639,14 @@ void opengl_render_internal(int nverts, vertex *verts, uint flags)
 	GL_state.Array.BindArrayBuffer(0);
 
 	vertex_layout vert_def;
+	bool textured = false;
 
 	if (flags & TMAP_FLAG_TEXTURED) {
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
 			return;
 		}
+
+		textured = true;
 
 		vert_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(vertex), &verts[0].texture_position.u);
 
@@ -1663,6 +1687,8 @@ void opengl_render_internal(int nverts, vertex *verts, uint flags)
 
 	gr_opengl_set_2d_matrix();
 
+	opengl_shader_set_passthrough(textured);
+
 	glDrawArrays(gl_mode, 0, nverts);
 
 	gr_opengl_end_2d_matrix();
@@ -1697,12 +1723,14 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 	GL_state.Array.BindArrayBuffer(0);
 
 	vertex_layout vert_def;
+	bool textured = false;
 
 	if (flags & TMAP_FLAG_TEXTURED) {
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
 			return;
 		}
 
+		textured = true;
 		vert_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(vertex), &verts[0].texture_position.u);
 	}
 
@@ -1730,6 +1758,7 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 	vert_def.add_vertex_component(vertex_format_data::POSITION3, sizeof(vertex), &verts[0].world.xyz.x);
 
 	opengl_bind_vertex_layout(vert_def);
+	opengl_shader_set_passthrough(textured);
 
 	glDrawArrays(gl_mode, 0, nverts);
 
@@ -1781,6 +1810,8 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 			}
 			
 			vert_def.add_vertex_component(vertex_format_data::RADIUS, 0, radius_list);
+		} else {
+			opengl_shader_set_passthrough(true);
 		}
 		
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
@@ -1788,6 +1819,8 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 		}
 
 		vert_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(vertex), &verts[0].texture_position.u);
+	} else {
+		opengl_shader_set_passthrough(false);
 	}
 
 	GLboolean cull_face = GL_state.CullFace(GL_FALSE);
@@ -2138,6 +2171,7 @@ void opengl_bitmap_ex_internal(int x, int y, int w, int h, int sx, int sy, int r
 	}
 
 	GL_state.Color(255, 255, 255, (GLubyte)(gr_screen.current_alpha * 255));
+	opengl_shader_set_passthrough();
 
 	opengl_draw_textured_quad(x1, y1, u0, v0, x2, y2, u1, v1);
 }
@@ -3093,6 +3127,7 @@ void gr_opengl_scene_texture_end()
 			vert_def.add_vertex_component(vertex_format_data::TEX_COORD, 0, uvcoords);
 		
 			opengl_bind_vertex_layout(vert_def);
+			opengl_shader_set_passthrough();
 
 			glDrawArrays(GL_QUADS, 0, 4);
 			
@@ -3121,7 +3156,8 @@ void gr_opengl_scene_texture_end()
 			vert_def.add_vertex_component(vertex_format_data::TEX_COORD, 0, uvcoords);
 
 			opengl_bind_vertex_layout(vert_def);
-		
+			opengl_shader_set_passthrough();
+
 			glDrawArrays(GL_QUADS, 0, 4);
 			
 			GL_state.Array.DisableClientVertex();
@@ -3363,6 +3399,7 @@ void gr_opengl_update_distortion()
 	vert_def.add_vertex_component(vertex_format_data::TEX_COORD, 0, texcoord);
 	
 	opengl_bind_vertex_layout(vert_def);
+	opengl_shader_set_passthrough();
 
 	glDrawArrays(GL_QUADS, 0, 4);
 	
@@ -3392,6 +3429,7 @@ void gr_opengl_update_distortion()
 	vert_def.add_vertex_component(vertex_format_data::COLOR4, 0, &colours.front());
 
 	opengl_bind_vertex_layout(vert_def);
+	opengl_shader_set_passthrough(false);
 		
 	glDrawArrays(GL_POINTS, 0, 33);
 			

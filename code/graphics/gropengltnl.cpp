@@ -1457,6 +1457,8 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 					vert_def.add_vertex_component(vertex_format_data::UVEC, stride, ptr + up_offset);
 				}
 			}
+		} else {
+			opengl_shader_set_passthrough(true);
 		}
 
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
@@ -1469,6 +1471,8 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 	} else {
 		GL_state.Array.SetActiveClientUnit(0);
 		GL_state.Array.DisableClientTexture();
+
+		opengl_shader_set_passthrough(false);
 	}
 
 	if (flags & TMAP_FLAG_TRILIST) {
