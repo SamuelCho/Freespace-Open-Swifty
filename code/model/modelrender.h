@@ -167,6 +167,7 @@ struct render_state
 
 	bool using_team_color;
 	team_color tm_color;
+	color clr;
 
 	// fog state maybe shouldn't belong here. if we have fog, then it's probably occurring for all objects in scene.
 	int fog_mode;
@@ -201,6 +202,8 @@ struct render_state
 		animated_effect = 0;
 
 		thrust_scale = -1.0f;
+
+		gr_init_color(&clr, 255, 255, 255);
 	}
 };
 
@@ -236,6 +239,15 @@ struct queued_buffer_draw
 		texture_maps[TM_NORMAL_TYPE]	= -1;
 		texture_maps[TM_SPECULAR_TYPE]	= -1;
 	}
+};
+
+struct outline_draw
+{
+	vertex* vert_array;
+	int n_verts;
+
+	transform transformation;
+	color clr;
 };
 
 class model_batch_buffer
@@ -282,6 +294,7 @@ class draw_list
 
 	void render_arc(arc_effect &arc);
 	void render_insignia(insignia_draw_data &insignia_info);
+	void render_outline(outline_draw &outline_info);
 	void render_buffer(queued_buffer_draw &render_elements);
 	uint determine_shader_flags(render_state *state, queued_buffer_draw *draw_info, vertex_buffer *buffer, int tmap_flags);
 	
@@ -292,6 +305,7 @@ class draw_list
 
 	SCP_vector<arc_effect> Arcs;
 	SCP_vector<insignia_draw_data> Insignias;
+	SCP_vector<outline_draw> Outlines;
 
 	static draw_list *Target;
 	static bool sort_draw_pair(const int a, const int b);
@@ -317,6 +331,7 @@ public:
 	void set_buffer(int buffer);
 	void set_team_color(const team_color &color);
 	void set_team_color();
+	void set_color(const color &clr);
 	void set_animated_timer(float time);
 	void set_animated_effect(int effect);
 	void add_submodel_to_batch(int model_num);
@@ -335,6 +350,9 @@ public:
 
 	void add_insignia(polymodel *pm, int detail_level, int bitmap_num);
 	void render_insignias();
+
+	void add_outline(vertex* vert_array, int n_verts, color *clr);
+	void render_outlines();
 
 	void set_light_filter(int objnum, vec3d *pos, float rad);
 	void set_light_factor(float factor);

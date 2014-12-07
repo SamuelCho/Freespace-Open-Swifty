@@ -269,7 +269,6 @@ void model_unload(int modelnum, int force)
 
 	for ( int i = 0; i < MAX_MODEL_DETAIL_LEVELS; ++i ) {
 		pm->detail_buffers[i].clear();
-		pm->trans_buff[i].clear();
 	}
 
 	// run through Ship_info[] and if the model has been loaded we'll need to reset the modelnum to -1.
@@ -895,14 +894,7 @@ void create_vertex_buffer(polymodel *pm)
 		// pack the merged index buffers to the vbo.
 		for ( i = 0; i < pm->n_detail_levels; ++i ) {
 			gr_pack_buffer(pm->vertex_buffer_id, &pm->detail_buffers[i]);
-
 			pm->detail_buffers[i].release();
-
-			if ( pm->flags & PM_FLAG_TRANS_BUFFER && pm->trans_buff[i].flags & VB_FLAG_TRANS ) {
-				gr_pack_buffer(pm->vertex_buffer_id, &pm->trans_buff[i]);
-
-				pm->trans_buff[i].release();
-			}
 		}
 
 		pm->flags |= PM_FLAG_BATCHED;

@@ -312,7 +312,7 @@ public:
 		is_thruster(0), is_damaged(0), parent(-1), num_children(0), first_child(-1), next_sibling(-1), num_details(0),
 		num_arcs(0), render_sphere_radius(0.0f), use_render_box(0), use_render_box_offset(false), use_render_sphere(0), use_render_sphere_offset(false), gun_rotation(false), no_collisions(false),
 		nocollide_this_only(false), collide_invisible(false), force_turret_normal(false), attach_thrusters(false), dumb_turn_rate(0.0f),
-		look_at_num(-1)
+		look_at_num(-1), outline_buffer(NULL), n_verts_outline(0)
 	{
 		name[0] = 0;
 		lod_name[0] = 0;
@@ -382,6 +382,9 @@ public:
 	// buffers used by HT&L
 	vertex_buffer buffer;
 	vertex_buffer trans_buffer;
+
+	vertex *outline_buffer;
+	uint n_verts_outline;
 
 	vec3d	render_box_min;
 	vec3d	render_box_max;
@@ -820,8 +823,6 @@ public:
 	int vertex_buffer_id;			// HTL vertex buffer id
 
 	vertex_buffer detail_buffers[MAX_MODEL_DETAIL_LEVELS];
-
-	vertex_buffer trans_buff[MAX_MODEL_DETAIL_LEVELS];
 };
 
 // Call once to initialize the model system

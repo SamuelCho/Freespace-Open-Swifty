@@ -107,8 +107,8 @@ class bsp_polygon_data
 public:
 	bsp_polygon_data(ubyte* bsp_data);
 
-	int get_num_triangle_verts(int texture);
-	int get_num_line_verts(int texture);
+	int get_num_triangles(int texture);
+	int get_num_lines(int texture);
 
 	void generate_triangles(int texture, vertex *vert_ptr, vec3d* norm_ptr);
 	void generate_lines(int texture, vertex *vert_ptr);
@@ -4012,8 +4012,6 @@ void model_page_out_textures(int model_num, bool release)
 int tri_count[MAX_MODEL_TEXTURES];
 poly_list polygon_list[MAX_MODEL_TEXTURES];
 
-poly_list flat_polygon_list;
-
 void parse_defpoint(int off, ubyte *bsp_data)
 {
 	int i, n;
@@ -4056,45 +4054,6 @@ int check_values(vec3d *N)
 	}
 
 	return 0;
-}
-
-void parse_bsp_flat_polies(int offset, ubyte* bsp_data)
-{
-	int id = w(bsp_data + offset);
-	int size = w(bsp_data + offset + 4);
-
-	while (id != 0) {
-		switch (id)
-		{
-		case OP_DEFPOINTS:
-			parse_defpoint(offset, bsp_data);
-			break;
-
-		case OP_SORTNORM:
-			parse_sortnorm(offset, bsp_data);
-			break;
-
-		case OP_FLATPOLY:
-			break;
-
-		case OP_TMAPPOLY:
-			parse_tmap(offset, bsp_data);
-			break;
-
-		case OP_BOUNDBOX:
-			break;
-
-		default:
-			return;
-		}
-
-		offset += size;
-		id = w(bsp_data + offset);
-		size = w(bsp_data + offset + 4);
-
-		if (size < 1)
-			id = OP_EOF;
-	}
 }
 
 int Parse_normal_problem_count = 0;
@@ -4173,51 +4132,6 @@ void parse_tmap(int offset, ubyte *bsp_data)
 	Parse_normal_problem_count += problem_count;
 }
 
-void parse_flat(int offset, ubyte *bsp_data)
-{
-	int n_vert = w(bsp_data + offset + 36);
-
-	short * verts = (short *)(bsp_data + offset + 44);
-
-	int r = *(bsp_data + offset + 40);
-	int g = *(bsp_data + offset + 41);
-	int b = *(bsp_data + offset + 42);
-
-	vec3d *v;
-
-	for (int i = 1; i < (n_vert - 1); i++) {
-		v = Interp_verts[verts[0]];
-
-		flat_polygon_list.vert[flat_polygon_list.n_verts].world = *v;
-
-		v = Interp_verts[verts[i]];
-
-		flat_polygon_list.vert[flat_polygon_list.n_verts+1].world = *v;
-
-		v = Interp_verts[verts[i+1]];
-
-		flat_polygon_list.vert[flat_polygon_list.n_verts+2].world = *v;
-
-		flat_polygon_list.n_verts += 3;
-	}
-
-	// need to have at least three verts to draw a complete circuit
-
-	for ( int i = 0; i < n_vert; i++ ) {
-		v = Interp_verts[verts[i]];
-
-		flat_outline_list.push_back(*v);
-
-		if ( i == n_vert - 1 ) {
-			v = Interp_verts[verts[0]];
-		} else {
-			v = Interp_verts[verts[i + 1]];
-		}
-
-		flat_outline_list.push_back(*v);
-	}
-}
-
 void parse_sortnorm(int offset, ubyte *bsp_data);
 
 void parse_bsp(int offset, ubyte *bsp_data)
@@ -4276,13 +4190,6 @@ void parse_sortnorm(int offset, ubyte *bsp_data)
 	if (postlist) parse_bsp(offset+postlist, bsp_data);
 }
 
-void find_flat(int offset, ubyte *bsp_data)
-{
-	int n_vert = w(bsp_data + offset + 36);
-
-	flat_vert_count += n_vert;
-}
-
 void find_tmap(int offset, ubyte *bsp_data)
 {
 	int pof_tex = w(bsp_data+offset+40);
@@ -4335,7 +4242,6 @@ void find_tri_counts(int offset, ubyte *bsp_data)
 				break;
 
 			case OP_FLATPOLY:
-				find_flat(offset, bsp_data);
 				break;
 
 			case OP_TMAPPOLY:
@@ -4398,7 +4304,7 @@ void interp_pack_vertex_buffers(polymodel *pm, int mn)
 
 	bool rval = gr_pack_buffer(pm->vertex_buffer_id, &model->buffer);
 
-	if ( model->trans_buffer.flags & VB_FLAG_TRANS ) {
+	if ( model->trans_buffer.flags & VB_FLAG_TRANS && model->trans_buffer.tex_buf.size() > 0 ) {
 		gr_pack_buffer(pm->vertex_buffer_id, &model->trans_buffer);
 	}
 
@@ -4420,22 +4326,19 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
 		polygon_list[i].n_verts = 0;
 		tri_count[i] = 0;
-
-		flat_polygon_list.n_verts = 0;
 	}
-
-	find_tri_counts(0, model->bsp_data);
 
 	bsp_polygon_data *bsp_polies = new bsp_polygon_data(model->bsp_data);
 
 	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
-		tri_count[i] = bsp_polies->get_num_triangle_verts(i) / 3;
-		total_verts += tri_count[i];
+		int vert_count = bsp_polies->get_num_triangles(i) * 3;
+		tri_count[i] = vert_count / 3;
+		total_verts += vert_count;
 
-		polygon_list[i].allocate(tri_count[i]*3);
+		polygon_list[i].allocate(vert_count);
 
 		bsp_polies->generate_triangles(i, polygon_list[i].vert, polygon_list[i].norm);
-		polygon_list[i].n_verts = tri_count[i]*3;
+		polygon_list[i].n_verts = vert_count;
 
 		// for the moment we can only support INT_MAX worth of verts per index buffer
 		if (total_verts > INT_MAX) {
@@ -4444,22 +4347,21 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 	}
 
 	// figure out if we have an outline
-	int outline_n_verts = bsp_polies->get_num_line_verts(-1);
+	int outline_n_lines = bsp_polies->get_num_lines(-1);
 
-	if ( outline_n_verts > 0 ) {
-		flat_polygon_list.allocate(outline_n_verts);
+	if ( outline_n_lines > 0 ) {
+		model->n_verts_outline = outline_n_lines * 2;
+		model->outline_buffer = (vertex*)vm_malloc(sizeof(vertex) * model->n_verts_outline);
 
-		bsp_polies->generate_lines(-1, flat_polygon_list.vert);
-		flat_polygon_list.n_verts = outline_n_verts;
+		bsp_polies->generate_lines(-1, model->outline_buffer);
 	}
+
+	// done with the bsp now that we have the vertex data
+	delete bsp_polies;
 
 	if (total_verts < 1) {
 		return;
 	}
-
-	allocate_poly_list(); 
-
-	parse_bsp(0, model->bsp_data);
 
 	total_verts = 0;
 
@@ -4749,9 +4651,18 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 
 	model_get_submodel_tree_list(submodel_list, pm, pm->detail[detail_num]);
 
+	if ( submodel_list.size() < 1 ) {
+		return;
+	}
+
 	interp_fill_detail_index_buffer(submodel_list, pm, &pm->detail_buffers[detail_num]);
 	//interp_fill_detail_index_buffer(submodel_list, pm, &pm->trans_buff[detail_num]);
 	
+	// check if anything was even put into this buffer
+	if ( pm->detail_buffers[detail_num].tex_buf.size() < 1 ) {
+		return;
+	} 
+
 	gr_config_buffer(pm->vertex_buffer_id, &pm->detail_buffers[detail_num], true);
 	//gr_config_buffer(pm->vertex_buffer_id, &pm->trans_buff[detail_num], true);
 }
@@ -4771,6 +4682,11 @@ void interp_create_transparency_index_buffer(polymodel *pm, int mn)
 
 	poly_list *model_list = pm->submodel[mn].buffer.model_list;
 
+	// bail out if this buffer is empty
+	if ( model_list == NULL || model_list->n_verts < 1 ) {
+		return;
+	}
+
 	SCP_vector<buffer_data> &tex_buffers = pm->submodel[mn].buffer.tex_buf;
 	uint current_tri[NUM_VERTS_PER_TRI];
 	bool transparent_tri = false;
@@ -4778,6 +4694,11 @@ void interp_create_transparency_index_buffer(polymodel *pm, int mn)
 
 	for ( int i = 0; i < tex_buffers.size(); ++i ) {
 		buffer_data *tex_buf = &tex_buffers[i];
+
+		if ( tex_buf->n_verts < 1 ) {
+			continue;
+		}
+
 		const uint *indices = tex_buf->get_index();
 
 		texture_map *tmap = &pm->maps[tex_buf->texture];
@@ -5548,9 +5469,11 @@ bsp_polygon_data::bsp_polygon_data(ubyte* bsp_data)
 
 	for (int i = 0; i < MAX_MODEL_TEXTURES; ++i) {
 		Num_verts[i] = 0;
+		Num_polies[i] = 0;
 	}
 
 	Num_flat_verts = 0;
+	Num_flat_polies = 0;
 
 	process_bsp(0, bsp_data);
 }
@@ -5568,7 +5491,7 @@ void bsp_polygon_data::process_bsp(int offset, ubyte* bsp_data)
 			break;
 
 		case OP_SORTNORM:
-			parse_sortnorm(offset, bsp_data);
+			process_sortnorm(offset, bsp_data);
 			break;
 
 		case OP_FLATPOLY:
@@ -5738,24 +5661,26 @@ void bsp_polygon_data::process_flat(int offset, ubyte* bsp_data)
 
 		Polygon_vertices.push_back(vert);
 	}
+
+	Polygons.push_back(polygon);
 }
 
-int bsp_polygon_data::get_num_triangle_verts(int texture)
+int bsp_polygon_data::get_num_triangles(int texture)
 {
 	if ( texture < 0 ) {
-		return Num_flat_verts - 2 * Num_flat_polies;
+		return MAX(Num_flat_verts - 2 * Num_flat_polies, 0);
 	}
 
-	return Num_verts[texture] - 2 * Num_polies[texture];
+	return MAX(Num_verts[texture] - 2 * Num_polies[texture], 0);
 }
 
-int bsp_polygon_data::get_num_line_verts(int texture)
+int bsp_polygon_data::get_num_lines(int texture)
 {
 	if (texture < 0) {
-		return Num_flat_verts*2;
+		return Num_flat_verts;
 	}
 
-	return Num_verts[texture]*2;
+	return Num_verts[texture];
 }
 
 void bsp_polygon_data::generate_triangles(int texture, vertex *vert_ptr, vec3d* norm_ptr)
