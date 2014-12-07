@@ -786,6 +786,11 @@ void draw_list::set_team_color()
 	Current_render_state.using_team_color = false;
 }
 
+void draw_list::set_color(const color &clr)
+{
+	Current_render_state.clr = clr;
+}
+
 void draw_list::set_animated_timer(float time)
 {
 	Current_render_state.animated_timer = time;
@@ -925,6 +930,41 @@ void draw_list::render_insignias()
 
 	gr_zbias(0);
 	gr_zbuffer_set(mode);
+}
+
+void draw_list::add_outline(vertex* vert_array, int n_verts, color *clr)
+{
+	outline_draw draw_info;
+
+	draw_info.vert_array = vert_array;
+	draw_info.n_verts = n_verts;
+	draw_info.clr = *clr;
+	draw_info.transformation = Current_transform;
+
+	Outlines.push_back(draw_info);
+}
+
+void draw_list::render_outlines()
+{
+	gr_clear_states();
+	int mode = gr_zbuffer_set(GR_ZBUFF_READ);
+
+	for ( size_t i = 0; i < Outlines.size(); ++i ) {
+		render_outline(Outlines[i]);
+	}
+
+	gr_zbuffer_set(mode);
+}
+
+void draw_list::render_outline(outline_draw &outline_info)
+{
+	g3_start_instance_matrix(&outline_info.transformation.origin, &outline_info.transformation.basis);
+
+	gr_set_color_fast(&outline_info.clr);
+
+	gr_render(outline_info.n_verts, outline_info.vert_array, TMAP_HTL_3D_UNLIT | TMAP_FLAG_LINES);
+
+	g3_done_instance(true);
 }
 
 bool draw_list::sort_draw_pair(const int a, const int b)
@@ -1407,11 +1447,17 @@ void model_render_children_buffers(draw_list* scene, model_render_params* interp
 	vm_matrix_x_matrix(&submodel_matrix, &rotation_matrix, &inv_orientation);
 
 	scene->push_transform(&model->offset, &submodel_matrix);
-
-	if ( !trans_buffer ) {
-		model_render_buffers(scene, interp, &pm->submodel[mn].buffer, pm, mn, detail_level, tmap_flags);
-	} else if ( pm->submodel[mn].trans_buffer.flags & VB_FLAG_TRANS ) {
-		model_render_buffers(scene, interp, &pm->submodel[mn].trans_buffer, pm, mn, detail_level, tmap_flags);
+	
+	if ( (model_flags & MR_SHOW_OUTLINE || model_flags & MR_SHOW_OUTLINE_HTL || model_flags & MR_SHOW_OUTLINE_PRESET) && 
+		pm->submodel[mn].outline_buffer != NULL ) {
+		color outline_color = interp->get_outline_color();
+		scene->add_outline(pm->submodel[mn].outline_buffer, pm->submodel[mn].n_verts_outline, &outline_color);
+	} else {
+		if ( trans_buffer && pm->submodel[mn].trans_buffer.flags & VB_FLAG_TRANS ) {
+			model_render_buffers(scene, interp, &pm->submodel[mn].trans_buffer, pm, mn, detail_level, tmap_flags);
+		} else {
+			model_render_buffers(scene, interp, &pm->submodel[mn].buffer, pm, mn, detail_level, tmap_flags);
+		} 
 	}
 
 	if ( model->num_arcs ) {
@@ -2583,6 +2629,10 @@ void model_render_immediate(model_render_params *render_info, int model_num, mat
 		model_list.render_all();
 		break;
 	}
+
+	model_list.render_outlines();
+	model_list.render_insignias();
+	model_list.render_arcs();
 	
 	gr_zbias(0);
 	gr_set_cull(0);
@@ -2729,7 +2779,7 @@ void model_render_queue(model_render_params *interp, draw_list *scene, int model
 		scene->set_fill_mode(GR_FILL_MODE_WIRE);
 
 		color outline_color = interp->get_outline_color();
-		gr_set_color_fast( &outline_color );
+		scene->set_color(outline_color);
 
 		tmap_flags &= ~TMAP_FLAG_RGB;
 	} else {
@@ -2766,7 +2816,8 @@ void model_render_queue(model_render_params *interp, draw_list *scene, int model
 		scene->set_zbias(0);
 	}
 
-	if ( GL_use_transform_buffer && !Cmdline_no_batching && !(model_flags & MR_NO_BATCH) && pm->flags & PM_FLAG_BATCHED ) {
+	if ( GL_use_transform_buffer && !Cmdline_no_batching && !(model_flags & MR_NO_BATCH) && pm->flags & PM_FLAG_BATCHED 
+		&& !(is_outlines_only || is_outlines_only_htl) ) {
 		// always set batched rendering on if supported
 		tmap_flags |= TMAP_FLAG_BATCH_TRANSFORMS;
 	}
@@ -2798,13 +2849,23 @@ void model_render_queue(model_render_params *interp, draw_list *scene, int model
 
 	if ( model_render_check_detail_box(&view_pos, pm, pm->detail[detail_level], model_flags) ) {
 		int detail_model_num = pm->detail[detail_level];
-		model_render_buffers(scene, interp, &pm->submodel[detail_model_num].buffer, pm, detail_model_num, detail_level, tmap_flags);
+
+		if ( (is_outlines_only || is_outlines_only_htl) && pm->submodel[detail_model_num].outline_buffer != NULL ) {
+			color outline_color = interp->get_outline_color();
+			scene->add_outline(pm->submodel[detail_model_num].outline_buffer, pm->submodel[detail_model_num].n_verts_outline, &outline_color);
+		} else {
+			model_render_buffers(scene, interp, &pm->submodel[detail_model_num].buffer, pm, detail_model_num, detail_level, tmap_flags);
+
+			if ( pm->submodel[detail_model_num].num_arcs ) {
+				model_render_add_lightning( scene, interp, pm, &pm->submodel[detail_model_num] );
+			}
+		}
 	}
 	
-	// make sure batch rendering is uncondtionally off.
+	// make sure batch rendering is unconditionally off.
 	tmap_flags &= ~TMAP_FLAG_BATCH_TRANSFORMS;
 
-	if ( pm->flags & PM_FLAG_TRANS_BUFFER ) {
+	if ( pm->flags & PM_FLAG_TRANS_BUFFER && !(is_outlines_only || is_outlines_only_htl) ) {
 		trans_buffer = true;
 		i = pm->submodel[pm->detail[detail_level]].first_child;
 
@@ -2825,7 +2886,7 @@ void model_render_queue(model_render_params *interp, draw_list *scene, int model
 	}
 
 	// Draw the thruster subobjects
-	if ( draw_thrusters ) {
+	if ( draw_thrusters && !(is_outlines_only || is_outlines_only_htl) ) {
 		i = pm->submodel[pm->detail[detail_level]].first_child;
 		trans_buffer = false;
 

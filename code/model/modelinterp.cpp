@@ -67,6 +67,53 @@ typedef struct model_light_object {
 	int		skip_max;
 } model_light_object;
 
+struct bsp_vertex
+{
+	vec3d position;
+	vec3d normal;
+	uv_pair tex_coord;
+	ubyte r, g, b, a;
+};
+
+struct bsp_polygon
+{
+	uint Start_index;
+	uint Num_verts;
+
+	int texture;
+};
+
+class bsp_polygon_data
+{
+	SCP_vector<vec3d> Vertex_list;
+	SCP_vector<vec3d> Normal_list; 
+
+	SCP_vector<bsp_vertex> Polygon_vertices;
+	SCP_vector<bsp_polygon> Polygons;
+
+	ubyte* Lights;
+
+	int Num_polies[MAX_MODEL_TEXTURES];
+	int Num_verts[MAX_MODEL_TEXTURES];
+
+	int Num_flat_polies;
+	int Num_flat_verts;
+
+	void process_bsp(int offset, ubyte* bsp_data);
+	void process_defpoints(int off, ubyte* bsp_data);
+	void process_sortnorm(int offset, ubyte* bsp_data);
+	void process_tmap(int offset, ubyte* bsp_data);
+	void process_flat(int offset, ubyte* bsp_data);
+public:
+	bsp_polygon_data(ubyte* bsp_data);
+
+	int get_num_triangles(int texture);
+	int get_num_lines(int texture);
+
+	void generate_triangles(int texture, vertex *vert_ptr, vec3d* norm_ptr);
+	void generate_lines(int texture, vertex *vert_ptr);
+};
+
 // -----------------------
 // Local variables
 //
@@ -4257,7 +4304,7 @@ void interp_pack_vertex_buffers(polymodel *pm, int mn)
 
 	bool rval = gr_pack_buffer(pm->vertex_buffer_id, &model->buffer);
 
-	if ( model->trans_buffer.flags & VB_FLAG_TRANS ) {
+	if ( model->trans_buffer.flags & VB_FLAG_TRANS && model->trans_buffer.tex_buf.size() > 0 ) {
 		gr_pack_buffer(pm->vertex_buffer_id, &model->trans_buffer);
 	}
 
@@ -4281,11 +4328,17 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 		tri_count[i] = 0;
 	}
 
-	find_tri_counts(0, model->bsp_data);
-
+	bsp_polygon_data *bsp_polies = new bsp_polygon_data(model->bsp_data);
 
 	for (i = 0; i < MAX_MODEL_TEXTURES; i++) {
-		total_verts += tri_count[i];
+		int vert_count = bsp_polies->get_num_triangles(i) * 3;
+		tri_count[i] = vert_count / 3;
+		total_verts += vert_count;
+
+		polygon_list[i].allocate(vert_count);
+
+		bsp_polies->generate_triangles(i, polygon_list[i].vert, polygon_list[i].norm);
+		polygon_list[i].n_verts = vert_count;
 
 		// for the moment we can only support INT_MAX worth of verts per index buffer
 		if (total_verts > INT_MAX) {
@@ -4293,13 +4346,22 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 		}
 	}
 
+	// figure out if we have an outline
+	int outline_n_lines = bsp_polies->get_num_lines(-1);
+
+	if ( outline_n_lines > 0 ) {
+		model->n_verts_outline = outline_n_lines * 2;
+		model->outline_buffer = (vertex*)vm_malloc(sizeof(vertex) * model->n_verts_outline);
+
+		bsp_polies->generate_lines(-1, model->outline_buffer);
+	}
+
+	// done with the bsp now that we have the vertex data
+	delete bsp_polies;
+
 	if (total_verts < 1) {
 		return;
 	}
-
-	allocate_poly_list();
-
-	parse_bsp(0, model->bsp_data);
 
 	total_verts = 0;
 
@@ -4589,9 +4651,18 @@ void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 
 	model_get_submodel_tree_list(submodel_list, pm, pm->detail[detail_num]);
 
+	if ( submodel_list.size() < 1 ) {
+		return;
+	}
+
 	interp_fill_detail_index_buffer(submodel_list, pm, &pm->detail_buffers[detail_num]);
 	//interp_fill_detail_index_buffer(submodel_list, pm, &pm->trans_buff[detail_num]);
 	
+	// check if anything was even put into this buffer
+	if ( pm->detail_buffers[detail_num].tex_buf.size() < 1 ) {
+		return;
+	} 
+
 	gr_config_buffer(pm->vertex_buffer_id, &pm->detail_buffers[detail_num], true);
 	//gr_config_buffer(pm->vertex_buffer_id, &pm->trans_buff[detail_num], true);
 }
@@ -4611,6 +4682,11 @@ void interp_create_transparency_index_buffer(polymodel *pm, int mn)
 
 	poly_list *model_list = pm->submodel[mn].buffer.model_list;
 
+	// bail out if this buffer is empty
+	if ( model_list == NULL || model_list->n_verts < 1 ) {
+		return;
+	}
+
 	SCP_vector<buffer_data> &tex_buffers = pm->submodel[mn].buffer.tex_buf;
 	uint current_tri[NUM_VERTS_PER_TRI];
 	bool transparent_tri = false;
@@ -4618,6 +4694,11 @@ void interp_create_transparency_index_buffer(polymodel *pm, int mn)
 
 	for ( int i = 0; i < tex_buffers.size(); ++i ) {
 		buffer_data *tex_buf = &tex_buffers[i];
+
+		if ( tex_buf->n_verts < 1 ) {
+			continue;
+		}
+
 		const uint *indices = tex_buf->get_index();
 
 		texture_map *tmap = &pm->maps[tex_buf->texture];
@@ -5381,3 +5462,307 @@ void texture_map::ResetToOriginal()
 		this->textures[i].ResetTexture();
 }
 
+bsp_polygon_data::bsp_polygon_data(ubyte* bsp_data)
+{
+	Polygon_vertices.clear();
+	Polygons.clear();
+
+	for (int i = 0; i < MAX_MODEL_TEXTURES; ++i) {
+		Num_verts[i] = 0;
+		Num_polies[i] = 0;
+	}
+
+	Num_flat_verts = 0;
+	Num_flat_polies = 0;
+
+	process_bsp(0, bsp_data);
+}
+
+void bsp_polygon_data::process_bsp(int offset, ubyte* bsp_data)
+{
+	int id = w(bsp_data + offset);
+	int size = w(bsp_data + offset + 4);
+
+	while (id != 0) {
+		switch (id)
+		{
+		case OP_DEFPOINTS:
+			process_defpoints(offset, bsp_data);
+			break;
+
+		case OP_SORTNORM:
+			process_sortnorm(offset, bsp_data);
+			break;
+
+		case OP_FLATPOLY:
+			process_flat(offset, bsp_data);
+			break;
+
+		case OP_TMAPPOLY:
+			process_tmap(offset, bsp_data);
+			break;
+
+		case OP_BOUNDBOX:
+			break;
+
+		default:
+			return;
+		}
+
+		offset += size;
+		id = w(bsp_data + offset);
+		size = w(bsp_data + offset + 4);
+
+		if (size < 1)
+			id = OP_EOF;
+	}
+}
+
+void bsp_polygon_data::process_defpoints(int off, ubyte* bsp_data)
+{
+	int i, n;
+	int nverts = w(off + bsp_data + 8);
+	int offset = w(off + bsp_data + 16);
+	int next_norm = 0;
+
+	ubyte *normcount = off + bsp_data + 20;
+	vec3d *src = vp(off + bsp_data + offset);
+
+	// Get pointer to lights
+	Lights = off + bsp_data + 20 + nverts;
+
+#ifndef NDEBUG
+	modelstats_num_verts += nverts;
+#endif
+
+	Vertex_list.clear();
+	Normal_list.clear();
+
+	for (n = 0; n < nverts; n++) {
+		Vertex_list.push_back(*src);
+		src++; // move to normal
+
+		for (i = 0; i < normcount[n]; i++) {
+			Normal_list.push_back(*src);
+			src++;
+		}
+	}
+}
+
+void bsp_polygon_data::process_sortnorm(int offset, ubyte* bsp_data)
+{
+	int frontlist, backlist, prelist, postlist, onlist;
+
+	frontlist = w(bsp_data + offset + 36);
+	backlist = w(bsp_data + offset + 40);
+	prelist = w(bsp_data + offset + 44);
+	postlist = w(bsp_data + offset + 48);
+	onlist = w(bsp_data + offset + 52);
+
+	if (prelist) process_bsp(offset + prelist, bsp_data);
+	if (backlist) process_bsp(offset + backlist, bsp_data);
+	if (onlist) process_bsp(offset + onlist, bsp_data);
+	if (frontlist) process_bsp(offset + frontlist, bsp_data);
+	if (postlist) process_bsp(offset + postlist, bsp_data);
+}
+
+void bsp_polygon_data::process_tmap(int offset, ubyte* bsp_data)
+{
+	int pof_tex = w(bsp_data + offset + 40);
+	int n_vert = w(bsp_data + offset + 36);
+
+	if ( n_vert < 3 ) {
+		// don't parse degenerate polygons
+		return;
+	}
+
+	ubyte *p = &bsp_data[offset + 8];
+	model_tmap_vert *tverts;
+
+	tverts = (model_tmap_vert *)&bsp_data[offset + 44];
+
+	int problem_count = 0;
+
+	// make a polygon
+	bsp_polygon polygon;
+
+	polygon.Start_index = Polygon_vertices.size();
+	polygon.Num_verts = n_vert;
+	polygon.texture = pof_tex;
+
+	// this polygon will be broken up into a triangle fan. first three verts make up the first triangle
+	// additional verts are made into new tris
+	Num_polies[pof_tex]++;
+	Num_verts[pof_tex] += n_vert;
+
+	// stuff data making up the vertices of this polygon
+	for ( int i = 0; i < n_vert; ++i ) {
+		bsp_vertex vert;
+
+		vert.position = Vertex_list[(int)tverts[i].vertnum];
+		
+		vert.tex_coord.u = tverts[i].u;
+		vert.tex_coord.v = tverts[i].v;
+
+		vert.normal = Normal_list[(int)tverts[i].normnum];
+
+		// see if this normal is okay
+		if (IS_VEC_NULL(&vert.normal))
+			vert.normal = *vp(p);
+
+		problem_count += check_values(&vert.normal);
+		vm_vec_normalize_safe(&vert.normal);
+
+		Polygon_vertices.push_back(vert);
+	}
+
+	Polygons.push_back(polygon);
+
+	Parse_normal_problem_count += problem_count;
+}
+
+void bsp_polygon_data::process_flat(int offset, ubyte* bsp_data)
+{
+	int n_vert = w(bsp_data + offset + 36);
+
+	if (n_vert < 3) {
+		// don't parse degenerate polygons
+		return;
+	}
+
+	short * verts = (short *)(bsp_data + offset + 44);
+
+	ubyte r = *(bsp_data + offset + 40);
+	ubyte g = *(bsp_data + offset + 41);
+	ubyte b = *(bsp_data + offset + 42);
+
+	bsp_polygon polygon;
+
+	polygon.Start_index = Polygon_vertices.size();
+	polygon.Num_verts = n_vert;
+	polygon.texture = -1;
+
+	Num_flat_polies++;
+	Num_flat_verts += n_vert;
+
+	for (int i = 0; i < n_vert; i++) {
+		bsp_vertex vert;
+
+		int vertnum = verts[i * 2 + 0];
+		int norm = verts[i * 2 + 1];
+
+		vert.position = Vertex_list[vertnum];
+		vert.normal = Normal_list[norm];
+
+		vert.r = r;
+		vert.g = g;
+		vert.b = b;
+		vert.a = 255;
+
+		Polygon_vertices.push_back(vert);
+	}
+
+	Polygons.push_back(polygon);
+}
+
+int bsp_polygon_data::get_num_triangles(int texture)
+{
+	if ( texture < 0 ) {
+		return MAX(Num_flat_verts - 2 * Num_flat_polies, 0);
+	}
+
+	return MAX(Num_verts[texture] - 2 * Num_polies[texture], 0);
+}
+
+int bsp_polygon_data::get_num_lines(int texture)
+{
+	if (texture < 0) {
+		return Num_flat_verts;
+	}
+
+	return Num_verts[texture];
+}
+
+void bsp_polygon_data::generate_triangles(int texture, vertex *vert_ptr, vec3d* norm_ptr)
+{
+	int num_verts = 0;
+
+	for ( uint i = 0; i < Polygons.size(); ++i ) {
+		if ( Polygons[i].texture != texture ) {
+			continue;
+		}
+
+		uint start_index = Polygons[i].Start_index;
+		uint end_index = Polygons[i].Start_index + Polygons[i].Num_verts;
+
+		for ( uint j = start_index + 1; j < end_index - 1; ++j ) {
+			// first vertex of this triangle. Always the first vertex of the polygon
+			vertex* vert = &vert_ptr[num_verts];
+			vert->world = Polygon_vertices[start_index].position;
+			vert->texture_position = Polygon_vertices[start_index].tex_coord;
+
+			vec3d* norm = &norm_ptr[num_verts];
+			*norm = Polygon_vertices[start_index].normal;
+
+			// second vertex of this triangle. 
+			vert = &vert_ptr[num_verts + 1];
+			vert->world = Polygon_vertices[j].position;
+			vert->texture_position = Polygon_vertices[j].tex_coord;
+
+			norm = &norm_ptr[num_verts + 1];
+			*norm = Polygon_vertices[j].normal;
+
+			// third vertex of this triangle. 
+			vert = &vert_ptr[num_verts + 2];
+			vert->world = Polygon_vertices[j+1].position;
+			vert->texture_position = Polygon_vertices[j+1].tex_coord;
+
+			norm = &norm_ptr[num_verts + 2];
+			*norm = Polygon_vertices[j+1].normal;
+
+			num_verts += 3;
+		}
+	}
+}
+
+void bsp_polygon_data::generate_lines(int texture, vertex *vert_ptr)
+{
+	int num_verts = 0;
+
+	for (uint i = 0; i < Polygons.size(); ++i) {
+		if (Polygons[i].texture != texture) {
+			continue;
+		}
+
+		uint start_index = Polygons[i].Start_index;
+		uint end_index = Polygons[i].Start_index + Polygons[i].Num_verts;
+
+		for (uint j = start_index; j < end_index; ++j) {
+			// first vertex of this triangle. Always the first vertex of the polygon
+			vertex* vert = &vert_ptr[num_verts];
+			vert->world = Polygon_vertices[j].position;
+			vert->r = Polygon_vertices[j].r;
+			vert->g = Polygon_vertices[j].g;
+			vert->b = Polygon_vertices[j].b;
+			vert->a = Polygon_vertices[j].a;
+
+			if ( j == end_index - 1 ) {
+				vert = &vert_ptr[num_verts + 1];
+				vert->world = Polygon_vertices[start_index].position;
+				vert->r = Polygon_vertices[start_index].r;
+				vert->g = Polygon_vertices[start_index].g;
+				vert->b = Polygon_vertices[start_index].b;
+				vert->a = Polygon_vertices[start_index].a;
+			} else {
+				vert = &vert_ptr[num_verts + 1];
+				vert->world = Polygon_vertices[j + 1].position;
+				vert->r = Polygon_vertices[j + 1].r;
+				vert->g = Polygon_vertices[j + 1].g;
+				vert->b = Polygon_vertices[j + 1].b;
+				vert->a = Polygon_vertices[j + 1].a;
+			}
+
+			num_verts += 2;
+		}
+	}
+}

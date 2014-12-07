@@ -414,6 +414,7 @@ void obj_render_queue_all()
 	PROFILE("Submit Draws", scene.render_all(GR_ZBUFF_NONE));
 
 	// render electricity effects and insignias
+	scene.render_outlines();
 	scene.render_insignias();
 	scene.render_arcs();
 

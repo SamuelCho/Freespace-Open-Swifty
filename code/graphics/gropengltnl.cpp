@@ -141,8 +141,13 @@ void opengl_vertex_buffer::clear()
 		vm_free(index_list);
 	}
 	
-	opengl_delete_buffer_object(vb_handle);
-	opengl_delete_buffer_object(ib_handle);
+	if ( vb_handle >= 0 ) {
+		opengl_delete_buffer_object(vb_handle);
+	}
+
+	if ( ib_handle >= 0 ) {
+		opengl_delete_buffer_object(ib_handle);
+	}
 }
 
 static SCP_vector<opengl_buffer_object> GL_buffer_objects;
@@ -1382,7 +1387,6 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 	int alpha, tmap_type, r, g, b;
 	float u_scale = 1.0f, v_scale = 1.0f;
 	GLenum gl_mode = GL_TRIANGLE_FAN;
-	int attrib_index = -1;
 	int zbuff = ZBUFFER_TYPE_DEFAULT;
 	GL_CHECK_FOR_ERRORS("start of render3d()");
 
@@ -1433,8 +1437,6 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 
 	if ( flags & TMAP_FLAG_TEXTURED ) {
 		if ( flags & TMAP_FLAG_SOFT_QUAD ) {
-			int sdr_index;
-
 			if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) ) {
 				opengl_tnl_set_material_distortion(flags);
 
