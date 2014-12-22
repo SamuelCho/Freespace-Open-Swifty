@@ -72,7 +72,8 @@ static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
 	{ SDR_FLAG_SHADOWS,		8, { "shadow_map", "shadow_mv_matrix", "shadow_proj_matrix", "model_matrix", "veryneardist", "neardist", "middist", "fardist" }, 0, { NULL }, 0, {}, "Shadows" },
 	{ SDR_FLAG_THRUSTER,	1, {"thruster_scale"}, 0, { NULL }, 0, {}, "Thruster scaling" },
 	{ SDR_FLAG_TRANSFORM,	2, {"transform_tex", "buffer_matrix_offset"}, 1, {"model_id"}, 0, { NULL }, "Submodel Transforms" },
-	{ SDR_FLAG_CLIP,		4, {"use_clip_plane", "world_matrix", "clip_normal", "clip_position"}, 0, { NULL }, 0, { NULL }, "Clip Plane" }
+	{ SDR_FLAG_CLIP,		4, {"use_clip_plane", "world_matrix", "clip_normal", "clip_position"}, 0, { NULL }, 0, { NULL }, "Clip Plane" },
+	{ SDR_FLAG_HDR,			0, { NULL }, 0, { NULL} , 0, {}, "High Dynamic Range" }
 };
 
 static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main) / sizeof(opengl_shader_uniform_reference_t);
@@ -83,11 +84,11 @@ static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main)
 static opengl_shader_file_t GL_effect_shader_files[] = {
 
 	// soft particles
-	{ "effect-v.sdr", "effect-particle-f.sdr", 0, SDR_EFFECT_SOFT_QUAD, 7, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth"}, 1, {"radius"} },
+	{ "effect-v.sdr", "effect-particle-f.sdr", 0, SDR_EFFECT_SOFT_QUAD, 7, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth", "srgb"}, 1, {"radius"} },
 
 	// geometry shader soft particles
 	{ "effect-v.sdr", "effect-particle-f.sdr", "effect-screen-g.sdr", SDR_EFFECT_SOFT_QUAD | SDR_EFFECT_GEOMETRY, 7, 
-		{"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth"}, 2, {"radius", "uvec"}, },
+		{"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth", "srgb"}, 2, {"radius", "uvec"}, },
 
 	// distortion effect
 	{ "effect-v.sdr", "effect-distort-f.sdr", 0, SDR_EFFECT_DISTORTION, 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 
@@ -159,6 +160,12 @@ void opengl_shader_set_passthrough(bool textured, bool alpha)
 		GL_state.Uniform.setUniformi("alpha_texture", 1);
 	} else {
 		GL_state.Uniform.setUniformi("alpha_texture", 0);
+	}
+
+	if ( High_dynamic_range ) {
+		GL_state.Uniform.setUniformi("srgb", 1);
+	} else {
+		GL_state.Uniform.setUniformi("srgb", 0);
 	}
 }
 
@@ -343,6 +350,10 @@ static char *opengl_load_shader(char *filename, int flags)
 
 	if (flags & SDR_FLAG_CLIP) {
 		sflags += "#define FLAG_CLIP\n";
+	}
+
+	if ( flags & SDR_FLAG_HDR ) {
+		sflags += "#define FLAG_HDR\n";
 	}
 
 	const char *shader_flags = sflags.c_str();
@@ -1274,10 +1285,12 @@ void opengl_shader_compile_passthrough_shader()
 	opengl_shader_init_uniform("baseMap");
 	opengl_shader_init_uniform("no_texturing");
 	opengl_shader_init_uniform("alpha_texture");
+	opengl_shader_init_uniform("srgb");
 
 	GL_state.Uniform.setUniformi("baseMap", 0);
 	GL_state.Uniform.setUniformi("no_texturing", 0);
 	GL_state.Uniform.setUniformi("alpha_texture", 0);
+	GL_state.Uniform.setUniformi("srgb", 0);
 
 	opengl_shader_set_current();
 

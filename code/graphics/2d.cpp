@@ -1903,6 +1903,10 @@ uint gr_determine_shader_flags(
 		shader_flags |= SDR_FLAG_THRUSTER;
 	}
 
+	if ( High_dynamic_range ) {
+		shader_flags |= SDR_FLAG_HDR;
+	}
+
 	return shader_flags;
 }
 

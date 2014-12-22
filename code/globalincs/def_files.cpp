@@ -36,6 +36,7 @@ extern char* Default_fxaa_vertex_shader;
 extern char* Default_fxaa_fragment_shader;
 extern char* Default_blur_fragment_shader;
 extern char* Default_brightpass_fragment_shader;
+extern char* Default_tonemapping_fragment_shader;
 extern char* Default_post_fragment_shader;
 extern char* Default_post_vertex_shader;
 extern char* Default_fxaa_prepass_shader;
@@ -78,6 +79,7 @@ def_file Default_files[] =
 	{ "fxaa-f.sdr",				Default_fxaa_fragment_shader},
 	{ "blur-f.sdr",				Default_blur_fragment_shader},
 	{ "brightpass-f.sdr",		Default_brightpass_fragment_shader},
+	{ "tonemapping-f.sdr",		Default_tonemapping_fragment_shader},
 	{ "post-f.sdr",				Default_post_fragment_shader},
 	{ "post-v.sdr",				Default_post_vertex_shader},
 	{ "fxaapre-f.sdr",			Default_fxaa_prepass_shader},
@@ -1547,6 +1549,7 @@ char *Default_main_fragment_shader =
 "#define AMBIENT_LIGHT_BOOST      1.0																																								\n"
 "#define VARIANCE_SHADOW_SCALE		1000000.0																																						\n"
 "#define VARIANCE_SHADOW_SCALE_INV	1.0/VARIANCE_SHADOW_SCALE																																		\n"
+"#define SRGB_GAMMA 2.2"
 "\n"
 "#ifdef FLAG_SHADOWS\n"
 "vec2 sampleShadowMap(vec2 uv, vec2 offset_uv, int cascade, float shadowMapSizeInv)\n"
@@ -1679,12 +1682,18 @@ char *Default_main_fragment_shader =
 "   }																																													\n"
 " #endif\n"
 "	baseColor = texture2D(sBasemap, diffuseTexCoord);																																						\n"
+" #ifdef FLAG_HDR\n"
+"	baseColor.rgb = pow(baseColor.rgb, vec3(SRGB_GAMMA));\n"
+" #endif\n"
 "	if ( blend_alpha == 0 && baseColor.a < 0.95 ) discard; // if alpha blending is not on, discard transparent pixels																					\n"
 "#endif																																															\n"
 "  																																																	\n"
 "   specData = vec4(baseColor.rgb * SPEC_FACTOR_NO_SPEC_MAP, 1.0);																															\n"
 "#ifdef FLAG_SPEC_MAP																																												\n"
 "   vec4 specColour = texture2D(sSpecmap, texCoord);																																				\n"
+" #ifdef FLAG_HDR\n"
+"	specColour.rgb = pow(specColour.rgb, vec3(SRGB_GAMMA));\n"
+" #endif\n"
 "   specData = vec4(specColour.rgb * SPECULAR_FACTOR, 1.0);																																	\n"
 "#endif																																															\n"
 "  																																																	\n"
@@ -1773,13 +1782,20 @@ char *Default_main_fragment_shader =
 "   envReflectNM += vec3(normalSample, 0.0);																																						\n"
 " #endif\n"
 "   vec4 envColour = textureCube(sEnvmap, envReflectNM);																																			\n"
+" #ifdef FLAG_HDR\n"
+"	envColour.rgb = pow(envColour.rgb, vec3(SRGB_GAMMA));\n"
+" #endif\n"
 "   vec3 envIntensity = (alpha_spec) ? vec3(specColour.a) : specColour.rgb;																															\n"
 "   baseColor.a += (dot(envColour.rgb, envColour.rgb) * ENV_ALPHA_FACTOR);																															\n"
 "   baseColor.rgb += envColour.rgb * envIntensity;																																					\n"
 "#endif																																															\n"
 "																																																	\n"
 "#ifdef FLAG_GLOW_MAP																																												\n"
-"   baseColor.rgb += texture2D(sGlowmap, texCoord).rgb * GLOW_MAP_INTENSITY;																														\n"
+"	vec3 glowColor = texture2D(sGlowmap, texCoord).rgb * GLOW_MAP_INTENSITY;																														\n"
+" #ifdef FLAG_HDR\n"
+"	glowColor = pow(glowColor, vec3(SRGB_GAMMA));\n"
+" #endif"
+"	baseColor.rgb += glowColor;																														\n"
 "#endif																																															\n"
 "  																																																	\n"
 "#ifdef FLAG_FOG																																													\n"
@@ -2437,14 +2453,41 @@ char *Default_brightpass_fragment_shader =
 "const float Luminance = 0.08;\n"
 "const float fMiddleGray = 0.2;\n"
 "const float fWhiteCutoff = 0.4;\n"
+"const float threshold = 0.8;\n"
 "// High-pass filter\n"
 "void main() {\n"
 "	vec4 ColorOut = texture2D(tex, gl_TexCoord[0].xy);\n"
-"	ColorOut *= fMiddleGray / (Luminance + 0.001);\n"
-"	ColorOut *= (1.0 + (ColorOut / (fWhiteCutoff * fWhiteCutoff)));\n"
-"	ColorOut -= 6.0;\n"
-"	ColorOut /= (10.0 + ColorOut);\n"
-"	gl_FragColor = ColorOut;\n"
+"	//ColorOut *= fMiddleGray / (Luminance + 0.001);\n"
+"	//ColorOut *= (1.0 + (ColorOut / (fWhiteCutoff * fWhiteCutoff)));\n"
+"	//ColorOut -= 6.0;\n"
+"	//ColorOut /= (10.0 + ColorOut);\n"
+"	//gl_FragColor = ColorOut;\n"
+"	gl_FragColor = clamp(ColorOut - vec4(threshold), 0.0, 1.0);\n"
+"	//gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
+"}";
+
+char *Default_tonemapping_fragment_shader = 
+"uniform sampler2D tex;\n"
+"uniform float exposure;\n"
+"vec3 Uncharted2Tonemapping(vec3 hdr_color)\n"
+"{\n"
+"	float A = 0.15;\n"
+"	float B = 0.50;\n"
+"	float C = 0.10;\n"
+"	float D = 0.20;\n"
+"	float E = 0.02;\n"
+"	float F = 0.30;\n"
+"	return ((hdr_color*(A*hdr_color+C*B)+D*E)/(hdr_color*(A*hdr_color+B)+D*F))-E/F;\n"
+"}\n"
+"#define SRGB_GAMMA 2.2\n"
+"void main()\n"
+"{\n"
+"	vec4 color = texture2D(tex, gl_TexCoord[0].xy);\n"
+"	// Tone mapping using John Hable's Uncharted 2 tonemapping algorithm.\n"
+"	float whitepoint = 11.2; // hardcoded whitepoint value from Hable's algo\n"
+"	color.rgb = Uncharted2Tonemapping(color.rgb * exposure) / Uncharted2Tonemapping(vec3(whitepoint));\n"
+"	color.rgb = pow(color.rgb, vec3(1.0/SRGB_GAMMA)); // return from linear color space to SRGB color space\n"
+"	gl_FragColor = vec4(color.rgb, 1.0);\n"
 "}";
 
 char *Default_post_fragment_shader = 
@@ -2490,15 +2533,12 @@ char *Default_post_fragment_shader =
 "	vec2 distort = vec2(0, 0);\n"
 " #endif\n"
 " // Global constant\n"
-"	vec4 color_in;\n"
+"	vec4 color_in = texture2D(tex, gl_TexCoord[0].xy + distort);\n"
 "	vec4 color_out;\n"
 " // Bloom\n"
 "	if (bloom_intensity > 0.0) {\n"
-"		color_in = texture2D(tex, gl_TexCoord[0].xy + distort);\n"
 "		vec4 color_bloom = texture2D(bloomed, gl_TexCoord[0].xy + distort);\n"
 "		color_in = mix(color_in,  max(color_in + 0.7 * color_bloom, color_bloom), bloom_intensity);\n"
-"	} else {\n"
-"		color_in = texture2D(tex, gl_TexCoord[0].xy + distort);\n"
 "	}\n"
 " #ifdef FLAG_SATURATION\n"
 " // Saturation\n"
@@ -2629,11 +2669,14 @@ char* Default_effect_particle_fragment_shader =
 "uniform float nearZ;\n"
 "uniform float farZ;\n"
 "uniform int linear_depth;\n"
+"uniform int srgb;"
 "varying float radius_p;\n"
 "varying vec4 position_p;\n"
+"#define SRGB_GAMMA 2.2\n"
 "void main()\n"
 "{\n"
 "	vec4 fragmentColor = texture2D(baseMap, gl_TexCoord[0].xy)*gl_Color.a;\n"
+"	fragmentColor.rgb = mix(fragmentColor.rgb, pow(fragmentColor.rgb, vec3(SRGB_GAMMA)), float(0.0));\n"
 "	vec2 offset = vec2(radius_p * abs(0.5 - gl_TexCoord[0].x) * 2.0, radius_p * abs(0.5 - gl_TexCoord[0].y) * 2.0);\n"
 "	float offset_len = length(offset);\n"
 "	if ( offset_len > radius_p ) {\n"
@@ -2657,7 +2700,7 @@ char* Default_effect_particle_fragment_shader =
 "	float backDepth = fragDepthLinear + depthOffset;\n"
 "	float ds = min(sceneDepthLinear, backDepth) - max(nearZ, frontDepth);\n"
 "	fragmentColor = fragmentColor * ( ds / (depthOffset*2.0) );\n"
-"	gl_FragColor = fragmentColor;\n"
+"	gl_FragColor = max(fragmentColor, vec4(0.0));\n"
 "}";
 
 char* Default_effect_distortion_fragment_shader =
@@ -2833,9 +2876,12 @@ char* Default_passthrough_fragment_shader =
 "uniform sampler2D baseMap;\n"
 "uniform int alpha_texture;\n"
 "uniform int no_texturing;\n"
+"uniform int srgb;\n"
+"#define SRGB_GAMMA 2.2\n"
 "void main()\n"
 "{\n"
 "	vec4 baseColor = texture2D(baseMap, gl_TexCoord[0].xy)*gl_Color;\n"
+"	baseColor.rgb = mix(baseColor.rgb, pow(baseColor.rgb, vec3(SRGB_GAMMA)), float(srgb));\n"
 "	gl_FragColor = mix(gl_Color, mix(baseColor, vec4(gl_Color.rgb, baseColor.a), float(alpha_texture)), float(no_texturing));\n"
 "}";
 
@@ -2935,6 +2981,7 @@ char *Default_deferred_fragment_shader =
 "   gl_FragData[0].rgb += pow(NdotHV, spec_factor) * SPEC_INTENSITY_POINT * specfactor * speclightcolor * attenuation;\n"
 "	//gl_FragData[0].rgb = vec3(attenuation);																		   \n"
 "	gl_FragData[0].a = 1.0;																					   \n"
+"	gl_FragData[0] = max(gl_FragData[0], vec4(0.0));\n"
 "}";
 
 char *Default_deferred_clear_vertex_shader =
@@ -2954,3 +3001,20 @@ char *Default_deferred_clear_fragment_shader =
 "	gl_FragData[2] = vec4(0.0, 0.0, 0.0, 0.0); // normal\n"
 "	gl_FragData[3] = vec4(0.0, 0.0, 0.0, 0.0); // specular\n"
 "}\n";
+
+char *Default_gamma_correction_vertex_shader = 
+"void main()\n"
+"{\n"
+"	gl_TexCoord[0] = gl_MultiTexCoord0;\n"
+"	gl_Position = gl_Vertex;\n"
+"	gl_FrontColor = vec4(1.0);\n"
+"	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
+"}";
+
+char *Default_gamma_correction_fragment_shader = 
+"uniform sampler2D framebuffer;\n"
+"#define SRGB_GAMMA 2.2;\n"
+"void main()\n"
+"{\n"
+"	gl_FragColor = pow(texture2D(framebuffer, gl_TexCoord[0].xy), 1.0 / SRGB_GAMMA);\n"
+"}";

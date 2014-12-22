@@ -893,6 +893,10 @@ void create_vertex_buffer(polymodel *pm)
 	if ( use_batched_rendering ) {
 		// pack the merged index buffers to the vbo.
 		for ( i = 0; i < pm->n_detail_levels; ++i ) {
+			if ( pm->detail_buffers[i].model_list == NULL ) {
+				continue;
+			}
+
 			gr_pack_buffer(pm->vertex_buffer_id, &pm->detail_buffers[i]);
 			pm->detail_buffers[i].release();
 		}

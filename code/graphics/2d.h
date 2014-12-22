@@ -46,6 +46,7 @@ extern int gr_global_zbuffering;
 #define SDR_FLAG_SHADOWS		(1<<15)
 #define SDR_FLAG_THRUSTER		(1<<16)
 #define SDR_FLAG_CLIP			(1<<17)
+#define SDR_FLAG_HDR			(1<<18)
 
 // Shader effect flags
 #define SDR_EFFECT_SOFT_QUAD	(1<<0)

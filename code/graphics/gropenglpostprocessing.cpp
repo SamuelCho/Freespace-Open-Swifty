@@ -75,9 +75,10 @@ static opengl_shader_file_t GL_post_shader_files[] = {
 
 	{ "post-v.sdr", "ls-f.sdr", 0, SDR_POST_FLAG_LIGHTSHAFT,
 		8, { "scene", "cockpit", "sun_pos", "weight", "intensity", "falloff", "density", "cp_intensity" }, 0, { NULL } },
-
-	{ "shadowdebug-v.sdr", "shadowdebug-f.sdr", 0, 0,
-	2, { "shadow_map", "index" }, 0, { NULL } }
+	
+	{ "post-v.sdr", "tonemapping-f.sdr", 0, 0, 1, { "exposure" }, 0, { NULL } },
+	
+	{ "shadowdebug-v.sdr", "shadowdebug-f.sdr", 0, 0, 2, { "shadow_map", "index" }, 0, { NULL } }
 };
 
 static const unsigned int Num_post_shader_files = sizeof(GL_post_shader_files) / sizeof(opengl_shader_file_t);
@@ -120,6 +121,24 @@ static int Post_texture_height = 0;
 
 
 static char *opengl_post_load_shader(char *filename, int flags, int flags2);
+
+void opengl_post_pass_tonemap()
+{
+	opengl_shader_set_current( &GL_post_shader[7] );
+
+	GL_state.Uniform.setUniformi("tex", 0);
+	GL_state.Uniform.setUniformf("exposure", 2.0f);
+
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_ldr_texture, 0);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_color_texture);
+
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, Scene_texture_u_scale, Scene_texture_u_scale);
+
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
+}
 
 static bool opengl_post_pass_bloom()
 {
@@ -399,12 +418,15 @@ void gr_opengl_post_process_end()
 		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, Scene_depth_texture, 0);
 	}
 	
+	// do tone mapping
+	opengl_post_pass_tonemap();
+
 	// Bind the correct framebuffer. opengl_get_rtt_framebuffer returns 0 if not doing RTT
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, opengl_get_rtt_framebuffer());	
 
 	// do bloom, hopefully ;)
 	bool bloomed = opengl_post_pass_bloom();
-
+	
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -452,7 +474,8 @@ void gr_opengl_post_process_end()
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT,0);
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Scene_color_texture);
+	//GL_state.Texture.Enable(Scene_color_texture);
+	GL_state.Texture.Enable(Scene_ldr_texture);
 
 	GL_state.Texture.SetActiveUnit(2);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
@@ -463,7 +486,7 @@ void gr_opengl_post_process_end()
 	//Shadow Map debug window
 //#define SHADOW_DEBUG
 #ifdef SHADOW_DEBUG
-	opengl_shader_set_current( &GL_post_shader[7] );	
+	opengl_shader_set_current( &GL_post_shader[8] );	
 	GL_state.Texture.SetActiveUnit(0);
 //	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY);

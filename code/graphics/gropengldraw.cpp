@@ -36,6 +36,7 @@
 #include "lighting/lighting.h"
 
 GLuint Scene_framebuffer;
+GLuint Scene_ldr_texture;
 GLuint Scene_color_texture;
 GLuint Scene_position_texture;
 GLuint Scene_normal_texture;
@@ -54,6 +55,7 @@ int Scene_texture_initialized;
 bool Scene_framebuffer_in_frame;
 
 bool Deferred_lighting = false;
+bool High_dynamic_range = false;
 
 int Scene_texture_width;
 int Scene_texture_height;
@@ -2695,6 +2697,7 @@ void opengl_setup_scene_textures()
 		Cmdline_softparticles = 0;
 		Cmdline_fb_explosions = 0;
 
+		Scene_ldr_texture = 0;
 		Scene_color_texture = 0;
 		Scene_effect_texture = 0;
 		Scene_depth_texture = 0;
@@ -2709,6 +2712,7 @@ void opengl_setup_scene_textures()
 		Cmdline_postprocess = 0;
 		Cmdline_softparticles = 0;
 
+		Scene_ldr_texture = 0;
 		Scene_color_texture = 0;
 		Scene_effect_texture = 0;
 		Scene_depth_texture = 0;
@@ -2732,6 +2736,8 @@ void opengl_setup_scene_textures()
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Scene_framebuffer);
 
 	// setup main render texture
+
+	// setup high dynamic range color texture
 	glGenTextures(1, &Scene_color_texture);
 
 	GL_state.Texture.SetActiveUnit(0);
@@ -2744,9 +2750,24 @@ void opengl_setup_scene_textures()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Scene_texture_width, Scene_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F_ARB, Scene_texture_width, Scene_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
+
+	// setup low dynamic range color texture
+	glGenTextures(1, &Scene_ldr_texture);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_ldr_texture);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Scene_texture_width, Scene_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 
 	// setup position render texture
 	glGenTextures(1, &Scene_position_texture);
@@ -2795,7 +2816,7 @@ void opengl_setup_scene_textures()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Scene_texture_width, Scene_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, Scene_texture_width, Scene_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT3_EXT, GL_TEXTURE_2D, Scene_specular_texture, 0);
 
@@ -2812,7 +2833,7 @@ void opengl_setup_scene_textures()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Scene_texture_width, Scene_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, Scene_texture_width, Scene_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 
 	// setup effect texture
 
@@ -2828,7 +2849,7 @@ void opengl_setup_scene_textures()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Scene_texture_width, Scene_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, Scene_texture_width, Scene_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT4_EXT, GL_TEXTURE_2D, Scene_effect_texture, 0);
 	
@@ -3070,6 +3091,7 @@ void gr_opengl_scene_texture_begin()
 	}
 
 	Scene_framebuffer_in_frame = true;
+	High_dynamic_range = true;
 }
 
 float time_buffer = 0.0f;
@@ -3183,6 +3205,7 @@ void gr_opengl_scene_texture_end()
 	Scene_texture_v_scale = 1.0f;
 
 	Scene_framebuffer_in_frame = false;
+	High_dynamic_range = false;
 }
 
 void gr_opengl_copy_effect_texture()
