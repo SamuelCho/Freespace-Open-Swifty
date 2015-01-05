@@ -632,8 +632,8 @@ void opengl_destroy_all_buffers()
 void opengl_tnl_init()
 {
 	GL_vertex_buffers.reserve(MAX_POLYGON_MODELS);
-	gr_opengl_deferred_light_sphere_init(16, 16);
 	gr_opengl_deferred_light_cylinder_init(16);
+	gr_opengl_deferred_light_sphere_init(16, 16);
 
 	Transform_buffer_handle = opengl_create_texture_buffer_object();
 

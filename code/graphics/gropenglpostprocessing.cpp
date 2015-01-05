@@ -37,6 +37,8 @@ float ls_intensity = 0.5f;
 float ls_cpintensity = 0.5f * 50 * 0.02f;
 int ls_samplenum = 50;
 
+const int MAX_MIP_BLUR_LEVELS = 5;
+
 geometry_sdr_params Geometry_post = {GL_TRIANGLES, GL_TRIANGLE_STRIP, 3};
 
 #define SDR_POST_FLAG_MAIN		(1<<0)
@@ -56,13 +58,13 @@ static opengl_shader_file_t GL_post_shader_files[] = {
 	//       these few should always be present
 
 	{ "post-v.sdr", "post-f.sdr", 0, SDR_POST_FLAG_MAIN,
-		5, { "tex", "depth_tex", "timer", "bloomed", "bloom_intensity" }, 0, { NULL } },
+		6, { "tex", "depth_tex", "timer", "bloomed", "bloom_intensity", "levels" }, 0, { NULL } },
 
 	{ "post-v.sdr", "blur-f.sdr", 0, SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS1,
-		2, { "tex", "bsize", "debug" }, 0, { NULL } },
+		3, { "tex", "level", "bsize", "debug" }, 0, { NULL } },
 
 	{ "post-v.sdr", "blur-f.sdr", 0, SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS2,
-		2, { "tex", "bsize", "debug" }, 0, { NULL } },
+		3, { "tex", "level", "bsize", "debug" }, 0, { NULL } },
 
 	{ "post-v.sdr", "brightpass-f.sdr", 0, SDR_POST_FLAG_BRIGHT,
 		1, { "tex" }, 0, { NULL } },
@@ -110,6 +112,9 @@ bool Post_in_frame = false;
 
 static int Post_active_shader_index = 0;
 
+static GLuint Bloom_framebuffer = 0;
+static GLuint Bloom_textures[2] = { 0 };
+
 static GLuint Post_framebuffer_id[2] = { 0 };
 static GLuint Post_bloom_texture_id[3] = { 0 };
 static GLuint Post_shadow_framebuffer_id = 0;
@@ -127,7 +132,7 @@ void opengl_post_pass_tonemap()
 	opengl_shader_set_current( &GL_post_shader[7] );
 
 	GL_state.Uniform.setUniformi("tex", 0);
-	GL_state.Uniform.setUniformf("exposure", 2.0f);
+	GL_state.Uniform.setUniformf("exposure", 5.0f);
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_ldr_texture, 0);
 
@@ -138,6 +143,91 @@ void opengl_post_pass_tonemap()
 	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, Scene_texture_u_scale, Scene_texture_u_scale);
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
+}
+
+bool opengl_post_pass_bloom_new()
+{
+	if (Cmdline_bloom_intensity <= 0) {
+		return false;
+	}
+
+	// we need the scissor test disabled
+	GLboolean scissor_test = GL_state.ScissorTest(GL_FALSE);
+
+	// ------  begin bright pass ------
+
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer);
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Bloom_textures[0], 0);
+
+	// width and height are 1/2 for the bright pass
+	int width = Post_texture_width >> 1;
+	int height = Post_texture_height >> 1;
+
+	glViewport(0, 0, width, height);
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	opengl_shader_set_current(&GL_post_shader[3]);
+
+	GL_state.Uniform.setUniformi("tex", 0);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_ldr_texture);
+
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+	GL_state.Texture.Disable();
+
+	// ------ end bright pass ------
+
+	// ------ begin blur pass ------
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Bloom_textures[0]);
+
+	vglGenerateMipmapEXT(GL_TEXTURE_2D);
+
+	for (int pass = 0; pass < 2; pass++) {
+		int source_tex = Bloom_textures[pass];
+		int dest_tex = Bloom_textures[1-pass];
+
+		GL_state.Texture.SetActiveUnit(0);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(source_tex);
+
+		opengl_shader_set_current(&GL_post_shader[1 + pass]);
+
+		GL_state.Uniform.setUniformi("tex", 0);
+
+		for ( int mipmap = 0; mipmap < MAX_MIP_BLUR_LEVELS; ++mipmap ) {
+			int bloom_width = width >> mipmap;
+			int bloom_height = height >> mipmap;
+
+			glViewport(0, 0, bloom_width, bloom_height);
+
+			GL_state.Uniform.setUniformf("bsize", (pass) ? (float)bloom_width : (float)bloom_height);
+			GL_state.Uniform.setUniformi("level", mipmap);
+
+			//vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, dest_tex, mipmap);
+
+			//opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+		}
+	}
+
+	GL_state.Texture.Disable();
+
+	// ------ end blur pass --------
+
+	// reset viewport, scissor test and exit
+	glViewport(0, 0, gr_screen.max_w, gr_screen.max_h);
+	GL_state.ScissorTest(scissor_test);
+
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, opengl_get_rtt_framebuffer());
+
+	return true;
 }
 
 static bool opengl_post_pass_bloom()
@@ -168,7 +258,7 @@ static bool opengl_post_pass_bloom()
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Scene_color_texture);
+	GL_state.Texture.Enable(Scene_ldr_texture);
 
 	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 
@@ -425,7 +515,9 @@ void gr_opengl_post_process_end()
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, opengl_get_rtt_framebuffer());	
 
 	// do bloom, hopefully ;)
-	bool bloomed = opengl_post_pass_bloom();
+	//bool bloomed = opengl_post_pass_bloom();
+	bool bloomed = opengl_post_pass_bloom_new();
+	//bool bloomed = true;
 	
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -460,12 +552,13 @@ void gr_opengl_post_process_end()
 		}
 
 		GL_state.Uniform.setUniformf( "bloom_intensity", intensity );
-
+		GL_state.Uniform.setUniformi( "levels" , MAX_MIP_BLUR_LEVELS );
 		GL_state.Uniform.setUniformi( "bloomed", 1 );
 
 		GL_state.Texture.SetActiveUnit(1);
 		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-		GL_state.Texture.Enable(Post_bloom_texture_id[2]);
+		//GL_state.Texture.Enable(Post_bloom_texture_id[2]);
+		GL_state.Texture.Enable(Bloom_textures[0]);
 	}
 	else
 		GL_state.Uniform.setUniformf( "bloom_intensity", 0.0f );
@@ -1130,23 +1223,40 @@ static bool opengl_post_init_shader()
 	return rval;
 }
 
-// generate and test the framebuffer and textures that we are going to use
-static bool opengl_post_init_framebuffer()
+void opengl_setup_bloom_textures_new()
 {
-	bool rval = false;
-
-	// clamp size, if needed
-	Post_texture_width = gr_screen.max_w;
-	Post_texture_height = gr_screen.max_h;
-
-	if (Post_texture_width > GL_max_renderbuffer_size) {
-		Post_texture_width = GL_max_renderbuffer_size;
+	if (Cmdline_bloom_intensity <= 0) {
+		return;
 	}
 
-	if (Post_texture_height > GL_max_renderbuffer_size) {
-		Post_texture_height = GL_max_renderbuffer_size;
-	}
+	// two more framebuffers, one each for the two different sized bloom textures
+	vglGenFramebuffersEXT(1, &Bloom_framebuffer);
 
+	// need to generate textures for bloom too
+	glGenTextures(2, Bloom_textures);
+
+	// half size
+	int width = Post_texture_width >> 1;
+	int height = Post_texture_height >> 1;
+
+	for (int tex = 0; tex < 2; tex++) {
+		GL_state.Texture.SetActiveUnit(0);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(Bloom_textures[tex]);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+		vglGenerateMipmapEXT(GL_TEXTURE_2D);
+	}
+}
+
+void opengl_setup_bloom_textures()
+{
 	if (Cmdline_bloom_intensity > 0) {
 		// two more framebuffers, one each for the two different sized bloom textures
 		vglGenFramebuffersEXT(1, &Post_framebuffer_id[0]);
@@ -1178,7 +1288,7 @@ static bool opengl_post_init_framebuffer()
 				vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[tex], 0);
 
 				// if not then clean up and disable bloom
-				if ( opengl_check_framebuffer() ) {
+				if (opengl_check_framebuffer()) {
 					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
 					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
@@ -1196,13 +1306,14 @@ static bool opengl_post_init_framebuffer()
 				// width and height are 1/2 for the bright pass, 1/4 for the blur, so drop down
 				width >>= 1;
 				height >>= 1;
-			} else {
+			}
+			else {
 				// attach to our blur pass framebuffer and make sure it's ok
 				vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[1]);
 				vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[tex], 0);
 
 				// if not then clean up and disable bloom
-				if ( opengl_check_framebuffer() ) {
+				if (opengl_check_framebuffer()) {
 					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
 					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
@@ -1219,6 +1330,27 @@ static bool opengl_post_init_framebuffer()
 			}
 		}
 	}
+}
+
+// generate and test the framebuffer and textures that we are going to use
+static bool opengl_post_init_framebuffer()
+{
+	bool rval = false;
+
+	// clamp size, if needed
+	Post_texture_width = gr_screen.max_w;
+	Post_texture_height = gr_screen.max_h;
+
+	if (Post_texture_width > GL_max_renderbuffer_size) {
+		Post_texture_width = GL_max_renderbuffer_size;
+	}
+
+	if (Post_texture_height > GL_max_renderbuffer_size) {
+		Post_texture_height = GL_max_renderbuffer_size;
+	}
+
+	//opengl_setup_bloom_textures();
+	opengl_setup_bloom_textures_new();
 
 	if ( Cmdline_shadow_quality ) {
 		int size = (Cmdline_shadow_quality == 2 ? 1024 : 512);
@@ -1288,6 +1420,44 @@ static bool opengl_post_init_framebuffer()
 	return rval;
 }
 
+
+
+void opengl_post_process_shutdown_bloom_new()
+{
+	if ( Bloom_textures[0] ) {
+		glDeleteTextures(1, &Bloom_textures[0]);
+		Bloom_textures[0] = 0;
+	}
+
+	if ( Bloom_textures[1] ) {
+		glDeleteTextures(1, &Bloom_textures[1]);
+		Bloom_textures[1] = 0;
+	}
+
+	if ( Bloom_framebuffer ) {
+		vglDeleteFramebuffersEXT(1, &Bloom_framebuffer);
+		Bloom_framebuffer = 0;
+	}
+}
+
+void opengl_post_process_shutdown_bloom()
+{
+	if (Post_bloom_texture_id[0]) {
+		glDeleteTextures(3, Post_bloom_texture_id);
+		memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
+	}
+
+	if (Post_framebuffer_id[0]) {
+		vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
+		Post_framebuffer_id[0] = 0;
+
+		if (Post_framebuffer_id[1]) {
+			vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
+			Post_framebuffer_id[1] = 0;
+		}
+	}
+}
+
 void opengl_post_process_init()
 {
 	Post_initialized = 0;
@@ -1353,22 +1523,10 @@ void opengl_post_process_shutdown()
 
 	GL_post_shader.clear();
 
-	if (Post_bloom_texture_id[0]) {
-		glDeleteTextures(3, Post_bloom_texture_id);
-		memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
-	}
-
-	if (Post_framebuffer_id[0]) {
-		vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
-		Post_framebuffer_id[0] = 0;
-
-		if (Post_framebuffer_id[1]) {
-			vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
-			Post_framebuffer_id[1] = 0;
-		}
-	}
-
 	Post_effects.clear();
+
+	//opengl_post_process_shutdown_bloom();
+	opengl_post_process_shutdown_bloom_new();
 
 	Post_in_frame = false;
 	Post_active_shader_index = 0;
