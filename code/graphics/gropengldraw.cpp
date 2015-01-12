@@ -2416,6 +2416,8 @@ void gr_opengl_deferred_light_sphere_init(int rings, int segments) // Generate a
 
 	deferred_light_sphere_vcount = wVerticeIndex;
 
+	glGetError();
+
 	vglGenBuffersARB(1, &deferred_light_sphere_vbo);
 
 	// make sure we have one
@@ -2562,6 +2564,8 @@ void gr_opengl_deferred_light_cylinder_init(int segments) // Generate a VBO of a
 	} // end for ring
 
 	deferred_light_cylinder_vcount = wVerticeIndex;
+
+	glGetError();
 
 	vglGenBuffersARB(1, &deferred_light_cylinder_vbo);
 
@@ -3209,11 +3213,11 @@ extern float static_tube_factor;
 
 void gr_opengl_deferred_lighting_finish()
 {
-	if ( Use_GLSL < 2 ) {
+	if ( Use_GLSL < 2 || Cmdline_no_deferred_lighting ) {
 		return;
 	}
 
-	GL_state.SetAlphaBlendMode( ALPHA_BLEND_ALPHA_ADDITIVE);
+	GL_state.SetAlphaBlendMode( ALPHA_BLEND_ADDITIVE);
 	int zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
 
 	//GL_state.DepthFunc(GL_GREATER);
@@ -3223,18 +3227,30 @@ void gr_opengl_deferred_lighting_finish()
 	
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Scene_normal_texture);
+	GL_state.Texture.Enable(Scene_color_texture);
 
 	GL_state.Texture.SetActiveUnit(1);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Scene_position_texture);
+	GL_state.Texture.Enable(Scene_normal_texture);
 
 	GL_state.Texture.SetActiveUnit(2);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_position_texture);
+
+	GL_state.Texture.SetActiveUnit(3);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Scene_specular_texture);
 
+	//vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0); 
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_luminance_texture, 0);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, Scene_stencil_buffer);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, Scene_stencil_buffer);
+
+	opengl_check_for_errors();
+	opengl_check_framebuffer();
+
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
 
 	light lights_copy[MAX_LIGHTS];
 	memcpy(lights_copy, Lights, MAX_LIGHTS * sizeof(light));
@@ -3261,7 +3277,7 @@ void gr_opengl_deferred_lighting_finish()
 			case LT_POINT:
 				GL_state.Uniform.setUniform3f( "diffuselightcolor", l->r * l->intensity * static_point_factor, l->g * l->intensity * static_point_factor, l->b * l->intensity * static_point_factor );
 				GL_state.Uniform.setUniform3f( "speclightcolor", l->spec_r * l->intensity * static_point_factor, l->spec_g * l->intensity * static_point_factor, l->spec_b * l->intensity * static_point_factor );
-				GL_state.Uniform.setUniformf( "lightradius", l->radb );
+				GL_state.Uniform.setUniformf( "lightradius", MAX(l->rada, l->radb) * 1.25f );
 
 				/*float dist;
 				vec3d a;
@@ -3269,7 +3285,7 @@ void gr_opengl_deferred_lighting_finish()
 				vm_vec_sub(&a, &Eye_position, &l->vec);
 				dist = vm_vec_mag(&a);*/
 			
-				gr_opengl_draw_deferred_light_sphere(&l->vec, l->radb * 1.02f);
+				gr_opengl_draw_deferred_light_sphere(&l->vec, MAX(l->rada, l->radb) * 1.25f);
 				break;
 			case LT_TUBE:
 				GL_state.Uniform.setUniform3f( "diffuselightcolor", l->r * l->intensity * static_tube_factor, l->g * l->intensity * static_tube_factor, l->b * l->intensity * static_tube_factor );
@@ -3310,14 +3326,87 @@ void gr_opengl_deferred_lighting_finish()
 	glClear(GL_STENCIL_BUFFER_BIT);
 	glDisable(GL_STENCIL_TEST);
 
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, Scene_color_texture, 0);
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, Scene_depth_texture, 0);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
 
+	opengl_check_for_errors();
+	opengl_check_framebuffer();
+
+	gr_end_view_matrix();
+	gr_end_proj_matrix();
+
+	GLboolean depth = GL_state.DepthTest(GL_FALSE);
+	GLboolean depth_mask = GL_state.DepthMask(GL_FALSE);
+	GLboolean light = GL_state.Lighting(GL_FALSE);
+	GLboolean blend = GL_state.Blend(GL_FALSE);
+	GLboolean cull = GL_state.CullFace(GL_FALSE);
+
+	GLfloat vertices[8] = {
+		0.0f, (float)gr_screen.max_h,
+		(float)gr_screen.max_w, (float)gr_screen.max_h,
+		(float)gr_screen.max_w, 0.0f,
+		0.0f, 0.0f
+	};
+
+	GLfloat uvcoords[8] = {
+		0.0f, 0.0f,
+		Scene_texture_u_scale, 0.0f,
+		Scene_texture_u_scale, Scene_texture_v_scale,
+		0.0f, Scene_texture_v_scale
+	};
+
+	opengl_shader_set_current();
+
+	GL_state.Array.SetActiveClientUnit(1);
+	GL_state.Array.DisableClientTexture();
+
+	GL_state.Array.SetActiveClientUnit(0);
+	GL_state.Array.DisableClientTexture();
+
+	GL_state.Array.DisableClientColor();
+	GL_state.Array.DisableClientNormal();
+	GL_state.Array.DisableClientVertex();
+
+	GL_state.Array.ResetVertexAttribUsed();
+	GL_state.Array.DisabledVertexAttribUnused();
+
+	GL_state.Array.BindArrayBuffer(0);
+	GL_state.Array.BindElementBuffer(0);
+
+	vertex_layout vert_def;
+
+	vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, vertices);
+	vert_def.add_vertex_component(vertex_format_data::TEX_COORD, 0, uvcoords);
+
+	opengl_bind_vertex_layout(vert_def);
+
 	GL_state.Texture.DisableAll();
 
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_luminance_texture);
+
+	GL_state.SetAlphaBlendMode( ALPHA_BLEND_ADDITIVE );
+
+	glDrawArrays(GL_QUADS, 0, 4);
+
+	GL_state.Array.DisableClientVertex();
+	GL_state.Array.DisableClientTexture();
+
+	gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+	gr_set_view_matrix(&Eye_position, &Eye_matrix);
+
+	GL_state.Texture.DisableAll();
+
+	// reset state
+	GL_state.DepthTest(depth);
+	GL_state.DepthMask(depth_mask);
+	GL_state.Lighting(light);
+	GL_state.Blend(blend);
+	GL_state.CullFace(cull);
+
 	GL_state.SetAlphaBlendMode( ALPHA_BLEND_NONE );
-	gr_zbuffer_set(zbuff);
-	opengl_shader_set_current( 0 );
 
 	gr_clear_states();
 }

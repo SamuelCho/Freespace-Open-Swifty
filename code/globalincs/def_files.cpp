@@ -2831,6 +2831,7 @@ char *Default_deferred_vertex_shader =
 "}";
 
 char *Default_deferred_fragment_shader =
+"uniform sampler2D ColorBuffer;"
 "uniform sampler2D NormalBuffer;																			   \n"
 "uniform sampler2D PositionBuffer;																			   \n"
 "uniform sampler2D SpecBuffer;																				   \n"
@@ -2886,6 +2887,7 @@ char *Default_deferred_fragment_shader =
 "	}																										   \n"
 "	if(dist > lightradius && lighttype != 1)																   \n"
 "		discard;																							   \n"
+"	vec3 color = texture2D(ColorBuffer, screenPos).rgb;														   \n"
 "	vec4 normal = texture2D(NormalBuffer, screenPos);														   \n"
 "	vec3 specfactor = texture2D(SpecBuffer, screenPos).rgb;													   \n"
 "	vec3 eyeDir = normalize(-position);																		   \n"
@@ -2907,7 +2909,7 @@ char *Default_deferred_fragment_shader =
 "	lightDir /= dist;																						   \n"
 "	vec3 half_vec = normalize(lightDir + eyeDir);															   \n"
 "	float NdotHV = clamp(dot(normal.xyz, half_vec), 0.0, 1.0);												   \n"
-"	gl_FragData[0].rgb = (diffuselightcolor * (max(dot(normal.xyz, lightDir), 0.0)) * attenuation * 0.2);	   \n"
+"	gl_FragData[0].rgb = color * (diffuselightcolor * (max(dot(normal.xyz, lightDir), 0.0)) * attenuation);	   \n"
 "   gl_FragData[0].rgb += pow(NdotHV, spec_factor) * SPEC_INTENSITY_POINT * specfactor * speclightcolor * attenuation;\n"
 "	//gl_FragData[0].rgb = vec3(attenuation);																		   \n"
 "	gl_FragData[0].a = 1.0;																					   \n"

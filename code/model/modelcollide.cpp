@@ -377,6 +377,8 @@ int model_collide_parse_bsp_defpoints(ubyte * p)
 	ubyte * normcount = p+20;
 	vec3d *src = vp(p+offset);
 
+	model_collide_allocate_point_list(nverts);
+
 	Assert( Mc_point_list != NULL );
 
 	for (n=0; n<nverts; n++ ) {

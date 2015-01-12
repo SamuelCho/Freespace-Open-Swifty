@@ -1093,6 +1093,7 @@ void opengl_shader_compile_deferred_light_shader()
 	
 	//Hardcoded Uniforms
 	opengl_shader_init_uniform( "Scale" );
+	opengl_shader_init_uniform( "ColorBuffer" );
 	opengl_shader_init_uniform( "NormalBuffer" );
 	opengl_shader_init_uniform( "PositionBuffer" );
 	opengl_shader_init_uniform( "SpecBuffer" );
@@ -1108,9 +1109,10 @@ void opengl_shader_compile_deferred_light_shader()
 	opengl_shader_init_uniform( "cone_inner_angle" );
 	opengl_shader_init_uniform( "spec_factor" );
 
-	GL_state.Uniform.setUniformi( "NormalBuffer", 0 );
-	GL_state.Uniform.setUniformi( "PositionBuffer", 1 );
-	GL_state.Uniform.setUniformi( "SpecBuffer", 2 );
+	GL_state.Uniform.setUniformi( "ColorBuffer", 0 );
+	GL_state.Uniform.setUniformi( "NormalBuffer", 1 );
+	GL_state.Uniform.setUniformi( "PositionBuffer", 2 );
+	GL_state.Uniform.setUniformi( "SpecBuffer", 3 );
 	GL_state.Uniform.setUniformf( "vpwidth", 1.0f/gr_screen.max_w );
 	GL_state.Uniform.setUniformf( "vpheight", 1.0f/gr_screen.max_h );
 	GL_state.Uniform.setUniformf( "spec_factor", Cmdline_ogl_spec );
