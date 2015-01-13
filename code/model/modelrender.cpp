@@ -2030,13 +2030,17 @@ void model_render_set_glow_points(polymodel *pm, int objnum)
 	}
 
 	if ( objnum > -1 ) {
-		shipp = &Ships[Objects[objnum].instance];
-		sip = &Ship_info[shipp->ship_info_index];
-		SCP_hash_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
+		object *objp = &Objects[objnum];
 
-		if ( gpoi != sip->glowpoint_bank_override_map.end() ) {
-			override_all = true;
-			gpo = (glow_point_bank_override*) sip->glowpoint_bank_override_map[-1];
+		if ( objp != NULL && objp->type == OBJ_SHIP ) {
+			shipp = &Ships[Objects[objnum].instance];
+			sip = &Ship_info[shipp->ship_info_index];
+			SCP_hash_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
+
+			if (gpoi != sip->glowpoint_bank_override_map.end()) {
+				override_all = true;
+				gpo = (glow_point_bank_override*)sip->glowpoint_bank_override_map[-1];
+			}
 		}
 	}
 
