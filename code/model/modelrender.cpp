@@ -1089,16 +1089,47 @@ void model_render_add_lightning( draw_list *scene, model_render_params* interp, 
 	}
 }
 
-int model_render_determine_detail(int obj_num, int model_num, matrix* orient, vec3d* pos, int flags, int detail_level_locked)
+float model_render_determine_depth(int obj_num, int model_num, matrix* orient, vec3d* pos, int detail_level_locked)
+{
+	vec3d closest_pos;
+	float depth = model_find_closest_point( &closest_pos, model_num, -1, orient, pos, &Eye_position );
+
+	if ( detail_level_locked >= 0 ) {
+		switch (Detail.detail_distance) {
+		case 0:		// lowest
+			depth /= The_mission.ai_profile->detail_distance_mult[0];
+			break;
+		case 1:		// lower than normal
+			depth /= The_mission.ai_profile->detail_distance_mult[1];
+			break;
+		case 2:		// default
+			depth /= The_mission.ai_profile->detail_distance_mult[2];
+			break;
+		case 3:		// above normal
+			depth /= The_mission.ai_profile->detail_distance_mult[3];
+			break;
+		case 4:		// even more normal
+			depth /= The_mission.ai_profile->detail_distance_mult[4];
+			break;
+		}
+
+		// nebula ?
+		if (The_mission.flags & MISSION_FLAG_FULLNEB) {
+			depth *= neb2_get_lod_scale(obj_num);
+		}
+
+	}
+
+	return depth;
+}
+
+int model_render_determine_detail(float depth, int obj_num, int model_num, matrix* orient, vec3d* pos, int flags, int detail_level_locked)
 {
 	int tmp_detail_level = Game_detail_level;
 
 	polymodel *pm = model_get(model_num);
 
 	Assert( pm->n_detail_levels < MAX_MODEL_DETAIL_LEVELS );
-
-	vec3d closest_pos;
-	float depth = model_find_closest_point( &closest_pos, model_num, -1, orient, pos, &Eye_position );
 
 	int i;
 
@@ -1110,30 +1141,6 @@ int model_render_determine_detail(int obj_num, int model_num, matrix* orient, ve
 #if MAX_DETAIL_LEVEL != 4
 #error Code in modelrender.cpp assumes MAX_DETAIL_LEVEL == 4
 #endif
-
-			switch ( Detail.detail_distance ) {
-			case 0:		// lowest
-				depth /= The_mission.ai_profile->detail_distance_mult[0];
-				break;
-			case 1:		// lower than normal
-				depth /= The_mission.ai_profile->detail_distance_mult[1];
-				break;
-			case 2:		// default
-				depth /= The_mission.ai_profile->detail_distance_mult[2];
-				break;
-			case 3:		// above normal
-				depth /= The_mission.ai_profile->detail_distance_mult[3];
-				break;
-			case 4:		// even more normal
-				depth /= The_mission.ai_profile->detail_distance_mult[4];
-				break;
-			}
-
-			// nebula ?
-			if ( The_mission.flags & MISSION_FLAG_FULLNEB ) {
-				depth *= neb2_get_lod_scale(obj_num);
-			}
-
 			for ( i = 0; i < pm->n_detail_levels; i++ )	{
 				if ( depth <= pm->detail_depth[i] ) {
 					break;
@@ -2558,8 +2565,8 @@ void model_render_debug(int model_num, matrix *orient, vec3d * pos, uint flags, 
 			g3_draw_sphere_ez(&vmd_zero_vector,pm->rad);
 		}
 	}
-
-	int detail_level = model_render_determine_detail(objnum, model_num, orient, pos, flags, detail_level_locked);
+	float depth = model_render_determine_depth(objnum, model_num, orient, pos, detail_level_locked);
+	int detail_level = model_render_determine_detail(depth, objnum, model_num, orient, pos, flags, detail_level_locked);
 
 	vec3d auto_back = ZERO_VECTOR;
 	bool set_autocen = model_render_determine_autocenter(&auto_back, pm, detail_level, flags);
@@ -2748,7 +2755,16 @@ void model_render_queue(model_render_params *interp, draw_list *scene, int model
 
 	scene->push_transform(pos, orient);
 
-	int detail_level = model_render_determine_detail(objnum, model_num, orient, pos, model_flags, interp->get_detail_level_lock());
+	float depth = model_render_determine_depth(objnum, model_num, orient, pos, interp->get_detail_level_lock());
+	int detail_level = model_render_determine_detail(depth, objnum, model_num, orient, pos, model_flags, interp->get_detail_level_lock());
+
+	// If we're rendering attached weapon models, check against the ships' tabled Weapon Model Draw Distance (which defaults to 200)
+	if ( model_flags & MR_ATTACHED_MODEL && shipp != NULL ) {
+		if (depth > Ship_info[shipp->ship_info_index].weapon_model_draw_distance) {
+			scene->pop_transform();
+			return;
+		}
+	}
 
 // #ifndef NDEBUG
 // 	if ( Interp_detail_level == 0 )	{
