@@ -1413,6 +1413,9 @@ public:
 	int splodeing_texture;
 	char splodeing_texture_name[MAX_FILENAME_LEN];
 
+	// Goober5000
+	SCP_vector<texture_replace> replacement_textures;
+
 	
 	int armor_type_idx;
 	int shield_armor_type_idx;
