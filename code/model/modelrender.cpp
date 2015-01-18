@@ -1094,7 +1094,7 @@ float model_render_determine_depth(int obj_num, int model_num, matrix* orient, v
 	vec3d closest_pos;
 	float depth = model_find_closest_point( &closest_pos, model_num, -1, orient, pos, &Eye_position );
 
-	if ( detail_level_locked >= 0 ) {
+	if ( detail_level_locked < 0 ) {
 		switch (Detail.detail_distance) {
 		case 0:		// lowest
 			depth /= The_mission.ai_profile->detail_distance_mult[0];
