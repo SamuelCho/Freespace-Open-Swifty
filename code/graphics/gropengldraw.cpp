@@ -7,7 +7,7 @@
  *
 */
 
-
+#include <algorithm>
 #include "globalincs/pstypes.h"
 #include "cmdline/cmdline.h"
 #include "osapi/osapi.h"

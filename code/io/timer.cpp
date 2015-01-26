@@ -11,6 +11,8 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <SDL_timer.h>
 #endif
 
 #include <limits.h>
@@ -72,10 +74,10 @@ void timer_init()
 		Timer_perf_counter_freq = perf_frequency.QuadPart;
 #else
 		// get the performance counter start time
-		Timer_perf_counter_base = SDL_GetPerformanceCounter();
+		Timer_perf_counter_base = SDL_GetTicks();
 
 		// get the performance counter's ticks per second frequency
-		Timer_perf_counter_freq = SDL_GetPerformanceFrequency();
+		Timer_perf_counter_freq = 1000;
 #endif
 
 		Timer_inited = 1;
@@ -122,7 +124,7 @@ static longlong timer_get_perf_count()
 
 	return elapsed;
 #else
-	return SDL_GetPerformanceCounter() - Timer_perf_counter_base;
+	return SDL_GetTicks() - Timer_perf_counter_base;
 #endif
 }
 

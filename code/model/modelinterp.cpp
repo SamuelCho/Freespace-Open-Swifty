@@ -4790,30 +4790,6 @@ void interp_create_transparency_index_buffer(polymodel *pm, int mn)
 	}
 }
 
-inline int in_box(vec3d *min, vec3d *max, vec3d *pos, vec3d *view_pos)
-{
-	vec3d point;
-
-	vm_vec_sub(&point, view_pos, pos);
-
-	if ( (point.xyz.x >= min->xyz.x) && (point.xyz.x <= max->xyz.x)
-		&& (point.xyz.y >= min->xyz.y) && (point.xyz.y <= max->xyz.y)
-		&& (point.xyz.z >= min->xyz.z) && (point.xyz.z <= max->xyz.z) )
-	{
-		return 1;
-	}
-
-	return -1;
-}
-
-inline int in_sphere(vec3d *pos, float radius, vec3d *view_pos)
-{
-	if ( vm_vec_dist(view_pos, pos) <= radius )
-		return 1;
-	else
-		return -1;
-}
-
 void model_render_children_buffers_DEPRECATED(polymodel *pm, int mn, int detail_level, int render)
 {
 	int i;
