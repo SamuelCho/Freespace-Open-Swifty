@@ -112,7 +112,7 @@ bool Post_in_frame = false;
 
 static int Post_active_shader_index = 0;
 
-static GLuint Bloom_framebuffer = 0;
+static GLuint Bloom_framebuffer[2] = { 0 };
 static GLuint Bloom_textures[2] = { 0 };
 
 static GLuint Post_framebuffer_id[2] = { 0 };
@@ -132,7 +132,7 @@ void opengl_post_pass_tonemap()
 	opengl_shader_set_current( &GL_post_shader[7] );
 
 	GL_state.Uniform.setUniformi("tex", 0);
-	GL_state.Uniform.setUniformf("exposure", 5.0f);
+	GL_state.Uniform.setUniformf("exposure", 2.0f);
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_ldr_texture, 0);
 
@@ -156,7 +156,7 @@ bool opengl_post_pass_bloom_new()
 
 	// ------  begin bright pass ------
 
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer);
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer[0]);
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Bloom_textures[0], 0);
 
 	// width and height are 1/2 for the bright pass
@@ -178,11 +178,46 @@ bool opengl_post_pass_bloom_new()
 
 	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 
+	//vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer[1]);
+
+	//opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
 	GL_state.Texture.Disable();
 
 	// ------ end bright pass ------
 
 	// ------ begin blur pass ------
+
+	for (int pass = 0; pass < 2; pass++) {
+		GLuint source_tex = Bloom_textures[pass];
+		GLuint dest_tex = Bloom_textures[1 - pass];
+
+		//vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer[1-pass]);
+
+		opengl_shader_set_current(&GL_post_shader[1 + pass]);
+
+		GL_state.Uniform.setUniformi("tex", 0);
+
+		GL_state.Texture.SetActiveUnit(0);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(source_tex);
+
+		GL_state.Uniform.setUniformf("bsize", (pass) ? (float)width : (float)height);
+		GL_state.Uniform.setUniformi("level", 0);
+
+		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, dest_tex, 0);
+
+		opengl_check_for_errors();
+		opengl_check_framebuffer();
+
+		glViewport(0, 0, width, height);
+
+		if (opengl_check_for_errors()) {
+			int error = 1;
+		}
+
+		opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+	}
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
@@ -190,30 +225,47 @@ bool opengl_post_pass_bloom_new()
 
 	vglGenerateMipmapEXT(GL_TEXTURE_2D);
 
-	for (int pass = 0; pass < 2; pass++) {
-		int source_tex = Bloom_textures[pass];
-		int dest_tex = Bloom_textures[1-pass];
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Bloom_textures[1]);
 
-		GL_state.Texture.SetActiveUnit(0);
-		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-		GL_state.Texture.Enable(source_tex);
+	vglGenerateMipmapEXT(GL_TEXTURE_2D);
+
+	GL_state.Texture.Disable();
+
+	for (int pass = 0; pass < 2; pass++) {
+		GLuint source_tex = Bloom_textures[pass];
+		GLuint dest_tex = Bloom_textures[1 - pass];
+
+		//vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer[1-pass]);
 
 		opengl_shader_set_current(&GL_post_shader[1 + pass]);
 
 		GL_state.Uniform.setUniformi("tex", 0);
 
-		for ( int mipmap = 0; mipmap < MAX_MIP_BLUR_LEVELS; ++mipmap ) {
+		GL_state.Texture.SetActiveUnit(0);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(source_tex);
+
+		for (int mipmap = 0; mipmap < MAX_MIP_BLUR_LEVELS; ++mipmap) {
 			int bloom_width = width >> mipmap;
 			int bloom_height = height >> mipmap;
-
-			glViewport(0, 0, bloom_width, bloom_height);
 
 			GL_state.Uniform.setUniformf("bsize", (pass) ? (float)bloom_width : (float)bloom_height);
 			GL_state.Uniform.setUniformi("level", mipmap);
 
-			//vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, dest_tex, mipmap);
+			vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, dest_tex, mipmap);
 
-			//opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+			opengl_check_for_errors();
+			opengl_check_framebuffer();
+
+			glViewport(0, 0, bloom_width, bloom_height);
+
+			if (opengl_check_for_errors()) {
+				int error = 1;
+			}
+
+			opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 		}
 	}
 
@@ -1230,7 +1282,7 @@ void opengl_setup_bloom_textures_new()
 	}
 
 	// two more framebuffers, one each for the two different sized bloom textures
-	vglGenFramebuffersEXT(1, &Bloom_framebuffer);
+	vglGenFramebuffersEXT(2, Bloom_framebuffer);
 
 	// need to generate textures for bloom too
 	glGenTextures(2, Bloom_textures);
@@ -1244,15 +1296,19 @@ void opengl_setup_bloom_textures_new()
 		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 		GL_state.Texture.Enable(Bloom_textures[tex]);
 
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, width, height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+
+		vglGenerateMipmapEXT(GL_TEXTURE_2D);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
-		vglGenerateMipmapEXT(GL_TEXTURE_2D);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, MAX_MIP_BLUR_LEVELS-1);
 	}
+
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 }
 
 void opengl_setup_bloom_textures()
@@ -1435,8 +1491,9 @@ void opengl_post_process_shutdown_bloom_new()
 	}
 
 	if ( Bloom_framebuffer ) {
-		vglDeleteFramebuffersEXT(1, &Bloom_framebuffer);
-		Bloom_framebuffer = 0;
+		vglDeleteFramebuffersEXT(2, Bloom_framebuffer);
+		Bloom_framebuffer[0] = 0;
+		Bloom_framebuffer[1] = 0;
 	}
 }
 

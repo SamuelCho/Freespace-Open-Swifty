@@ -2512,7 +2512,7 @@ void opengl_tnl_set_material_soft_particle(uint flags)
 	GL_state.Uniform.setUniformf("window_height", (float)gr_screen.max_h);
 	GL_state.Uniform.setUniformf("nearZ", Min_draw_distance);
 	GL_state.Uniform.setUniformf("farZ", Max_draw_distance);
-	GL_state.Uniform.setUniformi("srgb", High_dynamic_range);
+	GL_state.Uniform.setUniformi("srgb", High_dynamic_range ? 1 : 0);
 
 	if ( Cmdline_no_deferred_lighting ) {
 		GL_state.Uniform.setUniformi("linear_depth", 0);

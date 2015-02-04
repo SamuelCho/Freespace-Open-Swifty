@@ -3337,7 +3337,7 @@ void gr_opengl_deferred_lighting_finish()
 			case LT_POINT:
 				GL_state.Uniform.setUniform3f( "diffuselightcolor", l->r * l->intensity * static_point_factor, l->g * l->intensity * static_point_factor, l->b * l->intensity * static_point_factor );
 				GL_state.Uniform.setUniform3f( "speclightcolor", l->spec_r * l->intensity * static_point_factor, l->spec_g * l->intensity * static_point_factor, l->spec_b * l->intensity * static_point_factor );
-				GL_state.Uniform.setUniformf( "lightradius", MAX(l->rada, l->radb) * 1.25f );
+				GL_state.Uniform.setUniformf( "lightradius", l->radb );
 
 				/*float dist;
 				vec3d a;
@@ -3345,7 +3345,7 @@ void gr_opengl_deferred_lighting_finish()
 				vm_vec_sub(&a, &Eye_position, &l->vec);
 				dist = vm_vec_mag(&a);*/
 			
-				gr_opengl_draw_deferred_light_sphere(&l->vec, MAX(l->rada, l->radb) * 1.25f);
+				gr_opengl_draw_deferred_light_sphere(&l->vec, l->radb * 1.02f);
 				break;
 			case LT_TUBE:
 				GL_state.Uniform.setUniform3f( "diffuselightcolor", l->r * l->intensity * static_tube_factor, l->g * l->intensity * static_tube_factor, l->b * l->intensity * static_tube_factor );
