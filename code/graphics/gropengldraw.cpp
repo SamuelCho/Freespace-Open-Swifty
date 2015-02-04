@@ -122,14 +122,14 @@ void opengl_bind_vertex_component(vertex_format_data &vert_component)
 		break;
 
 	case opengl_vertex_bind::TEXCOORD0:
-		GL_state.Array.EnableClientTexture();
 		GL_state.Array.SetActiveClientUnit(0);
+		GL_state.Array.EnableClientTexture();
 		GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
 		break;
 
 	case opengl_vertex_bind::TEXCOORD1:
-		GL_state.Array.EnableClientTexture();
 		GL_state.Array.SetActiveClientUnit(1);
+		GL_state.Array.EnableClientTexture();
 		GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
 		break;
 
