@@ -116,41 +116,51 @@ void opengl_bind_vertex_component(vertex_format_data &vert_component)
 	opengl_vertex_bind &bind_info = GL_array_binding_data[vert_component.format_type];
 
 	switch ( bind_info.binding_type ) {
-	case opengl_vertex_bind::POSITION:
-		GL_state.Array.EnableClientVertex();
-		GL_state.Array.VertexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
-		break;
+		case opengl_vertex_bind::POSITION:
+		{
+			GL_state.Array.EnableClientVertex();
+			GL_state.Array.VertexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+			break;
+		}
+		case opengl_vertex_bind::TEXCOORD0:
+		{
+			GL_state.Array.SetActiveClientUnit(0);
+			GL_state.Array.EnableClientTexture();
+			GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+			break;
+		}
+		case opengl_vertex_bind::TEXCOORD1:
+		{
+			GL_state.Array.SetActiveClientUnit(1);
+			GL_state.Array.EnableClientTexture();
+			GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+			break;
+		}
+		case opengl_vertex_bind::COLOR:
+		{
+			GL_state.Array.EnableClientColor();
+			GL_state.Array.ColorPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+			GL_state.InvalidateColor();
+			break;
+		}
+		case opengl_vertex_bind::NORMAL:
+		{
+			GL_state.Array.EnableClientNormal();
+			GL_state.Array.NormalPointer(bind_info.data_type, vert_component.stride, vert_component.data_src);
+			break;
+		}
+		case opengl_vertex_bind::ATTRIB:
+		{
+			// grabbing a vertex attribute is dependent on what current shader has been set. i hope no one calls opengl_bind_vertex_layout before opengl_set_current_shader
+			GLint index = opengl_shader_get_attribute(bind_info.attrib_name.c_str());
 
-	case opengl_vertex_bind::TEXCOORD0:
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
-		break;
+			if ( index >= 0 ) {
+				GL_state.Array.EnableVertexAttrib(index);
+				GL_state.Array.VertexAttribPointer(index, bind_info.size, bind_info.data_type, bind_info.normalized, vert_component.stride, vert_component.data_src);
+			}
 
-	case opengl_vertex_bind::TEXCOORD1:
-		GL_state.Array.SetActiveClientUnit(1);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
-		break;
-
-	case opengl_vertex_bind::COLOR:
-		GL_state.Array.EnableClientColor();
-		GL_state.Array.ColorPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
-		GL_state.InvalidateColor();
-		break;
-
-	case opengl_vertex_bind::NORMAL:
-		GL_state.Array.EnableClientNormal();
-		GL_state.Array.NormalPointer(bind_info.data_type, vert_component.stride, vert_component.data_src);
-		break;
-
-	case opengl_vertex_bind::ATTRIB:
-		// grabbing a vertex attribute is dependent on what current shader has been set. i hope no one calls opengl_bind_vertex_layout before opengl_set_current_shader
-		GLint index = opengl_shader_get_attribute(bind_info.attrib_name.c_str());
-
-		GL_state.Array.EnableVertexAttrib(index);
-		GL_state.Array.VertexAttribPointer(index, bind_info.size, bind_info.data_type, bind_info.normalized, vert_component.stride, vert_component.data_src);
-		break;
+			break;
+		}
 	}
 }
 
