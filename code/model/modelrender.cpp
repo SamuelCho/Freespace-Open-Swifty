@@ -9,7 +9,7 @@
 
 #include "globalincs/pstypes.h"
 #include "io/timer.h"
-#include "Math/vecmat.h"
+#include "math/vecmat.h"
 #include "model/model.h"
 #include "model/modelrender.h"
 #include "ship/ship.h"
@@ -23,7 +23,7 @@
 #include "particle/particle.h"
 #include "gamesequence/gamesequence.h"
 #include "render/3dinternal.h"
-#include "Math/staticrand.h"
+#include "math/staticrand.h"
 
 extern int Model_texturing;
 extern int Model_polys;
