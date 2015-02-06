@@ -267,7 +267,7 @@ int opengl_create_texture_buffer_object()
 
 void gr_opengl_update_transform_buffer(void* data, uint size)
 {
-	if ( Transform_buffer_handle < 0 ) {
+	if ( Transform_buffer_handle < 0 || size <= 0 ) {
 		return;
 	}
 

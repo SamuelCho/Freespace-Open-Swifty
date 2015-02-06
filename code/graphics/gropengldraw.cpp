@@ -7,7 +7,7 @@
  *
 */
 
-
+#include <algorithm>
 #include "globalincs/pstypes.h"
 #include "cmdline/cmdline.h"
 #include "osapi/osapi.h"
@@ -118,41 +118,51 @@ void opengl_bind_vertex_component(vertex_format_data &vert_component)
 	opengl_vertex_bind &bind_info = GL_array_binding_data[vert_component.format_type];
 
 	switch ( bind_info.binding_type ) {
-	case opengl_vertex_bind::POSITION:
-		GL_state.Array.EnableClientVertex();
-		GL_state.Array.VertexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
-		break;
+		case opengl_vertex_bind::POSITION:
+		{
+			GL_state.Array.EnableClientVertex();
+			GL_state.Array.VertexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+			break;
+		}
+		case opengl_vertex_bind::TEXCOORD0:
+		{
+			GL_state.Array.SetActiveClientUnit(0);
+			GL_state.Array.EnableClientTexture();
+			GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+			break;
+		}
+		case opengl_vertex_bind::TEXCOORD1:
+		{
+			GL_state.Array.SetActiveClientUnit(1);
+			GL_state.Array.EnableClientTexture();
+			GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+			break;
+		}
+		case opengl_vertex_bind::COLOR:
+		{
+			GL_state.Array.EnableClientColor();
+			GL_state.Array.ColorPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
+			GL_state.InvalidateColor();
+			break;
+		}
+		case opengl_vertex_bind::NORMAL:
+		{
+			GL_state.Array.EnableClientNormal();
+			GL_state.Array.NormalPointer(bind_info.data_type, vert_component.stride, vert_component.data_src);
+			break;
+		}
+		case opengl_vertex_bind::ATTRIB:
+		{
+			// grabbing a vertex attribute is dependent on what current shader has been set. i hope no one calls opengl_bind_vertex_layout before opengl_set_current_shader
+			GLint index = opengl_shader_get_attribute(bind_info.attrib_name.c_str());
 
-	case opengl_vertex_bind::TEXCOORD0:
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
-		break;
+			if ( index >= 0 ) {
+				GL_state.Array.EnableVertexAttrib(index);
+				GL_state.Array.VertexAttribPointer(index, bind_info.size, bind_info.data_type, bind_info.normalized, vert_component.stride, vert_component.data_src);
+			}
 
-	case opengl_vertex_bind::TEXCOORD1:
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.SetActiveClientUnit(1);
-		GL_state.Array.TexPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
-		break;
-
-	case opengl_vertex_bind::COLOR:
-		GL_state.Array.EnableClientColor();
-		GL_state.Array.ColorPointer(bind_info.size, bind_info.data_type, vert_component.stride, vert_component.data_src);
-		GL_state.InvalidateColor();
-		break;
-
-	case opengl_vertex_bind::NORMAL:
-		GL_state.Array.EnableClientNormal();
-		GL_state.Array.NormalPointer(bind_info.data_type, vert_component.stride, vert_component.data_src);
-		break;
-
-	case opengl_vertex_bind::ATTRIB:
-		// grabbing a vertex attribute is dependent on what current shader has been set. i hope no one calls opengl_bind_vertex_layout before opengl_set_current_shader
-		GLint index = opengl_shader_get_attribute(bind_info.attrib_name.c_str());
-
-		GL_state.Array.EnableVertexAttrib(index);
-		GL_state.Array.VertexAttribPointer(index, bind_info.size, bind_info.data_type, bind_info.normalized, vert_component.stride, vert_component.data_src);
-		break;
+			break;
+		}
 	}
 }
 
@@ -3337,15 +3347,15 @@ void gr_opengl_deferred_lighting_finish()
 			case LT_POINT:
 				GL_state.Uniform.setUniform3f( "diffuselightcolor", l->r * l->intensity * static_point_factor, l->g * l->intensity * static_point_factor, l->b * l->intensity * static_point_factor );
 				GL_state.Uniform.setUniform3f( "speclightcolor", l->spec_r * l->intensity * static_point_factor, l->spec_g * l->intensity * static_point_factor, l->spec_b * l->intensity * static_point_factor );
-				GL_state.Uniform.setUniformf( "lightradius", l->radb );
+				GL_state.Uniform.setUniformf( "lightradius", MAX(l->rada, l->radb) * 1.25f );
 
 				/*float dist;
 				vec3d a;
 			
 				vm_vec_sub(&a, &Eye_position, &l->vec);
 				dist = vm_vec_mag(&a);*/
-			
-				gr_opengl_draw_deferred_light_sphere(&l->vec, l->radb * 1.02f);
+				
+				gr_opengl_draw_deferred_light_sphere(&l->vec, MAX(l->rada, l->radb) * 1.28f);
 				break;
 			case LT_TUBE:
 				GL_state.Uniform.setUniform3f( "diffuselightcolor", l->r * l->intensity * static_tube_factor, l->g * l->intensity * static_tube_factor, l->b * l->intensity * static_tube_factor );
