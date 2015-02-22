@@ -628,13 +628,13 @@ matrix shadows_start_render(matrix *eye_orient, vec3d *eye_pos, float fov, float
 	shadow_middist = middist;
 	shadow_fardist = fardist;
 
-	shadows_construct_light_frustum(&shadow_frustums[0], &light_matrix, eye_orient, eye_pos, fov, aspect, Min_draw_distance, veryneardist);
+	shadows_construct_light_frustum(&shadow_frustums[0], &light_matrix, eye_orient, eye_pos, fov, aspect, 0.0f, veryneardist);
 
-	shadows_construct_light_frustum(&shadow_frustums[1], &light_matrix, eye_orient, eye_pos, fov, aspect, veryneardist, neardist);
+	shadows_construct_light_frustum(&shadow_frustums[1], &light_matrix, eye_orient, eye_pos, fov, aspect, veryneardist - (veryneardist - 0.0f)* 0.2f, neardist);
 
-	shadows_construct_light_frustum(&shadow_frustums[2], &light_matrix, eye_orient, eye_pos, fov, aspect, neardist, middist);
+	shadows_construct_light_frustum(&shadow_frustums[2], &light_matrix, eye_orient, eye_pos, fov, aspect, neardist - (neardist - veryneardist) * 0.2f, middist);
 
-	shadows_construct_light_frustum(&shadow_frustums[3], &light_matrix, eye_orient, eye_pos, fov, aspect, middist, fardist);
+	shadows_construct_light_frustum(&shadow_frustums[3], &light_matrix, eye_orient, eye_pos, fov, aspect, middist - (middist - neardist) * 0.2f, fardist);
 	
 	gr_opengl_shadow_map_start(&light_matrix, &shadow_frustums[0], &shadow_frustums[1], &shadow_frustums[2], &shadow_frustums[3]);
 
