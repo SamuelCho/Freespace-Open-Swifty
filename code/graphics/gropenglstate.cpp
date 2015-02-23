@@ -818,6 +818,10 @@ void opengl_state::SetAlphaBlendMode(gr_alpha_blend ab)
 			GL_state.BlendFunc(/*GL_SRC_COLOR*/GL_SRC_ALPHA, GL_ONE_MINUS_SRC_COLOR);
 			break;
 
+		case ALPHA_BLEND_MULTIPLY:
+			GL_state.BlendFunc(GL_DST_COLOR, GL_ZERO);
+			break;
+
 		default:
 			break;
 	}

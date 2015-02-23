@@ -90,7 +90,9 @@ static opengl_shader_file_t GL_effect_shader_files[] = {
 
 	// distortion effect
 	{ "effect-v.sdr", "effect-distort-f.sdr", 0, SDR_EFFECT_DISTORTION, 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 
-		1, { "offset_in" } }
+		1, { "offset_in" } },
+
+	{ "effect-v.sdr", "effect-f.sdr", "effect-screen-g.sdr", SDR_EFFECT_SHADOWS | SDR_EFFECT_GEOMETRY, 2, {"baseMap", "shadow_proj_matrix"}, 2, {"radius", "uvec"}}
 
 	// { char *vert, char *frag, char *geo, int flags, int num_uniforms, char* uniforms[MAX_SHADER_UNIFORMS], int num_attributes, char* attributes[MAX_SDR_ATTRIBUTES] }
 };
@@ -525,6 +527,10 @@ static char *opengl_load_effect_shader(char *filename, int flags)
 
 	if ( flags & SDR_EFFECT_DISTORTION ) {
 		sflags += "#define FLAG_EFFECT_DISTORTION\n";
+	}
+
+	if ( flags & SDR_EFFECT_SHADOWS ) {
+		sflags += "#define FLAG_EFFECT_SHADOW_MAP\n";
 	}
 
 	const char *shader_flags = sflags.c_str();

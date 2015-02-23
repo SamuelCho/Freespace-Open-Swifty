@@ -1436,7 +1436,24 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 	vertex_layout vert_def;
 
 	if ( flags & TMAP_FLAG_TEXTURED ) {
-		if ( flags & TMAP_FLAG_SOFT_QUAD ) {
+		if ( in_shadow_map ) {
+			if ( !(flags & TMAP_FLAG_VERTEX_GEN) ) {
+				return;
+			}
+
+			opengl_tnl_set_material_particle_shadows();
+
+			GL_state.SetAlphaBlendMode(ALPHA_BLEND_MULTIPLY);
+			zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
+
+			if (radius_offset >= 0) {
+				vert_def.add_vertex_component(vertex_format_data::RADIUS, stride, ptr + radius_offset);
+			}
+
+			if (up_offset >= 0) {
+				vert_def.add_vertex_component(vertex_format_data::UVEC, stride, ptr + up_offset);
+			}
+		} else if ( flags & TMAP_FLAG_SOFT_QUAD ) {
 			if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) ) {
 				opengl_tnl_set_material_distortion(flags);
 
@@ -1501,7 +1518,11 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 
 	opengl_bind_vertex_layout(vert_def);
 
-	glDrawArrays(gl_mode, offset, n_verts);
+	if ( in_shadow_map ) {
+		vglDrawArraysInstancedARB(gl_mode, offset, n_verts, 4);
+	} else {
+		glDrawArrays(gl_mode, offset, n_verts);
+	}
 
 	if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) ) {
 		GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
@@ -2159,7 +2180,7 @@ void gr_opengl_shadow_map_start(matrix *light_orient, light_frustum_info *veryne
 	GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT};
 	vglDrawBuffers(1, buffers);
 
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClearColor(0.0f, 0.0f, 1.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	gr_opengl_set_lighting(false,false);
@@ -2488,6 +2509,29 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	if ( shader_flags & SDR_FLAG_THRUSTER ) {
 		GL_state.Uniform.setUniformf("thruster_scale", GL_thrust_scale);
 	}
+}
+
+void opengl_tnl_set_material_particle_shadows()
+{
+	uint sdr_effect_flags = SDR_EFFECT_SHADOWS;
+
+	sdr_effect_flags |= SDR_EFFECT_GEOMETRY;
+
+	int sdr_index = opengl_shader_get_effect_shader(sdr_effect_flags);
+
+	opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
+
+	GL_state.Uniform.setUniformi("baseMap", 0);
+
+	matrix4 l_proj_matrix[4];
+
+	for (int i = 0; i < 4; ++i) {
+		for (int j = 0; j < 16; ++j) {
+			l_proj_matrix[i].a1d[j] = lprojmatrix[i][j];
+		}
+	}
+
+	GL_state.Uniform.setUniformMatrix4fv("shadow_proj_matrix", 4, 0, l_proj_matrix);
 }
 
 void opengl_tnl_set_material_soft_particle(uint flags)

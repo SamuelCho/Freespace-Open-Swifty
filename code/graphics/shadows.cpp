@@ -20,6 +20,7 @@
 #include "debris/debris.h"
 #include "asteroid/asteroid.h"
 #include "graphics/gropengldraw.h"
+#include "particle/particle.h"
 
 extern vec3d check_offsets[8];
 
@@ -726,6 +727,8 @@ void shadows_render_all(float fov, matrix *eye_orient, vec3d *eye_pos)
 
 	scene.init_render();
 	scene.render_all();
+
+	particle_render_all();
 
 	shadows_end_render();
 

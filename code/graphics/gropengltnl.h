@@ -78,5 +78,6 @@ void opengl_tnl_shutdown();
 void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type);
 void opengl_tnl_set_material_distortion(uint flags);
 void opengl_tnl_set_material_soft_particle(uint flags);
+void opengl_tnl_set_material_particle_shadows();
 
 #endif //_GROPENGLTNL_H

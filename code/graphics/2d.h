@@ -53,6 +53,7 @@ extern int gr_global_zbuffering;
 #define SDR_EFFECT_DISTORTION	(1<<2)
 #define SDR_EFFECT_GEOMETRY		(1<<3)
 #define SDR_EFFECT_LINEAR_DEPTH	(1<<4)
+#define SDR_EFFECT_SHADOWS		(1<<5)
 
 // stencil buffering stuff
 extern int gr_stencil_mode;
