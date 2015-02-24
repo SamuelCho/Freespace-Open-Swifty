@@ -82,11 +82,12 @@ static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main)
 static opengl_shader_file_t GL_effect_shader_files[] = {
 
 	// soft particles
-	{ "effect-v.sdr", "effect-particle-f.sdr", 0, SDR_EFFECT_SOFT_QUAD, 7, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth"}, 1, {"radius"} },
+	{ "effect-v.sdr", "effect-particle-f.sdr", 0, SDR_EFFECT_SOFT_QUAD, /*7*/9, 
+		{"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth", "lightDir", "lightClr"}, 1, {"radius"} },
 
 	// geometry shader soft particles
-	{ "effect-v.sdr", "effect-particle-f.sdr", "effect-screen-g.sdr", SDR_EFFECT_SOFT_QUAD | SDR_EFFECT_GEOMETRY, 7, 
-		{"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth"}, 2, {"radius", "uvec"}, },
+	{ "effect-v.sdr", "effect-particle-f.sdr", "effect-screen-g.sdr", SDR_EFFECT_SOFT_QUAD | SDR_EFFECT_GEOMETRY, /*7*/9, 
+		{"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth", "lightDir", "lightClr"}, 2, {"radius", "uvec"}, },
 
 	// distortion effect
 	{ "effect-v.sdr", "effect-distort-f.sdr", 0, SDR_EFFECT_DISTORTION, 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 

@@ -2546,6 +2546,29 @@ void opengl_tnl_set_material_soft_particle(uint flags)
 
 	opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
 
+	// get directional light
+	light *lp = *(Static_light.begin());
+
+	if (lp != NULL) {
+		vec3d light_dir;
+		vec3d light_dir_local;
+
+		vm_vec_copy_normalize(&light_dir, &lp->vec);
+		vm_vec_rotate(&light_dir_local, &light_dir, &Eye_matrix);
+
+		//light_dir_local.xyz.x *= -1.0f;
+		//light_dir_local.xyz.y *= -1.0f;
+		//light_dir_local.xyz.z *= -1.0f;
+
+		vec3d light_clr;
+		light_clr.xyz.x = lp->r;
+		light_clr.xyz.y = lp->g;
+		light_clr.xyz.z = lp->b;
+
+		GL_state.Uniform.setUniform3f("lightDir", light_dir_local);
+		GL_state.Uniform.setUniform3f("lightClr", light_clr);
+	}
+
 	GL_state.Uniform.setUniformi("baseMap", 0);
 	GL_state.Uniform.setUniformi("depthMap", 1);
 	GL_state.Uniform.setUniformf("window_width", (float)gr_screen.max_w);
