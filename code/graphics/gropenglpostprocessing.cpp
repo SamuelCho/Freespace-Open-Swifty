@@ -174,7 +174,7 @@ bool opengl_post_pass_bloom_new()
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Scene_ldr_texture);
+	GL_state.Texture.Enable(Scene_color_texture);
 
 	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 
@@ -559,7 +559,7 @@ void gr_opengl_post_process_end()
 		gr_zbuffer_set(GR_ZBUFF_NONE);
 		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, Scene_depth_texture, 0);
 	}
-	
+
 	// do tone mapping
 	opengl_post_pass_tonemap();
 
