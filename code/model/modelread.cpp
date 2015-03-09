@@ -2468,52 +2468,52 @@ void model_load_texture(polymodel *pm, int i, char *file)
 	int shader_flags = 0;
 
 	if (tbase->GetTexture() > 0)
-		shader_flags |= SDR_FLAG_DIFFUSE_MAP;
+		shader_flags |= SDR_FLAG_MODEL_DIFFUSE_MAP;
 	if (tglow->GetTexture() > 0 && Cmdline_glow)
-		shader_flags |= SDR_FLAG_GLOW_MAP;
+		shader_flags |= SDR_FLAG_MODEL_GLOW_MAP;
 	if (tspec->GetTexture() > 0 && Cmdline_spec)
-		shader_flags |= SDR_FLAG_SPEC_MAP;
+		shader_flags |= SDR_FLAG_MODEL_SPEC_MAP;
 	if (tnorm->GetTexture() > 0 && Cmdline_normal)
-		shader_flags |= SDR_FLAG_NORMAL_MAP;
+		shader_flags |= SDR_FLAG_MODEL_NORMAL_MAP;
 	if (theight->GetTexture() > 0 && Cmdline_height)
-		shader_flags |= SDR_FLAG_HEIGHT_MAP;
+		shader_flags |= SDR_FLAG_MODEL_HEIGHT_MAP;
 	if (tspec->GetTexture() > 0 && Cmdline_env && Cmdline_spec) // No env maps without spec map
-		shader_flags |= SDR_FLAG_ENV_MAP;
+		shader_flags |= SDR_FLAG_MODEL_ENV_MAP;
 	if (tmisc->GetTexture() > 0)
-		shader_flags |= SDR_FLAG_MISC_MAP;
+		shader_flags |= SDR_FLAG_MODEL_MISC_MAP;
 	
-	gr_maybe_create_shader(SDR_FLAG_GEOMETRY | SDR_FLAG_SHADOW_MAP);
+	gr_maybe_create_shader(shader_type::MODEL, SDR_FLAG_MODEL_SHADOW_MAP);
 
 	if(Use_GLSL > 1)
-		shader_flags |= SDR_FLAG_CLIP;
+		shader_flags |= SDR_FLAG_MODEL_CLIP;
 
-	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED);
-	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED | SDR_FLAG_FOG);
+	gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED);
+	gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED | SDR_FLAG_MODEL_FOG);
 	
 	if(Use_GLSL > 1)
-		shader_flags |= SDR_FLAG_DEFERRED;
+		shader_flags |= SDR_FLAG_MODEL_DEFERRED;
 
-	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT);
-	gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_FOG);
+	gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT);
+	gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_FOG);
 	
 	extern bool GL_use_transform_buffer;
 	if( !Cmdline_no_batching && GL_use_transform_buffer && Use_GLSL >= 3 ) {
-		shader_flags &= ~SDR_FLAG_DEFERRED;
-		shader_flags |= SDR_FLAG_TRANSFORM;
+		shader_flags &= ~SDR_FLAG_MODEL_DEFERRED;
+		shader_flags |= SDR_FLAG_MODEL_TRANSFORM;
 
-		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED);
-		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED | SDR_FLAG_FOG);
+		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED);
+		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED | SDR_FLAG_MODEL_FOG);
 
-		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT);
-		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_FOG);
+		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT);
+		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_FOG);
 
-		shader_flags |= SDR_FLAG_DEFERRED;
+		shader_flags |= SDR_FLAG_MODEL_DEFERRED;
 
-		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED);
-		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_ANIMATED | SDR_FLAG_FOG);
+		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED);
+		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED | SDR_FLAG_MODEL_FOG);
 
-		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT);
-		gr_maybe_create_shader(shader_flags | SDR_FLAG_LIGHT | SDR_FLAG_FOG);
+		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT);
+		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_FOG);
 	}
 }
 

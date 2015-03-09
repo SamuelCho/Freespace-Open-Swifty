@@ -733,13 +733,8 @@ void gr_stub_bm_page_in_start()
 {
 }
 
-int gr_stub_maybe_create_shader(unsigned int flags) {
+int gr_stub_maybe_create_shader(shader_type shader, unsigned int flags) {
 	return -1;
-}
-
-bool gr_stub_set_shader_flag(uint shader_flags)
-{
-	return true;
 }
 
 void gr_stub_set_animated_effect(int effect, float timer)
@@ -958,7 +953,6 @@ bool gr_stub_init()
 	gr_screen.gf_end_shadow_map		= gr_stub_end_shadow_map;
 	gr_screen.gf_clear_shadow_map	= gr_stub_clear_shadow_map;
 
-	gr_screen.gf_set_shader_flag	= gr_stub_set_shader_flag;
 	gr_screen.gf_maybe_create_shader = gr_stub_maybe_create_shader;
 
 	gr_screen.gf_set_animated_effect = gr_stub_set_animated_effect;

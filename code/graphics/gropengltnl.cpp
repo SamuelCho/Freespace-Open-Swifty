@@ -858,7 +858,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	if (shader_flags == GL_last_shader_flags) {
 		sdr_index = GL_last_shader_index;
 	} else {
-		sdr_index = gr_opengl_maybe_create_shader(shader_flags);
+		sdr_index = gr_opengl_maybe_create_shader(shader_type::MODEL, shader_flags);
 
 		if (sdr_index < 0) {
 			opengl_render_pipeline_fixed(start, bufferp, datap, flags);
@@ -871,7 +871,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 
 	Assert( sdr_index >= 0 );
 
-	opengl_shader_set_current( &GL_shader[sdr_index] );
+	opengl_shader_set_current( sdr_index );
 
 	opengl_default_light_settings( !GL_center_alpha, (GL_light_factor > 0.25f) );
 	gr_opengl_set_center_alpha(GL_center_alpha);
@@ -2229,31 +2229,6 @@ void gr_opengl_clear_shadow_map()
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, saved_fb);
 }
 
-bool gr_opengl_set_shader_flag(uint shader_flags)
-{
-	int sdr_index;
-
-	// find proper shader
-	if (shader_flags == GL_last_shader_flags) {
-		sdr_index = GL_last_shader_index;
-	} else {
-		sdr_index = gr_opengl_maybe_create_shader(shader_flags);
-
-		if (sdr_index < 0) {
-			return false;
-		}
-
-		GL_last_shader_index = sdr_index;
-		GL_last_shader_flags = shader_flags;
-	}
-
-	Assert( sdr_index >= 0 );
-
-	opengl_shader_set_current( &GL_shader[sdr_index] );
-
-	return true;
-}
-
 void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 {
 	float u_scale, v_scale;
@@ -2270,7 +2245,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	GL_state.Uniform.setUniformi("n_lights", num_lights);
 	GL_state.Uniform.setUniformf( "light_factor", GL_light_factor );
 	
-	if ( shader_flags & SDR_FLAG_CLIP ) {
+	if ( shader_flags & SDR_FLAG_MODEL_CLIP ) {
 		GL_state.Uniform.setUniformi("use_clip_plane", G3_user_clip);
 
 		if ( G3_user_clip ) {
@@ -2306,7 +2281,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		}
 	}
 
-	if ( shader_flags & SDR_FLAG_DIFFUSE_MAP ) {
+	if ( shader_flags & SDR_FLAG_MODEL_DIFFUSE_MAP ) {
 		GL_state.Uniform.setUniformi("sBasemap", render_pass);
 		
 		if ( flags & TMAP_FLAG_DESATURATE ) {
@@ -2327,7 +2302,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		++render_pass;
 	}
 
-	if ( shader_flags & SDR_FLAG_GLOW_MAP ) {
+	if ( shader_flags & SDR_FLAG_MODEL_GLOW_MAP ) {
 		GL_state.Uniform.setUniformi("sGlowmap", render_pass);
 
 		gr_opengl_tcache_set(GLOWMAP, tmap_type, &u_scale, &v_scale, render_pass);
@@ -2335,14 +2310,14 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		++render_pass;
 	}
 
-	if ( shader_flags & SDR_FLAG_SPEC_MAP ) {
+	if ( shader_flags & SDR_FLAG_MODEL_SPEC_MAP ) {
 		GL_state.Uniform.setUniformi("sSpecmap", render_pass);
 
 		gr_opengl_tcache_set(SPECMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
 		++render_pass;
 
-		if ( shader_flags & SDR_FLAG_ENV_MAP) {
+		if ( shader_flags & SDR_FLAG_MODEL_ENV_MAP) {
 			// 0 == env with non-alpha specmap, 1 == env with alpha specmap
 			int alpha_spec = bm_has_alpha_channel(ENVMAP);
 
@@ -2362,7 +2337,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		}
 	}
 
-	if ( shader_flags & SDR_FLAG_NORMAL_MAP ) {
+	if ( shader_flags & SDR_FLAG_MODEL_NORMAL_MAP ) {
 		GL_state.Uniform.setUniformi("sNormalmap", render_pass);
 
 		gr_opengl_tcache_set(NORMMAP, tmap_type, &u_scale, &v_scale, render_pass);
@@ -2370,7 +2345,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		++render_pass;
 	}
 
-	if ( shader_flags & SDR_FLAG_HEIGHT_MAP ) {
+	if ( shader_flags & SDR_FLAG_MODEL_HEIGHT_MAP ) {
 		GL_state.Uniform.setUniformi("sHeightmap", render_pass);
 		
 		gr_opengl_tcache_set(HEIGHTMAP, tmap_type, &u_scale, &v_scale, render_pass);
@@ -2378,7 +2353,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		++render_pass;
 	}
 
-	if ( shader_flags & SDR_FLAG_MISC_MAP ) {
+	if ( shader_flags & SDR_FLAG_MODEL_MISC_MAP ) {
 		GL_state.Uniform.setUniformi("sMiscmap", render_pass);
 
 		gr_opengl_tcache_set(MISCMAP, tmap_type, &u_scale, &v_scale, render_pass);
@@ -2386,7 +2361,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		++render_pass;
 	}
 
-	if ( shader_flags & SDR_FLAG_SHADOWS ) {
+	if ( shader_flags & SDR_FLAG_MODEL_SHADOWS ) {
 		matrix4 model_matrix;
 		memset( &model_matrix, 0, sizeof(model_matrix) );
 
@@ -2427,7 +2402,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		++render_pass; // bump!
 	}
 
-	if ( shader_flags & SDR_FLAG_GEOMETRY && shader_flags & SDR_FLAG_SHADOW_MAP ) {
+	if ( shader_flags & SDR_FLAG_MODEL_SHADOW_MAP ) {
 		matrix4 l_proj_matrix[4];
 
 		for ( int i = 0; i < 4; ++i ) {
@@ -2439,7 +2414,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		GL_state.Uniform.setUniformMatrix4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
 	}
 
-	if ( shader_flags & SDR_FLAG_ANIMATED ) {
+	if ( shader_flags & SDR_FLAG_MODEL_ANIMATED ) {
 		GL_state.Uniform.setUniformi("sFramebuffer", render_pass);
 		
 		GL_state.Texture.SetActiveUnit(render_pass);
@@ -2455,7 +2430,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		++render_pass;
 	}
 
-	if ( shader_flags & SDR_FLAG_TRANSFORM ) {
+	if ( shader_flags & SDR_FLAG_MODEL_TRANSFORM ) {
 		GL_state.Uniform.setUniformi("transform_tex", render_pass);
 		GL_state.Uniform.setUniformi("buffer_matrix_offset", GL_transform_buffer_offset);
 		
@@ -2469,7 +2444,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	// Team colors are passed to the shader here, but the shader needs to handle their application.
 	// By default, this is handled through the r and g channels of the misc map, but this can be changed
 	// in the shader; test versions of this used the normal map r and b channels
-	if ( shader_flags & SDR_FLAG_TEAMCOLOR ) {
+	if ( shader_flags & SDR_FLAG_MODEL_TEAMCOLOR ) {
 		vec3d stripe_color;
 		vec3d base_color;
 
@@ -2485,22 +2460,22 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		GL_state.Uniform.setUniform3f("base_color", base_color);
 	}
 
-	if ( shader_flags & SDR_FLAG_THRUSTER ) {
+	if ( shader_flags & SDR_FLAG_MODEL_THRUSTER ) {
 		GL_state.Uniform.setUniformf("thruster_scale", GL_thrust_scale);
 	}
 }
 
 void opengl_tnl_set_material_soft_particle(uint flags)
 {
-	uint sdr_effect_flags = SDR_EFFECT_SOFT_QUAD;
+	uint sdr_effect_flags = 0;
 
 	if ( flags & TMAP_FLAG_VERTEX_GEN ) {
-		sdr_effect_flags |= SDR_EFFECT_GEOMETRY;
+		sdr_effect_flags |= SDR_FLAG_PARTICLE_POINT_GEN;
 	}
 
-	int sdr_index = opengl_shader_get_effect_shader(sdr_effect_flags);
+	int sdr_index = gr_opengl_maybe_create_shader(EFFECT_PARTICLE, sdr_effect_flags);
 
-	opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
+	opengl_shader_set_current(sdr_index);
 
 	GL_state.Uniform.setUniformi("baseMap", 0);
 	GL_state.Uniform.setUniformi("depthMap", 1);
@@ -2532,9 +2507,7 @@ void opengl_tnl_set_material_soft_particle(uint flags)
 
 void opengl_tnl_set_material_distortion(uint flags)
 {
-	int sdr_index = opengl_shader_get_effect_shader(SDR_EFFECT_DISTORTION);
-	
-	opengl_shader_set_current(&GL_effect_shaders[sdr_index]);
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(EFFECT_DISTORTION, 0) );
 
 	GL_state.Uniform.setUniformi("baseMap", 0);
 	GL_state.Uniform.setUniformi("depthMap", 1);

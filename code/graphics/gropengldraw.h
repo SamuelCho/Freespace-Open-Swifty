@@ -69,8 +69,6 @@ void gr_opengl_deferred_lighting_begin();
 void gr_opengl_deferred_lighting_end();
 void gr_opengl_deferred_lighting_finish();
 
-bool gr_opengl_set_shader_flag(uint shader_flags);
-
 void opengl_bind_vertex_layout(vertex_layout &layout);
 
 inline void opengl_draw_textured_quad_instanced(

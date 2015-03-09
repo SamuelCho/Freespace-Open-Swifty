@@ -3182,7 +3182,7 @@ void opengl_clear_deferred_buffers()
 	GLboolean blend = GL_state.Blend(GL_FALSE);
 	GLboolean cull = GL_state.CullFace(GL_FALSE);
 
-	opengl_shader_set_current( &Deferred_clear_shader );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(shader_type::DEFERRED_CLEAR, 0) );
 
 	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 
@@ -3233,7 +3233,7 @@ void gr_opengl_deferred_lighting_finish()
 	//GL_state.DepthFunc(GL_GREATER);
 	//GL_state.DepthMask(GL_FALSE);
 
-	opengl_shader_set_current( &Deferred_light_shader );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(DEFERRED_LIGHTING, 0) );
 	
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);

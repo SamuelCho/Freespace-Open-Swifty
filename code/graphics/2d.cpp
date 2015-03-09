@@ -1828,79 +1828,79 @@ uint gr_determine_shader_flags(
 	uint shader_flags = 0;
 
 	if ( Use_GLSL > 1 ) {
-		shader_flags |= SDR_FLAG_CLIP;
+		shader_flags |= SDR_FLAG_MODEL_CLIP;
 	}
 
 	if ( transform ) {
-		shader_flags |= SDR_FLAG_TRANSFORM;
+		shader_flags |= SDR_FLAG_MODEL_TRANSFORM;
 	}
 
 	if ( in_shadow_map ) {
 		// if we're building the shadow map, we likely only need the flags here and above so bail
-		shader_flags |= SDR_FLAG_GEOMETRY | SDR_FLAG_SHADOW_MAP;
+		shader_flags |= SDR_FLAG_MODEL_SHADOW_MAP;
 
 		return shader_flags;
 	}
 
 	// setup shader flags for the things that we want/need
 	if ( lighting ) {
-		shader_flags |= SDR_FLAG_LIGHT;
+		shader_flags |= SDR_FLAG_MODEL_LIGHT;
 	}
 
 	if ( fog ) {
-		shader_flags |= SDR_FLAG_FOG;
+		shader_flags |= SDR_FLAG_MODEL_FOG;
 	}
 
 	if ( tmap_flags & TMAP_ANIMATED_SHADER ) {
-		shader_flags |= SDR_FLAG_ANIMATED;
+		shader_flags |= SDR_FLAG_MODEL_ANIMATED;
 	}
 
 	if ( textured ) {
 		if ( !Basemap_override ) {
-			shader_flags |= SDR_FLAG_DIFFUSE_MAP;
+			shader_flags |= SDR_FLAG_MODEL_DIFFUSE_MAP;
 		}
 
 		if ( glow_map > 0 ) {
-			shader_flags |= SDR_FLAG_GLOW_MAP;
+			shader_flags |= SDR_FLAG_MODEL_GLOW_MAP;
 		}
 
 		if ( lighting ) {
 			if ( ( spec_map > 0 ) && !Specmap_override ) {
-				shader_flags |= SDR_FLAG_SPEC_MAP;
+				shader_flags |= SDR_FLAG_MODEL_SPEC_MAP;
 
 				if ( ( env_map > 0 ) && !Envmap_override ) {
-					shader_flags |= SDR_FLAG_ENV_MAP;
+					shader_flags |= SDR_FLAG_MODEL_ENV_MAP;
 				}
 			}
 
 			if ( ( normal_map > 0) && !Normalmap_override ) {
-				shader_flags |= SDR_FLAG_NORMAL_MAP;
+				shader_flags |= SDR_FLAG_MODEL_NORMAL_MAP;
 			}
 
 			if ( ( height_map > 0) && !Heightmap_override ) {
-				shader_flags |= SDR_FLAG_HEIGHT_MAP;
+				shader_flags |= SDR_FLAG_MODEL_HEIGHT_MAP;
 			}
 
 			if ( Cmdline_shadow_quality && !in_shadow_map && !Shadow_override) {
-				shader_flags |= SDR_FLAG_SHADOWS;
+				shader_flags |= SDR_FLAG_MODEL_SHADOWS;
 			}
 		}
 
 		if ( misc_map > 0 ) {
-			shader_flags |= SDR_FLAG_MISC_MAP;
+			shader_flags |= SDR_FLAG_MODEL_MISC_MAP;
 		}
 
 		if ( team_color ) {
-			shader_flags |= SDR_FLAG_TEAMCOLOR;
+			shader_flags |= SDR_FLAG_MODEL_TEAMCOLOR;
 		}
 	}
 
 	if ( Deferred_lighting ) {
-		shader_flags |= SDR_FLAG_DEFERRED;
+		shader_flags |= SDR_FLAG_MODEL_DEFERRED;
 	}
 
 	if ( thruster_scale ) {
-		shader_flags |= SDR_FLAG_THRUSTER;
+		shader_flags |= SDR_FLAG_MODEL_THRUSTER;
 	}
 
 	return shader_flags;

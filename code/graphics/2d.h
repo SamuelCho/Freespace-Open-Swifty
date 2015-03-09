@@ -27,32 +27,47 @@ extern int Gr_inited;
 extern int gr_zbuffering, gr_zbuffering_mode;
 extern int gr_global_zbuffering;
 
-// Shader flags
-#define SDR_FLAG_LIGHT			(1<<0)
-#define SDR_FLAG_FOG			(1<<1)
-#define SDR_FLAG_DIFFUSE_MAP	(1<<2)
-#define SDR_FLAG_GLOW_MAP		(1<<3)
-#define SDR_FLAG_SPEC_MAP		(1<<4)
-#define SDR_FLAG_NORMAL_MAP		(1<<5)
-#define SDR_FLAG_HEIGHT_MAP		(1<<6)
-#define SDR_FLAG_ENV_MAP		(1<<7)
-#define SDR_FLAG_ANIMATED		(1<<8)
-#define SDR_FLAG_MISC_MAP		(1<<9)
-#define SDR_FLAG_TEAMCOLOR		(1<<10)
-#define SDR_FLAG_TRANSFORM		(1<<11)
-#define SDR_FLAG_DEFERRED		(1<<12)
-#define SDR_FLAG_SHADOW_MAP		(1<<13)
-#define SDR_FLAG_GEOMETRY		(1<<14)
-#define SDR_FLAG_SHADOWS		(1<<15)
-#define SDR_FLAG_THRUSTER		(1<<16)
-#define SDR_FLAG_CLIP			(1<<17)
+enum shader_type {
+	MODEL,
+	EFFECT_PARTICLE,
+	EFFECT_DISTORTION,
+	POST_PROCESS_MAIN,
+	POST_PROCESS_BLUR,
+	POST_PROCESS_BRIGHTPASS,
+	POST_PROCESS_FXAA,
+	POST_PROCESS_FXAA_PREPASS,
+	POST_PROCESS_LIGHTSHAFTS,
+	DEFERRED_LIGHTING,
+	DEFERRED_CLEAR,
+	VIDEO_PROCESS,
 
-// Shader effect flags
-#define SDR_EFFECT_SOFT_QUAD	(1<<0)
-#define SDR_EFFECT_TRAILS		(1<<1)
-#define SDR_EFFECT_DISTORTION	(1<<2)
-#define SDR_EFFECT_GEOMETRY		(1<<3)
-#define SDR_EFFECT_LINEAR_DEPTH	(1<<4)
+	NUM_SHADER_TYPES
+};
+
+// Shader flags
+#define SDR_FLAG_MODEL_LIGHT		(1<<0)
+#define SDR_FLAG_MODEL_FOG			(1<<1)
+#define SDR_FLAG_MODEL_DIFFUSE_MAP	(1<<2)
+#define SDR_FLAG_MODEL_GLOW_MAP		(1<<3)
+#define SDR_FLAG_MODEL_SPEC_MAP		(1<<4)
+#define SDR_FLAG_MODEL_NORMAL_MAP	(1<<5)
+#define SDR_FLAG_MODEL_HEIGHT_MAP	(1<<6)
+#define SDR_FLAG_MODEL_ENV_MAP		(1<<7)
+#define SDR_FLAG_MODEL_ANIMATED		(1<<8)
+#define SDR_FLAG_MODEL_MISC_MAP		(1<<9)
+#define SDR_FLAG_MODEL_TEAMCOLOR	(1<<10)
+#define SDR_FLAG_MODEL_TRANSFORM	(1<<11)
+#define SDR_FLAG_MODEL_DEFERRED		(1<<12)
+#define SDR_FLAG_MODEL_SHADOW_MAP	(1<<13)
+#define SDR_FLAG_MODEL_GEOMETRY		(1<<14)
+#define SDR_FLAG_MODEL_SHADOWS		(1<<15)
+#define SDR_FLAG_MODEL_THRUSTER		(1<<16)
+#define SDR_FLAG_MODEL_CLIP			(1<<17)
+
+#define SDR_FLAG_PARTICLE_POINT_GEN			(1<<0)
+
+#define SDR_FLAG_BLUR_HORIZONTAL			(1<<0)
+#define SDR_FLAG_BLUR_VERTICAL				(1<<1)
 
 // stencil buffering stuff
 extern int gr_stencil_mode;
@@ -611,7 +626,7 @@ typedef struct screen {
 	void (*gf_line_htl)(vec3d *start, vec3d* end);
 	void (*gf_sphere_htl)(float rad);
 
-	int (*gf_maybe_create_shader)(unsigned int flags);
+	int (*gf_maybe_create_shader)(shader_type type, unsigned int flags);
 
 	void (*gf_set_animated_effect)(int effect, float timer);
 
@@ -627,8 +642,6 @@ typedef struct screen {
 	void (*gf_start_shadow_map)(float neardist, float middist, float fardist);
 	void (*gf_end_shadow_map)();
 	void (*gf_clear_shadow_map)();
-
-	bool (*gf_set_shader_flag)(uint shader_flags);
 } screen;
 
 // handy macro
@@ -968,8 +981,6 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_end_shadow_map				GR_CALL(*gr_screen.gf_end_shadow_map)
 #define gr_clear_shadow_map				GR_CALL(*gr_screen.gf_clear_shadow_map)
 
-#define gr_set_shader_flag				GR_CALL(*gr_screen.gf_set_shader_flag)
-
 // color functions
 void gr_get_color( int *r, int *g, int  b );
 void gr_init_color(color *c, int r, int g, int b);
@@ -1057,13 +1068,25 @@ struct vertex_format_data
 class vertex_layout
 {
 	SCP_vector<vertex_format_data> Vertex_components;
+
+	uint Vertex_mask;
 public:
-	vertex_layout(){}
+	vertex_layout(): Vertex_mask(0) {}
 
 	uint get_num_vertex_components() { return Vertex_components.size(); }
+
 	vertex_format_data* get_vertex_component(uint index) { return &Vertex_components[index]; }
+
+	bool resident_vertex_format(vertex_format_data::vertex_format format_type) { return Vertex_mask & (1 << format_type) ? true : false; } 
+
 	void add_vertex_component(vertex_format_data::vertex_format format_type, uint stride, void* src) 
 	{
+		if ( resident_vertex_format(format_type) ) {
+			// we already have a vertex component of this format type
+			return;
+		}
+
+		Vertex_mask |= (1 << format_type);
 		Vertex_components.push_back(vertex_format_data(format_type, stride, src));
 	}
 };
