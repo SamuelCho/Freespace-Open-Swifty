@@ -1091,6 +1091,6 @@ public:
 	}
 };
 
-void gr_clear_shaders_cache();
+
 
 #endif

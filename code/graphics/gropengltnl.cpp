@@ -35,6 +35,7 @@
 #include "model/model.h"
 #include "weapon/trails.h"
 #include "graphics/shadows.h"
+#include "graphics/material.h"
 
 extern int GLOWMAP;
 extern int CLOAKMAP;
@@ -2277,7 +2278,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 
 			GL_state.Uniform.setUniform3f("clip_normal", normal);
 			GL_state.Uniform.setUniform3f("clip_position", pos);
-			GL_state.Uniform.setUniformMatrix4f("world_matrix", 0, model_matrix);
+			GL_state.Uniform.setUniformMatrix4f("world_matrix", model_matrix);
 		}
 	}
 
@@ -2328,7 +2329,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 			}
 
 			GL_state.Uniform.setUniformi("alpha_spec", alpha_spec);
-			GL_state.Uniform.setUniformMatrix4fv("envMatrix", 1, GL_FALSE, &texture_mat);
+			GL_state.Uniform.setUniformMatrix4fv("envMatrix", 1, &texture_mat);
 			GL_state.Uniform.setUniformi("sEnvmap", render_pass);
 
 			gr_opengl_tcache_set(ENVMAP, TCACHE_TYPE_CUBEMAP, &u_scale, &v_scale, render_pass);
@@ -2386,9 +2387,9 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 			}
 		}
 
-		GL_state.Uniform.setUniformMatrix4f("shadow_mv_matrix", GL_FALSE, l_matrix);
-		GL_state.Uniform.setUniformMatrix4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
-		GL_state.Uniform.setUniformMatrix4f("model_matrix", GL_FALSE, model_matrix);
+		GL_state.Uniform.setUniformMatrix4f("shadow_mv_matrix", l_matrix);
+		GL_state.Uniform.setUniformMatrix4fv("shadow_proj_matrix", 4, l_proj_matrix);
+		GL_state.Uniform.setUniformMatrix4f("model_matrix", model_matrix);
 		GL_state.Uniform.setUniformf("veryneardist", shadow_veryneardist);
 		GL_state.Uniform.setUniformf("neardist", shadow_neardist);
 		GL_state.Uniform.setUniformf("middist", shadow_middist);
@@ -2411,7 +2412,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 			}
 		}
 
-		GL_state.Uniform.setUniformMatrix4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
+		GL_state.Uniform.setUniformMatrix4fv("shadow_proj_matrix", 4, l_proj_matrix);
 	}
 
 	if ( shader_flags & SDR_FLAG_MODEL_ANIMATED ) {
@@ -2538,4 +2539,79 @@ void opengl_tnl_set_material_distortion(uint flags)
 	GL_state.Texture.SetActiveUnit(1);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Scene_depth_texture);
+}
+
+void gr_opengl_set_material_uniforms(material &m)
+{
+	uniform_handler::uniform_map &uniforms_to_set = m.get_uniforms().get_uniforms();
+
+	uniform_handler::uniform_map::iterator iter;
+
+	for (iter = uniforms_to_set.begin(); iter != uniforms_to_set.end(); ++iter) {
+		const SCP_string &name = iter->first;
+		uniform* container = iter->second;
+
+		if (container->get_data_type() == uniform::INT) {
+			GL_state.Uniform.setUniformi(name, static_cast<uniform_data<int>*>(container)->get_data());
+		} else if (container->get_data_type() == uniform::FLOAT) {
+			GL_state.Uniform.setUniformf(name, static_cast<uniform_data<float>*>(container)->get_data());
+		} else if (container->get_data_type() == uniform::VEC2) {
+			GL_state.Uniform.setUniform2f(name, static_cast<uniform_data<vec2d>*>(container)->get_data());
+		} else if (container->get_data_type() == uniform::VEC3) {
+			GL_state.Uniform.setUniform3f(name, static_cast<uniform_data<vec3d>*>(container)->get_data());
+		} else if (container->get_data_type() == uniform::VEC4) {
+			GL_state.Uniform.setUniform4f(name, static_cast<uniform_data<vec4>*>(container)->get_data());
+		} else if (container->get_data_type() == uniform::MATRIX4) {
+			if (container->is_array()) {
+				uniform_array<matrix4>* container_array = static_cast<uniform_array<matrix4>*>(container);
+				GL_state.Uniform.setUniformMatrix4fv(name, container_array->get_size(), container_array->get_data());
+			} else {
+				GL_state.Uniform.setUniformMatrix4f(name, static_cast<uniform_data<matrix4>*>(container)->get_data());
+			}
+		} else if ( container->get_data_type() == uniform::RENDER_RESOURCE ) {
+			uniform::render_resource r = static_cast<uniform_data<uniform::render_resource>*>(container)->get_data();
+
+			if ( r == uniform::RESOURCE_SHADOW_PROJ_MATRIX ) {
+				matrix4 l_proj_matrix[4];
+
+				for (int i = 0; i < 4; ++i) {
+					for (int j = 0; j < 16; ++j) {
+						l_proj_matrix[i].a1d[j] = lprojmatrix[i][j];
+					}
+				}
+
+				GL_state.Uniform.setUniformMatrix4fv(name, 4, l_proj_matrix);
+			} else if ( r = uniform::RESOURCE_SHADOW_MODELVIEW_MATRIX ) {
+				matrix4 l_matrix;
+
+				for ( int i = 0; i < 16; ++i ) {
+					l_matrix.a1d[i] = lmatrix[i];
+				}
+
+				GL_state.Uniform.setUniformMatrix4f(name, l_matrix);
+			} else if ( r == uniform::RESOURCE_SHADOW_DIST0 ) {
+				GL_state.Uniform.setUniformf(name, shadow_veryneardist);
+			} else if ( r == uniform::RESOURCE_SHADOW_DIST1 ) {
+				GL_state.Uniform.setUniformf(name, shadow_neardist);
+			} else if ( r == uniform::RESOURCE_SHADOW_DIST2 ) {
+				GL_state.Uniform.setUniformf(name, shadow_middist);
+			} else if ( r == uniform::RESOURCE_SHADOW_DIST3 ) {
+				GL_state.Uniform.setUniformf(name, shadow_fardist);
+			} else if (r == uniform::RESOURCE_ENV_TEXTURE_MATRIX) {
+				matrix4 texture_mat;
+
+				for (int i = 0; i < 16; ++i) {
+					texture_mat.a1d[i] = GL_env_texture_matrix[i];
+				}
+
+				GL_state.Uniform.setUniformMatrix4f(name, texture_mat);
+			} else if (r == uniform::RESOURCE_NUM_LIGHTS) {
+				GL_state.Uniform.setUniformi(name, MIN(Num_active_gl_lights, GL_max_lights) - 1);
+			} else if ( r == uniform::RESOURCE_INV_SCREEN_WIDTH ) {
+				GL_state.Uniform.setUniformf(name, 1.0f / gr_screen.max_w);
+			} else if ( r == uniform::RESOURCE_INV_SCREEN_WIDTH ) {
+				GL_state.Uniform.setUniformf(name, 1.0f / gr_screen.max_h);
+			}
+		}
+	}
 }

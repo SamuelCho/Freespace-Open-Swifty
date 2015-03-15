@@ -295,7 +295,21 @@ struct uniform_bind
 	int index;
 
 	int count;
-	int tranpose;
+};
+
+class opengl_uniforms : public uniform_handler 
+{
+public:
+	void setUniforms(uniform_handler& uniforms);
+	void setUniform(const SCP_string &name, const int val);
+	void setUniform(const SCP_string &name, const float val);
+	void setUniform(const SCP_string &name, const float x, const float y);
+	void setUniform(const SCP_string &name, const vec2d &val);
+	void setUniform(const SCP_string &name, const float x, const float y, const float z);
+	void setUniform(const SCP_string &name, const vec3d &val);
+	void setUniform(const SCP_string &name, const vec4 &val);
+	void setUniform(const SCP_string &name, const int count, const matrix4 *val);
+	void setUniform(const SCP_string &name, const matrix4 &val);
 };
 
 class opengl_uniform_state
@@ -315,15 +329,15 @@ class opengl_uniform_state
 public:
 	opengl_uniform_state();
 
-	void setUniformi(SCP_string name, int value);
-	void setUniformf(SCP_string name, float value);
-	void setUniform2f(SCP_string name, float x, float y);
-	void setUniform2f(SCP_string name, vec2d &val);
-	void setUniform3f(SCP_string name, float x, float y, float z);
-	void setUniform3f(SCP_string name, vec3d &value);
-	void setUniform4f(SCP_string name, vec4 &val);
-	void setUniformMatrix4fv(SCP_string name, int count, int transpose, matrix4 *value);
-	void setUniformMatrix4f(SCP_string name, int transpose, matrix4 &val);
+	void setUniformi(const SCP_string &name, const int value);
+	void setUniformf(const SCP_string &name, const float value);
+	void setUniform2f(const SCP_string &name, const float x, const float y);
+	void setUniform2f(const SCP_string &name, const vec2d &val);
+	void setUniform3f(const SCP_string &name, const float x, const float y, const float z);
+	void setUniform3f(const SCP_string &name, const vec3d &value);
+	void setUniform4f(const SCP_string &name, const vec4 &val);
+	void setUniformMatrix4fv(const SCP_string &name, const int count, const matrix4 *value);
+	void setUniformMatrix4f(const SCP_string &name, const matrix4 &val);
 
 	void reset();
 };
