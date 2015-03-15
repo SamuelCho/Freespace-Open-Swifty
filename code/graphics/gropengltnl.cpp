@@ -2277,7 +2277,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 
 			GL_state.Uniform.setUniform3f("clip_normal", normal);
 			GL_state.Uniform.setUniform3f("clip_position", pos);
-			GL_state.Uniform.setUniformMatrix4f("world_matrix", 0, model_matrix);
+			GL_state.Uniform.setUniformMatrix4f("world_matrix", model_matrix);
 		}
 	}
 
@@ -2328,7 +2328,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 			}
 
 			GL_state.Uniform.setUniformi("alpha_spec", alpha_spec);
-			GL_state.Uniform.setUniformMatrix4fv("envMatrix", 1, GL_FALSE, &texture_mat);
+			GL_state.Uniform.setUniformMatrix4fv("envMatrix", 1, &texture_mat);
 			GL_state.Uniform.setUniformi("sEnvmap", render_pass);
 
 			gr_opengl_tcache_set(ENVMAP, TCACHE_TYPE_CUBEMAP, &u_scale, &v_scale, render_pass);
@@ -2386,9 +2386,9 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 			}
 		}
 
-		GL_state.Uniform.setUniformMatrix4f("shadow_mv_matrix", GL_FALSE, l_matrix);
-		GL_state.Uniform.setUniformMatrix4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
-		GL_state.Uniform.setUniformMatrix4f("model_matrix", GL_FALSE, model_matrix);
+		GL_state.Uniform.setUniformMatrix4f("shadow_mv_matrix", l_matrix);
+		GL_state.Uniform.setUniformMatrix4fv("shadow_proj_matrix", 4, l_proj_matrix);
+		GL_state.Uniform.setUniformMatrix4f("model_matrix", model_matrix);
 		GL_state.Uniform.setUniformf("veryneardist", shadow_veryneardist);
 		GL_state.Uniform.setUniformf("neardist", shadow_neardist);
 		GL_state.Uniform.setUniformf("middist", shadow_middist);
@@ -2411,7 +2411,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 			}
 		}
 
-		GL_state.Uniform.setUniformMatrix4fv("shadow_proj_matrix", 4, GL_FALSE, l_proj_matrix);
+		GL_state.Uniform.setUniformMatrix4fv("shadow_proj_matrix", 4, l_proj_matrix);
 	}
 
 	if ( shader_flags & SDR_FLAG_MODEL_ANIMATED ) {

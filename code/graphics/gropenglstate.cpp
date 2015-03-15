@@ -1327,7 +1327,7 @@ int opengl_uniform_state::findUniform(SCP_string &name)
 	}
 }
 
-void opengl_uniform_state::setUniformi(SCP_string name, int val)
+void opengl_uniform_state::setUniformi(const SCP_string &name, const int val)
 {
 	int uniform_index = findUniform(name);
 	bool resident = false;
@@ -1357,7 +1357,6 @@ void opengl_uniform_state::setUniformi(SCP_string name, int val)
 		new_bind.index = uniform_data_ints.size() - 1;
 		new_bind.type = uniform_bind::INT;
 		new_bind.name = name;
-		new_bind.tranpose = false;
 
 		uniforms.push_back(new_bind);
 
@@ -1367,7 +1366,7 @@ void opengl_uniform_state::setUniformi(SCP_string name, int val)
 	vglUniform1iARB(opengl_shader_get_uniform(name.c_str()), val);
 }
 
-void opengl_uniform_state::setUniformf(SCP_string name, float val)
+void opengl_uniform_state::setUniformf(const SCP_string &name, const float val)
 {
 	int uniform_index = findUniform(name);
 	bool resident = false;
@@ -1397,7 +1396,6 @@ void opengl_uniform_state::setUniformf(SCP_string name, float val)
 		new_bind.index = uniform_data_floats.size() - 1;
 		new_bind.type = uniform_bind::FLOAT;
 		new_bind.name = name;
-		new_bind.tranpose = false;
 
 		uniforms.push_back(new_bind);
 
@@ -1407,7 +1405,7 @@ void opengl_uniform_state::setUniformf(SCP_string name, float val)
 	vglUniform1fARB(opengl_shader_get_uniform(name.c_str()), val);
 }
 
-void opengl_uniform_state::setUniform2f(SCP_string name, float x, float y)
+void opengl_uniform_state::setUniform2f(const &SCP_string name, const float x, const float y)
 {
 	vec2d temp;
 
@@ -1417,7 +1415,7 @@ void opengl_uniform_state::setUniform2f(SCP_string name, float x, float y)
 	setUniform2f(name, temp);
 }
 
-void opengl_uniform_state::setUniform2f(SCP_string name, vec2d &val)
+void opengl_uniform_state::setUniform2f(const SCP_string &name, const vec2d &val)
 {
 	int uniform_index = findUniform(name);
 	bool resident = false;
@@ -1447,7 +1445,6 @@ void opengl_uniform_state::setUniform2f(SCP_string name, vec2d &val)
 		new_bind.index = uniform_data_vec2d.size() - 1;
 		new_bind.type = uniform_bind::VEC2;
 		new_bind.name = name;
-		new_bind.tranpose = false;
 
 		uniforms.push_back(new_bind);
 
@@ -1457,7 +1454,7 @@ void opengl_uniform_state::setUniform2f(SCP_string name, vec2d &val)
 	vglUniform2fARB(opengl_shader_get_uniform(name.c_str()), val.x, val.y);
 }
 
-void opengl_uniform_state::setUniform3f(SCP_string name, float x, float y, float z)
+void opengl_uniform_state::setUniform3f(const SCP_string &name, const float x, const float y, const float z)
 {
 	vec3d temp;
 
@@ -1498,7 +1495,6 @@ void opengl_uniform_state::setUniform3f(SCP_string name, vec3d &val)
 		new_bind.index = uniform_data_vec3d.size() - 1;
 		new_bind.type = uniform_bind::VEC3;
 		new_bind.name = name;
-		new_bind.tranpose = false;
 
 		uniforms.push_back(new_bind);
 
@@ -1508,7 +1504,7 @@ void opengl_uniform_state::setUniform3f(SCP_string name, vec3d &val)
 	vglUniform3fARB(opengl_shader_get_uniform(name.c_str()), val.a1d[0], val.a1d[1], val.a1d[2]);
 }
 
-void opengl_uniform_state::setUniform4f(SCP_string name, vec4 &val)
+void opengl_uniform_state::setUniform4f(const SCP_string &name, const vec4 &val)
 {
 	int uniform_index = findUniform(name);
 	bool resident = false;
@@ -1539,7 +1535,6 @@ void opengl_uniform_state::setUniform4f(SCP_string name, vec4 &val)
 		new_bind.index = uniform_data_vec4.size() - 1;
 		new_bind.type = uniform_bind::VEC4;
 		new_bind.name = name;
-		new_bind.tranpose = false;
 
 		uniforms.push_back(new_bind);
 
@@ -1549,7 +1544,7 @@ void opengl_uniform_state::setUniform4f(SCP_string name, vec4 &val)
 	vglUniform4fARB(opengl_shader_get_uniform(name.c_str()), val.a1d[0], val.a1d[1], val.a1d[2], val.a1d[3]);
 }
 
-void opengl_uniform_state::setUniformMatrix4f(SCP_string name, int transpose, matrix4 &val)
+void opengl_uniform_state::setUniformMatrix4f(const SCP_string &name, const matrix4 &val)
 {
 	int uniform_index = findUniform(name);
 	bool resident = false;
@@ -1582,17 +1577,16 @@ void opengl_uniform_state::setUniformMatrix4f(SCP_string name, int transpose, ma
 		//	new_bind.index = num_matrix_uniforms - 1;
 		new_bind.type = uniform_bind::MATRIX4;
 		new_bind.name = name;
-		new_bind.tranpose = transpose;
 
 		uniforms.push_back(new_bind);
 
 		uniform_lookup[name] = uniforms.size()-1;
 	}
 
-	vglUniformMatrix4fvARB(opengl_shader_get_uniform(name.c_str()), 1, transpose, (const GLfloat*)&val);
+	vglUniformMatrix4fvARB(opengl_shader_get_uniform(name.c_str()), 1, GL_FALSE, (const GLfloat*)&val);
 }
 
-void opengl_uniform_state::setUniformMatrix4fv(SCP_string name, int count, int transpose, matrix4 *val)
+void opengl_uniform_state::setUniformMatrix4fv(const SCP_string &name, const int count, const matrix4 *val)
 {
 	int uniform_index = findUniform(name);
 	bool resident = false;
@@ -1636,14 +1630,13 @@ void opengl_uniform_state::setUniformMatrix4fv(SCP_string name, int count, int t
 		//	new_bind.index = num_matrix_uniforms - count;
 		new_bind.type = uniform_bind::MATRIX4;
 		new_bind.name = name;
-		new_bind.tranpose = transpose;
 
 		uniforms.push_back(new_bind);
 
 		uniform_lookup[name] = uniforms.size()-1;
 	}
 
-	vglUniformMatrix4fvARB(opengl_shader_get_uniform(name.c_str()), count, (GLboolean)transpose, (const GLfloat*)val);
+	vglUniformMatrix4fvARB(opengl_shader_get_uniform(name.c_str()), count, GL_FALSE, (const GLfloat*)val);
 }
 
 void opengl_uniform_state::reset()
