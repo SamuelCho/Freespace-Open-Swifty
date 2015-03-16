@@ -1314,7 +1314,7 @@ opengl_uniform_state::opengl_uniform_state()
 {
 }
 
-int opengl_uniform_state::findUniform(SCP_string &name)
+int opengl_uniform_state::findUniform(const SCP_string &name)
 {
 	SCP_map<SCP_string, int>::iterator iter;
 
@@ -1405,7 +1405,7 @@ void opengl_uniform_state::setUniformf(const SCP_string &name, const float val)
 	vglUniform1fARB(opengl_shader_get_uniform(name.c_str()), val);
 }
 
-void opengl_uniform_state::setUniform2f(const &SCP_string name, const float x, const float y)
+void opengl_uniform_state::setUniform2f(const SCP_string &name, const float x, const float y)
 {
 	vec2d temp;
 
@@ -1465,7 +1465,7 @@ void opengl_uniform_state::setUniform3f(const SCP_string &name, const float x, c
 	setUniform3f(name, temp);
 }
 
-void opengl_uniform_state::setUniform3f(SCP_string name, vec3d &val)
+void opengl_uniform_state::setUniform3f(const SCP_string &name, const vec3d &val)
 {
 	int uniform_index = findUniform(name);
 	bool resident = false;
@@ -1554,7 +1554,7 @@ void opengl_uniform_state::setUniformMatrix4f(const SCP_string &name, const matr
 
 		uniform_bind *bind_info = &uniforms[uniform_index];
 
-		if ( bind_info->type == uniform_bind::MATRIX4 && bind_info->count == 1 && bind_info->tranpose == transpose ) {
+		if ( bind_info->type == uniform_bind::MATRIX4 && bind_info->count == 1 ) {
 			if ( vm_matrix_equal(uniform_data_matrix4[bind_info->index], val) ) {
 				return;
 			}

@@ -311,7 +311,7 @@ class opengl_uniform_state
 
 	SCP_map<SCP_string, int> uniform_lookup;
 
-	int findUniform(SCP_string &name);
+	int findUniform(const SCP_string &name);
 public:
 	opengl_uniform_state();
 
