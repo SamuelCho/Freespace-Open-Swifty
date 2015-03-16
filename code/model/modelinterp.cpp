@@ -2929,16 +2929,16 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	// just to be on the safe side
 	// If we're dealing with an attached model (i.e. an external weapon model) we need the object number
 	// of the ship that the weapon is attached to, but nothing else
-	Assert( (Interp_objnum == objnum) || (flags & MR_ATTACHED_MODEL) );
+	Assert( (Interp_objnum == objnum) || (flags & MR_DEPRECATED_ATTACHED_MODEL) );
 
-	if (objnum >= 0 && !(flags & MR_ATTACHED_MODEL)) {
+	if (objnum >= 0 && !(flags & MR_DEPRECATED_ATTACHED_MODEL)) {
 		objp = &Objects[objnum];
 
 		if (objp->type == OBJ_SHIP) {
 			shipp = &Ships[objp->instance];
 
 			if (shipp->flags2 & SF2_GLOWMAPS_DISABLED)
-				flags |= MR_NO_GLOWMAPS;
+				flags |= MR_DEPRECATED_NO_GLOWMAPS;
 		}
 	}
 
@@ -2957,10 +2957,10 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	Interp_thrust_scale_subobj=0;
 
 	if (!Model_texturing)
-		flags |= MR_NO_TEXTURING;
+		flags |= MR_DEPRECATED_NO_TEXTURING;
 
 	if ( !Model_polys )	{
-		flags |= MR_NO_POLYS;
+		flags |= MR_DEPRECATED_NO_POLYS;
 	}
 
 	Interp_flags = flags;			 
@@ -2971,7 +2971,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	Interp_tmap_flags = TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB;
 
 	// if we're in nebula mode, fog everything except for the warp holes and other non-fogged models
-	if((The_mission.flags & MISSION_FLAG_FULLNEB) && (Neb2_render_mode != NEB2_RENDER_NONE) && !(flags & MR_NO_FOGGING)){
+	if((The_mission.flags & MISSION_FLAG_FULLNEB) && (Neb2_render_mode != NEB2_RENDER_NONE) && !(flags & MR_DEPRECATED_NO_FOGGING)){
 		Interp_tmap_flags |= TMAP_FLAG_PIXEL_FOG;
 	}
 
@@ -2981,13 +2981,13 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		if ( (pm->flags & PM_FLAG_ALLOW_TILING) && tiling)
 			Interp_tmap_flags |= TMAP_FLAG_TILED;
 
-		if ( !(Interp_flags & MR_NO_CORRECT) )	{
+		if ( !(Interp_flags & MR_DEPRECATED_NO_CORRECT) )	{
 			Interp_tmap_flags |= TMAP_FLAG_CORRECT;
 		}
 	}
 
-// 	if ( Interp_flags & MR_ANIMATED_SHADER )
-// 		Interp_tmap_flags |= TMAP_ANIMATED_SHADER;
+ 	if ( Interp_flags & MR_DEPRECATED_ANIMATED_SHADER )
+ 		Interp_tmap_flags |= TMAP_ANIMATED_SHADER;
 
 	if ( Interp_desaturate ) {
 		Interp_tmap_flags |= TMAP_FLAG_DESATURATE;
@@ -3002,18 +3002,18 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		return;
 	}
 
-	bool is_outlines_only = (flags & MR_NO_POLYS) && ((flags & MR_SHOW_OUTLINE_PRESET) || (flags & MR_SHOW_OUTLINE));
-	bool is_outlines_only_htl = !Cmdline_nohtl && (flags & MR_NO_POLYS) && (flags & MR_SHOW_OUTLINE_HTL);
+	bool is_outlines_only = (flags & MR_DEPRECATED_NO_POLYS) && ((flags & MR_DEPRECATED_SHOW_OUTLINE_PRESET) || (flags & MR_DEPRECATED_SHOW_OUTLINE));
+	bool is_outlines_only_htl = !Cmdline_nohtl && (flags & MR_DEPRECATED_NO_POLYS) && (flags & MR_DEPRECATED_SHOW_OUTLINE_HTL);
 	bool use_api = !is_outlines_only_htl || (gr_screen.mode == GR_OPENGL);
 
 	g3_start_instance_matrix(pos, orient, use_api);
 
-// 	if ( Interp_flags & MR_SHOW_RADIUS )	{
-// 		if ( !(Interp_flags & MR_SHOW_OUTLINE_PRESET) )	{
-// 			gr_set_color(0,64,0);
-// 			g3_draw_sphere_ez(&vmd_zero_vector,pm->rad);
-// 		}
-// 	}
+ 	if ( Interp_flags & MR_DEPRECATED_SHOW_RADIUS )	{
+ 		if ( !(Interp_flags & MR_DEPRECATED_SHOW_OUTLINE_PRESET) )	{
+ 			gr_set_color(0,64,0);
+ 			g3_draw_sphere_ez(&vmd_zero_vector,pm->rad);
+ 		}
+ 	}
 
 	Assert( pm->n_detail_levels < MAX_MODEL_DETAIL_LEVELS );
 
@@ -3021,7 +3021,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	float depth = model_find_closest_point( &closest_pos, model_num, -1, orient, pos, &Eye_position );
 
 
-	if ( !(Interp_flags & MR_EMPTY_SLOT2) ) {
+	if ( !(Interp_flags & MR_DEPRECATED_LOCK_DETAIL) ) {
 		#if MAX_DETAIL_LEVEL != 4
 		#error Code in modelInterp.cpp assumes MAX_DETAIL_LEVEL == 4
 		#endif
@@ -3045,7 +3045,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		}
 
 		// If we're rendering attached weapon models, check against the ships' tabled Weapon Model Draw Distance (which defaults to 200)
-		if (Interp_flags & MR_ATTACHED_MODEL) {
+		if (Interp_flags & MR_DEPRECATED_ATTACHED_MODEL) {
 			if (depth > Ship_info[Ships[Objects[objnum].instance].ship_info_index].weapon_model_draw_distance) {
 				g3_done_instance(use_api);
 				return;
@@ -3054,7 +3054,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	}
 	if ( pm->n_detail_levels > 1 )	{
 
-		if ( Interp_flags & MR_EMPTY_SLOT2 )	{
+		if ( Interp_flags & MR_DEPRECATED_LOCK_DETAIL )	{
 			i = Interp_detail_level_locked+1;
 		} else {
 			// nebula ?
@@ -3125,7 +3125,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	}
 
 	vec3d auto_back = ZERO_VECTOR;
-	if (Interp_flags & MR_AUTOCENTER) {
+	if (Interp_flags & MR_DEPRECATED_AUTOCENTER) {
 		// standard autocenter using data in model
 		if (pm->flags & PM_FLAG_AUTOCEN) {
 			auto_back = pm->autocenter;
@@ -3133,7 +3133,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 			set_autocen = true;
 		}
 		// fake autocenter if we are a missile and don't already have autocen info
-		else if (Interp_flags & MR_IS_MISSILE) {
+		else if (Interp_flags & MR_DEPRECATED_IS_MISSILE) {
             auto_back.xyz.x = -( (pm->submodel[pm->detail[Interp_detail_level]].max.xyz.x + pm->submodel[pm->detail[Interp_detail_level]].min.xyz.x) / 2.0f );
             auto_back.xyz.y = -( (pm->submodel[pm->detail[Interp_detail_level]].max.xyz.y + pm->submodel[pm->detail[Interp_detail_level]].min.xyz.y) / 2.0f );
 			auto_back.xyz.z = -( (pm->submodel[pm->detail[Interp_detail_level]].max.xyz.z + pm->submodel[pm->detail[Interp_detail_level]].min.xyz.z) / 2.0f );
@@ -3159,16 +3159,16 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		gr_set_fill_mode( GR_FILL_MODE_WIRE );
 		gr_set_color_fast( &Interp_outline_color );
 		// lines shouldn't be rendered with textures or special RGB colors (assuming preset colors)
-		Interp_flags |= MR_NO_TEXTURING;
+		Interp_flags |= MR_DEPRECATED_NO_TEXTURING;
 		Interp_tmap_flags &= ~TMAP_FLAG_TEXTURED;
 		Interp_tmap_flags &= ~TMAP_FLAG_RGB;
 		// don't render with lighting either
-		Interp_flags |= MR_NO_LIGHTING;
+		Interp_flags |= MR_DEPRECATED_NO_LIGHTING;
 	} else {
 		gr_set_fill_mode( GR_FILL_MODE_SOLID );
 	}
 
-	if ( (Interp_flags & MR_NO_ZBUFFER) || (Interp_flags & MR_ALL_XPARENT) ) {
+	if ( (Interp_flags & MR_DEPRECATED_NO_ZBUFFER) || (Interp_flags & MR_DEPRECATED_ALL_XPARENT) ) {
 		zbuf_mode = GR_ZBUFF_NONE;
 	} else {
 		zbuf_mode = GR_ZBUFF_FULL;
@@ -3176,33 +3176,33 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 	gr_zbuffer_set(zbuf_mode);
 
-	if (Interp_flags & MR_EDGE_ALPHA) {
+	if (Interp_flags & MR_DEPRECATED_EDGE_ALPHA) {
 		gr_center_alpha(-1);
-	} else if (Interp_flags & MR_CENTER_ALPHA) {
+	} else if (Interp_flags & MR_DEPRECATED_CENTER_ALPHA) {
 		gr_center_alpha(1);
 	} else {
 		gr_center_alpha(0);
 	}
 
-	if ( (Interp_flags & MR_NO_CULL) || (Interp_flags & MR_ALL_XPARENT) || (Interp_warp_bitmap >= 0) ) {
+	if ( (Interp_flags & MR_DEPRECATED_NO_CULL) || (Interp_flags & MR_DEPRECATED_ALL_XPARENT) || (Interp_warp_bitmap >= 0) ) {
 		cull = gr_set_cull(0);
 	} else {
 		cull = gr_set_cull(1);
 	}
 
-	if ( !(Interp_flags & MR_NO_LIGHTING) ) {
+	if ( !(Interp_flags & MR_DEPRECATED_NO_LIGHTING) ) {
 		gr_set_lighting(true, true);
 	}
 
 	// rotate lights
-	if ( !(Interp_flags & MR_NO_LIGHTING) )	{
+	if ( !(Interp_flags & MR_DEPRECATED_NO_LIGHTING) )	{
 		light_rotate_all();
  
 		if ( !Cmdline_nohtl ) {
 			light_set_all_relevent();
 		}
 	}
-	if ( !(Interp_flags & MR_NO_LIGHTING) && (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) ) {
+	if ( !(Interp_flags & MR_DEPRECATED_NO_LIGHTING) && (is_outlines_only_htl || (!Cmdline_nohtl && !is_outlines_only)) ) {
 		opengl_change_active_lights(0); // Set up OpenGl lighting;
 	}
 
@@ -3273,20 +3273,20 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		gr_set_fill_mode(GR_FILL_MODE_SOLID);
 	}
 
-	if ( !(Interp_flags & MR_NO_LIGHTING) ) {
+	if ( !(Interp_flags & MR_DEPRECATED_NO_LIGHTING) ) {
 		gr_reset_lighting();
 		gr_set_lighting(false, false);
 	}
 
-// 	if (Interp_flags & MR_SHOW_PIVOTS )	{
-// 		model_draw_debug_points( pm, NULL, Interp_flags );
-// 		model_draw_debug_points( pm, &pm->submodel[pm->detail[Interp_detail_level]], Interp_flags );
-// 
-// 		if(pm->flags & PM_FLAG_AUTOCEN){
-// 			gr_set_color(255, 255, 255);
-// 			g3_draw_sphere_ez(&pm->autocenter, pm->rad / 4.5f);
-// 		}
-// 	}
+ 	if (Interp_flags & MR_DEPRECATED_SHOW_PIVOTS )	{
+ 		model_draw_debug_points( pm, NULL, Interp_flags );
+ 		model_draw_debug_points( pm, &pm->submodel[pm->detail[Interp_detail_level]], Interp_flags );
+ 
+ 		if(pm->flags & PM_FLAG_AUTOCEN){
+ 			gr_set_color(255, 255, 255);
+ 			g3_draw_sphere_ez(&pm->autocenter, pm->rad / 4.5f);
+ 		}
+ 	}
 
 	model_radius = 0.0f;
 
@@ -3296,7 +3296,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 	if (!Cmdline_nohtl)	gr_set_texture_panning(0.0, 0.0, false);
 
 	gr_zbuffer_set(GR_ZBUFF_READ);
-	if(!(Interp_flags & MR_NO_TEXTURING))
+	if(!(Interp_flags & MR_DEPRECATED_NO_TEXTURING))
 		model_render_insignias(pm, Interp_detail_level, Interp_insignia_bitmap);	
 
 	gr_zbias(0);  
@@ -3307,21 +3307,21 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 		interp_render_lightning( pm, &pm->submodel[pm->detail[0]]);
 	}	
 
-// 	if ( Interp_flags & MR_SHOW_SHIELDS )	{
-// 		model_render_shields(pm, Interp_flags);
-// 	}	
+ 	if ( Interp_flags & MR_DEPRECATED_SHOW_SHIELDS )	{
+ 		model_render_shields(pm, Interp_flags);
+ 	}	
 
-// 	if ( Interp_flags & MR_SHOW_PATHS ){
-// 		if (Cmdline_nohtl) model_draw_paths(model_num, Interp_flags);
-// 		else model_draw_paths_htl(model_num, Interp_flags);
-// 	}
+ 	if ( Interp_flags & MR_DEPRECATED_SHOW_PATHS ){
+ 		if (Cmdline_nohtl) model_draw_paths(model_num, Interp_flags);
+ 		else model_draw_paths_htl(model_num, Interp_flags);
+ 	}
 
-// 	if (Interp_flags & MR_BAY_PATHS ){
-// 		if (Cmdline_nohtl) model_draw_bay_paths(model_num);
-// 		else model_draw_bay_paths_htl(model_num);
-// 	}
+ 	if (Interp_flags & MR_DEPRECATED_BAY_PATHS ){
+ 		if (Cmdline_nohtl) model_draw_bay_paths(model_num);
+ 		else model_draw_bay_paths_htl(model_num);
+ 	}
 
-	if ( (Interp_flags & MR_AUTOCENTER) && (set_autocen) ) {
+	if ( (Interp_flags & MR_DEPRECATED_AUTOCENTER) && (set_autocen) ) {
 		g3_done_instance(use_api);
 	}
 
@@ -3334,7 +3334,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 	// Draw the thruster glow
 	if ( !is_outlines_only && !is_outlines_only_htl ) {
-		if ( ( Interp_flags & MR_AUTOCENTER ) && set_autocen ) {
+		if ( ( Interp_flags & MR_DEPRECATED_AUTOCENTER ) && set_autocen ) {
 			vec3d autoback_rotated;
 
 			vm_vec_unrotate(&autoback_rotated, &auto_back, orient);

@@ -3637,14 +3637,14 @@ void weapon_render_DEPRECATED(object *obj)
 
 		case WRT_POF:
 		{
-			uint render_flags = MR_NORMAL|MR_IS_MISSILE|MR_NO_LIGHTING;
+			uint render_flags = MR_DEPRECATED_NORMAL|MR_DEPRECATED_IS_MISSILE|MR_DEPRECATED_NO_LIGHTING;
 
 			if (Cmdline_missile_lighting && !(wip->wi_flags2 & WIF2_MR_NO_LIGHTING))
-				render_flags &= ~MR_NO_LIGHTING;
+				render_flags &= ~MR_DEPRECATED_NO_LIGHTING;
 
 			if (wip->wi_flags2 & WIF2_TRANSPARENT) {
 				model_set_alpha(wp->alpha_current);
-				render_flags |= MR_ALL_XPARENT;
+				render_flags |= MR_DEPRECATED_ALL_XPARENT;
 			}
 
 			model_clear_instance(wip->model_num);
@@ -3670,7 +3670,7 @@ void weapon_render_DEPRECATED(object *obj)
 
 				model_set_thrust(wip->model_num, &mst);
 
-				render_flags |= MR_SHOW_THRUSTERS;
+				render_flags |= MR_DEPRECATED_SHOW_THRUSTERS;
 			}
 
 

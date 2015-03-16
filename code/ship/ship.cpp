@@ -6074,10 +6074,10 @@ void ship_render_DEPRECATED(object * obj)
 
 		ship_model_start(obj);
 
-		uint render_flags = MR_NORMAL;
+		uint render_flags = MR_DEPRECATED_NORMAL;
 	#ifndef NDEBUG
 // 		if(Show_paths || Show_fpaths){
-// 			render_flags |= MR_BAY_PATHS;
+// 			render_flags |= MR_DEPRECATED_BAY_PATHS;
 // 		}
 	#endif
 
@@ -6264,7 +6264,7 @@ void ship_render_DEPRECATED(object * obj)
 
 				model_set_thrust(sip->model_num, &mst);
 
-				render_flags |= MR_SHOW_THRUSTERS;
+				render_flags |= MR_DEPRECATED_SHOW_THRUSTERS;
 			}
 
 			// fill the model flash lighting values in
@@ -6331,7 +6331,7 @@ void ship_render_DEPRECATED(object * obj)
 				if(shipp->shader_effect_active && Use_GLSL > 1)
 				{
 					float timer;
-					//render_flags |= (MR_ANIMATED_SHADER);
+					render_flags |= (MR_DEPRECATED_ANIMATED_SHADER);
 
 					ship_effect* sep = &Ship_effects[shipp->shader_effect_num];
 					
@@ -6359,10 +6359,10 @@ void ship_render_DEPRECATED(object * obj)
 				}
 
 				if(sip->flags2 & SIF2_NO_LIGHTING)
-					render_flags |= MR_NO_LIGHTING;
+					render_flags |= MR_DEPRECATED_NO_LIGHTING;
 			}
 			if(in_shadow_map)
-				render_flags = MR_NO_TEXTURING | MR_NO_LIGHTING;
+				render_flags = MR_DEPRECATED_NO_TEXTURING | MR_DEPRECATED_NO_LIGHTING;
 
 			//draw weapon models
 			if ((sip->flags2 & SIF2_DRAW_WEAPON_MODELS) && !(shipp->flags2 & SF2_CLOAKED)) {
@@ -6372,8 +6372,8 @@ void ship_render_DEPRECATED(object * obj)
 			
 				int save_flags = render_flags;
 		
-				render_flags &= ~MR_SHOW_THRUSTERS;
-				render_flags |= MR_ATTACHED_MODEL;
+				render_flags &= ~MR_DEPRECATED_SHOW_THRUSTERS;
+				render_flags |= MR_DEPRECATED_ATTACHED_MODEL;
 
 				//primary weapons
 				for (i = 0; i < swp->num_primary_banks; i++) {
