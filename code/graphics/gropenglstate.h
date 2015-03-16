@@ -311,19 +311,19 @@ class opengl_uniform_state
 
 	SCP_map<SCP_string, int> uniform_lookup;
 
-	int findUniform(SCP_string &name);
+	int findUniform(const SCP_string &name);
 public:
 	opengl_uniform_state();
 
-	void setUniformi(SCP_string name, int value);
-	void setUniformf(SCP_string name, float value);
-	void setUniform2f(SCP_string name, float x, float y);
-	void setUniform2f(SCP_string name, vec2d &val);
-	void setUniform3f(SCP_string name, float x, float y, float z);
-	void setUniform3f(SCP_string name, vec3d &value);
-	void setUniform4f(SCP_string name, vec4 &val);
-	void setUniformMatrix4fv(SCP_string name, int count, int transpose, matrix4 *value);
-	void setUniformMatrix4f(SCP_string name, int transpose, matrix4 &val);
+	void setUniformi(const SCP_string &name, const int value);
+	void setUniformf(const SCP_string &name, const float value);
+	void setUniform2f(const SCP_string &name, const float x, const float y);
+	void setUniform2f(const SCP_string &name, const vec2d &val);
+	void setUniform3f(const SCP_string &name, const float x, const float y, const float z);
+	void setUniform3f(const SCP_string &name, const vec3d &value);
+	void setUniform4f(const SCP_string &name, const vec4 &val);
+	void setUniformMatrix4fv(const SCP_string &name, const int count, const matrix4 *value);
+	void setUniformMatrix4f(const SCP_string &name, const matrix4 &val);
 
 	void reset();
 };

@@ -17,27 +17,55 @@
 
 #include <string>
 
-#define MAX_SHADER_UNIFORMS		15
+#define MAX_SHADER_UNIFORMS		20
 
 #define SDR_ATTRIB_RADIUS		0
 #define SDR_ATTRIB_SUBMODEL		1
 
-#define MAX_SDR_ATTRIBUTES		4
+#define MAX_SDR_ATTRIBUTES		5
 
-#define MAX_SDR_UNIFORM_BLOCKS	4
-
-struct opengl_shader_flag_t {
-	char *vert;
-	char *frag;
-
-	int flags;
-};
+#define MAX_SDR_UNIFORM_BLOCKS	5
 
 struct geometry_sdr_params
 {
 	int input_type;
 	int output_type;
 	int vertices_out;
+};
+
+struct opengl_shader_type_t {
+	shader_type type_id;
+
+	char *vert;
+	char *frag;
+	char *geo;
+
+	geometry_sdr_params geo_sdr_info;
+
+	int num_uniforms;
+	char* uniforms[MAX_SHADER_UNIFORMS];
+
+	int num_attributes;
+	char* attributes[MAX_SDR_ATTRIBUTES];
+
+	const char* description;
+};
+
+struct opengl_shader_variant_t {
+	shader_type type_id;
+
+	bool use_geometry_sdr;
+
+	int flag;
+	SCP_string flag_text;
+
+	int num_uniforms;
+	char* uniforms[MAX_SHADER_UNIFORMS];
+
+	int num_attributes;
+	char* attributes[MAX_SDR_ATTRIBUTES];
+
+	const char* description;
 };
 
 struct opengl_shader_file_t {
@@ -52,6 +80,8 @@ struct opengl_shader_file_t {
 
 	int num_attributes;
 	char* attributes[MAX_SDR_ATTRIBUTES];
+
+	const char* description;
 };
 
 struct opengl_shader_uniform_reference_t {
@@ -78,6 +108,8 @@ typedef struct opengl_shader_uniform_t {
 
 typedef struct opengl_shader_t {
 	GLhandleARB program_id;
+
+	shader_type shader;
 	unsigned int flags;
 	int flags2;
 
@@ -92,25 +124,22 @@ typedef struct opengl_shader_t {
 } opengl_shader_t;
 
 extern SCP_vector<opengl_shader_t> GL_shader;
-extern SCP_vector<opengl_shader_t> GL_effect_shaders;
 
 extern opengl_shader_t *Current_shader;
-extern opengl_shader_t Deferred_light_shader;
-extern opengl_shader_t Deferred_clear_shader;
 
 extern geometry_sdr_params *Current_geo_sdr_params;
 
-int opengl_shader_get_effect_shader(uint flags);
-
-int gr_opengl_maybe_create_shader(unsigned int flags);
+int gr_opengl_maybe_create_shader(shader_type shader, unsigned int flags);
+void opengl_delete_shader(int sdr_handle);
 void opengl_shader_set_current(opengl_shader_t *shader_obj = NULL);
+void opengl_shader_set_current(int handle);
 
 void opengl_shader_set_passthrough(bool textured = true, bool alpha = false);
 
 void opengl_shader_init();
 void opengl_shader_shutdown();
 
-void opengl_compile_main_shader(unsigned int flags);
+int opengl_compile_shader(shader_type sdr, uint flags);
 GLhandleARB opengl_shader_create(const char *vs, const char *fs, const char *gs);
 
 void opengl_shader_init_attribute(const char *attribute_text);

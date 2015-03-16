@@ -121,7 +121,13 @@ typedef struct matrix {
 } matrix;
 
 typedef struct matrix4 {
-	float a1d[16];
+	union {
+		struct {
+			vec4 rvec, uvec, fvec, pos;
+		} vec;
+		float a2d[4][4];
+		float a1d[16];
+	};
 } matrix4;
 
 typedef struct uv_pair {
@@ -178,6 +184,14 @@ typedef struct effect_vertex {
 	float radius;
 	ubyte r, g, b, a;
 } effect_vertex;
+
+struct fx_vertex {
+	vec3d position;
+	vec3d normal;
+	uv_pair tex_coord;
+	float size;
+	ubyte r, g, b, a;
+};
 
 struct particle_pnt {
 	vec3d position;

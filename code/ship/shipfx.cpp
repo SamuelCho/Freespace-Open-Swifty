@@ -1828,7 +1828,7 @@ static void half_ship_render_ship_and_debris(clip_ship* half_ship,ship *shipp)
 	g3_start_user_clip_plane( &debris_clip_plane_pt, &clip_plane_norm);
 
 	// set up render flags
-	uint render_flags = MR_NORMAL;
+	uint render_flags = MR_DEPRECATED_NORMAL;
 
 	for (int i=0; i<pm->num_debris_objects; i++ )	{
 		// draw DEBRIS_FREE in test only

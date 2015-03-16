@@ -29,13 +29,7 @@
 #include "cmdline/cmdline.h"
 #include "mod_table/mod_table.h"
 
-
 SCP_vector<opengl_shader_t> GL_shader;
-opengl_shader_t Deferred_light_shader;
-opengl_shader_t Deferred_clear_shader;
-opengl_shader_t Passthrough_shader;
-
-SCP_vector<opengl_shader_t> GL_effect_shaders;
 
 static char *GLshader_info_log = NULL;
 static const int GLshader_info_log_size = 8192;
@@ -44,63 +38,165 @@ GLuint Framebuffer_fallback_texture_id = 0;
 static int GL_anim_effect_num = 0;
 static float GL_anim_timer = 0.0f;
 
-geometry_sdr_params Geo_transform = {GL_TRIANGLES, GL_TRIANGLE_STRIP, 3};
-geometry_sdr_params Particle_billboards = {GL_POINTS, GL_TRIANGLE_STRIP, 4};
-geometry_sdr_params Trail_billboards = {GL_LINES, GL_TRIANGLE_STRIP, 4};
-
 geometry_sdr_params *Current_geo_sdr_params = NULL;
+
+static opengl_shader_type_t GL_shader_types[] = {
+	{ shader_type::MODEL, "main-v.sdr", "main-f.sdr", "main-g.sdr", {GL_TRIANGLES, GL_TRIANGLE_STRIP, 3}, 
+		0, {}, 0, {}, "Model Rendering" },
+
+	{ shader_type::EFFECT_PARTICLE, "effect-v.sdr", "effect-particle-f.sdr", "effect-screen-g.sdr", {GL_POINTS, GL_TRIANGLE_STRIP, 4}, 
+		8, { "baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth", "srgb" }, 1, {"radius"}, "Particle Effects" },
+
+	{ shader_type::EFFECT_DISTORTION, "effect-v.sdr", "effect-distort-f.sdr", 0, { 0, 0, 0 }, 
+		6, { "baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset" }, 1, { "radius" }, "Distortion Effects" },
+
+	{ shader_type::POST_PROCESS_MAIN, "post-v.sdr", "post-f.sdr", 0, {0, 0, 0}, 
+		5, { "tex", "depth_tex", "timer", "bloomed", "bloom_intensity" }, 0, { NULL }, "Post Processing" },
+
+	{ shader_type::POST_PROCESS_BLUR, "post-v.sdr", "blur-f.sdr", 0, {0, 0, 0}, 
+		2, { "tex", "bsize", "debug" }, 0, { NULL }, "Gaussian Blur" },
+
+	{ shader_type::POST_PROCESS_BRIGHTPASS, "post-v.sdr", "brightpass-f.sdr", 0, { 0, 0, 0 },
+		1, { "tex" }, 0, { NULL }, "Bloom Brightpass" },
+
+	{ shader_type::POST_PROCESS_FXAA, "fxaa-v.sdr", "fxaa-f.sdr", 0, {0, 0, 0}, 
+		3, { "tex0", "rt_w", "rt_h" }, 0, { NULL }, "FXAA" },
+
+	{ shader_type::POST_PROCESS_FXAA_PREPASS, "post-v.sdr", "fxaapre-f.sdr", 0, {0, 0, 0}, 
+		1, { "tex" }, 0, { NULL }, "FXAA Prepass" },
+
+	{ shader_type::POST_PROCESS_LIGHTSHAFTS, "post-v.sdr", "ls-f.sdr", 0, {0, 0, 0}, 
+		8, { "scene", "cockpit", "sun_pos", "weight", "intensity", "falloff", "density", "cp_intensity" }, 0, { NULL }, "Lightshafts" },
+
+	{ shader_type::DEFERRED_LIGHTING, "deferred-v.sdr", "deferred-f.sdr", 0, { 0, 0, 0 }, 
+		16, { "Scale", "ColorBuffer", "NormalBuffer", "PositionBuffer", "SpecBuffer", "vpwidth", "vpheight", "lighttype", "lightradius", "diffuselightcolor", 
+		"speclightcolor", "dual_cone", "coneDir", "cone_angle", "cone_inner_angle", "spec_factor" }, 0, { NULL }, "Deferred Lighting" },
+	
+	{ shader_type::DEFERRED_CLEAR, "deferred-clear-v.sdr", "deferred-clear-f.sdr", 0, {0, 0, 0}, 
+		0, { NULL }, 0, { NULL }, "Clear Deferred Lighting Buffer" },
+
+	{ shader_type::VIDEO_PROCESS, "video-v.sdr", "video-f.sdr", 0, {0, 0, 0}, 
+		3, { "ytex", "utex", "vtex" }, 0, { NULL }, "Video Playback" },
+
+	{ shader_type::PASSTHROUGH_RENDER, "passthrough-v.sdr", "passthrough-f.sdr", 0, { 0, 0, 0 },
+		4, { "baseMap", "no_texturing", "alpha_texture", "srgb" }, 0, { NULL }, "Passthrough" }
+};
+
+static opengl_shader_variant_t GL_shader_variants[] = {
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_LIGHT, "FLAG_LIGHT", 
+		2, { "n_lights", "light_factor" }, 0, { NULL }, 
+		"Lighting" },
+
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_FOG, "FLAG_FOG", 
+		0, { NULL }, 0, { NULL }, 
+		"Fog Effect" },
+
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_DIFFUSE_MAP, "FLAG_DIFFUSE_MAP", 
+		4, { "sBasemap", "desaturate", "desaturate_clr", "blend_alpha" }, 0, { NULL }, 
+		"Diffuse Mapping" },
+	
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_GLOW_MAP, "FLAG_GLOW_MAP", 
+		1, { "sGlowmap" }, 0, { NULL }, 
+		"Glow Mapping" },
+	
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_SPEC_MAP, "FLAG_SPEC_MAP", 
+		1, { "sSpecmap" }, 0, { NULL }, 
+		"Specular Mapping" },
+	
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_NORMAL_MAP, "FLAG_NORMAL_MAP", 
+		1, { "sNormalmap" }, 0, { NULL }, 
+		"Normal Mapping" },
+	
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_HEIGHT_MAP, "FLAG_HEIGHT_MAP", 
+		1, { "sHeightmap" }, 0, { NULL }, 
+		"Parallax Mapping" },
+	
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_ENV_MAP, "FLAG_ENV_MAP", 
+		3, { "sEnvmap", "alpha_spec", "envMatrix" }, 0, { NULL }, 
+		"Environment Mapping" },
+	
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_ANIMATED, "FLAG_ANIMATED", 
+		5, { "sFramebuffer", "effect_num", "anim_timer", "vpwidth", "vpheight" }, 0, { NULL }, 
+		"Animated Effects" },
+	
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_MISC_MAP, "FLAG_MISC_MAP", 
+		1, { "sMiscmap" }, 0, { NULL }, 
+		"Utility mapping" },
+	
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_TEAMCOLOR, "FLAG_TEAMCOLOR", 
+		2, { "stripe_color", "base_color" }, 0, { NULL }, 
+		"Team Colors" },
+	
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_DEFERRED, "FLAG_DEFERRED", 
+		0, { NULL }, 0, { NULL }, 
+		"Deferred lighting" },
+	
+	{ shader_type::MODEL, true, SDR_FLAG_MODEL_SHADOW_MAP, "FLAG_SHADOW_MAP", 
+		1, { "shadow_proj_matrix" }, 0, { NULL }, 
+		"Shadow Mapping" },
+	
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_SHADOWS, "FLAG_SHADOWS", 
+		8, { "shadow_map", "shadow_mv_matrix", "shadow_proj_matrix", "model_matrix", "veryneardist", "neardist", "middist", "fardist" }, 0, { NULL }, 
+		"Shadows" },
+	
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_THRUSTER, "FLAG_THRUSTER", 
+		1, { "thruster_scale" }, 0, { NULL }, 
+		"Thruster scaling" },
+	
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_TRANSFORM, "FLAG_TRANSFORM", 
+		2, { "transform_tex", "buffer_matrix_offset" }, 1, { "model_id" }, 
+		"Submodel Transforms" },
+	
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_CLIP, "FLAG_CLIP", 
+		4, { "use_clip_plane", "world_matrix", "clip_normal", "clip_position" }, 0, { NULL }, 
+		"Clip Plane" },
+
+	{ shader_type::MODEL, false, SDR_FLAG_MODEL_HDR, "FLAG_HDR",
+		0, { NULL }, 0, { NULL}, "High Dynamic Range" },
+	
+	{ shader_type::EFFECT_PARTICLE, true, SDR_FLAG_PARTICLE_POINT_GEN, "FLAG_EFFECT_GEOMETRY", 
+		0, { NULL }, 1, { "uvec" },
+		"Geometry shader point-based particles" },
+	
+	{ shader_type::POST_PROCESS_BLUR, false, SDR_FLAG_BLUR_HORIZONTAL, "PASS_0", 
+		0, { NULL }, 0, { NULL },
+		"Horizontal blur pass" },
+	
+	{ shader_type::POST_PROCESS_BLUR, false, SDR_FLAG_BLUR_VERTICAL, "PASS_1", 
+		0, { NULL }, 0, { NULL },
+		"Vertical blur pass" }
+};
+
+static const int GL_num_shader_variants = sizeof(GL_shader_variants) / sizeof(opengl_shader_variant_t);
 
 /**
  * Static lookup reference for main shader uniforms
  * When adding a new SDR_ flag, list all associated uniforms and attributes here
  */
 static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
-	{ SDR_FLAG_LIGHT,		2, {"n_lights", "light_factor"}, 0, {}, 0, {}, "Lighting" },
-	{ SDR_FLAG_FOG,			0, { NULL }, 0, { NULL }, 0, {}, "Fog Effect" },
-	{ SDR_FLAG_DIFFUSE_MAP, 4, {"sBasemap", "desaturate", "desaturate_clr", "blend_alpha"}, 0, { NULL }, 0, {}, "Diffuse Mapping"},
-	{ SDR_FLAG_GLOW_MAP,	1, {"sGlowmap"}, 0, { NULL }, 0, {}, "Glow Mapping" },
-	{ SDR_FLAG_SPEC_MAP,	1, {"sSpecmap"}, 0, { NULL }, 0, {}, "Specular Mapping" },
-	{ SDR_FLAG_NORMAL_MAP,	1, {"sNormalmap"}, 0, { NULL }, 0, {}, "Normal Mapping" },
-	{ SDR_FLAG_HEIGHT_MAP,	1, {"sHeightmap"}, 0, { NULL }, 0, {}, "Parallax Mapping" },
-	{ SDR_FLAG_ENV_MAP,		3, {"sEnvmap", "alpha_spec", "envMatrix"}, 0, { NULL }, 0, {}, "Environment Mapping" },
-	{ SDR_FLAG_ANIMATED,	5, {"sFramebuffer", "effect_num", "anim_timer", "vpwidth", "vpheight"}, 0, { NULL }, 0, {}, "Animated Effects" },
-	{ SDR_FLAG_MISC_MAP,	1, {"sMiscmap"}, 0, { NULL }, 0, {}, "Utility mapping" },
-	{ SDR_FLAG_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, { NULL }, 0, {}, "Team Colors" },
-	{ SDR_FLAG_DEFERRED,	0, { NULL }, 0, { NULL} , 0, {}, "Deferred lighting" },
-	{ SDR_FLAG_GEOMETRY,	1, { "shadow_proj_matrix" }, 0, { NULL }, 0, {}, "Geometry Transformation" },
-	{ SDR_FLAG_SHADOW_MAP,	2, { "shadow_map_num", "shadow_proj_matrix" }, 0, { NULL }, 0, {}, "Shadow Mapping" },
-	{ SDR_FLAG_SHADOWS,		8, { "shadow_map", "shadow_mv_matrix", "shadow_proj_matrix", "model_matrix", "veryneardist", "neardist", "middist", "fardist" }, 0, { NULL }, 0, {}, "Shadows" },
-	{ SDR_FLAG_THRUSTER,	1, {"thruster_scale"}, 0, { NULL }, 0, {}, "Thruster scaling" },
-	{ SDR_FLAG_TRANSFORM,	2, {"transform_tex", "buffer_matrix_offset"}, 1, {"model_id"}, 0, { NULL }, "Submodel Transforms" },
-	{ SDR_FLAG_CLIP,		4, {"use_clip_plane", "world_matrix", "clip_normal", "clip_position"}, 0, { NULL }, 0, { NULL }, "Clip Plane" },
-	{ SDR_FLAG_HDR,			0, { NULL }, 0, { NULL} , 0, {}, "High Dynamic Range" }
+	{ SDR_FLAG_MODEL_LIGHT,		2, {"n_lights", "light_factor"}, 0, {}, 0, {}, "Lighting" },
+	{ SDR_FLAG_MODEL_FOG,			0, { NULL }, 0, { NULL }, 0, {}, "Fog Effect" },
+	{ SDR_FLAG_MODEL_DIFFUSE_MAP, 4, {"sBasemap", "desaturate", "desaturate_clr", "blend_alpha"}, 0, { NULL }, 0, {}, "Diffuse Mapping"},
+	{ SDR_FLAG_MODEL_GLOW_MAP,	1, {"sGlowmap"}, 0, { NULL }, 0, {}, "Glow Mapping" },
+	{ SDR_FLAG_MODEL_SPEC_MAP,	1, {"sSpecmap"}, 0, { NULL }, 0, {}, "Specular Mapping" },
+	{ SDR_FLAG_MODEL_NORMAL_MAP,	1, {"sNormalmap"}, 0, { NULL }, 0, {}, "Normal Mapping" },
+	{ SDR_FLAG_MODEL_HEIGHT_MAP,	1, {"sHeightmap"}, 0, { NULL }, 0, {}, "Parallax Mapping" },
+	{ SDR_FLAG_MODEL_ENV_MAP,		3, {"sEnvmap", "alpha_spec", "envMatrix"}, 0, { NULL }, 0, {}, "Environment Mapping" },
+	{ SDR_FLAG_MODEL_ANIMATED,	5, {"sFramebuffer", "effect_num", "anim_timer", "vpwidth", "vpheight"}, 0, { NULL }, 0, {}, "Animated Effects" },
+	{ SDR_FLAG_MODEL_MISC_MAP,	1, {"sMiscmap"}, 0, { NULL }, 0, {}, "Utility mapping" },
+	{ SDR_FLAG_MODEL_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, { NULL }, 0, {}, "Team Colors" },
+	{ SDR_FLAG_MODEL_DEFERRED,	0, { NULL }, 0, { NULL} , 0, {}, "Deferred lighting" },
+	{ SDR_FLAG_MODEL_GEOMETRY,	1, { "shadow_proj_matrix" }, 0, { NULL }, 0, {}, "Geometry Transformation" },
+	{ SDR_FLAG_MODEL_SHADOW_MAP,	1, { "shadow_proj_matrix" }, 0, { NULL }, 0, {}, "Shadow Mapping" },
+	{ SDR_FLAG_MODEL_SHADOWS,		8, { "shadow_map", "shadow_mv_matrix", "shadow_proj_matrix", "model_matrix", "veryneardist", "neardist", "middist", "fardist" }, 0, { NULL }, 0, {}, "Shadows" },
+	{ SDR_FLAG_MODEL_THRUSTER,	1, {"thruster_scale"}, 0, { NULL }, 0, {}, "Thruster scaling" },
+	{ SDR_FLAG_MODEL_TRANSFORM,	2, {"transform_tex", "buffer_matrix_offset"}, 1, {"model_id"}, 0, { NULL }, "Submodel Transforms" },
+	{ SDR_FLAG_MODEL_CLIP,		4, {"use_clip_plane", "world_matrix", "clip_normal", "clip_position"}, 0, { NULL }, 0, { NULL }, "Clip Plane" }
 };
 
 static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main) / sizeof(opengl_shader_uniform_reference_t);
 
-/**
- * Static lookup reference for effect shader uniforms
- */
-static opengl_shader_file_t GL_effect_shader_files[] = {
-
-	// soft particles
-	{ "effect-v.sdr", "effect-particle-f.sdr", 0, SDR_EFFECT_SOFT_QUAD, 8, {"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth", "srgb"}, 1, {"radius"} },
-
-	// geometry shader soft particles
-	{ "effect-v.sdr", "effect-particle-f.sdr", "effect-screen-g.sdr", SDR_EFFECT_SOFT_QUAD | SDR_EFFECT_GEOMETRY, 8, 
-		{"baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth", "srgb"}, 2, {"radius", "uvec"}, },
-
-	// distortion effect
-	{ "effect-v.sdr", "effect-distort-f.sdr", 0, SDR_EFFECT_DISTORTION, 6, {"baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset"}, 
-		1, { "offset_in" } }
-
-	// { char *vert, char *frag, char *geo, int flags, int num_uniforms, char* uniforms[MAX_SHADER_UNIFORMS], int num_attributes, char* attributes[MAX_SDR_ATTRIBUTES] }
-};
-
-static const unsigned int Num_effect_shaders = sizeof(GL_effect_shader_files) / sizeof(opengl_shader_file_t);
-
 opengl_shader_t *Current_shader = NULL;
-
 
 void opengl_shader_check_info_log(GLhandleARB shader_object);
 
@@ -142,40 +238,22 @@ void opengl_shader_set_current(opengl_shader_t *shader_obj)
 	}
 }
 
-void opengl_shader_set_passthrough(bool textured, bool alpha)
+void opengl_shader_set_current(int handle)
 {
-	if ( Use_GLSL < 2 ) {
-		return;
-	}
+	Assert(handle >= 0);
+	Assert(handle < (int)GL_shader.size());
 
-	opengl_shader_set_current(&Passthrough_shader);
-
-	if ( textured ) {
-		GL_state.Uniform.setUniformi("no_texturing", 1);
-	} else {
-		GL_state.Uniform.setUniformi("no_texturing", 0);
-	}
-
-	if ( alpha ) {
-		GL_state.Uniform.setUniformi("alpha_texture", 1);
-	} else {
-		GL_state.Uniform.setUniformi("alpha_texture", 0);
-	}
-
-	if ( High_dynamic_range ) {
-		GL_state.Uniform.setUniformi("srgb", 1);
-	} else {
-		GL_state.Uniform.setUniformi("srgb", 0);
-	}
+	opengl_shader_set_current(&GL_shader[handle]);
 }
 
 /**
  * Given a set of flags, determine whether a shader with these flags exists within the GL_shader vector. If no shader with the requested flags exists, attempt to compile one.
  *
+ * @param shader  shader_type variable, a reference to the shader program needed
  * @param flags	Integer variable, holding a combination of SDR_* flags
  * @return 		Index into GL_shader, referencing a valid shader, or -1 if shader compilation failed
  */
-int gr_opengl_maybe_create_shader(unsigned int flags)
+int gr_opengl_maybe_create_shader(shader_type shader, unsigned int flags)
 {
 	if (Use_GLSL < 2)
 		return -1;
@@ -184,34 +262,32 @@ int gr_opengl_maybe_create_shader(unsigned int flags)
 	size_t max = GL_shader.size();
 
 	for (idx = 0; idx < max; idx++) {
-		if (GL_shader[idx].flags == flags) {
+		if (GL_shader[idx].shader == shader && GL_shader[idx].flags == flags) {
 			return idx;
 		}
 	}
 
 	// If we are here, it means we need to compile a new shader
-	opengl_compile_main_shader(flags);
-	if (GL_shader.back().flags == flags)
-		return (int)GL_shader.size() - 1;
-
-	// If even that has failed, bail
-	return -1;
+	return opengl_compile_shader(shader, flags);
 }
 
-int opengl_shader_get_effect_shader(uint flags)
+void opengl_delete_shader(int sdr_handle)
 {
-	if (Use_GLSL < 2)
-		return -1;
+	Assert(sdr_handle >= 0);
+	Assert(sdr_handle < (int)GL_shader.size());
 
-	size_t max = GL_effect_shaders.size();
-
-	for ( size_t i = 0; i < max; ++i ) {
-		if ( GL_effect_shaders[i].flags == flags ) {
-			return i;
-		}
+	if (GL_shader[sdr_handle].program_id) {
+		vglDeleteObjectARB(GL_shader[sdr_handle].program_id);
+		GL_shader[sdr_handle].program_id = 0;
 	}
 
-	return -1;
+	GL_shader[sdr_handle].flags = 0;
+	GL_shader[sdr_handle].flags2 = 0;
+	GL_shader[sdr_handle].shader = shader_type::NUM_SHADER_TYPES;
+
+	GL_shader[sdr_handle].uniforms.clear();
+	GL_shader[sdr_handle].attributes.clear();
+	GL_shader[sdr_handle].uniform_blocks.clear();
 }
 
 /**
@@ -236,18 +312,7 @@ void opengl_shader_shutdown()
 		GL_shader[i].uniform_blocks.clear();
 	}
 
-	for (i = 0; i < GL_effect_shaders.size(); i++) {
-		if (GL_effect_shaders[i].program_id) {
-			vglDeleteObjectARB(GL_effect_shaders[i].program_id);
-			GL_effect_shaders[i].program_id = 0;
-		}
-
-		GL_effect_shaders[i].uniforms.clear();
-		GL_effect_shaders[i].attributes.clear();
-	}
-
 	GL_shader.clear();
-	GL_effect_shaders.clear();
 
 	if (GLshader_info_log != NULL) {
 		vm_free(GLshader_info_log);
@@ -260,19 +325,22 @@ void opengl_shader_shutdown()
  * This function will also create a list of preprocessor defines for the GLSL compiler based on the shader flags
  * and the supported GLSL version as reported by the GPU driver.
  *
+ * @param shader	shader_type enum defined with which shader we're loading
  * @param filename	C-string holding the filename (with extension) of the shader file
  * @param flags		integer variable holding a combination of SDR_* flags
  * @return			C-string holding the complete shader source code
  */
-static char *opengl_load_shader(char *filename, int flags)
+static char *opengl_load_shader(shader_type type_id, char *filename, int flags)
 {
 	SCP_string sflags;
-    
-    if (Use_GLSL >= 4) {
+
+	if (Use_GLSL >= 4) {
 		sflags += "#define SHADER_MODEL 4\n";
-	} else if (Use_GLSL == 3) {
+	}
+	else if (Use_GLSL == 3) {
 		sflags += "#define SHADER_MODEL 3\n";
-	} else {
+	}
+	else {
 		sflags += "#define SHADER_MODEL 2\n";
 	}
 
@@ -280,98 +348,35 @@ static char *opengl_load_shader(char *filename, int flags)
 	sflags += "#define APPLE\n";
 #endif
 
-	if (flags & SDR_FLAG_DIFFUSE_MAP) {
-		sflags += "#define FLAG_DIFFUSE_MAP\n";
-	}
+	if (type_id == shader_type::POST_PROCESS_MAIN || type_id == shader_type::POST_PROCESS_LIGHTSHAFTS || type_id == shader_type::POST_PROCESS_FXAA) {
+		// ignore looking for variants. main post process, lightshafts, and FXAA shaders need special headers to be hacked in
+		opengl_post_load_shader(sflags, type_id, flags);
+	} else {
+		for (int i = 0; i < GL_num_shader_variants; ++i) {
+			opengl_shader_variant_t &variant = GL_shader_variants[i];
 
-	if (flags & SDR_FLAG_ENV_MAP) {
-		sflags += "#define FLAG_ENV_MAP\n";
-	}
-
-	if (flags & SDR_FLAG_FOG) {
-		sflags += "#define FLAG_FOG\n";
-	}
-
-	if (flags & SDR_FLAG_GLOW_MAP) {
-		sflags += "#define FLAG_GLOW_MAP\n";
-	}
-
-	if (flags & SDR_FLAG_HEIGHT_MAP) {
-		sflags += "#define FLAG_HEIGHT_MAP\n";
-	}
-
-	if (flags & SDR_FLAG_LIGHT) {
-		sflags += "#define FLAG_LIGHT\n";
-	}
-
-	if (flags & SDR_FLAG_NORMAL_MAP) {
-		sflags += "#define FLAG_NORMAL_MAP\n";
-	}
-
-	if (flags & SDR_FLAG_SPEC_MAP) {
-		sflags += "#define FLAG_SPEC_MAP\n";
-	}
-
-	if (flags & SDR_FLAG_ANIMATED) {
-		sflags += "#define FLAG_ANIMATED\n";
+			if (type_id == variant.type_id && flags & variant.flag) {
+				sflags += "#define " + variant.flag_text + "\n";
+			}
+		}
 	}
 	
-	if (flags & SDR_FLAG_TRANSFORM) {
-		sflags += "#define FLAG_TRANSFORM\n";
-	}
-
-	if (flags & SDR_FLAG_MISC_MAP) {
-		sflags += "#define FLAG_MISC_MAP\n";
-	}
-
-	if (flags & SDR_FLAG_DEFERRED) {
-		sflags += "#define FLAG_DEFERRED\n";
-	}
-
-	if (flags & SDR_FLAG_TEAMCOLOR) {
-		sflags += "#define FLAG_TEAMCOLOR\n";
-	}
-    
-    if(flags & SDR_FLAG_GEOMETRY) {
-        sflags += "#define FLAG_GEOMETRY\n";
-    }
-    
-	if (flags & SDR_FLAG_SHADOW_MAP) {
-		sflags += "#define FLAG_SHADOW_MAP\n";
-	}
-
-	if (flags & SDR_FLAG_SHADOWS) {
-		sflags += "#define FLAG_SHADOWS\n";
-	}
-
-	if (flags & SDR_FLAG_THRUSTER) {
-		sflags += "#define FLAG_THRUSTER\n";
-	}
-
-	if (flags & SDR_FLAG_CLIP) {
-		sflags += "#define FLAG_CLIP\n";
-	}
-
-	if ( flags & SDR_FLAG_HDR ) {
-		sflags += "#define FLAG_HDR\n";
-	}
-
 	const char *shader_flags = sflags.c_str();
 	int flags_len = strlen(shader_flags);
 
 	if (Enable_external_shaders) {
 		CFILE *cf_shader = cfopen(filename, "rt", CFILE_NORMAL, CF_TYPE_EFFECTS);
-	
+
 		if (cf_shader != NULL) {
 			int len = cfilelength(cf_shader);
-			char *shader = (char*) vm_malloc(len + flags_len + 1);
+			char *shader = (char*)vm_malloc(len + flags_len + 1);
 
 			strcpy(shader, shader_flags);
 			memset(shader + flags_len, 0, len + 1);
 			cfread(shader + flags_len, len + 1, 1, cf_shader);
 			cfclose(cf_shader);
 
-			return shader;	
+			return shader;
 		}
 	}
 
@@ -379,7 +384,7 @@ static char *opengl_load_shader(char *filename, int flags)
 	mprintf(("   Loading built-in default shader for: %s\n", filename));
 	char* def_shader = defaults_get_file(filename);
 	size_t len = strlen(def_shader);
-	char *shader = (char*) vm_malloc(len + flags_len + 1);
+	char *shader = (char*)vm_malloc(len + flags_len + 1);
 
 	strcpy(shader, shader_flags);
 	strcat(shader, def_shader);
@@ -390,93 +395,134 @@ static char *opengl_load_shader(char *filename, int flags)
 /**
  * Compiles a new shader, and creates an opengl_shader_t that will be put into the GL_shader vector
  * if compilation is successful.
- * This function is used for main (i.e. model rendering) and particle shaders, post processing shaders use their own infrastructure
  *
+ * @param sdr		Identifier defined with the program we wish to compile
  * @param flags		Combination of SDR_* flags
  */
-void opengl_compile_main_shader(unsigned int flags) {
+int opengl_compile_shader(shader_type sdr, uint flags)
+{
+	int sdr_index = -1;
 	char *vert = NULL, *frag = NULL, *geom = NULL;
-
-	mprintf(("Compiling new shader:\n"));
 
 	bool in_error = false;
 	opengl_shader_t new_shader;
 
-	// choose appropriate files
-	char vert_name[NAME_LENGTH];
-	char geom_name[NAME_LENGTH];
-	char frag_name[NAME_LENGTH];
+	Assert(sdr < shader_type::NUM_SHADER_TYPES);
 
-	strcpy_s( vert_name, "main-v.sdr");
-	strcpy_s( frag_name, "main-f.sdr");
+	opengl_shader_type_t *sdr_info = &GL_shader_types[sdr];
+
+	mprintf(("Compiling new shader:\n"));
+	mprintf(("	%s\n", sdr_info->description));
+
+	// figure out if the variant requested needs a geometry shader
+	bool use_geo_sdr = false;
+
+	// do we even have a geometry shader?
+	if ( sdr_info->geo != NULL ) {
+		for (int i = 0; i < GL_num_shader_variants; ++i) {
+			opengl_shader_variant_t *variant = &GL_shader_variants[i];
+
+			if (variant->type_id == sdr && flags & variant->flag && variant->use_geometry_sdr) {
+				use_geo_sdr = true;
+				break;
+			}
+		}
+	}
 
 	// read vertex shader
-	if ( (vert = opengl_load_shader(vert_name, flags)) == NULL ) {
+	if ((vert = opengl_load_shader(sdr_info->type_id, sdr_info->vert, flags)) == NULL) {
 		in_error = true;
 		goto Done;
 	}
-
+	
 	// read fragment shader
-	if ( (frag = opengl_load_shader(frag_name, flags)) == NULL ) {
+	if ((frag = opengl_load_shader(sdr_info->type_id, sdr_info->frag, flags)) == NULL) {
 		in_error = true;
 		goto Done;
 	}
 
-	if( flags & SDR_FLAG_GEOMETRY ) {
-		strcpy_s( geom_name, "main-g.sdr");
-		Current_geo_sdr_params = &Geo_transform;
+	if ( use_geo_sdr ) {
+		if (!Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4)) {
+			goto Done;
+		}
 
 		// read geometry shader
-		geom = opengl_load_shader(geom_name, flags);
-	} else {
-		Current_geo_sdr_params = NULL;
+		if ((geom = opengl_load_shader(sdr_info->type_id, sdr_info->geo, flags)) == NULL) {
+			in_error = true;
+			goto Done;
+		}
+
+		Current_geo_sdr_params = &sdr_info->geo_sdr_info;
 	}
 
-	Verify( vert != NULL );
-	Verify( frag != NULL );
-	
+	Verify(vert != NULL);
+	Verify(frag != NULL);
+
 	new_shader.program_id = opengl_shader_create(vert, frag, geom);
 
-	if ( !new_shader.program_id ) {
+	if (!new_shader.program_id) {
 		in_error = true;
 		goto Done;
 	}
 
+	new_shader.shader = sdr_info->type_id;
 	new_shader.flags = flags;
 
-	opengl_shader_set_current( &new_shader );
-	
-	mprintf(("Shader features:\n"));
+	opengl_shader_set_current(&new_shader);
 
-	//Init all the uniforms
-	for (int j = 0; j < Main_shader_flag_references; j++) {
-		if (new_shader.flags & GL_Uniform_Reference_Main[j].flag) {
-			if (GL_Uniform_Reference_Main[j].num_uniforms > 0) {
-				for (int k = 0; k < GL_Uniform_Reference_Main[j].num_uniforms; k++) {
-					opengl_shader_init_uniform( GL_Uniform_Reference_Main[j].uniforms[k] );
-				}
+	// initialize uniforms and attributes
+	for ( int i = 0; i < sdr_info->num_uniforms; ++i ) {
+		opengl_shader_init_uniform( sdr_info->uniforms[i] );
+	}
+
+	for (int i = 0; i < sdr_info->num_attributes; ++i) {
+		opengl_shader_init_attribute(sdr_info->attributes[i]);
+	}
+
+	// if this shader is POST_PROCESS_MAIN, hack in the user-defined flags
+	if ( sdr_info->type_id == shader_type::POST_PROCESS_MAIN ) {
+		opengl_post_init_uniforms(flags);
+	}
+
+	mprintf(("Shader Variant Features:\n"));
+
+	// initialize all uniforms and attributes that are specific to this variant
+	for ( int i = 0; i < GL_num_shader_variants; ++i ) {
+		opengl_shader_variant_t &variant = GL_shader_variants[i];
+
+		if ( sdr_info->type_id == variant.type_id && variant.flag & flags ) {
+			for (int j = 0; j < variant.num_uniforms; ++j) {
+				opengl_shader_init_uniform(variant.uniforms[j]);
 			}
 
-			if (GL_Uniform_Reference_Main[j].num_attributes > 0) {
-				for (int k = 0; k < GL_Uniform_Reference_Main[j].num_attributes; k++) {
-					opengl_shader_init_attribute( GL_Uniform_Reference_Main[j].attributes[k] );
-				}
+			for (int j = 0; j < variant.num_attributes; ++j) {
+				opengl_shader_init_attribute(variant.attributes[j]);
 			}
 
-			if (GL_Uniform_Reference_Main[j].num_uniform_blocks > 0) {
-				for (int k = 0; k < GL_Uniform_Reference_Main[j].num_uniform_blocks; k++) {
-					opengl_shader_init_uniform_block( GL_Uniform_Reference_Main[j].uniform_blocks[k] );
-				}
-			}
-
-			mprintf(("   %s\n", GL_Uniform_Reference_Main[j].name));
+			mprintf(("	%s\n", variant.description));
 		}
 	}
 
 	opengl_shader_set_current();
 
 	// add it to our list of embedded shaders
-	GL_shader.push_back( new_shader );
+	// see if we have empty shader slots
+	int empty_idx = -1;
+	for ( int i = 0; i < (int)GL_shader.size(); ++i ) {
+		if ( GL_shader[i].shader == NUM_SHADER_TYPES ) {
+			empty_idx = i;
+			break;
+		}
+	}
+
+	// then insert it at an empty slot or at the end
+	if ( empty_idx >= 0 ) {
+		GL_shader[empty_idx] = new_shader;
+		sdr_index = empty_idx;
+	} else {
+		sdr_index = GL_shader.size();
+		GL_shader.push_back(new_shader);
+	}
 
 Done:
 	if (vert != NULL) {
@@ -489,199 +535,12 @@ Done:
 		frag = NULL;
 	}
 
-	if (in_error) {
-		// shut off relevant usage things ...
-		bool dealt_with = false;
-
-		if (flags & SDR_FLAG_HEIGHT_MAP) {
-			mprintf(("  Shader in_error!  Disabling height maps!\n"));
-			Cmdline_height = 0;
-			dealt_with = true;
-		}
-
-		if (flags & SDR_FLAG_NORMAL_MAP) {
-			mprintf(("  Shader in_error!  Disabling normal maps and height maps!\n"));
-			Cmdline_height = 0;
-			Cmdline_normal = 0;
-			dealt_with = true;
-		}
-
-		if (!dealt_with) {
-			if (flags == 0) {
-				mprintf(("  Shader in_error!  Disabling GLSL!\n"));
-
-				Use_GLSL = 0;
-				Cmdline_height = 0;
-				Cmdline_normal = 0;
-
-				GL_shader.clear();
-			} else {
-				// We died on a lighting shader, probably due to instruction count.
-				// Drop down to a special var that will use fixed-function rendering
-				// but still allow for post-processing to work
-				mprintf(("  Shader in_error!  Disabling GLSL model rendering!\n"));
-				Use_GLSL = 1;
-				Cmdline_height = 0;
-				Cmdline_normal = 0;
-			}
-		}
-	}
-}
-
-static char *opengl_load_effect_shader(char *filename, int flags)
-{
-	SCP_string sflags;
-
-	if (Use_GLSL >= 4) {
-		sflags += "#define SHADER_MODEL 4\n";
-	} else if (Use_GLSL == 3) {
-		sflags += "#define SHADER_MODEL 3\n";
-	} else {
-		sflags += "#define SHADER_MODEL 2\n";
+	if (geom != NULL ) {
+		vm_free(geom);
+		geom = NULL;
 	}
 
-	if ( flags & SDR_EFFECT_GEOMETRY ) {
-		sflags += "#define FLAG_EFFECT_GEOMETRY\n";
-	}
-
-	if ( flags & SDR_EFFECT_TRAILS ) {
-		sflags += "#define FLAG_EFFECT_TRAILS\n";
-	}
-
-	if ( flags & SDR_EFFECT_LINEAR_DEPTH ) {
-		sflags += "#define FLAG_EFFECT_LINEAR_DEPTH\n";
-	}
-
-	if ( flags & SDR_EFFECT_SOFT_QUAD ) {
-		sflags += "#define FLAG_EFFECT_SOFT_QUAD\n";
-	}
-
-	if ( flags & SDR_EFFECT_DISTORTION ) {
-		sflags += "#define FLAG_EFFECT_DISTORTION\n";
-	}
-
-	const char *shader_flags = sflags.c_str();
-	int flags_len = strlen(shader_flags);
-
-	if ( Enable_external_shaders ) {
-		CFILE *cf_shader = cfopen(filename, "rt", CFILE_NORMAL, CF_TYPE_EFFECTS);
-
-		if (cf_shader != NULL  ) {
-			int len = cfilelength(cf_shader);
-			char *shader = (char*) vm_malloc(len + flags_len + 1);
-
-			strcpy(shader, shader_flags);
-			memset(shader + flags_len, 0, len + 1);
-			cfread(shader + flags_len, len + 1, 1, cf_shader);
-			cfclose(cf_shader);
-
-			return shader;
-		} 
-	}
-
-	mprintf(("   Loading built-in default shader for: %s\n", filename));
-	char* def_shader = defaults_get_file(filename);
-	size_t len = strlen(def_shader);
-	char *shader = (char*) vm_malloc(len + flags_len + 1);
-
-	strcpy(shader, shader_flags);
-	strcat(shader, def_shader);
-
-	return shader;
-}
-
-void opengl_shader_init_effects()
-{
-	char *vert = NULL, *frag = NULL, *geo = NULL;
-
-	for ( int i = 0; i < Num_effect_shaders; ++i ) {
-		bool in_error = false;
-		opengl_shader_t new_shader;
-		opengl_shader_file_t *shader_file = &GL_effect_shader_files[i];
-
-		// choose appropriate files
-		char *vert_name = shader_file->vert;
-		char *frag_name = shader_file->frag;
-		char *geo_name = shader_file->geo;
-
-		mprintf(("  Compiling effect shader %d ... \n", i+1));
-
-		// read vertex shader
-		if ( (vert = opengl_load_effect_shader(vert_name, shader_file->flags) ) == NULL ) {
-			in_error = true;
-			goto Done;
-		}
-
-		// read fragment shader
-		if ( (frag = opengl_load_effect_shader(frag_name, shader_file->flags) ) == NULL ) {
-			in_error = true;
-			goto Done;
-		}
-
-		// read geometry shader
-		if ( geo_name != NULL ) {
-			if ( !Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) ) {
-				goto Done;
-			}
-
-			if ( (geo = opengl_load_effect_shader(geo_name, shader_file->flags) ) == NULL ) {
-				in_error = true;
-				goto Done;
-			}
-
-			// hack in order to get the proper geometry shader parameters using the EXT extension
-			if ( shader_file->flags & SDR_EFFECT_TRAILS ) {
-				Current_geo_sdr_params = &Trail_billboards;
-			} else {
-				Current_geo_sdr_params = &Particle_billboards;
-			}
-		}
-
-		Verify( vert != NULL );
-		Verify( frag != NULL );
-
-		new_shader.program_id = opengl_shader_create(vert, frag, geo);
-
-		if ( !new_shader.program_id ) {
-			in_error = true;
-			Use_Shaders_for_effect_rendering = false;
-			goto Done;
-		}
-
-		new_shader.flags = shader_file->flags;
-
-		opengl_shader_set_current( &new_shader );
-
-		new_shader.uniforms.reserve(shader_file->num_uniforms);
-
-		for (int j = 0; j < shader_file->num_uniforms; j++) {
-			opengl_shader_init_uniform( shader_file->uniforms[j] );
-		}
-
-		for (int j = 0; j < shader_file->num_attributes; j++) {
-			opengl_shader_init_attribute( shader_file->attributes[j] );
-		}
-
-		opengl_shader_set_current();
-
-		GL_effect_shaders.push_back(new_shader);
-
-	Done:
-		if (vert != NULL) {
-			vm_free(vert);
-			vert = NULL;
-		}
-
-		if (frag != NULL) {
-			vm_free(frag);
-			frag = NULL;
-		}
-
-		if (geo != NULL) {
-			vm_free(geo);
-			geo = NULL;
-		}
-	}
+	return sdr_index;
 }
 
 /**
@@ -716,10 +575,15 @@ void opengl_shader_init()
 	// Reserve 32 shader slots. This should cover most use cases in real life.
 	GL_shader.reserve(32);
 
-	opengl_shader_init_effects();
+	// compile effect shaders
+	gr_opengl_maybe_create_shader(shader_type::EFFECT_PARTICLE, 0);
+	gr_opengl_maybe_create_shader(shader_type::EFFECT_PARTICLE, SDR_FLAG_PARTICLE_POINT_GEN);
+	gr_opengl_maybe_create_shader(shader_type::EFFECT_DISTORTION, 0);
 
+	// compile deferred lighting shaders
 	opengl_shader_compile_deferred_light_shader();
-	opengl_shader_compile_deferred_light_clear_shader();
+
+	// compile passthrough shader
 	opengl_shader_compile_passthrough_shader();
 
 	mprintf(("\n"));
@@ -1090,155 +954,34 @@ float opengl_shader_get_animated_timer()
  */
 void opengl_shader_compile_deferred_light_shader()
 {
-	char *vert = NULL, *frag = NULL;
-
-	mprintf(("Compiling deferred light shader...\n"));
-
 	bool in_error = false;
 
-	// choose appropriate files
-	char vert_name[NAME_LENGTH];
-	char frag_name[NAME_LENGTH];
-
-	strcpy_s( vert_name, "deferred-v.sdr");
-	strcpy_s( frag_name, "deferred-f.sdr");
-
-	// read vertex shader
-	if ( (vert = opengl_load_shader(vert_name, 0)) == NULL ) {
-		in_error = true;
-		goto Done;
-	}
-
-	// read fragment shader
-	if ( (frag = opengl_load_shader(frag_name, 0)) == NULL ) {
-		in_error = true;
-		goto Done;
-	}
-
-	Verify( vert != NULL );
-	Verify( frag != NULL );
-
-	Deferred_light_shader.program_id = opengl_shader_create(vert, frag, NULL);
-
-	if ( !Deferred_light_shader.program_id ) {
-		in_error = true;
-		goto Done;
-	}
-	opengl_shader_set_current( &Deferred_light_shader );
+	int sdr_handle = gr_opengl_maybe_create_shader(DEFERRED_LIGHTING, 0);
 	
-	//Hardcoded Uniforms
-	opengl_shader_init_uniform( "Scale" );
-	opengl_shader_init_uniform( "ColorBuffer" );
-	opengl_shader_init_uniform( "NormalBuffer" );
-	opengl_shader_init_uniform( "PositionBuffer" );
-	opengl_shader_init_uniform( "SpecBuffer" );
-	opengl_shader_init_uniform( "vpwidth" );
-	opengl_shader_init_uniform( "vpheight" );
-	opengl_shader_init_uniform( "lighttype" );
-	opengl_shader_init_uniform( "lightradius" );
-	opengl_shader_init_uniform( "diffuselightcolor" );
-	opengl_shader_init_uniform( "speclightcolor" );
-	opengl_shader_init_uniform( "dual_cone" );
-	opengl_shader_init_uniform( "coneDir" );
-	opengl_shader_init_uniform( "cone_angle" );
-	opengl_shader_init_uniform( "cone_inner_angle" );
-	opengl_shader_init_uniform( "spec_factor" );
+	if ( sdr_handle >= 0 ) {
+		opengl_shader_set_current(sdr_handle);
 
-	GL_state.Uniform.setUniformi( "ColorBuffer", 0 );
-	GL_state.Uniform.setUniformi( "NormalBuffer", 1 );
-	GL_state.Uniform.setUniformi( "PositionBuffer", 2 );
-	GL_state.Uniform.setUniformi( "SpecBuffer", 3 );
-	GL_state.Uniform.setUniformf( "vpwidth", 1.0f/gr_screen.max_w );
-	GL_state.Uniform.setUniformf( "vpheight", 1.0f/gr_screen.max_h );
-	GL_state.Uniform.setUniformf( "spec_factor", Cmdline_ogl_spec );
-
-
-	opengl_shader_set_current();
-
-Done:
-	if (vert != NULL) {
-		vm_free(vert);
-		vert = NULL;
-	}
-
-	if (frag != NULL) {
-		vm_free(frag);
-		frag = NULL;
-	}
-
-	if (in_error) {
-		// We died on a lighting shader, probably due to instruction count.
-		// Drop down to a special var that will use fixed-function rendering
-		// but still allow for post-processing to work
-		mprintf(("  Shader in_error!  Disabling GLSL model rendering!\n"));
-		Use_GLSL = 1;
-		Cmdline_height = 0;
-		Cmdline_normal = 0;
-	}
-}
-
-/**
- * Compile the deferred light clear shader.
- */
-void opengl_shader_compile_deferred_light_clear_shader()
-{
-	char *vert = NULL, *frag = NULL;
-
-	mprintf(("Compiling deferred light clear shader...\n"));
-
-	bool in_error = false;
-
-	// choose appropriate files
-	char vert_name[NAME_LENGTH];
-	char frag_name[NAME_LENGTH];
-
-	strcpy_s( vert_name, "deferred-clear-v.sdr");
-	strcpy_s( frag_name, "deferred-clear-f.sdr");
-
-	// read vertex shader
-	if ( (vert = opengl_load_shader(vert_name, 0)) == NULL ) {
+		GL_state.Uniform.setUniformi("ColorBuffer", 0);
+		GL_state.Uniform.setUniformi("NormalBuffer", 1);
+		GL_state.Uniform.setUniformi("PositionBuffer", 2);
+		GL_state.Uniform.setUniformi("SpecBuffer", 3);
+		GL_state.Uniform.setUniformf("vpwidth", 1.0f / gr_screen.max_w);
+		GL_state.Uniform.setUniformf("vpheight", 1.0f / gr_screen.max_h);
+		GL_state.Uniform.setUniformf("spec_factor", Cmdline_ogl_spec);
+	} else {
+		opengl_shader_set_current();
+		mprintf(("Failed to compile deferred lighting shader!\n"));
 		in_error = true;
-		goto Done;
 	}
 
-	// read fragment shader
-	if ( (frag = opengl_load_shader(frag_name, 0)) == NULL ) {
+	if ( gr_opengl_maybe_create_shader(DEFERRED_CLEAR, 0) < 0 ) {
+		mprintf(("Failed to compile deferred lighting buffer clear shader!\n"));
 		in_error = true;
-		goto Done;
 	}
 
-	Verify( vert != NULL );
-	Verify( frag != NULL );
-
-	Deferred_clear_shader.program_id = opengl_shader_create(vert, frag, NULL);
-
-	if ( !Deferred_clear_shader.program_id ) {
-		in_error = true;
-		goto Done;
-	}
-	opengl_shader_set_current( &Deferred_clear_shader );
-
-	opengl_shader_set_current();
-
-Done:
-	if (vert != NULL) {
-		vm_free(vert);
-		vert = NULL;
-	}
-
-	if (frag != NULL) {
-		vm_free(frag);
-		frag = NULL;
-	}
-
-	if (in_error) {
-		// We died on a lighting shader, probably due to instruction count.
-		// Drop down to a special var that will use fixed-function rendering
-		// but still allow for post-processing to work
-		mprintf(("  Shader in_error!  Disabling GLSL model rendering!\n"));
-		Use_GLSL = 1;
-		Cmdline_height = 0;
-		Cmdline_normal = 0;
+	if ( in_error ) {
+		mprintf(("  Shader in_error! Disabling deferred lighting!\n"));
+		Cmdline_no_deferred_lighting = 1;
 	}
 }
 
@@ -1247,71 +990,56 @@ Done:
 */
 void opengl_shader_compile_passthrough_shader()
 {
-	char *vert = NULL, *frag = NULL;
+	bool in_error = false;
 
 	mprintf(("Compiling passthrough shader...\n"));
 
-	bool in_error = false;
+	int sdr_handle = gr_opengl_maybe_create_shader(PASSTHROUGH_RENDER, 0);
 
-	// choose appropriate files
-	char vert_name[NAME_LENGTH];
-	char frag_name[NAME_LENGTH];
+	if (sdr_handle >= 0) {
+		opengl_shader_set_current(sdr_handle);
 
-	strcpy_s(vert_name, "passthrough-v.sdr");
-	strcpy_s(frag_name, "passthrough-f.sdr");
-
-	// read vertex shader
-	if ((vert = opengl_load_shader(vert_name, 0)) == NULL) {
+		//Hardcoded Uniforms
+		GL_state.Uniform.setUniformi("baseMap", 0);
+		GL_state.Uniform.setUniformi("no_texturing", 0);
+		GL_state.Uniform.setUniformi("alpha_texture", 0);
+		GL_state.Uniform.setUniformi("srgb", 0);
+	} else {
+		opengl_shader_set_current();
+		mprintf(("Failed to compile deferred lighting shader!\n"));
 		in_error = true;
-		goto Done;
-	}
-
-	// read fragment shader
-	if ((frag = opengl_load_shader(frag_name, 0)) == NULL) {
-		in_error = true;
-		goto Done;
-	}
-
-	Verify(vert != NULL);
-	Verify(frag != NULL);
-
-	Passthrough_shader.program_id = opengl_shader_create(vert, frag, NULL);
-
-	if (!Passthrough_shader.program_id) {
-		in_error = true;
-		goto Done;
-	}
-	opengl_shader_set_current(&Passthrough_shader);
-
-	//Hardcoded Uniforms
-	opengl_shader_init_uniform("baseMap");
-	opengl_shader_init_uniform("no_texturing");
-	opengl_shader_init_uniform("alpha_texture");
-	opengl_shader_init_uniform("srgb");
-
-	GL_state.Uniform.setUniformi("baseMap", 0);
-	GL_state.Uniform.setUniformi("no_texturing", 0);
-	GL_state.Uniform.setUniformi("alpha_texture", 0);
-	GL_state.Uniform.setUniformi("srgb", 0);
-
-	opengl_shader_set_current();
-
-Done:
-	if (vert != NULL) {
-		vm_free(vert);
-		vert = NULL;
-	}
-
-	if (frag != NULL) {
-		vm_free(frag);
-		frag = NULL;
 	}
 
 	if (in_error) {
-		// The passthrough shader doesn't work? That's not good.
-		mprintf(("  Shader in_error!  Disabling GLSL model rendering!\n"));
-		Use_GLSL = 1;
-		Cmdline_height = 0;
-		Cmdline_normal = 0;
+		mprintf(("  Shader in_error! Passthrough shader unavailable!\n"));
+	}
+
+	opengl_shader_set_current();
+}
+
+void opengl_shader_set_passthrough(bool textured, bool alpha)
+{
+	if (Use_GLSL < 2) {
+		return;
+	}
+
+	opengl_shader_set_current(gr_opengl_maybe_create_shader(PASSTHROUGH_RENDER, 0));
+
+	if (textured) {
+		GL_state.Uniform.setUniformi("no_texturing", 1);
+	} else {
+		GL_state.Uniform.setUniformi("no_texturing", 0);
+	}
+
+	if (alpha) {
+		GL_state.Uniform.setUniformi("alpha_texture", 1);
+	} else {
+		GL_state.Uniform.setUniformi("alpha_texture", 0);
+	}
+
+	if (High_dynamic_range) {
+		GL_state.Uniform.setUniformi("srgb", 1);
+	} else {
+		GL_state.Uniform.setUniformi("srgb", 0);
 	}
 }

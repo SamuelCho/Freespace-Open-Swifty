@@ -418,7 +418,7 @@ void shockwave_render_DEPRECATED(object *objp)
 		float dist = vm_vec_dist_quick( &sw->pos, &Eye_position );
 
 		model_set_detail_level((int)(dist / (sw->radius * 10.0f)));
-		model_render_DEPRECATED( sw->model_id, &Objects[sw->objnum].orient, &sw->pos, MR_NO_LIGHTING | MR_NO_FOGGING | MR_NORMAL | MR_CENTER_ALPHA | MR_NO_CULL, sw->objnum);
+		model_render_DEPRECATED( sw->model_id, &Objects[sw->objnum].orient, &sw->pos, MR_DEPRECATED_NO_LIGHTING | MR_DEPRECATED_NO_FOGGING | MR_DEPRECATED_NORMAL | MR_DEPRECATED_CENTER_ALPHA | MR_DEPRECATED_NO_CULL, sw->objnum);
 
 		model_set_warp_globals();
 		if(Cmdline_fb_explosions)

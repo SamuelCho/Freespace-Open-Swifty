@@ -110,7 +110,7 @@ static int Post_initialized = 0;
 
 bool Post_in_frame = false;
 
-static int Post_active_shader_index = 0;
+static int Post_active_shader_index = -1;
 
 static GLuint Bloom_framebuffer[2] = { 0 };
 static GLuint Bloom_textures[2] = { 0 };
@@ -304,7 +304,7 @@ static bool opengl_post_pass_bloom()
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	opengl_shader_set_current( &GL_post_shader[3] );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_BRIGHTPASS, 0) );
 
 	GL_state.Uniform.setUniformi( "tex", 0 );
 
@@ -338,7 +338,11 @@ static bool opengl_post_pass_bloom()
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		opengl_shader_set_current( &GL_post_shader[1+pass] );
+		if ( pass ) {
+			opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) );
+		} else {
+			opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) );
+		}
 
 		GL_state.Uniform.setUniformi( "tex", 0 );
 		GL_state.Uniform.setUniformf( "bsize", (pass) ? (float)width : (float)height );
@@ -392,44 +396,15 @@ void gr_opengl_post_process_begin()
 }
 
 void recompile_fxaa_shader() {
-	char *vert = NULL, *frag = NULL;
-	opengl_shader_t *new_shader = &GL_post_shader[fxaa_shader_id];
-	opengl_shader_file_t *shader_file = &GL_post_shader_files[4];
-
-	// choose appropriate files
-	char *vert_name = shader_file->vert;
-	char *frag_name = shader_file->frag;
 
 	mprintf(("Recompiling FXAA shader with preset %d\n", Cmdline_fxaa_preset));
 
-	// read vertex shader
-	vert = opengl_post_load_shader(vert_name, shader_file->flags, 0);
+	// start recompile by grabbing deleting the current shader we have, assuming it's already created
+	opengl_delete_shader( gr_opengl_maybe_create_shader(POST_PROCESS_FXAA, 0) );
 
-	// read fragment shader
-	frag = opengl_post_load_shader(frag_name, shader_file->flags, 0);
+	// then recreate it again. shader loading code will be updated with the new FXAA presets
+	gr_opengl_maybe_create_shader(POST_PROCESS_FXAA, 0);
 
-
-	Verify( vert != NULL );
-	Verify( frag != NULL );
-
-	new_shader->program_id = opengl_shader_create(vert, frag, NULL);
-
-	if ( !new_shader->program_id ) {
-	}
-
-
-	new_shader->flags = shader_file->flags;
-	new_shader->flags2 = 0;
-
-	opengl_shader_set_current( new_shader );
-
-	new_shader->uniforms.reserve(shader_file->num_uniforms);
-
-	for (int i = 0; i < shader_file->num_uniforms; i++) {
-		opengl_shader_init_uniform( shader_file->uniforms[i] );
-	}
-
-	opengl_shader_set_current();
 	Fxaa_preset_last_frame = Cmdline_fxaa_preset;
 }
 
@@ -444,7 +419,7 @@ void opengl_post_pass_fxaa() {
 	glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
 	// Do a prepass to convert the main shaders' RGBA output into RGBL
-	opengl_shader_set_current( &GL_post_shader[fxaa_shader_id + 1] );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_FXAA_PREPASS, 0) );
 
 	// basic/default uniforms
 	GL_state.Uniform.setUniformi( "tex", 0 );
@@ -460,7 +435,7 @@ void opengl_post_pass_fxaa() {
 	GL_state.Texture.Disable();
 
 	// set and configure post shader ..
-	opengl_shader_set_current( &GL_post_shader[fxaa_shader_id] );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_FXAA, 0) );
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
 
@@ -504,7 +479,7 @@ void gr_opengl_post_process_end()
 		opengl_post_pass_fxaa();
 	}
 	
-	opengl_shader_set_current( &GL_post_shader[6] );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_LIGHTSHAFTS, 0) );
 	float x,y;
 	// should we even be here?
 	if (!Game_subspace_effect && ls_on && !ls_force_off)
@@ -577,8 +552,18 @@ void gr_opengl_post_process_end()
 	GL_state.Color(255, 255, 255, 255);
 
 	// set and configure post shader ...
+	int flags = 0;
+	for ( int i = 0; i < (int)Post_effects.size(); i++) {
+		if (Post_effects[i].always_on) {
+			flags |= (1 << i);
+		}
+	}
 
-	opengl_shader_set_current( &GL_post_shader[Post_active_shader_index] );
+	if ( Post_active_shader_index >= 0 ) {
+		opengl_shader_set_current(Post_active_shader_index);
+	} else {
+		opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_MAIN, flags) );
+	}
 
 	// basic/default uniforms
 	GL_state.Uniform.setUniformi( "tex", 0 );
@@ -586,7 +571,7 @@ void gr_opengl_post_process_end()
 	GL_state.Uniform.setUniformf( "timer", static_cast<float>(timer_get_milliseconds() % 100 + 1) );
 
 	for (size_t idx = 0; idx < Post_effects.size(); idx++) {
-		if ( GL_post_shader[Post_active_shader_index].flags2 & (1<<idx) ) {
+		if ( GL_shader[Post_active_shader_index].flags2 & (1<<idx) ) {
 			const char *name = Post_effects[idx].uniform_name.c_str();
 			float value = Post_effects[idx].intensity;
 
@@ -709,6 +694,15 @@ void get_post_process_effect_names(SCP_vector<SCP_string> &names)
 	}
 }
 
+void opengl_post_init_uniforms(int flags)
+{
+	for (int idx = 0; idx < (int)Post_effects.size(); idx++) {
+		if (flags & (1 << idx)) {
+			opengl_shader_init_uniform(Post_effects[idx].uniform_name.c_str());
+		}
+	}
+}
+
 static bool opengl_post_compile_shader(int flags)
 {
 	char *vert = NULL, *frag = NULL;
@@ -826,29 +820,7 @@ void gr_opengl_post_process_set_effect(const char *name, int value)
 		}
 	}
 
-	// see if any existing shader has those flags
-	for (idx = 0; idx < GL_post_shader.size(); idx++) {
-		if (GL_post_shader[idx].flags2 == sflags) {
-			// no change required
-			need_change = false;
-
-			// set this as the active post shader
-			Post_active_shader_index = (int)idx;
-
-			break;
-		}
-	}
-
-	// if not then add a new shader to the list
-	if (need_change) {
-		if ( !opengl_post_compile_shader(sflags) ) {
-			// shader added, set it as active
-			Post_active_shader_index = (int)(GL_post_shader.size() - 1);
-		} else {
-			// failed to load, just go with default
-			Post_active_shader_index = 0;
-		}
-	}
+	Post_active_shader_index = gr_opengl_maybe_create_shader(POST_PROCESS_MAIN, sflags);
 }
 
 void gr_opengl_post_process_set_defaults()
@@ -864,24 +836,7 @@ void gr_opengl_post_process_set_defaults()
 		Post_effects[idx].intensity = Post_effects[idx].default_intensity;
 	}
 
-	// remove any post shaders created on-demand, leaving only the defaults
-	list_size = GL_post_shader.size();
-
-	for (idx = list_size-1; idx > 0; idx--) {
-		if ( !(GL_post_shader[idx].flags & SDR_POST_FLAG_MAIN) ) {
-			break;
-		}
-
-		if (GL_post_shader[idx].program_id) {
-			vglDeleteObjectARB(GL_post_shader[idx].program_id);
-		}
-
-		GL_post_shader[idx].uniforms.clear();
-
-		GL_post_shader.pop_back();
-	}
-
-	Post_active_shader_index = 0;
+	Post_active_shader_index = -1;
 }
 
 extern GLuint Cockpit_depth_texture;
@@ -1015,6 +970,87 @@ static bool opengl_post_init_table()
 	return true;
 }
 
+void opengl_post_load_shader(SCP_string &sflags, shader_type shader, int flags)
+{
+	if ( shader == shader_type::POST_PROCESS_MAIN ) {
+		for (size_t idx = 0; idx < Post_effects.size(); idx++) {
+			if (flags & (1 << idx)) {
+				sflags += "#define ";
+				sflags += Post_effects[idx].define_name.c_str();
+				sflags += "\n";
+			}
+		}
+	} else if ( shader == shader_type::POST_PROCESS_LIGHTSHAFTS ) {
+		char temp[64];
+		sprintf(temp, "#define SAMPLE_NUM %d\n", ls_samplenum);
+		sflags += temp;
+	} else if ( shader == shader_type::POST_PROCESS_FXAA ) {
+		switch (Cmdline_fxaa_preset) {
+		case 0:
+			sflags += "#define FXAA_QUALITY_PRESET 10\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/6.0)\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/12.0)\n";
+			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
+			break;
+		case 1:
+			sflags += "#define FXAA_QUALITY_PRESET 11\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/7.0)\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/14.0)\n";
+			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
+			break;
+		case 2:
+			sflags += "#define FXAA_QUALITY_PRESET 12\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/8.0)\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/16.0)\n";
+			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
+			break;
+		case 3:
+			sflags += "#define FXAA_QUALITY_PRESET 13\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/9.0)\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/18.0)\n";
+			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
+			break;
+		case 4:
+			sflags += "#define FXAA_QUALITY_PRESET 14\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/10.0)\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/20.0)\n";
+			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
+			break;
+		case 5:
+			sflags += "#define FXAA_QUALITY_PRESET 25\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/11.0)\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/22.0)\n";
+			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
+			break;
+		case 6:
+			sflags += "#define FXAA_QUALITY_PRESET 26\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/12.0)\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/24.0)\n";
+			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
+			break;
+		case 7:
+			sflags += "#define FXAA_PC 1\n";
+			sflags += "#define FXAA_QUALITY_PRESET 27\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/13.0)\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/26.0)\n";
+			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
+			break;
+		case 8:
+			sflags += "#define FXAA_QUALITY_PRESET 28\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/14.0)\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/28.0)\n";
+			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
+			break;
+		case 9:
+			sflags += "#define FXAA_QUALITY_PRESET 39\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/15.0)\n";
+			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/32.0)\n";
+			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
+			break;
+		}
+	}
+}
+
 static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 {
 	SCP_string sflags;
@@ -1141,6 +1177,40 @@ static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 
 	return shader;
 
+}
+
+bool opengl_post_init_shaders()
+{
+	int idx;
+	int flags = 0;
+
+	// figure out which flags we need for the main post process shader
+	for (idx = 0; idx < (int)Post_effects.size(); idx++) {
+		if (Post_effects[idx].always_on) {
+			flags |= (1 << idx);
+		}
+	}
+
+	if ( gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_MAIN, flags) < 0 ) {
+		// only the main shader is actually required for post-processing
+		return false;
+	}
+	
+	if ( gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_BRIGHTPASS, 0) < 0 || 
+		gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) < 0 || 
+		gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) < 0 ) {
+		// disable bloom if we don't have those shaders available
+		Cmdline_bloom_intensity = 0;
+	}
+
+	if ( gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_FXAA, 0) < 0 ||
+		gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_FXAA_PREPASS, 0) < 0 ) {
+		Cmdline_fxaa = false;
+		fxaa_unavailable = true;
+		mprintf(("Error while compiling FXAA shaders. FXAA will be unavailable.\n"));
+	}
+
+	return true;
 }
 
 static bool opengl_post_init_shader()
@@ -1548,7 +1618,7 @@ void opengl_post_process_init()
 		return;
 	}
 
-	if ( !opengl_post_init_shader() ) {
+	if ( !opengl_post_init_shaders() ) {
 		mprintf(("  Unable to initialize post-processing shaders! Disabling post-processing...\n\n"));
 		Cmdline_postprocess = 0;
 		return;
@@ -1569,16 +1639,20 @@ void opengl_post_process_shutdown()
 		return;
 	}
 
-	for (size_t i = 0; i < GL_post_shader.size(); i++) {
-		if (GL_post_shader[i].program_id) {
-			vglDeleteObjectARB(GL_post_shader[i].program_id);
-			GL_post_shader[i].program_id = 0;
-		}
-
-		GL_post_shader[i].uniforms.clear();
+	if (Post_bloom_texture_id[0]) {
+		glDeleteTextures(3, Post_bloom_texture_id);
+		memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
 	}
 
-	GL_post_shader.clear();
+	if (Post_framebuffer_id[0]) {
+		vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
+		Post_framebuffer_id[0] = 0;
+
+		if (Post_framebuffer_id[1]) {
+			vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
+			Post_framebuffer_id[1] = 0;
+		}
+	}
 
 	Post_effects.clear();
 
