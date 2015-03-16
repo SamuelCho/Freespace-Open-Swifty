@@ -129,7 +129,7 @@ static char *opengl_post_load_shader(char *filename, int flags, int flags2);
 
 void opengl_post_pass_tonemap()
 {
-	opengl_shader_set_current( &GL_post_shader[7] );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_TONEMAPPING, 0) );
 
 	GL_state.Uniform.setUniformi("tex", 0);
 	GL_state.Uniform.setUniformf("exposure", 2.0f);
@@ -168,7 +168,7 @@ bool opengl_post_pass_bloom_new()
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	opengl_shader_set_current(&GL_post_shader[3]);
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_BRIGHTPASS, 0) );
 
 	GL_state.Uniform.setUniformi("tex", 0);
 
@@ -194,7 +194,11 @@ bool opengl_post_pass_bloom_new()
 
 		//vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer[1-pass]);
 
-		opengl_shader_set_current(&GL_post_shader[1 + pass]);
+		if (pass) {
+			opengl_shader_set_current(gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL));
+		} else {
+			opengl_shader_set_current(gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL));
+		}
 
 		GL_state.Uniform.setUniformi("tex", 0);
 
@@ -239,7 +243,11 @@ bool opengl_post_pass_bloom_new()
 
 		//vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer[1-pass]);
 
-		opengl_shader_set_current(&GL_post_shader[1 + pass]);
+		if (pass) {
+			opengl_shader_set_current(gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL));
+		} else {
+			opengl_shader_set_current(gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL));
+		}
 
 		GL_state.Uniform.setUniformi("tex", 0);
 
