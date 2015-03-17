@@ -2429,40 +2429,16 @@ void gr_opengl_draw_deferred_light_sphere(vec3d *position, float rad, bool clear
 
 	GL_state.Array.BindArrayBuffer(deferred_light_sphere_vbo);
 	GL_state.Array.BindElementBuffer(deferred_light_sphere_ibo);
-// 	vglBindBufferARB(GL_ARRAY_BUFFER, deferred_light_sphere_vbo);
-// 	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, deferred_light_sphere_ibo);
-
-	//GL_state.Array.BindPointersBegin();
-	//GL_state.Array.EnableVertexAttrib(0);
-	//GL_state.Array.VertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	//GL_state.Array.BindPointersEnd();
 
 	vertex_layout vertex_declare;
 
 	vertex_declare.add_vertex_component(vertex_format_data::POSITION3, 0, 0);
 
 	opengl_bind_vertex_layout(vertex_declare);
-// 	vglEnableVertexAttribArrayARB(0);
-// 	vglVertexAttribPointerARB(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-// 	glEnable(GL_STENCIL_TEST);
-// 	glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
-// 	glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
-// 	glStencilMask(0xFF);
-
-// 	if(clearStencil)
-// 		glClear(GL_STENCIL_BUFFER_BIT);
 
 	vglDrawRangeElements(GL_TRIANGLES, 0, deferred_light_sphere_vcount, deferred_light_sphere_icount, GL_UNSIGNED_SHORT, 0);
 	
 	g3_done_instance(true);
-	
-//	glDisable(GL_STENCIL_TEST);
-
-// 	vglDisableVertexAttribArrayARB(0);
-// 
-// 	vglBindBufferARB(GL_ARRAY_BUFFER, 0);
-// 	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void gr_opengl_deferred_light_cylinder_init(int segments) // Generate a VBO of a cylinder of radius and height 1.0f, based on code at http://www.ogre3d.org/tikiwiki/ManualSphereMeshes
@@ -2585,40 +2561,16 @@ void gr_opengl_draw_deferred_light_cylinder(vec3d *position,matrix *orient, floa
 
 	GL_state.Array.BindArrayBuffer(deferred_light_cylinder_vbo);
 	GL_state.Array.BindElementBuffer(deferred_light_cylinder_ibo);
-// 	vglBindBufferARB(GL_ARRAY_BUFFER, deferred_light_cylinder_vbo);
-// 	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, deferred_light_cylinder_ibo);
-
-	//GL_state.Array.BindPointersBegin();
-	//GL_state.Array.EnableVertexAttrib(0);
-	//GL_state.Array.VertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
 	vertex_layout vertex_declare;
 
 	vertex_declare.add_vertex_component(vertex_format_data::POSITION3, 0, 0);
 
 	opengl_bind_vertex_layout(vertex_declare);
-	//GL_state.Array.BindPointersEnd();
-//	vglEnableVertexAttribArrayARB(0);
-//	vglVertexAttribPointerARB(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
-// 	glEnable(GL_STENCIL_TEST);
-// 	glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
-// 	glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
-// 	glStencilMask(0xFF);
-
-// 	if(clearStencil)
-// 		glClear(GL_STENCIL_BUFFER_BIT);
-	
 	vglDrawRangeElements(GL_TRIANGLES, 0, deferred_light_cylinder_vcount, deferred_light_cylinder_icount, GL_UNSIGNED_SHORT, 0);
 	
 	g3_done_instance(true);
-	
-//	glDisable(GL_STENCIL_TEST);
-
-// 	vglDisableVertexAttribArrayARB(0);
-// 
-// 	vglBindBufferARB(GL_ARRAY_BUFFER, 0);
-// 	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void gr_opengl_draw_line_list(colored_vector *lines, int num)
