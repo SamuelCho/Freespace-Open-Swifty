@@ -537,9 +537,6 @@ static void OGG_video_close()
 	}
 
 	if (gr_screen.mode == GR_OPENGL) {
-		GL_state.Array.DisableClientVertex();
-		GL_state.Array.DisableClientTexture();
-
 		if (scale_video) {
 			glMatrixMode(GL_MODELVIEW);
 			glPopMatrix();

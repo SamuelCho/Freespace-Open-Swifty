@@ -179,7 +179,9 @@ struct opengl_client_texture_unit
 	GLenum type;
 	GLsizei stride;
 	GLvoid *pointer;
-	bool reset;
+
+	bool reset_ptr;
+	bool used_for_draw;
 };
 
 struct opengl_vertex_attrib_unit
@@ -193,9 +195,11 @@ struct opengl_vertex_attrib_unit
 	GLsizei stride;
 	GLvoid *pointer;
 
-	bool used;
-	bool initialized;
-	bool reset;
+	bool status_init;
+	bool ptr_init;
+
+	bool reset_ptr;
+	bool used_for_draw;
 };
 
 class opengl_array_state
@@ -212,14 +216,16 @@ class opengl_array_state
 		GLenum color_array_type;
 		GLsizei color_array_stride;
 		GLvoid *color_array_pointer;
-		bool color_array_reset;
+		bool color_array_reset_ptr;
+		bool color_array_used_for_draw;
 
 		GLboolean normal_array_Status;
 		GLuint normal_array_Buffer;
 		GLenum normal_array_Type;
 		GLsizei normal_array_Stride;
 		GLvoid *normal_array_Pointer;
-		bool normal_array_reset;
+		bool normal_array_reset_ptr;
+		bool normal_array_used_for_draw;
 
 		GLboolean vertex_array_Status;
 		GLuint vertex_array_Buffer;
@@ -227,7 +233,8 @@ class opengl_array_state
 		GLenum vertex_array_Type;
 		GLsizei vertex_array_Stride;
 		GLvoid *vertex_array_Pointer;
-		bool vertex_array_reset;
+		bool vertex_array_reset_ptr;
+		bool vertex_array_used_for_draw;
 
 		SCP_map<GLuint, opengl_vertex_attrib_unit> vertex_attrib_units;
 
@@ -263,13 +270,13 @@ class opengl_array_state
 		void EnableClientVertex();
 		void DisableClientVertex();
 		void VertexPointer(GLint size, GLenum type, GLsizei stride, GLvoid *pointer);
-		void ResetVertexPointer();
 
-		void ResetVertexAttribUsed();
-		void DisabledVertexAttribUnused();
 		void EnableVertexAttrib(GLuint index);
 		void DisableVertexAttrib(GLuint index);
 		void VertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, GLvoid *pointer);
+
+		void BindPointersBegin();
+		void BindPointersEnd();
 
 		void BindArrayBuffer(GLuint id);
 		void BindElementBuffer(GLuint id);

@@ -1468,9 +1468,6 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 		if ( tex_offset >= 0 ) {
 			vert_def.add_vertex_component(vertex_format_data::TEX_COORD, stride, ptr + tex_offset);
 		}
-	} else {
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.DisableClientTexture();
 	}
 
 	if (flags & TMAP_FLAG_TRILIST) {
@@ -1491,7 +1488,6 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 		vert_def.add_vertex_component(vertex_format_data::COLOR4, stride, ptr + color_offset);
 	} else {
 		// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
-		GL_state.Array.DisableClientColor();
 		GL_state.Color( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
 	}
 
