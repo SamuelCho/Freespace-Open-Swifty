@@ -393,11 +393,14 @@ void gr_opengl_post_process_end()
 		}
 	}
 
-	if ( Post_active_shader_index >= 0 ) {
-		opengl_shader_set_current(Post_active_shader_index);
-	} else {
-		opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_MAIN, flags) );
+	int post_sdr_handle = Post_active_shader_index;
+
+	if ( post_sdr_handle < 0 ) {
+		// no active shader index? use the always on shader.
+		post_sdr_handle = gr_opengl_maybe_create_shader(POST_PROCESS_MAIN, flags);
 	}
+
+	opengl_shader_set_current(post_sdr_handle);
 
 	// basic/default uniforms
 	GL_state.Uniform.setUniformi( "tex", 0 );
@@ -405,7 +408,7 @@ void gr_opengl_post_process_end()
 	GL_state.Uniform.setUniformf( "timer", static_cast<float>(timer_get_milliseconds() % 100 + 1) );
 
 	for (size_t idx = 0; idx < Post_effects.size(); idx++) {
-		if ( GL_shader[Post_active_shader_index].flags2 & (1<<idx) ) {
+		if ( GL_shader[post_sdr_handle].flags & (1<<idx) ) {
 			const char *name = Post_effects[idx].uniform_name.c_str();
 			float value = Post_effects[idx].intensity;
 
