@@ -40,6 +40,10 @@ static float GL_anim_timer = 0.0f;
 
 geometry_sdr_params *Current_geo_sdr_params = NULL;
 
+/**
+ * Static lookup reference for shader uniforms
+ * When adding a new shader, list all associated uniforms and attributes here
+ */
 static opengl_shader_type_t GL_shader_types[] = {
 	{ shader_type::MODEL, "main-v.sdr", "main-f.sdr", "main-g.sdr", {GL_TRIANGLES, GL_TRIANGLE_STRIP, 3}, 
 		0, {}, 0, {}, "Model Rendering" },
@@ -79,6 +83,10 @@ static opengl_shader_type_t GL_shader_types[] = {
 	3, { "ytex", "utex", "vtex" }, 0, { NULL }, "Video Playback" }
 };
 
+/**
+ * Static lookup reference for shader variant uniforms
+ * When adding a new shader variant for a shader, list all associated uniforms and attributes here
+ */
 static opengl_shader_variant_t GL_shader_variants[] = {
 	{ shader_type::MODEL, false, SDR_FLAG_MODEL_LIGHT, "FLAG_LIGHT", 
 		2, { "n_lights", "light_factor" }, 0, { NULL }, 
@@ -162,33 +170,6 @@ static opengl_shader_variant_t GL_shader_variants[] = {
 };
 
 static const int GL_num_shader_variants = sizeof(GL_shader_variants) / sizeof(opengl_shader_variant_t);
-
-/**
- * Static lookup reference for main shader uniforms
- * When adding a new SDR_ flag, list all associated uniforms and attributes here
- */
-static opengl_shader_uniform_reference_t GL_Uniform_Reference_Main[] = {
-	{ SDR_FLAG_MODEL_LIGHT,		2, {"n_lights", "light_factor"}, 0, {}, 0, {}, "Lighting" },
-	{ SDR_FLAG_MODEL_FOG,			0, { NULL }, 0, { NULL }, 0, {}, "Fog Effect" },
-	{ SDR_FLAG_MODEL_DIFFUSE_MAP, 4, {"sBasemap", "desaturate", "desaturate_clr", "blend_alpha"}, 0, { NULL }, 0, {}, "Diffuse Mapping"},
-	{ SDR_FLAG_MODEL_GLOW_MAP,	1, {"sGlowmap"}, 0, { NULL }, 0, {}, "Glow Mapping" },
-	{ SDR_FLAG_MODEL_SPEC_MAP,	1, {"sSpecmap"}, 0, { NULL }, 0, {}, "Specular Mapping" },
-	{ SDR_FLAG_MODEL_NORMAL_MAP,	1, {"sNormalmap"}, 0, { NULL }, 0, {}, "Normal Mapping" },
-	{ SDR_FLAG_MODEL_HEIGHT_MAP,	1, {"sHeightmap"}, 0, { NULL }, 0, {}, "Parallax Mapping" },
-	{ SDR_FLAG_MODEL_ENV_MAP,		3, {"sEnvmap", "alpha_spec", "envMatrix"}, 0, { NULL }, 0, {}, "Environment Mapping" },
-	{ SDR_FLAG_MODEL_ANIMATED,	5, {"sFramebuffer", "effect_num", "anim_timer", "vpwidth", "vpheight"}, 0, { NULL }, 0, {}, "Animated Effects" },
-	{ SDR_FLAG_MODEL_MISC_MAP,	1, {"sMiscmap"}, 0, { NULL }, 0, {}, "Utility mapping" },
-	{ SDR_FLAG_MODEL_TEAMCOLOR,	2, {"stripe_color", "base_color"}, 0, { NULL }, 0, {}, "Team Colors" },
-	{ SDR_FLAG_MODEL_DEFERRED,	0, { NULL }, 0, { NULL} , 0, {}, "Deferred lighting" },
-	{ SDR_FLAG_MODEL_GEOMETRY,	1, { "shadow_proj_matrix" }, 0, { NULL }, 0, {}, "Geometry Transformation" },
-	{ SDR_FLAG_MODEL_SHADOW_MAP,	1, { "shadow_proj_matrix" }, 0, { NULL }, 0, {}, "Shadow Mapping" },
-	{ SDR_FLAG_MODEL_SHADOWS,		8, { "shadow_map", "shadow_mv_matrix", "shadow_proj_matrix", "model_matrix", "veryneardist", "neardist", "middist", "fardist" }, 0, { NULL }, 0, {}, "Shadows" },
-	{ SDR_FLAG_MODEL_THRUSTER,	1, {"thruster_scale"}, 0, { NULL }, 0, {}, "Thruster scaling" },
-	{ SDR_FLAG_MODEL_TRANSFORM,	2, {"transform_tex", "buffer_matrix_offset"}, 1, {"model_id"}, 0, { NULL }, "Submodel Transforms" },
-	{ SDR_FLAG_MODEL_CLIP,		4, {"use_clip_plane", "world_matrix", "clip_normal", "clip_position"}, 0, { NULL }, 0, { NULL }, "Clip Plane" }
-};
-
-static const int Main_shader_flag_references = sizeof(GL_Uniform_Reference_Main) / sizeof(opengl_shader_uniform_reference_t);
 
 opengl_shader_t *Current_shader = NULL;
 
