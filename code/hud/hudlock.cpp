@@ -829,6 +829,10 @@ void hud_lock_acquire_uncaged_subsystem(weapon_info *wip, lock_info *lock, float
 
 	if ( Ship_info[sp->ship_info_index].flags & (SIF_BIG_SHIP|SIF_HUGE_SHIP) ) {
 		for (ss = GET_FIRST(&sp->subsys_list); ss != END_OF_LIST(&sp->subsys_list); ss = GET_NEXT(ss) ) {
+			if (ss->flags & SSF_UNTARGETABLE) {
+				continue;
+			}
+
 			get_subsystem_world_pos(lock->obj, ss, &ss_pos);
 
 			if ( !hud_lock_world_pos_in_range(&ss_pos, &vec_to_target)  ) {
@@ -901,6 +905,10 @@ void hud_lock_acquire_uncaged_target(lock_info *current_lock, weapon_info *wip)
 			continue;
 		}
 
+		if ( hud_target_invalid_awacs(A) ) {
+			continue;
+		}
+
 		sp = &Ships[A->instance];
 		ss = NULL;
 
@@ -909,6 +917,10 @@ void hud_lock_acquire_uncaged_target(lock_info *current_lock, weapon_info *wip)
 		}
 
 		if ( sp->flags & SF_DYING ) {
+			continue;
+		}
+
+		if ( sp->flags & TARGET_SHIP_IGNORE_FLAGS ) {
 			continue;
 		}
 
