@@ -562,12 +562,13 @@ void trail_render_all()
 
 	for(trail *trailp = Trails.next; trailp!=&Trails; trailp = trailp->next )
 	{
-		trail_add_batch(trailp);
+		//trail_add_batch(trailp);
+		trail_render(trailp);
 	}
 
-	profile_begin("Batch Render Trails");
-	batch_render_all(Trail_buffer_object);
-	profile_end("Batch Render Trails");
+	//profile_begin("Batch Render Trails");
+	//batch_render_all(Trail_buffer_object);
+	//profile_end("Batch Render Trails");
 }
 int trail_stamp_elapsed(trail *trailp)
 {

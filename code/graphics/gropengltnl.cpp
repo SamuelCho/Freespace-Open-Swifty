@@ -210,10 +210,6 @@ void gr_opengl_update_buffer_object(int handle, uint size, void* data)
 	GL_vertex_data_in += buffer_obj.size;
 
 	vglBufferDataARB(buffer_obj.type, size, data, buffer_obj.usage);
-
-	if ( opengl_check_for_errors() ) {
-		//Int3();
-	}
 }
 
 void opengl_delete_buffer_object(int handle)
@@ -2206,9 +2202,6 @@ void gr_opengl_end_shadow_map()
 // 			GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
 // 			vglDrawBuffers(2, buffers);
 		}
-
-		GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
-		vglDrawBuffers(2, buffers);
 
 		Glowpoint_override = Glowpoint_override_save;
 		GL_htl_projection_matrix_set = 0;

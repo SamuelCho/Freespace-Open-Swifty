@@ -2004,13 +2004,16 @@ bool gr_opengl_init()
 	GL_state.init();
 
 	GLint max_texture_units = GL_supported_texture_units;
+	GLint max_texture_coords = GL_supported_texture_units;
 
 	if (Use_GLSL) {
 		glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS_ARB, &max_texture_units);
 	}
 
+	glGetIntegerv(GL_MAX_TEXTURE_COORDS, &max_texture_coords);
+
 	GL_state.Texture.init(max_texture_units);
-	GL_state.Array.init(max_texture_units);
+	GL_state.Array.init(max_texture_coords);
 
 	opengl_set_texture_target();
 	GL_state.Texture.SetActiveUnit(0);
@@ -2070,6 +2073,7 @@ bool gr_opengl_init()
 	glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &GL_max_elements_indices);
 
 	mprintf(( "  Max texture units: %i (%i)\n", GL_supported_texture_units, max_texture_units ));
+	mprintf(( "  Max client texture states: %i (%i)\n", GL_supported_texture_units, max_texture_coords ));
 	mprintf(( "  Max elements vertices: %i\n", GL_max_elements_vertices ));
 	mprintf(( "  Max elements indices: %i\n", GL_max_elements_indices ));
 	mprintf(( "  Max texture size: %ix%i\n", GL_max_texture_width, GL_max_texture_height ));
