@@ -2775,7 +2775,7 @@ char* Default_effect_distortion_fragment_shader =
 "{\n"
 "	vec2 depthCoord = vec2(gl_FragCoord.x / window_width, gl_FragCoord.y / window_height);\n"
 "	vec4 fragmentColor = texture2D(baseMap, gl_TexCoord[0].xy)*gl_Color.a;\n"
-"	vec2 distortion = texture2D(distMap, gl_TexCoord[0].xy+vec2(0.0, radius_p)).rg;\n"
+"	vec2 distortion = texture2D(distMap, gl_TexCoord[0].xy+vec2(0.0, offset_out)).rg;\n"
 "	float alpha = clamp(dot(fragmentColor.rgb,vec3(0.3333))*10.0,0.0,1.0);\n"
 "	distortion = ((distortion - 0.5) * 0.01) * alpha;\n"
 "	gl_FragColor = texture2D(frameBuffer,depthCoord+distortion);\n"

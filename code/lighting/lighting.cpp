@@ -1102,10 +1102,7 @@ void light_add_cone( vec3d * pos, vec3d * dir, float angle, float inner_angle, b
 
 bool light_compare_by_type(const light &a, const light &b)
 {
-	if ( a.type == LT_POINT )
-		return true;
-
-	return false;
+	return a.type < b.type;
 }
 
 void scene_lights::addLight(light *light_ptr)

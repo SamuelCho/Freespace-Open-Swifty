@@ -4645,6 +4645,10 @@ void interp_fill_detail_index_buffer(SCP_vector<int> &submodel_list, polymodel *
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
 
+		if (pm->submodel[model_num].is_thruster) {
+			continue;
+		}
+
 		interp_copy_index_buffer(&pm->submodel[model_num].buffer, buffer, index_counts);
 	}
 

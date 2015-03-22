@@ -39,52 +39,6 @@ int ls_samplenum = 50;
 
 const int MAX_MIP_BLUR_LEVELS = 5;
 
-geometry_sdr_params Geometry_post = {GL_TRIANGLES, GL_TRIANGLE_STRIP, 3};
-
-#define SDR_POST_FLAG_MAIN		(1<<0)
-#define SDR_POST_FLAG_BRIGHT	(1<<1)
-#define SDR_POST_FLAG_BLUR		(1<<2)
-#define SDR_POST_FLAG_PASS1		(1<<3)
-#define SDR_POST_FLAG_PASS2		(1<<4)
-#define SDR_POST_FLAG_LIGHTSHAFT (1<<5)
-
-static SCP_vector<opengl_shader_t> GL_post_shader;
-
-// NOTE: The order of this list *must* be preserved!  Additional shaders can be
-//       added, but the first 7 are used with magic numbers so their position
-//       is assumed to never change.
-static opengl_shader_file_t GL_post_shader_files[] = {
-	// NOTE: the main post-processing shader has any number of uniforms, but
-	//       these few should always be present
-
-	{ "post-v.sdr", "post-f.sdr", 0, SDR_POST_FLAG_MAIN,
-		6, { "tex", "depth_tex", "timer", "bloomed", "bloom_intensity", "levels" }, 0, { NULL } },
-
-	{ "post-v.sdr", "blur-f.sdr", 0, SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS1,
-		3, { "tex", "level", "bsize", "debug" }, 0, { NULL } },
-
-	{ "post-v.sdr", "blur-f.sdr", 0, SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS2,
-		3, { "tex", "level", "bsize", "debug" }, 0, { NULL } },
-
-	{ "post-v.sdr", "brightpass-f.sdr", 0, SDR_POST_FLAG_BRIGHT,
-		1, { "tex" }, 0, { NULL } },
-
-	{ "fxaa-v.sdr", "fxaa-f.sdr", 0, 0, 
-		3, { "tex0", "rt_w", "rt_h"}, 0, { NULL } },
-
-	{ "post-v.sdr", "fxaapre-f.sdr", 0, 0,
-		1, { "tex"}, 0, { NULL } },
-
-	{ "post-v.sdr", "ls-f.sdr", 0, SDR_POST_FLAG_LIGHTSHAFT,
-		8, { "scene", "cockpit", "sun_pos", "weight", "intensity", "falloff", "density", "cp_intensity" }, 0, { NULL } },
-	
-	{ "post-v.sdr", "tonemapping-f.sdr", 0, 0, 1, { "exposure" }, 0, { NULL } },
-	
-	{ "shadowdebug-v.sdr", "shadowdebug-f.sdr", 0, 0, 2, { "shadow_map", "index" }, 0, { NULL } }
-};
-
-static const unsigned int Num_post_shader_files = sizeof(GL_post_shader_files) / sizeof(opengl_shader_file_t);
-
 typedef struct post_effect_t {
 	SCP_string name;
 	SCP_string uniform_name;
@@ -124,12 +78,9 @@ static GLuint Post_shadow_depth_texture_id = 0;
 static int Post_texture_width = 0;
 static int Post_texture_height = 0;
 
-
-static char *opengl_post_load_shader(char *filename, int flags, int flags2);
-
 void opengl_post_pass_tonemap()
 {
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_TONEMAPPING, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_TONEMAPPING, 0) );
 
 	GL_state.Uniform.setUniformi("tex", 0);
 	GL_state.Uniform.setUniformf("exposure", 2.0f);
@@ -168,7 +119,7 @@ bool opengl_post_pass_bloom_new()
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_BRIGHTPASS, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BRIGHTPASS, 0) );
 
 	GL_state.Uniform.setUniformi("tex", 0);
 
@@ -195,9 +146,9 @@ bool opengl_post_pass_bloom_new()
 		//vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer[1-pass]);
 
 		if (pass) {
-			opengl_shader_set_current(gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL));
+			opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL));
 		} else {
-			opengl_shader_set_current(gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL));
+			opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL));
 		}
 
 		GL_state.Uniform.setUniformi("tex", 0);
@@ -244,9 +195,9 @@ bool opengl_post_pass_bloom_new()
 		//vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer[1-pass]);
 
 		if (pass) {
-			opengl_shader_set_current(gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL));
+			opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL));
 		} else {
-			opengl_shader_set_current(gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL));
+			opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL));
 		}
 
 		GL_state.Uniform.setUniformi("tex", 0);
@@ -312,7 +263,7 @@ static bool opengl_post_pass_bloom()
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_BRIGHTPASS, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BRIGHTPASS, 0) );
 
 	GL_state.Uniform.setUniformi( "tex", 0 );
 
@@ -347,9 +298,9 @@ static bool opengl_post_pass_bloom()
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		if ( pass ) {
-			opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) );
+			opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) );
 		} else {
-			opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) );
+			opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) );
 		}
 
 		GL_state.Uniform.setUniformi( "tex", 0 );
@@ -408,10 +359,10 @@ void recompile_fxaa_shader() {
 	mprintf(("Recompiling FXAA shader with preset %d\n", Cmdline_fxaa_preset));
 
 	// start recompile by grabbing deleting the current shader we have, assuming it's already created
-	opengl_delete_shader( gr_opengl_maybe_create_shader(POST_PROCESS_FXAA, 0) );
+	opengl_delete_shader( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA, 0) );
 
 	// then recreate it again. shader loading code will be updated with the new FXAA presets
-	gr_opengl_maybe_create_shader(POST_PROCESS_FXAA, 0);
+	gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA, 0);
 
 	Fxaa_preset_last_frame = Cmdline_fxaa_preset;
 }
@@ -427,7 +378,7 @@ void opengl_post_pass_fxaa() {
 	glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
 	// Do a prepass to convert the main shaders' RGBA output into RGBL
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_FXAA_PREPASS, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA_PREPASS, 0) );
 
 	// basic/default uniforms
 	GL_state.Uniform.setUniformi( "tex", 0 );
@@ -443,7 +394,7 @@ void opengl_post_pass_fxaa() {
 	GL_state.Texture.Disable();
 
 	// set and configure post shader ..
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_FXAA, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA, 0) );
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
 
@@ -487,7 +438,7 @@ void gr_opengl_post_process_end()
 		opengl_post_pass_fxaa();
 	}
 	
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_LIGHTSHAFTS, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_LIGHTSHAFTS, 0) );
 	float x,y;
 	// should we even be here?
 	if (!Game_subspace_effect && ls_on && !ls_force_off)
@@ -567,11 +518,14 @@ void gr_opengl_post_process_end()
 		}
 	}
 
-	if ( Post_active_shader_index >= 0 ) {
-		opengl_shader_set_current(Post_active_shader_index);
-	} else {
-		opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_MAIN, flags) );
+	int post_sdr_handle = Post_active_shader_index;
+
+	if ( post_sdr_handle < 0 ) {
+		// no active shader index? use the always on shader.
+		post_sdr_handle = gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_MAIN, flags);
 	}
+
+	opengl_shader_set_current(post_sdr_handle);
 
 	// basic/default uniforms
 	GL_state.Uniform.setUniformi( "tex", 0 );
@@ -579,7 +533,7 @@ void gr_opengl_post_process_end()
 	GL_state.Uniform.setUniformf( "timer", static_cast<float>(timer_get_milliseconds() % 100 + 1) );
 
 	for (size_t idx = 0; idx < Post_effects.size(); idx++) {
-		if ( GL_shader[Post_active_shader_index].flags2 & (1<<idx) ) {
+		if ( GL_shader[post_sdr_handle].flags & (1<<idx) ) {
 			const char *name = Post_effects[idx].uniform_name.c_str();
 			float value = Post_effects[idx].intensity;
 
@@ -711,86 +665,6 @@ void opengl_post_init_uniforms(int flags)
 	}
 }
 
-static bool opengl_post_compile_shader(int flags)
-{
-	char *vert = NULL, *frag = NULL;
-	bool in_error = false;
-	opengl_shader_t new_shader;
-	opengl_shader_file_t *shader_file = &GL_post_shader_files[0];
-	int num_main_uniforms = 0;
-	int idx;
-
-	for (idx = 0; idx < (int)Post_effects.size(); idx++) {
-		if ( flags & (1 << idx) ) {
-			num_main_uniforms++;
-		}
-	}
-
-	// choose appropriate files
-	char *vert_name = shader_file->vert;
-	char *frag_name = shader_file->frag;
-
-	mprintf(("POST-PROCESSING: Compiling new post-processing shader with flags %d ... \n", flags));
-
-	// read vertex shader
-	if ( (vert = opengl_post_load_shader(vert_name, shader_file->flags, flags)) == NULL ) {
-		in_error = true;
-		goto Done;
-	}
-
-	// read fragment shader
-	if ( (frag = opengl_post_load_shader(frag_name, shader_file->flags, flags)) == NULL ) {
-		in_error = true;
-		goto Done;
-	}
-
-	Verify( vert != NULL );
-	Verify( frag != NULL );
-
-	new_shader.program_id = opengl_shader_create(vert, frag, NULL);
-
-	if ( !new_shader.program_id ) {
-		in_error = true;
-		goto Done;
-	}
-
-
-	new_shader.flags = shader_file->flags;
-	new_shader.flags2 = flags;
-
-	opengl_shader_set_current( &new_shader );
-
-	new_shader.uniforms.reserve(shader_file->num_uniforms + num_main_uniforms);
-
-	for (idx = 0; idx < shader_file->num_uniforms; idx++) {
-		opengl_shader_init_uniform( shader_file->uniforms[idx] );
-	}
-
-	for (idx = 0; idx < (int)Post_effects.size(); idx++) {
-		if ( flags & (1 << idx) ) {
-			opengl_shader_init_uniform( Post_effects[idx].uniform_name.c_str() );
-		}
-	}
-
-	opengl_shader_set_current();
-
-	// add it to our list of embedded shaders
-	GL_post_shader.push_back( new_shader );
-
-Done:
-	if (vert != NULL) {
-		vm_free(vert);
-		vert = NULL;
-	}
-
-	if (frag != NULL) {
-		vm_free(frag);
-		frag = NULL;
-	}
-
-	return in_error;
-}
-
 void gr_opengl_post_process_set_effect(const char *name, int value)
 {
 	if ( !Post_initialized ) {
@@ -828,7 +702,7 @@ void gr_opengl_post_process_set_effect(const char *name, int value)
 		}
 	}
 
-	Post_active_shader_index = gr_opengl_maybe_create_shader(POST_PROCESS_MAIN, sflags);
+	Post_active_shader_index = gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_MAIN, sflags);
 }
 
 void gr_opengl_post_process_set_defaults()
@@ -980,7 +854,7 @@ static bool opengl_post_init_table()
 
 void opengl_post_load_shader(SCP_string &sflags, shader_type shader, int flags)
 {
-	if ( shader == shader_type::POST_PROCESS_MAIN ) {
+	if ( shader == SDR_TYPE_POST_PROCESS_MAIN ) {
 		for (size_t idx = 0; idx < Post_effects.size(); idx++) {
 			if (flags & (1 << idx)) {
 				sflags += "#define ";
@@ -988,11 +862,11 @@ void opengl_post_load_shader(SCP_string &sflags, shader_type shader, int flags)
 				sflags += "\n";
 			}
 		}
-	} else if ( shader == shader_type::POST_PROCESS_LIGHTSHAFTS ) {
+	} else if ( shader == SDR_TYPE_POST_PROCESS_LIGHTSHAFTS ) {
 		char temp[64];
 		sprintf(temp, "#define SAMPLE_NUM %d\n", ls_samplenum);
 		sflags += temp;
-	} else if ( shader == shader_type::POST_PROCESS_FXAA ) {
+	} else if ( shader == SDR_TYPE_POST_PROCESS_FXAA ) {
 		switch (Cmdline_fxaa_preset) {
 		case 0:
 			sflags += "#define FXAA_QUALITY_PRESET 10\n";
@@ -1059,134 +933,6 @@ void opengl_post_load_shader(SCP_string &sflags, shader_type shader, int flags)
 	}
 }
 
-static char *opengl_post_load_shader(char *filename, int flags, int flags2)
-{
-	SCP_string sflags;
-
-	if (Use_GLSL >= 4) {
-		sflags += "#define SHADER_MODEL 4\n";
-	} else if (Use_GLSL == 3) {
-		sflags += "#define SHADER_MODEL 3\n";
-	} else {
-		sflags += "#define SHADER_MODEL 2\n";
-	}
-
-	for (size_t idx = 0; idx < Post_effects.size(); idx++) {
-		if ( flags2 & (1 << idx) ) {
-			sflags += "#define ";
-			sflags += Post_effects[idx].define_name.c_str();
-			sflags += "\n";
-		}
-	}
-
-	if (flags & SDR_POST_FLAG_PASS1) {
-		sflags += "#define PASS_0\n";
-	} else if (flags & SDR_POST_FLAG_PASS2) {
-		sflags += "#define PASS_1\n";
-	}
-
-	if (flags & SDR_POST_FLAG_LIGHTSHAFT) {
-		char temp[42];
-		sprintf(temp, "#define SAMPLE_NUM %d\n", ls_samplenum);
-		sflags += temp;
-	}
-	
-	switch (Cmdline_fxaa_preset) {
-		case 0:
-			sflags += "#define FXAA_QUALITY_PRESET 10\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/6.0)\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/12.0)\n";
-			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
-			break;
-		case 1:
-			sflags += "#define FXAA_QUALITY_PRESET 11\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/7.0)\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/14.0)\n";
-			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
-			break;
-		case 2:
-			sflags += "#define FXAA_QUALITY_PRESET 12\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/8.0)\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/16.0)\n";
-			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
-			break;
-		case 3:
-			sflags += "#define FXAA_QUALITY_PRESET 13\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/9.0)\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/18.0)\n";
-			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
-			break;
-		case 4:
-			sflags += "#define FXAA_QUALITY_PRESET 14\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/10.0)\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/20.0)\n";
-			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
-			break;
-		case 5:
-			sflags += "#define FXAA_QUALITY_PRESET 25\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/11.0)\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/22.0)\n";
-			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
-			break;
-		case 6:
-			sflags += "#define FXAA_QUALITY_PRESET 26\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/12.0)\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/24.0)\n";
-			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
-			break;
-		case 7:
-			sflags += "#define FXAA_PC 1\n";
-			sflags += "#define FXAA_QUALITY_PRESET 27\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/13.0)\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/26.0)\n";
-			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
-			break;
-		case 8:
-			sflags += "#define FXAA_QUALITY_PRESET 28\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/14.0)\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/28.0)\n";
-			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
-			break;
-		case 9:
-			sflags += "#define FXAA_QUALITY_PRESET 39\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/15.0)\n";
-			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/32.0)\n";
-			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
-			break;
-	}
-
-	const char *shader_flags = sflags.c_str();
-	int flags_len = strlen(shader_flags);
-
-	if (Enable_external_shaders && stricmp(filename, "fxaapre-f.sdr") && stricmp(filename, "fxaa-f.sdr") && stricmp(filename, "fxaa-v.sdr")) {
-		CFILE *cf_shader = cfopen(filename, "rt", CFILE_NORMAL, CF_TYPE_EFFECTS);
-
-		if (cf_shader != NULL  ) {
-			int len = cfilelength(cf_shader);
-			char *shader = (char*) vm_malloc(len + flags_len + 1);
-
-			strcpy(shader, shader_flags);
-			memset(shader + flags_len, 0, len + 1);
-			cfread(shader + flags_len, len + 1, 1, cf_shader);
-			cfclose(cf_shader);
-
-			return shader;
-		} 
-	}
-
-	mprintf(("   Loading built-in default shader for: %s\n", filename));
-	char* def_shader = defaults_get_file(filename);
-	size_t len = strlen(def_shader);
-	char *shader = (char*) vm_malloc(len + flags_len + 1);
-
-	strcpy(shader, shader_flags);
-	strcat(shader, def_shader);
-	//memset(shader + flags_len, 0, len + 1);
-
-	return shader;
-
-}
-
 bool opengl_post_init_shaders()
 {
 	int idx;
@@ -1199,158 +945,26 @@ bool opengl_post_init_shaders()
 		}
 	}
 
-	if ( gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_MAIN, flags) < 0 ) {
+	if ( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_MAIN, flags) < 0 ) {
 		// only the main shader is actually required for post-processing
 		return false;
 	}
 	
-	if ( gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_BRIGHTPASS, 0) < 0 || 
-		gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) < 0 || 
-		gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) < 0 ) {
+	if ( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BRIGHTPASS, 0) < 0 || 
+		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) < 0 || 
+		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) < 0 ) {
 		// disable bloom if we don't have those shaders available
 		Cmdline_bloom_intensity = 0;
 	}
 
-	if ( gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_FXAA, 0) < 0 ||
-		gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_FXAA_PREPASS, 0) < 0 ) {
+	if ( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA, 0) < 0 ||
+		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA_PREPASS, 0) < 0 ) {
 		Cmdline_fxaa = false;
 		fxaa_unavailable = true;
 		mprintf(("Error while compiling FXAA shaders. FXAA will be unavailable.\n"));
 	}
 
 	return true;
-}
-
-static bool opengl_post_init_shader()
-{
-	char *vert = NULL, *frag = NULL, *geo = NULL;
-	bool rval = true;
-	int idx, i;
-	int flags2 = 0;
-	int num_main_uniforms = 0;
-
-	for (idx = 0; idx < (int)Post_effects.size(); idx++) {
-		if (Post_effects[idx].always_on) {
-			flags2 |= (1 << idx);
-			num_main_uniforms++;
-		}
-	}
-
-	for (idx = 0; idx < (int)Num_post_shader_files; idx++) {
-		bool in_error = false;
-		opengl_shader_t new_shader;
-		opengl_shader_file_t *shader_file = &GL_post_shader_files[idx];
-
-		// choose appropriate files
-		char *vert_name = shader_file->vert;
-		char *frag_name = shader_file->frag;
-		char *geo_name = shader_file->geo;
-
-		mprintf(("  Compiling post-processing shader %d ... \n", idx+1));
-
-		// read vertex shader
-		if ( (vert = opengl_post_load_shader(vert_name, shader_file->flags, flags2)) == NULL ) {
-			in_error = true;
-			goto Done;
-		}
-
-		// read fragment shader
-		if ( (frag = opengl_post_load_shader(frag_name, shader_file->flags, flags2)) == NULL ) {
-			in_error = true;
-			goto Done;
-		}
-
-		// read geometry shader
-		if ( geo_name != NULL ) {
-			if ( !Is_Extension_Enabled(OGL_EXT_GEOMETRY_SHADER4) ) {
-				goto Done;
-			}
-
-			if ( (geo = opengl_post_load_shader(geo_name, shader_file->flags, flags2)) == NULL ) {
-				in_error = true;
-				goto Done;
-			}
-
-			Current_geo_sdr_params = &Geometry_post;
-		}
-
-		Verify( vert != NULL );
-		Verify( frag != NULL );
-
-		new_shader.program_id = opengl_shader_create(vert, frag, geo);
-
-		if ( !new_shader.program_id ) {
-			in_error = true;
-			goto Done;
-		}
-
-
-		new_shader.flags = shader_file->flags;
-		new_shader.flags2 = flags2;
-
-		opengl_shader_set_current( &new_shader );
-
-		new_shader.uniforms.reserve(shader_file->num_uniforms + num_main_uniforms);
-
-		for (i = 0; i < shader_file->num_uniforms; i++) {
-			opengl_shader_init_uniform( shader_file->uniforms[i] );
-		}
-
-		if (idx == 0) {
-			for (i = 0; i < (int)Post_effects.size(); i++) {
-				if ( flags2 & (1 << i) ) {
-					opengl_shader_init_uniform( Post_effects[i].uniform_name.c_str() );
-				}
-			}
-
-			flags2 = 0; 
-			num_main_uniforms = 0;
-		}
-
-
-		opengl_shader_set_current();
-
-		// add it to our list of embedded shaders
-		GL_post_shader.push_back( new_shader );
-
-	Done:
-		if (vert != NULL) {
-			vm_free(vert);
-			vert = NULL;
-		}
-
-		if (frag != NULL) {
-			vm_free(frag);
-			frag = NULL;
-		}
-
-		if (geo != NULL) {
-			vm_free(geo);
-			geo = NULL;
-		}
-
-		if (idx == 4)
-			fxaa_shader_id = GL_post_shader.size() - 1;
-
-		if (in_error) {
-			if (idx == 0) {
-				// only the main/first shader is actually required for post-processing
-				rval = false;
-				break;
-			} else if (idx == 4) {
-				Cmdline_fxaa = false;
-				fxaa_unavailable = true;
-				mprintf(("Error while compiling FXAA shaders. FXAA will be unavailable.\n"));
-			} else if ( shader_file->flags & (SDR_POST_FLAG_BLUR|SDR_POST_FLAG_BRIGHT) ) {
-				// disable bloom if we don't have those shaders available
-				Cmdline_bloom_intensity = 0;
-			}
-		}
-	}
-
-	mprintf(("\n"));
-
-	return rval;
 }
 
 void opengl_setup_bloom_textures_new()

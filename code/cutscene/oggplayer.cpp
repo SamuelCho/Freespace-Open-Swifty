@@ -364,7 +364,7 @@ static void OGG_video_init(theora_info *tinfo)
 				return;
 			}
 
-			int sdr_handle = gr_maybe_create_shader(shader_type::VIDEO_PROCESS, 0);
+			int sdr_handle = gr_maybe_create_shader(SDR_TYPE_VIDEO_PROCESS, 0);
 
 			if ( sdr_handle >= 0)
 				opengl_shader_set_current(sdr_handle);
@@ -537,9 +537,6 @@ static void OGG_video_close()
 	}
 
 	if (gr_screen.mode == GR_OPENGL) {
-		GL_state.Array.DisableClientVertex();
-		GL_state.Array.DisableClientTexture();
-
 		if (scale_video) {
 			glMatrixMode(GL_MODELVIEW);
 			glPopMatrix();
