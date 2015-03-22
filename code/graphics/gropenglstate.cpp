@@ -408,19 +408,6 @@ void opengl_state::init()
 	glDepthFunc(GL_LESS);
 	depthfunc_Value = GL_LESS;
 
-	if ( Is_Extension_Enabled(OGL_EXT_FRAMEBUFFER_OBJECT) ) {
-		glGetIntegerv(GL_MAX_DRAW_BUFFERS, &max_draw_buffers);
-
-		draw_buffers = new GLenum[max_draw_buffers];
-
-		draw_buffers[0] = GL_COLOR_ATTACHMENT0;
-
-		vglDrawBuffers(1, draw_buffers);
-		num_draw_buffers_set = 1;
-	} else {
-		max_draw_buffers = 1;
-	}
-
 	Current_alpha_blend_mode = ALPHA_BLEND_NONE;
 	Current_zbuffer_type = ZBUFFER_TYPE_READ;
 
@@ -594,37 +581,6 @@ void opengl_state::SetPolygonOffset(GLfloat factor, GLfloat units)
 
 		polygon_offset_Factor = factor;
 		polygon_offset_Unit = units;
-	}
-}
-
-void opengl_state::SetDrawBuffers(uint num, GLenum *buffers)
-{
-	if ( !Is_Extension_Enabled(OGL_EXT_FRAMEBUFFER_OBJECT) || num == 0 ) {
-		return;
-	}
-
-	bool change_state = false;
-
-	if ( num > max_draw_buffers ) {
-		num = max_draw_buffers;
-	}
-
-	if ( num == num_draw_buffers_set ) {
-		for ( int i = 0; i < num; ++i ) {
-			if ( buffers[i] != draw_buffers[i] ) {
-				change_state = true;
-				break;
-			}
-		}
-	} else {
-		change_state = true;
-	}
-
-	if ( change_state ) {
-		vglDrawBuffers(num, buffers);
-
-		num_draw_buffers_set = num;
-		memcpy(draw_buffers, buffers, num * sizeof(GLenum));
 	}
 }
 
