@@ -55,21 +55,10 @@ bool vm_matrix_equal(const matrix &self, const matrix &other)
 
 bool vm_matrix_equal(const matrix4 &self, const matrix4 &other)
 {
-	return fl_equal(self.a1d[0], other.a1d[0]) &&
-		fl_equal(self.a1d[1], other.a1d[1]) &&
-		fl_equal(self.a1d[2], other.a1d[2]) &&
-		fl_equal(self.a1d[3], other.a1d[3]) &&
-		fl_equal(self.a1d[4], other.a1d[4]) &&
-		fl_equal(self.a1d[5], other.a1d[5]) &&
-		fl_equal(self.a1d[6], other.a1d[6]) &&
-		fl_equal(self.a1d[7], other.a1d[7]) &&
-		fl_equal(self.a1d[8], other.a1d[8]) &&
-		fl_equal(self.a1d[10], other.a1d[10]) &&
-		fl_equal(self.a1d[11], other.a1d[11]) &&
-		fl_equal(self.a1d[12], other.a1d[12]) &&
-		fl_equal(self.a1d[13], other.a1d[13]) &&
-		fl_equal(self.a1d[14], other.a1d[14]) &&
-		fl_equal(self.a1d[15], other.a1d[15]);
+	return vm_vec_equal(self.vec.fvec, other.vec.fvec) && 
+		vm_vec_equal(self.vec.rvec, other.vec.rvec) && 
+		vm_vec_equal(self.vec.uvec, other.vec.uvec) && 
+		vm_vec_equal(self.vec.pos, other.vec.pos);
 }
 
 // -----------------------------------------------------------
