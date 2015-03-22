@@ -95,7 +95,7 @@ static bool opengl_post_pass_bloom()
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_BRIGHTPASS, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BRIGHTPASS, 0) );
 
 	GL_state.Uniform.setUniformi( "tex", 0 );
 
@@ -130,9 +130,9 @@ static bool opengl_post_pass_bloom()
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		if ( pass ) {
-			opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) );
+			opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) );
 		} else {
-			opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) );
+			opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) );
 		}
 
 		GL_state.Uniform.setUniformi( "tex", 0 );
@@ -191,10 +191,10 @@ void recompile_fxaa_shader() {
 	mprintf(("Recompiling FXAA shader with preset %d\n", Cmdline_fxaa_preset));
 
 	// start recompile by grabbing deleting the current shader we have, assuming it's already created
-	opengl_delete_shader( gr_opengl_maybe_create_shader(POST_PROCESS_FXAA, 0) );
+	opengl_delete_shader( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA, 0) );
 
 	// then recreate it again. shader loading code will be updated with the new FXAA presets
-	gr_opengl_maybe_create_shader(POST_PROCESS_FXAA, 0);
+	gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA, 0);
 
 	Fxaa_preset_last_frame = Cmdline_fxaa_preset;
 }
@@ -210,7 +210,7 @@ void opengl_post_pass_fxaa() {
 	glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
 	// Do a prepass to convert the main shaders' RGBA output into RGBL
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_FXAA_PREPASS, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA_PREPASS, 0) );
 
 	// basic/default uniforms
 	GL_state.Uniform.setUniformi( "tex", 0 );
@@ -226,7 +226,7 @@ void opengl_post_pass_fxaa() {
 	GL_state.Texture.Disable();
 
 	// set and configure post shader ..
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(POST_PROCESS_FXAA, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA, 0) );
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
 
@@ -270,7 +270,7 @@ void gr_opengl_post_process_end()
 		opengl_post_pass_fxaa();
 	}
 	
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_LIGHTSHAFTS, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_LIGHTSHAFTS, 0) );
 	float x,y;
 	// should we even be here?
 	if (!Game_subspace_effect && ls_on && !ls_force_off)
@@ -349,7 +349,7 @@ void gr_opengl_post_process_end()
 
 	if ( post_sdr_handle < 0 ) {
 		// no active shader index? use the always on shader.
-		post_sdr_handle = gr_opengl_maybe_create_shader(POST_PROCESS_MAIN, flags);
+		post_sdr_handle = gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_MAIN, flags);
 	}
 
 	opengl_shader_set_current(post_sdr_handle);
@@ -527,7 +527,7 @@ void gr_opengl_post_process_set_effect(const char *name, int value)
 		}
 	}
 
-	Post_active_shader_index = gr_opengl_maybe_create_shader(POST_PROCESS_MAIN, sflags);
+	Post_active_shader_index = gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_MAIN, sflags);
 }
 
 void gr_opengl_post_process_set_defaults()
@@ -679,7 +679,7 @@ static bool opengl_post_init_table()
 
 void opengl_post_load_shader(SCP_string &sflags, shader_type shader, int flags)
 {
-	if ( shader == shader_type::POST_PROCESS_MAIN ) {
+	if ( shader == SDR_TYPE_POST_PROCESS_MAIN ) {
 		for (size_t idx = 0; idx < Post_effects.size(); idx++) {
 			if (flags & (1 << idx)) {
 				sflags += "#define ";
@@ -687,11 +687,11 @@ void opengl_post_load_shader(SCP_string &sflags, shader_type shader, int flags)
 				sflags += "\n";
 			}
 		}
-	} else if ( shader == shader_type::POST_PROCESS_LIGHTSHAFTS ) {
+	} else if ( shader == SDR_TYPE_POST_PROCESS_LIGHTSHAFTS ) {
 		char temp[64];
 		sprintf(temp, "#define SAMPLE_NUM %d\n", ls_samplenum);
 		sflags += temp;
-	} else if ( shader == shader_type::POST_PROCESS_FXAA ) {
+	} else if ( shader == SDR_TYPE_POST_PROCESS_FXAA ) {
 		switch (Cmdline_fxaa_preset) {
 		case 0:
 			sflags += "#define FXAA_QUALITY_PRESET 10\n";
@@ -770,20 +770,20 @@ bool opengl_post_init_shaders()
 		}
 	}
 
-	if ( gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_MAIN, flags) < 0 ) {
+	if ( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_MAIN, flags) < 0 ) {
 		// only the main shader is actually required for post-processing
 		return false;
 	}
 	
-	if ( gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_BRIGHTPASS, 0) < 0 || 
-		gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) < 0 || 
-		gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) < 0 ) {
+	if ( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BRIGHTPASS, 0) < 0 || 
+		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) < 0 || 
+		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) < 0 ) {
 		// disable bloom if we don't have those shaders available
 		Cmdline_bloom_intensity = 0;
 	}
 
-	if ( gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_FXAA, 0) < 0 ||
-		gr_opengl_maybe_create_shader(shader_type::POST_PROCESS_FXAA_PREPASS, 0) < 0 ) {
+	if ( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA, 0) < 0 ||
+		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA_PREPASS, 0) < 0 ) {
 		Cmdline_fxaa = false;
 		fxaa_unavailable = true;
 		mprintf(("Error while compiling FXAA shaders. FXAA will be unavailable.\n"));

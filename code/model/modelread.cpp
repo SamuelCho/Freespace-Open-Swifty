@@ -2481,38 +2481,38 @@ void model_load_texture(polymodel *pm, int i, char *file)
 	if (tmisc->GetTexture() > 0)
 		shader_flags |= SDR_FLAG_MODEL_MISC_MAP;
 	
-	gr_maybe_create_shader(shader_type::MODEL, SDR_FLAG_MODEL_SHADOW_MAP);
+	gr_maybe_create_shader(SDR_TYPE_MODEL, SDR_FLAG_MODEL_SHADOW_MAP);
 
 	if(Use_GLSL > 1)
 		shader_flags |= SDR_FLAG_MODEL_CLIP;
 
-	gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED);
-	gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED | SDR_FLAG_MODEL_FOG);
+	gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED);
+	gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED | SDR_FLAG_MODEL_FOG);
 	
 	if(Use_GLSL > 1)
 		shader_flags |= SDR_FLAG_MODEL_DEFERRED;
 
-	gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT);
-	gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_FOG);
+	gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT);
+	gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_FOG);
 	
 	extern bool GL_use_transform_buffer;
 	if( !Cmdline_no_batching && GL_use_transform_buffer && Use_GLSL >= 3 ) {
 		shader_flags &= ~SDR_FLAG_MODEL_DEFERRED;
 		shader_flags |= SDR_FLAG_MODEL_TRANSFORM;
 
-		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED);
-		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED | SDR_FLAG_MODEL_FOG);
+		gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED);
+		gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED | SDR_FLAG_MODEL_FOG);
 
-		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT);
-		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_FOG);
+		gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT);
+		gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_FOG);
 
 		shader_flags |= SDR_FLAG_MODEL_DEFERRED;
 
-		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED);
-		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED | SDR_FLAG_MODEL_FOG);
+		gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED);
+		gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_ANIMATED | SDR_FLAG_MODEL_FOG);
 
-		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT);
-		gr_maybe_create_shader(shader_type::MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_FOG);
+		gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT);
+		gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_FOG);
 	}
 }
 

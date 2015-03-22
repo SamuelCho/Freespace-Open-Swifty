@@ -854,7 +854,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	if (shader_flags == GL_last_shader_flags) {
 		sdr_index = GL_last_shader_index;
 	} else {
-		sdr_index = gr_opengl_maybe_create_shader(shader_type::MODEL, shader_flags);
+		sdr_index = gr_opengl_maybe_create_shader(SDR_TYPE_MODEL, shader_flags);
 
 		if (sdr_index < 0) {
 			opengl_render_pipeline_fixed(start, bufferp, datap, flags);
@@ -2462,7 +2462,7 @@ void opengl_tnl_set_material_soft_particle(uint flags)
 		sdr_effect_flags |= SDR_FLAG_PARTICLE_POINT_GEN;
 	}
 
-	int sdr_index = gr_opengl_maybe_create_shader(EFFECT_PARTICLE, sdr_effect_flags);
+	int sdr_index = gr_opengl_maybe_create_shader(SDR_TYPE_EFFECT_PARTICLE, sdr_effect_flags);
 
 	opengl_shader_set_current(sdr_index);
 
@@ -2496,7 +2496,7 @@ void opengl_tnl_set_material_soft_particle(uint flags)
 
 void opengl_tnl_set_material_distortion(uint flags)
 {
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(EFFECT_DISTORTION, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_EFFECT_DISTORTION, 0) );
 
 	GL_state.Uniform.setUniformi("baseMap", 0);
 	GL_state.Uniform.setUniformi("depthMap", 1);
