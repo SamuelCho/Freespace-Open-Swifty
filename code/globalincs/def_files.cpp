@@ -36,6 +36,7 @@ extern char* Default_fxaa_vertex_shader;
 extern char* Default_fxaa_fragment_shader;
 extern char* Default_blur_fragment_shader;
 extern char* Default_brightpass_fragment_shader;
+extern char* Default_bloom_composite_fragment_shader;
 extern char* Default_tonemapping_fragment_shader;
 extern char* Default_post_fragment_shader;
 extern char* Default_post_vertex_shader;
@@ -79,6 +80,7 @@ def_file Default_files[] =
 	{ "fxaa-f.sdr",				Default_fxaa_fragment_shader},
 	{ "blur-f.sdr",				Default_blur_fragment_shader},
 	{ "brightpass-f.sdr",		Default_brightpass_fragment_shader},
+	{ "bloom-comp-f.sdr",		Default_bloom_composite_fragment_shader},
 	{ "tonemapping-f.sdr",		Default_tonemapping_fragment_shader},
 	{ "post-f.sdr",				Default_post_fragment_shader},
 	{ "post-v.sdr",				Default_post_vertex_shader},
@@ -1779,8 +1781,7 @@ char *Default_main_fragment_shader =
 "   specData = vec4(baseColor.rgb * SPEC_FACTOR_NO_SPEC_MAP, 1.0);																															\n"
 "#ifdef FLAG_SPEC_MAP																																												\n"
 "   vec4 specColour = texture2D(sSpecmap, texCoord);																																				\n"
-"	//specColour = vec4(0.7, 0.7, 0.7, 1.0);\n"
-"	//glossData = 0.35;\n"
+"	//glossData = specColour.a;\n"
 " #ifdef FLAG_HDR\n"
 "	//specColour.rgb = pow(specColour.rgb, vec3(SRGB_GAMMA));\n"
 " #endif\n"
@@ -1794,6 +1795,7 @@ char *Default_main_fragment_shader =
 "	vec3 base = base_color - vec3(0.5);\n"
 "	vec3 stripe = stripe_color - vec3(0.5);\n"
 "	baseColor.rgb += (base * teamMask.x) + (stripe * teamMask.y);\n"
+"	baseColor.rgb = max(baseColor.rgb, vec3(0.0));\n"
 " #endif\n"
 "#endif\n"
 "\n"
@@ -1833,11 +1835,11 @@ char *Default_main_fragment_shader =
 "#endif																																															\n"
 "																																																	\n"
 "#ifdef FLAG_GLOW_MAP																																												\n"
-"	vec3 glowColor = texture2D(sGlowmap, texCoord).rgb * GLOW_MAP_INTENSITY;																														\n"
+"	vec3 glowColor = texture2D(sGlowmap, texCoord).rgb;																														\n"
 " #ifdef FLAG_HDR\n"
-"	glowColor = pow(glowColor, vec3(SRGB_GAMMA));\n"
-" #endif"
-"	baseColor.rgb += glowColor;																														\n"
+"	glowColor = pow(glowColor, vec3(SRGB_GAMMA)) * 5.0f;\n"
+" #endif\n"
+"	baseColor.rgb += glowColor * GLOW_MAP_INTENSITY;\n"
 "#endif																																															\n"
 "  																																																	\n"
 "#ifdef FLAG_FOG																																													\n"
@@ -2513,6 +2515,28 @@ char *Default_brightpass_fragment_shader =
 "	//float luminance = luminance(ColorOut.rgb);\n"
 "	//gl_FragColor.rgb = luminance > threshold ? ColorOut.rgb : vec3(0.0);\n"
 "}";
+
+char *Default_bloom_composite_fragment_shader = 
+"uniform sampler2D bloomed;\n"
+"uniform float bloom_intensity;\n"
+"uniform int levels;\n"
+"void main() {"
+" // Global constant\n"
+"	vec4 color_out = vec4(0.0, 0.0, 0.0, 1.0);\n"
+" // Bloom\n"
+"	if (bloom_intensity > 0.0) {\n"
+"		vec3 bloom = vec3(0.0, 0.0, 0.0);\n"
+"		float factor = 0.0;\n"
+"		for (int mipmap = 0; mipmap < levels; ++mipmap) {\n"
+"			float scale = 1.0/exp2(float(mipmap));\n"
+"			factor += scale;\n"
+"			bloom += texture2DLod(bloomed, gl_TexCoord[0].xy, float(mipmap)).rgb * scale;\n"
+"		}\n"
+"		bloom /= factor;\n"
+"		color_out.rgb += bloom;\n"
+"	}\n"
+"	gl_FragColor = color_out;\n"
+"}\n";
 
 char *Default_tonemapping_fragment_shader = 
 "uniform sampler2D tex;\n"

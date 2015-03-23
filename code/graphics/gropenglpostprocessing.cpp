@@ -138,7 +138,7 @@ bool opengl_post_pass_bloom_new()
 	// ------ end bright pass ------
 
 	// ------ begin blur pass ------
-
+	
 	for (int pass = 0; pass < 2; pass++) {
 		GLuint source_tex = Bloom_textures[pass];
 		GLuint dest_tex = Bloom_textures[1 - pass];
@@ -162,24 +162,17 @@ bool opengl_post_pass_bloom_new()
 
 		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, dest_tex, 0);
 
-		opengl_check_for_errors();
-		opengl_check_framebuffer();
-
 		glViewport(0, 0, width, height);
 
-		if (opengl_check_for_errors()) {
-			int error = 1;
-		}
-
 		opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
-	}
+	} 
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Bloom_textures[0]);
 
 	vglGenerateMipmapEXT(GL_TEXTURE_2D);
-
+	
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Bloom_textures[1]);
@@ -230,13 +223,32 @@ bool opengl_post_pass_bloom_new()
 
 	GL_state.Texture.Disable();
 
+	// composite blur to color texture
+
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
+
+	opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLOOM_COMP, 0));
+
+	GL_state.Uniform.setUniformi("tex", 0);
+	GL_state.Uniform.setUniformi("levels", MAX_MIP_BLUR_LEVELS);
+	GL_state.Uniform.setUniformf("bloom_intensity", Cmdline_bloom_intensity);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Bloom_textures[0]);
+
+	GL_state.SetAlphaBlendMode( ALPHA_BLEND_ADDITIVE );
+
+	glViewport(0, 0, gr_screen.max_w, gr_screen.max_h);
+
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+	GL_state.SetAlphaBlendMode( ALPHA_BLEND_NONE );
+
 	// ------ end blur pass --------
 
 	// reset viewport, scissor test and exit
-	glViewport(0, 0, gr_screen.max_w, gr_screen.max_h);
 	GL_state.ScissorTest(scissor_test);
-
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, opengl_get_rtt_framebuffer());
 
 	return true;
 }
@@ -494,14 +506,17 @@ void gr_opengl_post_process_end()
 		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, Scene_depth_texture, 0);
 	}
 
-	// do tone mapping
-	opengl_post_pass_tonemap();
-
 	// do bloom, hopefully ;)
 	//bool bloomed = opengl_post_pass_bloom();
 	bool bloomed = opengl_post_pass_bloom_new();
 	//bool bloomed = true;
 	
+	// do tone mapping
+	opengl_post_pass_tonemap();
+
+	// now write to the on-screen buffer
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, opengl_get_rtt_framebuffer());
+
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -547,7 +562,8 @@ void gr_opengl_post_process_end()
 			intensity /= 3.0f;
 		}
 
-		GL_state.Uniform.setUniformf( "bloom_intensity", intensity );
+		//GL_state.Uniform.setUniformf( "bloom_intensity", intensity );
+		GL_state.Uniform.setUniformf( "bloom_intensity", 0.0f );
 		GL_state.Uniform.setUniformi( "levels" , MAX_MIP_BLUR_LEVELS );
 		GL_state.Uniform.setUniformi( "bloomed", 1 );
 
@@ -949,7 +965,8 @@ bool opengl_post_init_shaders()
 	
 	if ( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BRIGHTPASS, 0) < 0 || 
 		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) < 0 || 
-		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) < 0 ) {
+		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) < 0 ||
+		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLOOM_COMP, 0) < 0) {
 		// disable bloom if we don't have those shaders available
 		Cmdline_bloom_intensity = 0;
 	}
