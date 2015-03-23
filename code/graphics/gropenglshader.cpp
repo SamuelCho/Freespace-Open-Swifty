@@ -55,7 +55,7 @@ static opengl_shader_type_t GL_shader_types[] = {
 		6, { "baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset" }, 1, { "radius" }, "Distortion Effects" },
 
 	{ SDR_TYPE_POST_PROCESS_MAIN, "post-v.sdr", "post-f.sdr", 0, {0, 0, 0}, 
-		5, { "tex", "depth_tex", "timer", "bloomed", "bloom_intensity" }, 0, { NULL }, "Post Processing" },
+		6, { "tex", "depth_tex", "timer", "bloomed", "bloom_intensity", "levels" }, 0, { NULL }, "Post Processing" },
 
 	{ SDR_TYPE_POST_PROCESS_BLUR, "post-v.sdr", "blur-f.sdr", 0, {0, 0, 0}, 
 		2, { "tex", "bsize", "debug" }, 0, { NULL }, "Gaussian Blur" },

@@ -497,9 +497,6 @@ void gr_opengl_post_process_end()
 	// do tone mapping
 	opengl_post_pass_tonemap();
 
-	// Bind the correct framebuffer. opengl_get_rtt_framebuffer returns 0 if not doing RTT
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, opengl_get_rtt_framebuffer());	
-
 	// do bloom, hopefully ;)
 	//bool bloomed = opengl_post_pass_bloom();
 	bool bloomed = opengl_post_pass_bloom_new();
