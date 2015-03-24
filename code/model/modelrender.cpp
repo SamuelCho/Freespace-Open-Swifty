@@ -538,7 +538,7 @@ uint draw_list::determine_shader_flags(render_state *state, queued_buffer_draw *
 		use_thrust_scale = true;
 	}
 
-	return gr_determine_shader_flags(
+	return gr_determine_model_shader_flags(
 		state->lighting, 
 		fog, 
 		texture, 
