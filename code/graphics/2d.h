@@ -992,7 +992,7 @@ void gr_set_color_fast(color *dst);
 void gr_create_shader(shader *shade, ubyte r, ubyte g, ubyte b, ubyte c);
 void gr_set_shader(shader *shade);
 
-uint gr_determine_shader_flags(
+uint gr_determine_model_shader_flags(
 	bool lighting, 
 	bool fog, 
 	bool textured, 

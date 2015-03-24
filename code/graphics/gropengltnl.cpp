@@ -833,7 +833,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	int textured = ((flags & TMAP_FLAG_TEXTURED) && (bufferp->flags & VB_FLAG_UV1));
 
 	// setup shader flags for the things that we want/need
-	shader_flags = gr_determine_shader_flags(
+	shader_flags = gr_determine_model_shader_flags(
 		lighting_is_enabled, 
 		GL_state.Fog(), 
 		textured, 
