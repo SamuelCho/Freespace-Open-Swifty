@@ -123,7 +123,6 @@ extern int Num_weapon_subtypes;
 #define WIF3_FIGHTER_INTERCEPTABLE		(1 << 6)	// (like WIF_BOMB), without forcing it to be tagetable -MageKing17
 #define WIF3_AOE_ELECTRONICS			(1 << 7)	// Apply electronics effect across the weapon's entire area of effect instead of just on the impacted ship -MageKing17
 
-
 #define	WIF_HOMING					(WIF_HOMING_HEAT | WIF_HOMING_ASPECT | WIF_HOMING_JAVELIN)
 #define WIF_LOCKED_HOMING           (WIF_HOMING_ASPECT | WIF_HOMING_JAVELIN)
 #define WIF_HURTS_BIG_SHIPS			(WIF_BOMB | WIF_BEAM | WIF_HUGE | WIF_BIG_ONLY)
@@ -145,6 +144,15 @@ extern int Num_weapon_subtypes;
 // flags for setting burst fire 
 #define WBF_FAST_FIRING				(1<<0)		// burst is to use only the firewait to determine firing delays
 #define WBF_RANDOM_LENGTH			(1<<1)		// burst is to fire random length bursts
+
+// constants for weapon lock acquire methods
+#define WLOCK_PIXEL		0
+#define WLOCK_TIMER		1
+
+// constants for weapon lock restrictions
+#define LR_CURRENT_TARGET				0		// Only lock current target and subsystem
+#define LR_CURRENT_TARGET_SUBSYS		1		// 
+#define LR_ANY_TARGETS					2
 
 //particle names go here -nuke
 #define PSPEW_NONE		-1			//used to disable a spew, useful for xmts
@@ -388,11 +396,24 @@ typedef struct weapon_info {
 	// swarm count
 	short swarm_count;						// how many swarm missiles are fired for this weapon
 
+	int target_restrict;
+	bool multi_lock;
+	int max_seeking;						// how many seekers can be active at a time if multilock is enabled. A value of one will lock stuff up one by one.
+	int max_seekers_per_target;			// how many seekers can be attached to a target.
+
+	SCP_vector<int> ship_type_restrict;
+	SCP_vector<SCP_string> ship_type_restrict_temp;
+
+	bool trigger_lock;						// Trigger must be held down and released to lock and fire.
+	bool launch_reset_locks;				// Lock indicators reset after firing
+
 	//	Specific to ASPECT homing missiles.
+	int acquire_method;
 	float	min_lock_time;						// minimum time (in seconds) to achieve lock
 	int	lock_pixels_per_sec;				// pixels/sec moved while locking
 	int	catchup_pixels_per_sec;			// pixels/sec moved while catching-up for a lock				
-	int	catchup_pixel_penalty;			// number of extra pixels to move while locking as a penalty for catching up for a lock			
+	int	catchup_pixel_penalty;			// number of extra pixels to move while locking as a penalty for catching up for a lock		
+	float lock_fov;
 
 	//	Specific to HEAT homing missiles.
 	float	fov;
@@ -670,5 +691,11 @@ void weapon_pause_sounds();
 
 // Unpauses all running weapon sounds
 void weapon_unpause_sounds();
+
+// Swifty - return number of max simultaneous locks 
+int weapon_get_max_missile_seekers(weapon_info *wip);
+
+// return if this weapon can lock on this ship type
+bool weapon_can_lock_on_ship_type(weapon_info *wip, int ship_type);
 
 #endif

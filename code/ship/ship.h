@@ -20,6 +20,7 @@
 #include "model/modelanim.h"
 #include "palman/palman.h"
 #include "weapon/trails.h"
+#include "weapon/weapon.h"
 #include "ai/ai.h"
 #include "network/multi_obj.h"
 #include "hud/hudparse.h"
@@ -94,6 +95,7 @@ typedef struct {
 #define SW_FLAG_BEAM_FREE					(1<<0)							// if this is a beam weapon, its free to fire
 #define SW_FLAG_TURRET_LOCK				(1<<1)							//	is this turret is free to fire or locked
 #define SW_FLAG_TAGGED_ONLY				(1<<2)							// only fire if target is tagged
+#define SW_FLAG_TRIGGER_LOCK				(1<<3)							// indicates that the trigger is held down
 
 typedef struct ship_weapon {
 	int num_primary_banks;					// Number of primary banks (same as model)
@@ -274,6 +276,36 @@ typedef struct cockpit_display_info {
 	int offset[2];
 	int size[2];
 } cockpit_display_info;
+
+// structure to keep track of ship locks
+typedef struct lock_info {
+	object *obj;
+	ship_subsys *subsys;
+
+	vec3d world_pos;
+
+	int current_target_sx;
+	int current_target_sy;
+
+	bool locked;
+	int maintain_lock_count;
+	int indicator_x;
+	int indicator_y;
+	int indicator_start_x;
+	int indicator_start_y;
+	bool indicator_visible;
+	float time_to_lock;
+	float dist_to_lock;
+	int catching_up;
+	float catch_up_distance;
+	float last_dist_to_target;
+	double accumulated_x_pixels;
+	double accumulated_y_pixels;
+	bool need_new_start_pos;
+	bool target_in_lock_cone;
+
+	int locked_timestamp;
+} lock_info;
 
 // Goober5000
 #define SSF_CARGO_REVEALED		(1 << 0)
@@ -658,6 +690,9 @@ public:
 	float		wash_intensity;
 	vec3d	wash_rot_axis;
 	int		wash_timestamp;
+
+	SCP_vector<lock_info> missile_locks;
+	SCP_vector<lock_info> missile_locks_firing;
 
 	int	num_swarm_missiles_to_fire;	// number of swarm missiles that need to be launched
 	int	next_swarm_fire;					// timestamp of next swarm missile to fire
@@ -1598,6 +1633,9 @@ extern int ship_fire_primary_debug(object *objp);	//	Fire the debug laser.
 extern int ship_stop_fire_primary(object * obj);
 extern int ship_fire_primary(object * objp, int stream_weapons, int force = 0);
 extern int ship_fire_secondary(object * objp, int allow_swarm = 0 );
+extern bool ship_start_secondary_fire(object* objp);
+extern bool ship_stop_secondary_fire(object* objp);
+
 extern int ship_launch_countermeasure(object *objp, int rand_val = -1);
 
 // for special targeting lasers
@@ -2008,5 +2046,14 @@ int get_default_player_ship_index();
  * @return point is outside bbox, FALSE/0
  */
 int get_nearest_bbox_point(object *ship_obj, vec3d *start, vec3d *box_pt);
+
+// Clears a lock_info struct with defaults
+void ship_clear_lock(lock_info *slot);
+
+// queues up locks
+void ship_queue_missile_locks(ship *shipp, weapon_info *wip);
+
+// snoops missile locks to see if any are ready to fire.
+bool ship_lock_present(ship *shipp);
 
 #endif
