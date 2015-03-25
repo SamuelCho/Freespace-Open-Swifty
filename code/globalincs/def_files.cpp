@@ -1837,7 +1837,7 @@ char *Default_main_fragment_shader =
 "#ifdef FLAG_GLOW_MAP																																												\n"
 "	vec3 glowColor = texture2D(sGlowmap, texCoord).rgb;																														\n"
 " #ifdef FLAG_HDR\n"
-"	glowColor = pow(glowColor, vec3(SRGB_GAMMA)) * 5.0f;\n"
+"	glowColor = pow(glowColor, vec3(SRGB_GAMMA)) * 3.0f;\n"
 " #endif\n"
 "	baseColor.rgb += glowColor * GLOW_MAP_INTENSITY;\n"
 "#endif																																															\n"
@@ -2459,12 +2459,11 @@ char* Default_fxaa_fragment_shader =
 "}";
 
 char *Default_blur_fragment_shader = 
-"#define BLUR_SIZE_DIV 3.0\n"
-"varying float blurSize;\n"
+"uniform float texSize;\n"
+"uniform float tapSize;\n"
 "uniform int level;\n"
 "uniform sampler2D tex;\n"
 "// Gaussian Blur\n"
-"// 512x512 and smaller textures give best results\n"
 "// 2 passes required\n"
 "void main()\n"
 "{\n"
@@ -2480,17 +2479,17 @@ char *Default_blur_fragment_shader =
 "	vec4 sum = texture2DLod(tex, gl_TexCoord[0].xy, float(level)) * BlurWeights[0];\n"
 "#ifdef PASS_0\n"
 "	for (int i = 1; i < 6; i++) {\n"
-"		sum += texture2DLod(tex, vec2(clamp(gl_TexCoord[0].x - float(i) * (blurSize/BLUR_SIZE_DIV), 0.0, 1.0), gl_TexCoord[0].y), float(level)) * BlurWeights[i];\n"
-"		sum += texture2DLod(tex, vec2(clamp(gl_TexCoord[0].x + float(i) * (blurSize/BLUR_SIZE_DIV), 0.0, 1.0), gl_TexCoord[0].y), float(level)) * BlurWeights[i];\n"
+"		sum += texture2DLod(tex, vec2(clamp(gl_TexCoord[0].x - float(i) * (texSize) * tapSize, 0.0, 1.0), gl_TexCoord[0].y), float(level)) * BlurWeights[i];\n"
+"		sum += texture2DLod(tex, vec2(clamp(gl_TexCoord[0].x + float(i) * (texSize) * tapSize, 0.0, 1.0), gl_TexCoord[0].y), float(level)) * BlurWeights[i];\n"
 "	}\n"
 "#endif\n"
 "#ifdef PASS_1\n"
 "	for (int i = 1; i < 6; i++) {\n"
-"		sum += texture2DLod(tex, vec2(gl_TexCoord[0].x, clamp(gl_TexCoord[0].y - float(i) * (blurSize/BLUR_SIZE_DIV), 0.0, 1.0)), float(level)) * BlurWeights[i];\n"
-"		sum += texture2DLod(tex, vec2(gl_TexCoord[0].x, clamp(gl_TexCoord[0].y + float(i) * (blurSize/BLUR_SIZE_DIV), 0.0, 1.0)), float(level)) * BlurWeights[i];\n"
+"		sum += texture2DLod(tex, vec2(gl_TexCoord[0].x, clamp(gl_TexCoord[0].y - float(i) * (texSize) * tapSize, 0.0, 1.0)), float(level)) * BlurWeights[i];\n"
+"		sum += texture2DLod(tex, vec2(gl_TexCoord[0].x, clamp(gl_TexCoord[0].y + float(i) * (texSize) * tapSize, 0.0, 1.0)), float(level)) * BlurWeights[i];\n"
 "	}\n"
 "#endif\n"
-"	gl_FragColor = sum;\n"
+"	gl_FragColor = vec4(sum.rgb, 1.0);\n"
 "}\n";
 
 char *Default_brightpass_fragment_shader = 
@@ -2682,15 +2681,12 @@ char *Default_post_fragment_shader =
 "}";
 
 char *Default_post_vertex_shader = 
-"varying float blurSize;\n"
-"uniform float bsize;\n"
 "void main()\n"
 "{\n"
 "	gl_TexCoord[0] = gl_MultiTexCoord0;\n"
 "	gl_Position = gl_Vertex;\n"
 "	gl_FrontColor = gl_Color;\n"
 "	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
-"	blurSize = 1.0 / bsize;\n"
 "// Check necessary for ATI specific behavior\n"
 " #ifdef __GLSL_CG_DATA_TYPES\n"
 "	gl_ClipVertex = (gl_ModelViewMatrix * gl_Vertex);\n"
@@ -2780,7 +2776,7 @@ char* Default_effect_particle_fragment_shader =
 "	float backDepth = fragDepthLinear + depthOffset;\n"
 "	float ds = min(sceneDepthLinear, backDepth) - max(nearZ, frontDepth);\n"
 "	fragmentColor.rgb = fragmentColor.rgb * ( ds / (depthOffset*2.0) );\n"
-"	gl_FragColor = max(fragmentColor, vec4(0.0));\n"
+"	gl_FragColor = max(fragmentColor, vec4(0.0))*2.0;\n"
 "}";
 
 char* Default_effect_distortion_fragment_shader =

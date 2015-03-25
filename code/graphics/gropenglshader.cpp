@@ -58,7 +58,7 @@ static opengl_shader_type_t GL_shader_types[] = {
 		6, { "tex", "depth_tex", "timer", "bloomed", "bloom_intensity", "levels" }, 0, { NULL }, "Post Processing" },
 
 	{ SDR_TYPE_POST_PROCESS_BLUR, "post-v.sdr", "blur-f.sdr", 0, {0, 0, 0}, 
-		2, { "tex", "bsize", "debug" }, 0, { NULL }, "Gaussian Blur" },
+		4, { "tex", "texSize", "level", "tapSize", "debug" }, 0, { NULL }, "Gaussian Blur" },
 
 	{ SDR_TYPE_POST_PROCESS_BLOOM_COMP, "post-v.sdr", "bloom-comp-f.sdr", 0, {0, 0, 0}, 
 		3, { "bloomed", "bloom_intensity", "levels" }, 0, { NULL }, "Bloom Compositing" },

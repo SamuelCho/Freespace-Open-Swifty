@@ -37,7 +37,7 @@ float ls_intensity = 0.5f;
 float ls_cpintensity = 0.5f * 50 * 0.02f;
 int ls_samplenum = 50;
 
-const int MAX_MIP_BLUR_LEVELS = 5;
+const int MAX_MIP_BLUR_LEVELS = 4;
 
 typedef struct post_effect_t {
 	SCP_string name;
@@ -138,92 +138,52 @@ bool opengl_post_pass_bloom_new()
 	// ------ end bright pass ------
 
 	// ------ begin blur pass ------
-	
-	for (int pass = 0; pass < 2; pass++) {
-		GLuint source_tex = Bloom_textures[pass];
-		GLuint dest_tex = Bloom_textures[1 - pass];
-
-		//vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer[1-pass]);
-
-		if (pass) {
-			opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL));
-		} else {
-			opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL));
-		}
-
-		GL_state.Uniform.setUniformi("tex", 0);
-
-		GL_state.Texture.SetActiveUnit(0);
-		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-		GL_state.Texture.Enable(source_tex);
-
-		GL_state.Uniform.setUniformf("bsize", (pass) ? (float)width : (float)height);
-		GL_state.Uniform.setUniformi("level", 0);
-
-		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, dest_tex, 0);
-
-		glViewport(0, 0, width, height);
-
-		opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
-	} 
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Bloom_textures[0]);
 
 	vglGenerateMipmapEXT(GL_TEXTURE_2D);
-	
-	GL_state.Texture.SetActiveUnit(0);
-	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Bloom_textures[1]);
-
-	vglGenerateMipmapEXT(GL_TEXTURE_2D);
 
 	GL_state.Texture.Disable();
 
-	for (int pass = 0; pass < 2; pass++) {
-		GLuint source_tex = Bloom_textures[pass];
-		GLuint dest_tex = Bloom_textures[1 - pass];
+	for ( int iteration = 0; iteration < 2; iteration++) {
+		for (int pass = 0; pass < 2; pass++) {
+			GLuint source_tex = Bloom_textures[pass];
+			GLuint dest_tex = Bloom_textures[1 - pass];
 
-		//vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer[1-pass]);
-
-		if (pass) {
-			opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL));
-		} else {
-			opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL));
-		}
-
-		GL_state.Uniform.setUniformi("tex", 0);
-
-		GL_state.Texture.SetActiveUnit(0);
-		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-		GL_state.Texture.Enable(source_tex);
-
-		for (int mipmap = 0; mipmap < MAX_MIP_BLUR_LEVELS; ++mipmap) {
-			int bloom_width = width >> mipmap;
-			int bloom_height = height >> mipmap;
-
-			GL_state.Uniform.setUniformf("bsize", (pass) ? (float)bloom_width : (float)bloom_height);
-			GL_state.Uniform.setUniformi("level", mipmap);
-
-			vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, dest_tex, mipmap);
-
-			opengl_check_for_errors();
-			opengl_check_framebuffer();
-
-			glViewport(0, 0, bloom_width, bloom_height);
-
-			if (opengl_check_for_errors()) {
-				int error = 1;
+			if (pass) {
+				opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL));
+			} else {
+				opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL));
 			}
 
-			opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+			GL_state.Uniform.setUniformi("tex", 0);
+
+			GL_state.Texture.SetActiveUnit(0);
+			GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+			GL_state.Texture.Enable(source_tex);
+
+			for (int mipmap = 0; mipmap < MAX_MIP_BLUR_LEVELS; ++mipmap) {
+				int bloom_width = width >> mipmap;
+				int bloom_height = height >> mipmap;
+
+				GL_state.Uniform.setUniformf("texSize", (pass) ? 1.0f / i2fl(bloom_width) : 1.0f / i2fl(bloom_height));
+				GL_state.Uniform.setUniformi("level", mipmap);
+				GL_state.Uniform.setUniformf("tapSize", 1.0f);
+
+				vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, dest_tex, mipmap);
+
+				glViewport(0, 0, bloom_width, bloom_height);
+
+				opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+			}
 		}
 	}
 
 	GL_state.Texture.Disable();
 
-	// composite blur to color texture
+	// composite blur to the color texture
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
 
