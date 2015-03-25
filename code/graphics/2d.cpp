@@ -1809,7 +1809,7 @@ void gr_flip()
 	gr_screen.gf_flip();
 }
 
-uint gr_determine_shader_flags(
+uint gr_determine_model_shader_flags(
 	bool lighting, 
 	bool fog, 
 	bool textured, 
