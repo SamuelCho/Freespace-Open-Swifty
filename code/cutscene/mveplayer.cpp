@@ -10,6 +10,8 @@
 #include "graphics/gropengltexture.h"
 #include "graphics/gropenglextension.h"
 #include "graphics/gropenglstate.h"
+#include "graphics/gropengldraw.h"
+#include "graphics/gropenglshader.h"
 
 #include "globalincs/pstypes.h"
 #include "cutscene/mvelib.h"
@@ -518,12 +520,12 @@ int mve_video_createbuf(ubyte minor, ubyte *data)
 
 		GL_state.Array.BindArrayBuffer(0);
 
-		GL_state.Array.EnableClientVertex();
-		GL_state.Array.VertexPointer(2, GL_FLOAT, sizeof(glVertices[0]), glVertices);
+		vertex_layout vertex_def;
 
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.EnableClientTexture();
-		GL_state.Array.TexPointer(2, GL_FLOAT, sizeof(glVertices[0]), &(glVertices[0][2]));
+		vertex_def.add_vertex_component(vertex_format_data::POSITION2, sizeof(glVertices[0]), glVertices);
+		vertex_def.add_vertex_component(vertex_format_data::TEX_COORD, sizeof(glVertices[0]), &(glVertices[0][2]));
+
+		opengl_bind_vertex_layout(vertex_def);
 	}
 
 	return 1;
@@ -608,6 +610,8 @@ void mve_video_display()
 
 	if (gr_screen.mode == GR_OPENGL) {
 		glTexSubImage2D(GL_state.Texture.GetTarget(), 0, 0, 0, g_width, g_height, GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV, pixelbuf);
+
+		opengl_shader_set_passthrough(true);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	} else {
@@ -797,9 +801,6 @@ void mve_play(MVESTREAM *mve)
 void mve_shutdown()
 {
 	if (gr_screen.mode == GR_OPENGL) {
-		GL_state.Array.DisableClientVertex();
-		GL_state.Array.DisableClientTexture();
-
 		if (mve_scale_video) {
 			glMatrixMode(GL_MODELVIEW);
 			glPopMatrix();

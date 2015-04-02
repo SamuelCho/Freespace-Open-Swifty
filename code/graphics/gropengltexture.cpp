@@ -1311,10 +1311,56 @@ int opengl_compress_image( ubyte **compressed_data, ubyte *in_data, int width, i
 	return compressed_size;
 }
 
+void gr_opengl_get_bitmap_from_texture(void* data_out, int bitmap_num)
+{
+	float u,v;
+
+	gr_opengl_tcache_set(bitmap_num, TCACHE_TYPE_NORMAL, &u, &v);
+
+	int n = bm_get_cache_slot(bitmap_num, 1);
+	tcache_slot_opengl *ts = &Textures[n];
+	
+	GLenum pixel_format = GL_RGB;
+	GLenum data_format = GL_FLOAT;
+	int bytes_per_pixel = 3 * sizeof(float);
+
+	if ( bm_has_alpha_channel(bitmap_num) ) {
+		pixel_format = GL_RGBA;
+		bytes_per_pixel = 4 * sizeof(float);
+	}
+
+	opengl_get_texture(ts->texture_target, pixel_format, data_format, 1, ts->w, ts->h, bytes_per_pixel, data_out, 0);
+}
+
+int opengl_get_texture( GLenum target, GLenum pixel_format, GLenum data_format, int num_mipmaps, int width, int height, int bytes_per_pixel, void* image_data, int offset )
+{
+	int m_offset = offset;
+	int m_width = width;
+	int m_height = height;
+
+	for ( int i = 0; i < num_mipmaps; i++ ) {
+		glGetTexImage(target, i, pixel_format, data_format, (ubyte*)image_data + m_offset);
+
+		m_offset += (m_width * m_height * bytes_per_pixel);
+
+		// reduce by half for next mipmap level
+		m_width >>= 1;
+		m_height >>= 1;
+
+		if (m_width < 1)
+			m_width = 1;
+
+		if (m_height < 1)
+			m_height = 1;
+	}
+
+	return m_offset;
+}
+
 // sends a texture object out to "image_data", which should be memory which is already allocated
 // this should only be used for uncompressed 24-bit or 32-bit (distiguished by "alpha" var) images
 // returns 0 on failure, size of data on success
-int opengl_export_image( int slot, int width, int height, int alpha, int num_mipmaps, ubyte *image_data )
+int opengl_export_render_target( int slot, int width, int height, int alpha, int num_mipmaps, ubyte *image_data )
 {
 	tcache_slot_opengl *ts = &Textures[slot];
 
@@ -1360,25 +1406,17 @@ int opengl_export_image( int slot, int width, int height, int alpha, int num_mip
 	GL_state.Texture.Enable(ts->texture_id);
 
 	for (int i = 0; i < faces; i++) {
-		for (int j = 0; j < ts->mipmap_levels; j++) {
-			glGetTexImage(target + i, j, (alpha) ? GL_BGRA : GL_BGR, (alpha) ? GL_UNSIGNED_INT_8_8_8_8_REV : GL_UNSIGNED_BYTE, image_data + m_offset);
-
-			m_offset += (m_width * m_height * m_bpp);
-
-			// reduce by half for next mipmap level
-			m_width >>= 1;
-			m_height >>= 1;
-
-			if (m_width < 1)
-				m_width = 1;
-
-			if (m_height < 1)
-				m_height = 1;
-		}
-
-		// restore original width and height for next face
-		m_width = width;
-		m_height = height;
+		m_offset = opengl_get_texture(
+			target + i, 
+			(alpha) ? GL_BGRA : GL_BGR, 
+			(alpha) ? GL_UNSIGNED_INT_8_8_8_8_REV : GL_UNSIGNED_BYTE, 
+			ts->mipmap_levels, 
+			m_width, 
+			m_height, 
+			m_bpp, 
+			image_data, 
+			m_offset
+		);
 	}
 
 	GL_state.Texture.Disable();
@@ -1617,6 +1655,10 @@ int opengl_set_render_target( int slot, int face, int is_static )
 
 	if (slot < 0) {
 		if ( (render_target != NULL) && (render_target->working_slot >= 0) ) {
+			if (Textures[render_target->working_slot].mipmap_levels > 1) {
+				gr_opengl_generate_mip_maps(render_target->working_slot);
+			}
+
 			if (render_target->is_static) {
 				extern void gr_opengl_bm_save_render_target(int slot);
 				gr_opengl_bm_save_render_target(render_target->working_slot);
@@ -1741,8 +1783,14 @@ int opengl_make_render_target( int handle, int slot, int *w, int *h, ubyte *bpp,
 		GL_state.Texture.SetTarget(GL_texture_target);
 		GL_state.Texture.Enable(ts->texture_id);
 
+		GLint min_filter = GL_LINEAR;
+
+		if ( flags & BMP_FLAG_RENDER_TARGET_MIPMAP ) {
+			min_filter = GL_LINEAR_MIPMAP_LINEAR;
+		}
+
 		glTexParameteri(GL_texture_target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_texture_target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_texture_target, GL_TEXTURE_MIN_FILTER, min_filter);
 		glTexParameteri(GL_texture_target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_texture_target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
@@ -1759,15 +1807,16 @@ int opengl_make_render_target( int handle, int slot, int *w, int *h, ubyte *bpp,
 			ts->texture_target = GL_state.Texture.GetTarget();
 		}
 
-	/*	if (Cmdline_mipmap) {
+		if (flags & BMP_FLAG_RENDER_TARGET_MIPMAP) {
 			vglGenerateMipmapEXT(GL_state.Texture.GetTarget());
 
 			extern int get_num_mipmap_levels(int w, int h);
 			ts->mipmap_levels = get_num_mipmap_levels(*w, *h);
-		} else */
-		{
+		} else {
 			ts->mipmap_levels = 1;
 		}
+
+		glTexParameteri(GL_texture_target, GL_TEXTURE_MAX_LEVEL, ts->mipmap_levels - 1);
 
 		GL_state.Texture.Disable();
 
@@ -1814,8 +1863,14 @@ int opengl_make_render_target( int handle, int slot, int *w, int *h, ubyte *bpp,
 	GL_state.Texture.SetTarget(GL_texture_target);
 	GL_state.Texture.Enable(ts->texture_id);
 
+	GLint min_filter = GL_LINEAR;
+
+	if (flags & BMP_FLAG_RENDER_TARGET_MIPMAP) {
+		min_filter = GL_LINEAR_MIPMAP_LINEAR;
+	}
+
 	glTexParameteri(GL_texture_target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_texture_target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_texture_target, GL_TEXTURE_MIN_FILTER, min_filter);
 	glTexParameteri(GL_texture_target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_texture_target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
@@ -1829,15 +1884,16 @@ int opengl_make_render_target( int handle, int slot, int *w, int *h, ubyte *bpp,
 		glTexImage2D(GL_state.Texture.GetTarget(), 0, GL_RGBA, *w, *h, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
 	}
 
-/*	if (Cmdline_mipmap) {
+	if (flags & BMP_FLAG_RENDER_TARGET_MIPMAP) {
 		vglGenerateMipmapEXT(GL_state.Texture.GetTarget());
 
 		extern int get_num_mipmap_levels(int w, int h);
 		ts->mipmap_levels = get_num_mipmap_levels(*w, *h);
-	} else */
-	{
+	} else {
 		ts->mipmap_levels = 1;
 	}
+
+	glTexParameteri(GL_texture_target, GL_TEXTURE_MAX_LEVEL, ts->mipmap_levels - 1);
 
 	GL_state.Texture.Disable();
 
@@ -1943,7 +1999,26 @@ GLuint opengl_get_rtt_framebuffer()
 		return render_target->framebuffer_id;
 }
 
+void gr_opengl_generate_mip_maps(int slot)
+{
+	if (slot < 0) {
+		Int3();
+		return;
+	}
+
+	tcache_slot_opengl *ts = NULL;
+
+	ts = &Textures[slot];
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(ts->texture_target);
+	GL_state.Texture.Enable(ts->texture_id);
+
+	vglGenerateMipmapEXT(ts->texture_target);
+
+	GL_state.Texture.Disable();
+}
+
 //
 // End of GL_EXT_framebuffer_object stuff
 // -----------------------------------------------------------------------------
-

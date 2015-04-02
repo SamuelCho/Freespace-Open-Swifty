@@ -11,6 +11,8 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <SDL_timer.h>
 #endif
 
 #include <limits.h>
@@ -33,6 +35,9 @@
 static longlong Timer_last_value = 0, Timer_base = 0, Timer_freq = 0;
 static const int precision = 1;
 #endif
+
+static longlong Timer_perf_counter_base = 0;	// perf counter start time
+static longlong Timer_perf_counter_freq = 0;	// perf counter frequency - number of ticks per second
 
 static int Timer_inited = 0;
 
@@ -57,6 +62,22 @@ void timer_init()
 #ifdef _WIN32
 		timeBeginPeriod(precision);
 		Timer_base = Timer_last_value = timeGetTime();
+
+		// get the performance counter start time
+		LARGE_INTEGER perf_start_time;
+		QueryPerformanceCounter(&perf_start_time);
+		Timer_perf_counter_base = perf_start_time.QuadPart;
+
+		// get the performance counter's ticks per second frequency
+		LARGE_INTEGER perf_frequency;
+		QueryPerformanceFrequency(&perf_frequency);
+		Timer_perf_counter_freq = perf_frequency.QuadPart;
+#else
+		// get the performance counter start time
+		Timer_perf_counter_base = SDL_GetTicks();
+
+		// get the performance counter's ticks per second frequency
+		Timer_perf_counter_freq = 1000;
 #endif
 
 		Timer_inited = 1;
@@ -90,6 +111,22 @@ static uint timer_get()
 #endif
 }
 
+static longlong timer_get_perf_count()
+{
+#ifdef _WIN32
+	ENTER_CRITICAL_SECTION( Timer_lock);
+
+	LARGE_INTEGER time;
+	QueryPerformanceCounter(&time);
+	longlong elapsed = time.QuadPart - Timer_perf_counter_base;
+
+	LEAVE_CRITICAL_SECTION( Timer_lock);
+
+	return elapsed;
+#else
+	return SDL_GetTicks() - Timer_perf_counter_base;
+#endif
+}
 
 fix timer_get_fixed_seconds()
 {
@@ -143,6 +180,22 @@ int timer_get_microseconds()
 	}
 
 	return timer_get() * 1000;
+}
+
+uint timer_get_high_res_microseconds()
+{
+	if ( !Timer_inited ) {
+		Int3();
+		return 0;
+	}
+
+	// We now have the elapsed number of ticks, along with the
+	// number of ticks-per-second. We use these values
+	// to convert to the number of elapsed microseconds.
+	// To guard against loss-of-precision, we convert
+	// to microseconds *before* dividing by ticks-per-second.
+
+	return (timer_get_perf_count() * 1000000) / Timer_perf_counter_freq;
 }
 
 // 0 means invalid,

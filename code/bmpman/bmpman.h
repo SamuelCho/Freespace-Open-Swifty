@@ -54,6 +54,7 @@
 #define BMP_FLAG_RENDER_TARGET_STATIC		(1<<0)
 #define BMP_FLAG_RENDER_TARGET_DYNAMIC		(1<<1)
 #define BMP_FLAG_CUBEMAP					(1<<2)
+#define BMP_FLAG_RENDER_TARGET_MIPMAP		(1<<3)
 
 typedef struct bitmap {
 	short	w, h;		// Width and height
@@ -66,6 +67,25 @@ typedef struct bitmap {
 						// is not set, this palette just points to the screen palette. (gr_palette)
 } bitmap;
 
+class bitmap_lookup {
+	float *Bitmap_data;
+
+	int Width;
+	int Height;
+	int Num_channels;
+
+	float map_texture_address(float address);
+public:
+	bitmap_lookup(int bitmap_num);
+	~bitmap_lookup();
+
+	bool valid();
+
+	float get_channel_red(float u, float v);
+	float get_channel_green(float u, float v);
+	float get_channel_blue(float u, float v);
+	float get_channel_alpha(float u, float v);
+};
 
 extern int Bm_paging;
 

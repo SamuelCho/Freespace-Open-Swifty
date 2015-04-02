@@ -31,9 +31,8 @@
 #include "parse/scripting.h"
 #include "gamesequence/gamesequence.h"	//WMC - for scripting hooks in gr_flip()
 #include "io/keycontrol.h" // m!m
+#include "graphics/gropengldraw.h"
 #include "debugconsole/console.h"
-#include "debugconsole/console.h"
-
 
 #if defined(SCP_UNIX) && !defined(__APPLE__)
 #if ( SDL_VERSION_ATLEAST(1, 2, 7) )
@@ -101,6 +100,10 @@ float Gr_save_menu_offset_X = 0.0f, Gr_save_menu_offset_Y = 0.0f;
 float Gr_save_menu_zoomed_offset_X = 0.0f, Gr_save_menu_zoomed_offset_Y = 0.0f;
 
 bool Save_custom_screen_size;
+
+vertex_layout Point_particle_vertex_layout;
+vertex_layout Effect_vertex_layout;
+vertex_layout Trail_vertex_layout;
 
 void gr_set_screen_scale(int w, int h, int zoom_w, int zoom_h, int max_w, int max_h, bool force_stretch)
 {
@@ -1500,12 +1503,21 @@ void poly_list::allocate(int _verts)
 		tsb = NULL;
 	}
 
+	if ( submodels != NULL ) {
+		vm_free(submodels);
+		submodels = NULL;
+	}
+
 	if (_verts) {
 		vert = (vertex*)vm_malloc(sizeof(vertex) * _verts);
 		norm = (vec3d*)vm_malloc(sizeof(vec3d) * _verts);
 
 		if (Cmdline_normal) {
 			tsb = (tsb_t*)vm_malloc(sizeof(tsb_t) * _verts);
+		}
+
+		if ( Use_GLSL >= 3 ) {
+			submodels = (int*)vm_malloc(sizeof(int) * _verts);
 		}
 	}
 
@@ -1528,6 +1540,11 @@ poly_list::~poly_list()
 	if (tsb != NULL) {
 		vm_free(tsb);
 		tsb = NULL;
+	}
+
+	if ( submodels != NULL ) {
+		vm_free(submodels);
+		submodels = NULL;
 	}
 }
 
@@ -1672,6 +1689,10 @@ void poly_list::make_index_buffer(SCP_vector<int> &vertex_list)
 			buffer_list_internal.tsb[z] = tsb[j];
 		}
 
+		if ( Use_GLSL >= 3 ) {
+			buffer_list_internal.submodels[z] = submodels[j];
+		}
+
 		buffer_list_internal.n_verts++;
 		z++;
 	}
@@ -1694,6 +1715,10 @@ poly_list& poly_list::operator = (poly_list &other_list)
 
 	if (Cmdline_normal) {
 		memcpy(tsb, other_list.tsb, sizeof(tsb_t) * other_list.n_verts);
+	}
+
+	if ( Use_GLSL >= 3 ) {
+		memcpy(submodels, other_list.submodels, sizeof(int) * other_list.n_verts);
 	}
 
 	n_verts = other_list.n_verts;
@@ -1782,4 +1807,160 @@ void gr_flip()
 	}
 
 	gr_screen.gf_flip();
+}
+
+uint gr_determine_model_shader_flags(
+	bool lighting, 
+	bool fog, 
+	bool textured, 
+	bool in_shadow_map, 
+	bool thruster_scale, 
+	bool transform,
+	bool team_color,
+	int tmap_flags, 
+	int spec_map, 
+	int glow_map, 
+	int normal_map, 
+	int height_map,
+	int env_map,
+	int misc_map
+) {
+	uint shader_flags = 0;
+
+	if ( Use_GLSL > 1 ) {
+		shader_flags |= SDR_FLAG_MODEL_CLIP;
+	}
+
+	if ( transform ) {
+		shader_flags |= SDR_FLAG_MODEL_TRANSFORM;
+	}
+
+	if ( in_shadow_map ) {
+		// if we're building the shadow map, we likely only need the flags here and above so bail
+		shader_flags |= SDR_FLAG_MODEL_SHADOW_MAP;
+
+		return shader_flags;
+	}
+
+	// setup shader flags for the things that we want/need
+	if ( lighting ) {
+		shader_flags |= SDR_FLAG_MODEL_LIGHT;
+	}
+
+	if ( fog ) {
+		shader_flags |= SDR_FLAG_MODEL_FOG;
+	}
+
+	if ( tmap_flags & TMAP_ANIMATED_SHADER ) {
+		shader_flags |= SDR_FLAG_MODEL_ANIMATED;
+	}
+
+	if ( textured ) {
+		if ( !Basemap_override ) {
+			shader_flags |= SDR_FLAG_MODEL_DIFFUSE_MAP;
+		}
+
+		if ( glow_map > 0 ) {
+			shader_flags |= SDR_FLAG_MODEL_GLOW_MAP;
+		}
+
+		if ( lighting ) {
+			if ( ( spec_map > 0 ) && !Specmap_override ) {
+				shader_flags |= SDR_FLAG_MODEL_SPEC_MAP;
+
+				if ( ( env_map > 0 ) && !Envmap_override ) {
+					shader_flags |= SDR_FLAG_MODEL_ENV_MAP;
+				}
+			}
+
+			if ( ( normal_map > 0) && !Normalmap_override ) {
+				shader_flags |= SDR_FLAG_MODEL_NORMAL_MAP;
+			}
+
+			if ( ( height_map > 0) && !Heightmap_override ) {
+				shader_flags |= SDR_FLAG_MODEL_HEIGHT_MAP;
+			}
+
+			if ( Cmdline_shadow_quality && !in_shadow_map && !Shadow_override) {
+				shader_flags |= SDR_FLAG_MODEL_SHADOWS;
+			}
+		}
+
+		if ( misc_map > 0 ) {
+			shader_flags |= SDR_FLAG_MODEL_MISC_MAP;
+		}
+
+		if ( team_color ) {
+			shader_flags |= SDR_FLAG_MODEL_TEAMCOLOR;
+		}
+	}
+
+	if ( Deferred_lighting ) {
+		shader_flags |= SDR_FLAG_MODEL_DEFERRED;
+	}
+
+	if ( thruster_scale ) {
+		shader_flags |= SDR_FLAG_MODEL_THRUSTER;
+	}
+
+	if ( High_dynamic_range ) {
+		shader_flags |= SDR_FLAG_MODEL_HDR;
+	}
+
+	return shader_flags;
+}
+
+void gr_build_vertex_layouts()
+{
+	// build vertex definition for geometry shader particles
+	ubyte* ptr = NULL;
+	int offset = 0;
+	int size = 0;
+
+	size = sizeof(particle_pnt);
+	offset = 0;
+
+	Point_particle_vertex_layout.add_vertex_component(vertex_format_data::POSITION3, size, ptr + offset);
+	offset += sizeof(vec3d);
+
+	Point_particle_vertex_layout.add_vertex_component(vertex_format_data::RADIUS, size, ptr + offset);
+	offset += sizeof(float);
+
+	Point_particle_vertex_layout.add_vertex_component(vertex_format_data::UVEC, size, ptr + offset);
+	offset += sizeof(vec3d);
+
+	size = sizeof(effect_vertex);
+	offset = 0;
+
+	// build vertex definition for general shader drawn billboards
+	Effect_vertex_layout.add_vertex_component(vertex_format_data::POSITION3, size, ptr + offset);
+	offset += sizeof(vec3d);
+
+	Effect_vertex_layout.add_vertex_component(vertex_format_data::TEX_COORD, size, ptr + offset);
+	offset += sizeof(uv_pair);
+
+	Effect_vertex_layout.add_vertex_component(vertex_format_data::RADIUS, size, ptr + offset);
+	offset += sizeof(float);
+
+	Effect_vertex_layout.add_vertex_component(vertex_format_data::COLOR4, size, ptr + offset);
+	offset += sizeof(float);
+
+	size = sizeof(trail_shader_info);
+	offset = 0;
+
+	// build vertex definition for geometry shader generated trails
+	Trail_vertex_layout.add_vertex_component(vertex_format_data::POSITION3, size, ptr + offset);
+	offset += sizeof(vec3d);
+
+	Trail_vertex_layout.add_vertex_component(vertex_format_data::FVEC, size, ptr + offset);
+	offset += sizeof(vec3d);
+
+	Trail_vertex_layout.add_vertex_component(vertex_format_data::INTENSITY, size, ptr + offset);
+	offset += sizeof(float);
+
+	Trail_vertex_layout.add_vertex_component(vertex_format_data::RADIUS, size, ptr + offset);
+	offset += sizeof(float);
+
+	Trail_vertex_layout.add_vertex_component(vertex_format_data::TEX_COORD, size, ptr + offset);
+	offset += sizeof(uv_pair);
 }

@@ -18,6 +18,7 @@
 #include "pcxutils/pcxutils.h"
 #include "graphics/gropengltexture.h"
 #include "graphics/gropenglextension.h"
+#include "graphics/gropenglstate.h"
 #include "globalincs/systemvars.h"
 #include "anim/animplay.h"
 #include "anim/packunpack.h"
@@ -40,7 +41,7 @@ int get_num_mipmap_levels(int w, int h)
 	int size, levels = 0;
 
 	// make sure we can and should generate mipmaps before trying to use them
-	if ( !Cmdline_mipmap || !Is_Extension_Enabled(OGL_SGIS_GENERATE_MIPMAP) )
+	if ( !Is_Extension_Enabled(OGL_EXT_FRAMEBUFFER_OBJECT) )
 		return 1;
 
 	size = MAX(w, h);
@@ -554,7 +555,7 @@ void gr_opengl_bm_save_render_target(int n)
 	bitmap_entry *be = &bm_bitmaps[n];
 	bitmap *bmp = &be->bm;
 
-	int rc = opengl_export_image(n, bmp->w, bmp->h, (bmp->true_bpp == 32), be->num_mipmaps, (ubyte*)bmp->data);
+	int rc = opengl_export_render_target( n, bmp->w, bmp->h, (bmp->true_bpp == 32), be->num_mipmaps, (ubyte*)bmp->data );
 
 	if (rc != be->mem_taken) {
 		Int3();

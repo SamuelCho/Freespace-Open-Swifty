@@ -37,57 +37,7 @@ float ls_intensity = 0.5f;
 float ls_cpintensity = 0.5f * 50 * 0.02f;
 int ls_samplenum = 50;
 
-#define SDR_POST_FLAG_MAIN		(1<<0)
-#define SDR_POST_FLAG_BRIGHT	(1<<1)
-#define SDR_POST_FLAG_BLUR		(1<<2)
-#define SDR_POST_FLAG_PASS1		(1<<3)
-#define SDR_POST_FLAG_PASS2		(1<<4)
-#define SDR_POST_FLAG_LIGHTSHAFT (1<<5)
-
-static SCP_vector<opengl_shader_t> GL_post_shader;
-
-struct opengl_shader_file_t {
-char *vert;
-	char *frag;
-
-	int flags;
-
-	int num_uniforms;
-	char* uniforms[MAX_SHADER_UNIFORMS];
-
-	int num_attributes;
-	char* attributes[MAX_SDR_ATTRIBUTES];
-};
-
-// NOTE: The order of this list *must* be preserved!  Additional shaders can be
-//       added, but the first 7 are used with magic numbers so their position
-//       is assumed to never change.
-static opengl_shader_file_t GL_post_shader_files[] = {
-	// NOTE: the main post-processing shader has any number of uniforms, but
-	//       these few should always be present
-	{ "post-v.sdr", "post-f.sdr", SDR_POST_FLAG_MAIN,
-		5, { "tex", "depth_tex", "timer", "bloomed", "bloom_intensity" }, 0, { NULL } },
-
-	{ "post-v.sdr", "blur-f.sdr", SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS1,
-		2, { "tex", "bsize" }, 0, { NULL } },
-
-	{ "post-v.sdr", "blur-f.sdr", SDR_POST_FLAG_BLUR | SDR_POST_FLAG_PASS2,
-		2, { "tex", "bsize" }, 0, { NULL } },
-
-	{ "post-v.sdr", "brightpass-f.sdr", SDR_POST_FLAG_BRIGHT,
-		1, { "tex" }, 0, { NULL } },
-
-	{ "fxaa-v.sdr", "fxaa-f.sdr", 0, 
-		3, { "tex0", "rt_w", "rt_h"}, 0, { NULL } },
-
-	{ "post-v.sdr", "fxaapre-f.sdr", 0,
-		1, { "tex"}, 0, { NULL } },
-
-	{ "post-v.sdr", "ls-f.sdr", SDR_POST_FLAG_LIGHTSHAFT,
-		8, { "scene", "cockpit", "sun_pos", "weight", "intensity", "falloff", "density", "cp_intensity" }, 0, { NULL } }
-};
-
-static const unsigned int Num_post_shader_files = sizeof(GL_post_shader_files) / sizeof(opengl_shader_file_t);
+const int MAX_MIP_BLUR_LEVELS = 4;
 
 typedef struct post_effect_t {
 	SCP_string name;
@@ -114,17 +64,154 @@ static int Post_initialized = 0;
 
 bool Post_in_frame = false;
 
-static int Post_active_shader_index = 0;
+static int Post_active_shader_index = -1;
+
+static GLuint Bloom_framebuffer[2] = { 0 };
+static GLuint Bloom_textures[2] = { 0 };
 
 static GLuint Post_framebuffer_id[2] = { 0 };
 static GLuint Post_bloom_texture_id[3] = { 0 };
+static GLuint Post_shadow_framebuffer_id = 0;
+static GLuint Post_shadow_texture_id = 0;
+static GLuint Post_shadow_depth_texture_id = 0;
 
 static int Post_texture_width = 0;
 static int Post_texture_height = 0;
 
+void opengl_post_pass_tonemap()
+{
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_TONEMAPPING, 0) );
 
-static char *opengl_post_load_shader(char *filename, int flags, int flags2);
+	GL_state.Uniform.setUniformi("tex", 0);
+	GL_state.Uniform.setUniformf("exposure", 2.0f);
 
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_ldr_texture, 0);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_color_texture);
+
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, Scene_texture_u_scale, Scene_texture_u_scale);
+
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
+}
+
+bool opengl_post_pass_bloom_new()
+{
+	if (Cmdline_bloom_intensity <= 0) {
+		return false;
+	}
+
+	// we need the scissor test disabled
+	GLboolean scissor_test = GL_state.ScissorTest(GL_FALSE);
+
+	// ------  begin bright pass ------
+
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer[0]);
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Bloom_textures[0], 0);
+
+	// width and height are 1/2 for the bright pass
+	int width = Post_texture_width >> 1;
+	int height = Post_texture_height >> 1;
+
+	glViewport(0, 0, width, height);
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BRIGHTPASS, 0) );
+
+	GL_state.Uniform.setUniformi("tex", 0);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_color_texture);
+
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+	//vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Bloom_framebuffer[1]);
+
+	//opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+	GL_state.Texture.Disable();
+
+	// ------ end bright pass ------
+
+	// ------ begin blur pass ------
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Bloom_textures[0]);
+
+	vglGenerateMipmapEXT(GL_TEXTURE_2D);
+
+	GL_state.Texture.Disable();
+
+	for ( int iteration = 0; iteration < 2; iteration++) {
+		for (int pass = 0; pass < 2; pass++) {
+			GLuint source_tex = Bloom_textures[pass];
+			GLuint dest_tex = Bloom_textures[1 - pass];
+
+			if (pass) {
+				opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL));
+			} else {
+				opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL));
+			}
+
+			GL_state.Uniform.setUniformi("tex", 0);
+
+			GL_state.Texture.SetActiveUnit(0);
+			GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+			GL_state.Texture.Enable(source_tex);
+
+			for (int mipmap = 0; mipmap < MAX_MIP_BLUR_LEVELS; ++mipmap) {
+				int bloom_width = width >> mipmap;
+				int bloom_height = height >> mipmap;
+
+				GL_state.Uniform.setUniformf("texSize", (pass) ? 1.0f / i2fl(bloom_width) : 1.0f / i2fl(bloom_height));
+				GL_state.Uniform.setUniformi("level", mipmap);
+				GL_state.Uniform.setUniformf("tapSize", 1.0f);
+
+				vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, dest_tex, mipmap);
+
+				glViewport(0, 0, bloom_width, bloom_height);
+
+				opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+			}
+		}
+	}
+
+	GL_state.Texture.Disable();
+
+	// composite blur to the color texture
+
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
+
+	opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLOOM_COMP, 0));
+
+	GL_state.Uniform.setUniformi("tex", 0);
+	GL_state.Uniform.setUniformi("levels", MAX_MIP_BLUR_LEVELS);
+	GL_state.Uniform.setUniformf("bloom_intensity", Cmdline_bloom_intensity);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Bloom_textures[0]);
+
+	GL_state.SetAlphaBlendMode( ALPHA_BLEND_ADDITIVE );
+
+	glViewport(0, 0, gr_screen.max_w, gr_screen.max_h);
+
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+	GL_state.SetAlphaBlendMode( ALPHA_BLEND_NONE );
+
+	// ------ end blur pass --------
+
+	// reset viewport, scissor test and exit
+	GL_state.ScissorTest(scissor_test);
+
+	return true;
+}
 
 static bool opengl_post_pass_bloom()
 {
@@ -148,13 +235,13 @@ static bool opengl_post_pass_bloom()
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	opengl_shader_set_current( &GL_post_shader[3] );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BRIGHTPASS, 0) );
 
-	vglUniform1iARB( opengl_shader_get_uniform("tex"), 0 );
+	GL_state.Uniform.setUniformi( "tex", 0 );
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Scene_color_texture);
+	GL_state.Texture.Enable(Scene_ldr_texture);
 
 	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 
@@ -182,10 +269,14 @@ static bool opengl_post_pass_bloom()
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		opengl_shader_set_current( &GL_post_shader[1+pass] );
+		if ( pass ) {
+			opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) );
+		} else {
+			opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) );
+		}
 
-		vglUniform1iARB( opengl_shader_get_uniform("tex"), 0 );
-		vglUniform1fARB( opengl_shader_get_uniform("bsize"), (pass) ? (float)width : (float)height );
+		GL_state.Uniform.setUniformi( "tex", 0 );
+		GL_state.Uniform.setUniformf( "bsize", (pass) ? (float)width : (float)height );
 
 		GL_state.Texture.Enable(Post_bloom_texture_id[pass]);
 
@@ -227,8 +318,7 @@ void gr_opengl_post_process_begin()
 
 //	Assert( !opengl_check_framebuffer() );
 
-	GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
-	vglDrawBuffers(2, buffers);
+	glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -237,44 +327,15 @@ void gr_opengl_post_process_begin()
 }
 
 void recompile_fxaa_shader() {
-	char *vert = NULL, *frag = NULL;
-	opengl_shader_t *new_shader = &GL_post_shader[fxaa_shader_id];
-	opengl_shader_file_t *shader_file = &GL_post_shader_files[4];
-
-	// choose appropriate files
-	char *vert_name = shader_file->vert;
-	char *frag_name = shader_file->frag;
 
 	mprintf(("Recompiling FXAA shader with preset %d\n", Cmdline_fxaa_preset));
 
-	// read vertex shader
-	vert = opengl_post_load_shader(vert_name, shader_file->flags, 0);
+	// start recompile by grabbing deleting the current shader we have, assuming it's already created
+	opengl_delete_shader( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA, 0) );
 
-	// read fragment shader
-	frag = opengl_post_load_shader(frag_name, shader_file->flags, 0);
+	// then recreate it again. shader loading code will be updated with the new FXAA presets
+	gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA, 0);
 
-
-	Verify( vert != NULL );
-	Verify( frag != NULL );
-
-	new_shader->program_id = opengl_shader_create(vert, frag);
-
-	if ( !new_shader->program_id ) {
-	}
-
-
-	new_shader->flags = shader_file->flags;
-	new_shader->flags2 = 0;
-
-	opengl_shader_set_current( new_shader );
-
-	new_shader->uniforms.reserve(shader_file->num_uniforms);
-
-	for (int i = 0; i < shader_file->num_uniforms; i++) {
-		opengl_shader_init_uniform( shader_file->uniforms[i] );
-	}
-
-	opengl_shader_set_current();
 	Fxaa_preset_last_frame = Cmdline_fxaa_preset;
 }
 
@@ -289,10 +350,10 @@ void opengl_post_pass_fxaa() {
 	glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
 	// Do a prepass to convert the main shaders' RGBA output into RGBL
-	opengl_shader_set_current( &GL_post_shader[fxaa_shader_id + 1] );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA_PREPASS, 0) );
 
 	// basic/default uniforms
-	vglUniform1iARB( opengl_shader_get_uniform("tex"), 0 );
+	GL_state.Uniform.setUniformi( "tex", 0 );
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_luminance_texture, 0);
 
@@ -305,14 +366,14 @@ void opengl_post_pass_fxaa() {
 	GL_state.Texture.Disable();
 
 	// set and configure post shader ..
-	opengl_shader_set_current( &GL_post_shader[fxaa_shader_id] );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA, 0) );
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
 
 	// basic/default uniforms
-	vglUniform1iARB( opengl_shader_get_uniform("tex0"), 0 );
-	vglUniform1fARB( opengl_shader_get_uniform("rt_w"), static_cast<float>(Post_texture_width));
-	vglUniform1fARB( opengl_shader_get_uniform("rt_h"), static_cast<float>(Post_texture_height));
+	GL_state.Uniform.setUniformi( "tex0", 0 );
+	GL_state.Uniform.setUniformf( "rt_w", static_cast<float>(Post_texture_width));
+	GL_state.Uniform.setUniformf( "rt_h", static_cast<float>(Post_texture_height));
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
@@ -325,9 +386,12 @@ void opengl_post_pass_fxaa() {
 	opengl_shader_set_current();
 }
 
-extern GLuint shadow_map[2];
+extern GLuint Shadow_map_depth_texture;
 extern GLuint Scene_depth_texture;
 extern GLuint Cockpit_depth_texture;
+extern GLuint Scene_position_texture;
+extern GLuint Scene_normal_texture;
+extern GLuint Scene_specular_texture;
 extern bool stars_sun_has_glare(int index);
 extern float Sun_spot;
 void gr_opengl_post_process_end()
@@ -346,7 +410,7 @@ void gr_opengl_post_process_end()
 		opengl_post_pass_fxaa();
 	}
 	
-	opengl_shader_set_current( &GL_post_shader[6] );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_LIGHTSHAFTS, 0) );
 	float x,y;
 	// should we even be here?
 	if (!Game_subspace_effect && ls_on && !ls_force_off)
@@ -367,14 +431,14 @@ void gr_opengl_post_process_end()
 				
 				x = asin(vm_vec_dot( &light_dir, &Eye_matrix.vec.rvec ))/PI*1.5f+0.5f; //cant get the coordinates right but this works for the limited glare fov
 				y = asin(vm_vec_dot( &light_dir, &Eye_matrix.vec.uvec ))/PI*1.5f*gr_screen.clip_aspect+0.5f;
-				vglUniform2fARB( opengl_shader_get_uniform("sun_pos"), x, y);
-				vglUniform1iARB( opengl_shader_get_uniform("scene"), 0);
-				vglUniform1iARB( opengl_shader_get_uniform("cockpit"), 1);
-				vglUniform1fARB( opengl_shader_get_uniform("density"), ls_density);
-				vglUniform1fARB( opengl_shader_get_uniform("falloff"), ls_falloff);
-				vglUniform1fARB( opengl_shader_get_uniform("weight"), ls_weight);
-				vglUniform1fARB( opengl_shader_get_uniform("intensity"), Sun_spot * ls_intensity);
-				vglUniform1fARB( opengl_shader_get_uniform("cp_intensity"), Sun_spot * ls_cpintensity);
+				GL_state.Uniform.setUniform2f( "sun_pos", x, y);
+				GL_state.Uniform.setUniformi( "scene", 0);
+				GL_state.Uniform.setUniformi( "cockpit", 1);
+				GL_state.Uniform.setUniformf( "density", ls_density);
+				GL_state.Uniform.setUniformf( "falloff", ls_falloff);
+				GL_state.Uniform.setUniformf( "weight", ls_weight);
+				GL_state.Uniform.setUniformf( "intensity", Sun_spot * ls_intensity);
+				GL_state.Uniform.setUniformf( "cp_intensity", Sun_spot * ls_cpintensity);
 
 				GL_state.Texture.SetActiveUnit(0);
 				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
@@ -401,12 +465,17 @@ void gr_opengl_post_process_end()
 		gr_zbuffer_set(GR_ZBUFF_NONE);
 		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, Scene_depth_texture, 0);
 	}
-	
-	// Bind the correct framebuffer. opengl_get_rtt_framebuffer returns 0 if not doing RTT
-	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, opengl_get_rtt_framebuffer());	
 
 	// do bloom, hopefully ;)
-	bool bloomed = opengl_post_pass_bloom();
+	//bool bloomed = opengl_post_pass_bloom();
+	bool bloomed = opengl_post_pass_bloom_new();
+	//bool bloomed = true;
+	
+	// do tone mapping
+	opengl_post_pass_tonemap();
+
+	// now write to the on-screen buffer
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, opengl_get_rtt_framebuffer());
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -414,20 +483,33 @@ void gr_opengl_post_process_end()
 	GL_state.Color(255, 255, 255, 255);
 
 	// set and configure post shader ...
+	int flags = 0;
+	for ( int i = 0; i < (int)Post_effects.size(); i++) {
+		if (Post_effects[i].always_on) {
+			flags |= (1 << i);
+		}
+	}
 
-	opengl_shader_set_current( &GL_post_shader[Post_active_shader_index] );
+	int post_sdr_handle = Post_active_shader_index;
+
+	if ( post_sdr_handle < 0 ) {
+		// no active shader index? use the always on shader.
+		post_sdr_handle = gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_MAIN, flags);
+	}
+
+	opengl_shader_set_current(post_sdr_handle);
 
 	// basic/default uniforms
-	vglUniform1iARB( opengl_shader_get_uniform("tex"), 0 );
-	vglUniform1iARB( opengl_shader_get_uniform("depth_tex"), 2);
-	vglUniform1fARB( opengl_shader_get_uniform("timer"), static_cast<float>(timer_get_milliseconds() % 100 + 1) );
+	GL_state.Uniform.setUniformi( "tex", 0 );
+	GL_state.Uniform.setUniformi( "depth_tex", 2);
+	GL_state.Uniform.setUniformf( "timer", static_cast<float>(timer_get_milliseconds() % 100 + 1) );
 
 	for (size_t idx = 0; idx < Post_effects.size(); idx++) {
-		if ( GL_post_shader[Post_active_shader_index].flags2 & (1<<idx) ) {
+		if ( GL_shader[post_sdr_handle].flags & (1<<idx) ) {
 			const char *name = Post_effects[idx].uniform_name.c_str();
 			float value = Post_effects[idx].intensity;
 
-			vglUniform1fARB( opengl_shader_get_uniform(name), value);
+			GL_state.Uniform.setUniformf( name, value);
 		}
 	}
 
@@ -440,31 +522,86 @@ void gr_opengl_post_process_end()
 			intensity /= 3.0f;
 		}
 
-		vglUniform1fARB( opengl_shader_get_uniform("bloom_intensity"), intensity );
-
-		vglUniform1iARB( opengl_shader_get_uniform("bloomed"), 1 );
+		//GL_state.Uniform.setUniformf( "bloom_intensity", intensity );
+		GL_state.Uniform.setUniformf( "bloom_intensity", 0.0f );
+		GL_state.Uniform.setUniformi( "levels" , MAX_MIP_BLUR_LEVELS );
+		GL_state.Uniform.setUniformi( "bloomed", 1 );
 
 		GL_state.Texture.SetActiveUnit(1);
 		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-		GL_state.Texture.Enable(Post_bloom_texture_id[2]);
+		//GL_state.Texture.Enable(Post_bloom_texture_id[2]);
+		GL_state.Texture.Enable(Bloom_textures[0]);
 	}
+	else
+		GL_state.Uniform.setUniformf( "bloom_intensity", 0.0f );
 
 	// now render it to the screen ...
-
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT,0);
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
-	GL_state.Texture.Enable(Scene_color_texture);
+	//GL_state.Texture.Enable(Scene_color_texture);
+	GL_state.Texture.Enable(Scene_ldr_texture);
 
 	GL_state.Texture.SetActiveUnit(2);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Scene_depth_texture);
 
 	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, Scene_texture_u_scale, Scene_texture_u_scale);
-	// Done!
 
+	//Shadow Map debug window
+//#define SHADOW_DEBUG
+#ifdef SHADOW_DEBUG
+	opengl_shader_set_current( &GL_post_shader[8] );	
+	GL_state.Texture.SetActiveUnit(0);
+//	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY);
+//	GL_state.Texture.Enable(Shadow_map_depth_texture);
+	extern GLuint Shadow_map_texture;
+	extern GLuint Post_shadow_texture_id;
+	GL_state.Texture.Enable(Shadow_map_texture);
+	vglUniform1iARB( opengl_shader_get_uniform("shadow_map"), 0);
+	vglUniform1iARB( opengl_shader_get_uniform("index"), 0);
+	//opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, -0.5f, -0.5f, Scene_texture_u_scale, Scene_texture_u_scale);
+	//opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, -0.5f, -0.5f, 0.5f, 0.5f);
+	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, -0.5f, -0.5f, 1.0f, 1.0f);
+	vglUniform1iARB( opengl_shader_get_uniform("index"), 1);
+	//opengl_draw_textured_quad(-1.0f, -0.5f, 0.5f, 0.0f, -0.5f, 0.0f, 0.75f, 0.25f);
+	opengl_draw_textured_quad(-1.0f, -0.5f, 0.0f, 0.0f, -0.5f, 0.0f, 1.0f, 1.0f);
+	vglUniform1iARB( opengl_shader_get_uniform("index"), 2);
+	opengl_draw_textured_quad(-0.5f, -1.0f, 0.0f, 0.0f, 0.0f, -0.5f, 1.0f, 1.0f);
+	vglUniform1iARB( opengl_shader_get_uniform("index"), 3);
+	opengl_draw_textured_quad(-0.5f, -1.0f, 0.0f, 0.0f, 0.0f, -0.5f, 1.0f, 1.0f);
+	opengl_shader_set_current();
+#endif
+
+	/*GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_depth_texture);
+
+	
+	*/
+	// Done!
+	/*GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_effect_texture);
+
+	opengl_draw_textured_quad(0.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f, Scene_texture_u_scale, Scene_texture_u_scale);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_normal_texture);
+
+	opengl_draw_textured_quad(-1.0f, -0.0f, 0.0f, 0.0f, 0.0f, 1.0f, Scene_texture_u_scale, Scene_texture_u_scale);
+
+	GL_state.Texture.SetActiveUnit(0);
+	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+	GL_state.Texture.Enable(Scene_specular_texture);
+
+	opengl_draw_textured_quad(0.0f, -0.0f, 0.0f, 0.0f, 1.0f, 1.0f, Scene_texture_u_scale, Scene_texture_u_scale);
+	*/
 	GL_state.Texture.SetActiveUnit(2);
 	GL_state.Texture.Disable();
-	GL_state.Texture.SetActiveUnit(1);	
+	GL_state.Texture.SetActiveUnit(1);
 	GL_state.Texture.Disable();
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.Disable();
@@ -492,84 +629,13 @@ void get_post_process_effect_names(SCP_vector<SCP_string> &names)
 	}
 }
 
-static bool opengl_post_compile_shader(int flags)
+void opengl_post_init_uniforms(int flags)
 {
-	char *vert = NULL, *frag = NULL;
-	bool in_error = false;
-	opengl_shader_t new_shader;
-	opengl_shader_file_t *shader_file = &GL_post_shader_files[0];
-	int num_main_uniforms = 0;
-	int idx;
-
-	for (idx = 0; idx < (int)Post_effects.size(); idx++) {
-		if ( flags & (1 << idx) ) {
-			num_main_uniforms++;
+	for (int idx = 0; idx < (int)Post_effects.size(); idx++) {
+		if (flags & (1 << idx)) {
+			opengl_shader_init_uniform(Post_effects[idx].uniform_name.c_str());
 		}
 	}
-
-	// choose appropriate files
-	char *vert_name = shader_file->vert;
-	char *frag_name = shader_file->frag;
-
-	mprintf(("POST-PROCESSING: Compiling new post-processing shader with flags %d ... \n", flags));
-
-	// read vertex shader
-	if ( (vert = opengl_post_load_shader(vert_name, shader_file->flags, flags)) == NULL ) {
-		in_error = true;
-		goto Done;
-	}
-
-	// read fragment shader
-	if ( (frag = opengl_post_load_shader(frag_name, shader_file->flags, flags)) == NULL ) {
-		in_error = true;
-		goto Done;
-	}
-
-	Verify( vert != NULL );
-	Verify( frag != NULL );
-
-	new_shader.program_id = opengl_shader_create(vert, frag);
-
-	if ( !new_shader.program_id ) {
-		in_error = true;
-		goto Done;
-	}
-
-
-	new_shader.flags = shader_file->flags;
-	new_shader.flags2 = flags;
-
-	opengl_shader_set_current( &new_shader );
-
-	new_shader.uniforms.reserve(shader_file->num_uniforms + num_main_uniforms);
-
-	for (idx = 0; idx < shader_file->num_uniforms; idx++) {
-		opengl_shader_init_uniform( shader_file->uniforms[idx] );
-	}
-
-	for (idx = 0; idx < (int)Post_effects.size(); idx++) {
-		if ( flags & (1 << idx) ) {
-			opengl_shader_init_uniform( Post_effects[idx].uniform_name.c_str() );
-		}
-	}
-
-	opengl_shader_set_current();
-
-	// add it to our list of embedded shaders
-	GL_post_shader.push_back( new_shader );
-
-Done:
-	if (vert != NULL) {
-		vm_free(vert);
-		vert = NULL;
-	}
-
-	if (frag != NULL) {
-		vm_free(frag);
-		frag = NULL;
-	}
-
-	return in_error;
 }
 
 void gr_opengl_post_process_set_effect(const char *name, int value)
@@ -609,29 +675,7 @@ void gr_opengl_post_process_set_effect(const char *name, int value)
 		}
 	}
 
-	// see if any existing shader has those flags
-	for (idx = 0; idx < GL_post_shader.size(); idx++) {
-		if (GL_post_shader[idx].flags2 == sflags) {
-			// no change required
-			need_change = false;
-
-			// set this as the active post shader
-			Post_active_shader_index = (int)idx;
-
-			break;
-		}
-	}
-
-	// if not then add a new shader to the list
-	if (need_change) {
-		if ( !opengl_post_compile_shader(sflags) ) {
-			// shader added, set it as active
-			Post_active_shader_index = (int)(GL_post_shader.size() - 1);
-		} else {
-			// failed to load, just go with default
-			Post_active_shader_index = 0;
-		}
-	}
+	Post_active_shader_index = gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_MAIN, sflags);
 }
 
 void gr_opengl_post_process_set_defaults()
@@ -647,24 +691,7 @@ void gr_opengl_post_process_set_defaults()
 		Post_effects[idx].intensity = Post_effects[idx].default_intensity;
 	}
 
-	// remove any post shaders created on-demand, leaving only the defaults
-	list_size = GL_post_shader.size();
-
-	for (idx = list_size-1; idx > 0; idx--) {
-		if ( !(GL_post_shader[idx].flags & SDR_POST_FLAG_MAIN) ) {
-			break;
-		}
-
-		if (GL_post_shader[idx].program_id) {
-			vglDeleteObjectARB(GL_post_shader[idx].program_id);
-		}
-
-		GL_post_shader[idx].uniforms.clear();
-
-		GL_post_shader.pop_back();
-	}
-
-	Post_active_shader_index = 0;
+	Post_active_shader_index = -1;
 }
 
 extern GLuint Cockpit_depth_texture;
@@ -798,39 +825,22 @@ static bool opengl_post_init_table()
 	return true;
 }
 
-static char *opengl_post_load_shader(char *filename, int flags, int flags2)
+void opengl_post_load_shader(SCP_string &sflags, shader_type shader, int flags)
 {
-	SCP_string sflags;
-
-	if (Use_GLSL >= 4) {
-		sflags += "#define SHADER_MODEL 4\n";
-	} else if (Use_GLSL == 3) {
-		sflags += "#define SHADER_MODEL 3\n";
-	} else {
-		sflags += "#define SHADER_MODEL 2\n";
-	}
-
-	for (size_t idx = 0; idx < Post_effects.size(); idx++) {
-		if ( flags2 & (1 << idx) ) {
-			sflags += "#define ";
-			sflags += Post_effects[idx].define_name.c_str();
-			sflags += "\n";
+	if ( shader == SDR_TYPE_POST_PROCESS_MAIN ) {
+		for (size_t idx = 0; idx < Post_effects.size(); idx++) {
+			if (flags & (1 << idx)) {
+				sflags += "#define ";
+				sflags += Post_effects[idx].define_name.c_str();
+				sflags += "\n";
+			}
 		}
-	}
-
-	if (flags & SDR_POST_FLAG_PASS1) {
-		sflags += "#define PASS_0\n";
-	} else if (flags & SDR_POST_FLAG_PASS2) {
-		sflags += "#define PASS_1\n";
-	}
-
-	if (flags & SDR_POST_FLAG_LIGHTSHAFT) {
-		char temp[42];
+	} else if ( shader == SDR_TYPE_POST_PROCESS_LIGHTSHAFTS ) {
+		char temp[64];
 		sprintf(temp, "#define SAMPLE_NUM %d\n", ls_samplenum);
 		sflags += temp;
-	}
-	
-	switch (Cmdline_fxaa_preset) {
+	} else if ( shader == SDR_TYPE_POST_PROCESS_FXAA ) {
+		switch (Cmdline_fxaa_preset) {
 		case 0:
 			sflags += "#define FXAA_QUALITY_PRESET 10\n";
 			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD (1.0/6.0)\n";
@@ -892,169 +902,83 @@ static char *opengl_post_load_shader(char *filename, int flags, int flags2)
 			sflags += "#define FXAA_QUALITY_EDGE_THRESHOLD_MIN (1.0/32.0)\n";
 			sflags += "#define FXAA_QUALITY_SUBPIX 0.33\n";
 			break;
+		}
 	}
-
-	const char *shader_flags = sflags.c_str();
-	int flags_len = strlen(shader_flags);
-
-	if (Enable_external_shaders && stricmp(filename, "fxaapre-f.sdr") && stricmp(filename, "fxaa-f.sdr") && stricmp(filename, "fxaa-v.sdr")) {
-		CFILE *cf_shader = cfopen(filename, "rt", CFILE_NORMAL, CF_TYPE_EFFECTS);
-
-		if (cf_shader != NULL  ) {
-			int len = cfilelength(cf_shader);
-			char *shader = (char*) vm_malloc(len + flags_len + 1);
-
-			strcpy(shader, shader_flags);
-			memset(shader + flags_len, 0, len + 1);
-			cfread(shader + flags_len, len + 1, 1, cf_shader);
-			cfclose(cf_shader);
-
-			return shader;
-		} 
-	}
-
-	mprintf(("   Loading built-in default shader for: %s\n", filename));
-	char* def_shader = defaults_get_file(filename);
-	size_t len = strlen(def_shader);
-	char *shader = (char*) vm_malloc(len + flags_len + 1);
-
-	strcpy(shader, shader_flags);
-	strcat(shader, def_shader);
-	//memset(shader + flags_len, 0, len + 1);
-
-	return shader;
-
 }
 
-static bool opengl_post_init_shader()
+bool opengl_post_init_shaders()
 {
-	char *vert = NULL, *frag = NULL;
-	bool rval = true;
-	int idx, i;
-	int flags2 = 0;
-	int num_main_uniforms = 0;
+	int idx;
+	int flags = 0;
 
+	// figure out which flags we need for the main post process shader
 	for (idx = 0; idx < (int)Post_effects.size(); idx++) {
 		if (Post_effects[idx].always_on) {
-			flags2 |= (1 << idx);
-			num_main_uniforms++;
+			flags |= (1 << idx);
 		}
 	}
 
-	for (idx = 0; idx < (int)Num_post_shader_files; idx++) {
-		bool in_error = false;
-		opengl_shader_t new_shader;
-		opengl_shader_file_t *shader_file = &GL_post_shader_files[idx];
-
-		// choose appropriate files
-		char *vert_name = shader_file->vert;
-		char *frag_name = shader_file->frag;
-
-		mprintf(("  Compiling post-processing shader %d ... \n", idx+1));
-
-		// read vertex shader
-		if ( (vert = opengl_post_load_shader(vert_name, shader_file->flags, flags2)) == NULL ) {
-			in_error = true;
-			goto Done;
-		}
-
-		// read fragment shader
-		if ( (frag = opengl_post_load_shader(frag_name, shader_file->flags, flags2)) == NULL ) {
-			in_error = true;
-			goto Done;
-		}
-
-		Verify( vert != NULL );
-		Verify( frag != NULL );
-
-		new_shader.program_id = opengl_shader_create(vert, frag);
-
-		if ( !new_shader.program_id ) {
-			in_error = true;
-			goto Done;
-		}
-
-
-		new_shader.flags = shader_file->flags;
-		new_shader.flags2 = flags2;
-
-		opengl_shader_set_current( &new_shader );
-
-		new_shader.uniforms.reserve(shader_file->num_uniforms + num_main_uniforms);
-
-		for (i = 0; i < shader_file->num_uniforms; i++) {
-			opengl_shader_init_uniform( shader_file->uniforms[i] );
-		}
-
-		if (idx == 0) {
-			for (i = 0; i < (int)Post_effects.size(); i++) {
-				if ( flags2 & (1 << i) ) {
-					opengl_shader_init_uniform( Post_effects[i].uniform_name.c_str() );
-				}
-			}
-
-			flags2 = 0; 
-			num_main_uniforms = 0;
-		}
-
-
-		opengl_shader_set_current();
-
-		// add it to our list of embedded shaders
-		GL_post_shader.push_back( new_shader );
-
-	Done:
-		if (vert != NULL) {
-			vm_free(vert);
-			vert = NULL;
-		}
-
-		if (frag != NULL) {
-			vm_free(frag);
-			frag = NULL;
-		}
-
-		if (idx == 4)
-			fxaa_shader_id = GL_post_shader.size() - 1;
-
-		if (in_error) {
-			if (idx == 0) {
-				// only the main/first shader is actually required for post-processing
-				rval = false;
-				break;
-			} else if (idx == 4) {
-				Cmdline_fxaa = false;
-				fxaa_unavailable = true;
-				mprintf(("Error while compiling FXAA shaders. FXAA will be unavailable.\n"));
-			} else if ( shader_file->flags & (SDR_POST_FLAG_BLUR|SDR_POST_FLAG_BRIGHT) ) {
-				// disable bloom if we don't have those shaders available
-				Cmdline_bloom_intensity = 0;
-			}
-		}
+	if ( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_MAIN, flags) < 0 ) {
+		// only the main shader is actually required for post-processing
+		return false;
+	}
+	
+	if ( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BRIGHTPASS, 0) < 0 || 
+		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) < 0 || 
+		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_VERTICAL) < 0 ||
+		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLOOM_COMP, 0) < 0) {
+		// disable bloom if we don't have those shaders available
+		Cmdline_bloom_intensity = 0;
 	}
 
-	mprintf(("\n"));
+	if ( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA, 0) < 0 ||
+		gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA_PREPASS, 0) < 0 ) {
+		Cmdline_fxaa = false;
+		fxaa_unavailable = true;
+		mprintf(("Error while compiling FXAA shaders. FXAA will be unavailable.\n"));
+	}
 
-	return rval;
+	return true;
 }
 
-// generate and test the framebuffer and textures that we are going to use
-static bool opengl_post_init_framebuffer()
+void opengl_setup_bloom_textures_new()
 {
-	bool rval = false;
-
-	// clamp size, if needed
-	Post_texture_width = gr_screen.max_w;
-	Post_texture_height = gr_screen.max_h;
-
-	if (Post_texture_width > GL_max_renderbuffer_size) {
-		Post_texture_width = GL_max_renderbuffer_size;
+	if (Cmdline_bloom_intensity <= 0) {
+		return;
 	}
 
-	if (Post_texture_height > GL_max_renderbuffer_size) {
-		Post_texture_height = GL_max_renderbuffer_size;
+	// two more framebuffers, one each for the two different sized bloom textures
+	vglGenFramebuffersEXT(2, Bloom_framebuffer);
+
+	// need to generate textures for bloom too
+	glGenTextures(2, Bloom_textures);
+
+	// half size
+	int width = Post_texture_width >> 1;
+	int height = Post_texture_height >> 1;
+
+	for (int tex = 0; tex < 2; tex++) {
+		GL_state.Texture.SetActiveUnit(0);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(Bloom_textures[tex]);
+
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, width, height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+
+		vglGenerateMipmapEXT(GL_TEXTURE_2D);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, MAX_MIP_BLUR_LEVELS-1);
 	}
 
+	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+}
+
+void opengl_setup_bloom_textures()
+{
 	if (Cmdline_bloom_intensity > 0) {
 		// two more framebuffers, one each for the two different sized bloom textures
 		vglGenFramebuffersEXT(1, &Post_framebuffer_id[0]);
@@ -1086,7 +1010,7 @@ static bool opengl_post_init_framebuffer()
 				vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[tex], 0);
 
 				// if not then clean up and disable bloom
-				if ( opengl_check_framebuffer() ) {
+				if (opengl_check_framebuffer()) {
 					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
 					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
@@ -1104,13 +1028,14 @@ static bool opengl_post_init_framebuffer()
 				// width and height are 1/2 for the bright pass, 1/4 for the blur, so drop down
 				width >>= 1;
 				height >>= 1;
-			} else {
+			}
+			else {
 				// attach to our blur pass framebuffer and make sure it's ok
 				vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_framebuffer_id[1]);
 				vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_bloom_texture_id[tex], 0);
 
 				// if not then clean up and disable bloom
-				if ( opengl_check_framebuffer() ) {
+				if (opengl_check_framebuffer()) {
 					vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
 					vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
@@ -1127,6 +1052,82 @@ static bool opengl_post_init_framebuffer()
 			}
 		}
 	}
+}
+
+// generate and test the framebuffer and textures that we are going to use
+static bool opengl_post_init_framebuffer()
+{
+	bool rval = false;
+
+	// clamp size, if needed
+	Post_texture_width = gr_screen.max_w;
+	Post_texture_height = gr_screen.max_h;
+
+	if (Post_texture_width > GL_max_renderbuffer_size) {
+		Post_texture_width = GL_max_renderbuffer_size;
+	}
+
+	if (Post_texture_height > GL_max_renderbuffer_size) {
+		Post_texture_height = GL_max_renderbuffer_size;
+	}
+
+	//opengl_setup_bloom_textures();
+	opengl_setup_bloom_textures_new();
+
+	if ( Cmdline_shadow_quality ) {
+		int size = (Cmdline_shadow_quality == 2 ? 1024 : 512);
+
+		vglGenFramebuffersEXT(1, &Post_shadow_framebuffer_id);
+		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, Post_shadow_framebuffer_id);
+
+		glGenTextures(1, &Post_shadow_texture_id);
+		
+		GL_state.Texture.SetActiveUnit(0);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY_EXT);
+//		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(Post_shadow_texture_id);
+
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		vglTexImage3D(GL_TEXTURE_2D_ARRAY_EXT, 0, GL_RGBA32F_ARB, size, size, 4, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+// 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F_ARB, size, size, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+
+//		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Post_shadow_texture_id, 0);
+		vglFramebufferTextureEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, Post_shadow_texture_id, 0);
+
+		glGenTextures(1, &Post_shadow_depth_texture_id);
+
+		GL_state.Texture.SetActiveUnit(0);
+		GL_state.Texture.SetTarget(GL_TEXTURE_2D_ARRAY_EXT);
+//		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
+		GL_state.Texture.Enable(Post_shadow_depth_texture_id);
+
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		vglTexImage3D(GL_TEXTURE_2D_ARRAY_EXT, 0, GL_DEPTH_COMPONENT32, size, size, 4, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+// 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+// 		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, size, size, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+//		vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, Post_shadow_depth_texture_id, 0);
+		vglFramebufferTextureEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, Post_shadow_depth_texture_id, 0);
+	}
 
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 
@@ -1139,6 +1140,45 @@ static bool opengl_post_init_framebuffer()
 	}
 
 	return rval;
+}
+
+
+
+void opengl_post_process_shutdown_bloom_new()
+{
+	if ( Bloom_textures[0] ) {
+		glDeleteTextures(1, &Bloom_textures[0]);
+		Bloom_textures[0] = 0;
+	}
+
+	if ( Bloom_textures[1] ) {
+		glDeleteTextures(1, &Bloom_textures[1]);
+		Bloom_textures[1] = 0;
+	}
+
+	if ( Bloom_framebuffer ) {
+		vglDeleteFramebuffersEXT(2, Bloom_framebuffer);
+		Bloom_framebuffer[0] = 0;
+		Bloom_framebuffer[1] = 0;
+	}
+}
+
+void opengl_post_process_shutdown_bloom()
+{
+	if (Post_bloom_texture_id[0]) {
+		glDeleteTextures(3, Post_bloom_texture_id);
+		memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
+	}
+
+	if (Post_framebuffer_id[0]) {
+		vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[0]);
+		Post_framebuffer_id[0] = 0;
+
+		if (Post_framebuffer_id[1]) {
+			vglDeleteFramebuffersEXT(1, &Post_framebuffer_id[1]);
+			Post_framebuffer_id[1] = 0;
+		}
+	}
 }
 
 void opengl_post_process_init()
@@ -1174,7 +1214,7 @@ void opengl_post_process_init()
 		return;
 	}
 
-	if ( !opengl_post_init_shader() ) {
+	if ( !opengl_post_init_shaders() ) {
 		mprintf(("  Unable to initialize post-processing shaders! Disabling post-processing...\n\n"));
 		Cmdline_postprocess = 0;
 		return;
@@ -1195,17 +1235,6 @@ void opengl_post_process_shutdown()
 		return;
 	}
 
-	for (size_t i = 0; i < GL_post_shader.size(); i++) {
-		if (GL_post_shader[i].program_id) {
-			vglDeleteObjectARB(GL_post_shader[i].program_id);
-			GL_post_shader[i].program_id = 0;
-		}
-
-		GL_post_shader[i].uniforms.clear();
-	}
-
-	GL_post_shader.clear();
-
 	if (Post_bloom_texture_id[0]) {
 		glDeleteTextures(3, Post_bloom_texture_id);
 		memset(Post_bloom_texture_id, 0, sizeof(Post_bloom_texture_id));
@@ -1222,6 +1251,9 @@ void opengl_post_process_shutdown()
 	}
 
 	Post_effects.clear();
+
+	//opengl_post_process_shutdown_bloom();
+	opengl_post_process_shutdown_bloom_new();
 
 	Post_in_frame = false;
 	Post_active_shader_index = 0;
