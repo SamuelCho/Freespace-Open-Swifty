@@ -2776,7 +2776,7 @@ char* Default_effect_particle_fragment_shader =
 "	float backDepth = fragDepthLinear + depthOffset;\n"
 "	float ds = min(sceneDepthLinear, backDepth) - max(nearZ, frontDepth);\n"
 "	fragmentColor.rgb = fragmentColor.rgb * ( ds / (depthOffset*2.0) );\n"
-"	gl_FragColor = max(fragmentColor, vec4(0.0))*2.0;\n"
+"	gl_FragColor = max(fragmentColor, vec4(0.0))*2.5;\n"
 "}";
 
 char* Default_effect_distortion_fragment_shader =
@@ -2953,12 +2953,13 @@ char* Default_passthrough_fragment_shader =
 "uniform int alpha_texture;\n"
 "uniform int no_texturing;\n"
 "uniform int srgb;\n"
+"uniform float color_scale;\n"
 "#define SRGB_GAMMA 2.2\n"
 "void main()\n"
 "{\n"
 "	vec4 baseColor = texture2D(baseMap, gl_TexCoord[0].xy)*gl_Color;\n"
 "	baseColor.rgb = mix(baseColor.rgb, pow(baseColor.rgb, vec3(SRGB_GAMMA)), float(srgb));\n"
-"	gl_FragColor = mix(gl_Color, mix(baseColor, vec4(gl_Color.rgb, baseColor.a), float(alpha_texture)), float(no_texturing));\n"
+"	gl_FragColor = mix(gl_Color, mix(baseColor, vec4(gl_Color.rgb, baseColor.a), float(alpha_texture)), float(no_texturing)) * color_scale;\n"
 "}";
 
 char *Default_deferred_vertex_shader =

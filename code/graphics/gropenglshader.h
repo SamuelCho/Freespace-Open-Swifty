@@ -134,7 +134,7 @@ void opengl_delete_shader(int sdr_handle);
 void opengl_shader_set_current(opengl_shader_t *shader_obj = NULL);
 void opengl_shader_set_current(int handle);
 
-void opengl_shader_set_passthrough(bool textured = true, bool alpha = false);
+void opengl_shader_set_passthrough(bool textured = true, bool alpha = false, float color_scale = 1.0f);
 
 void opengl_shader_init();
 void opengl_shader_shutdown();
