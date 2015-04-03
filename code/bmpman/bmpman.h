@@ -19,7 +19,7 @@
 #define BMPMAN_NDEBUG
 #endif
 
-#define MAX_BITMAPS 4750			// How many bitmaps the game can handle
+#define MAX_BITMAPS 6000			// How many bitmaps the game can handle
 // NOTE:  MAX_BITMAPS shouldn't need to be bumped again.  With the fixed bm_release() and it's
 // proper use even the largest missions should stay under this number.  With the largest retail
 // missions and wasteful content we should still have about 20% of the slots free.  If it still
