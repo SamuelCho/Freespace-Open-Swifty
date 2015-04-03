@@ -2002,36 +2002,6 @@ static void ship_do_damage(object *ship_objp, object *other_obj, vec3d *hitpos, 
 		}
 	}
 
-	// if this is not a laser, or i'm not a multiplayer client
-	// apply pain to me
-
-	// Goober5000: make sure other_obj doesn't cause a read violation!
-	if (other_obj && !(Ship_info[Ships[Player_obj->instance].ship_info_index].flags2 & SIF2_NO_PAIN_FLASH))
-	{
-		// For the record, ship_hit_pain seems to simply be the red flash that appears
-		// on the screen when you're hit.
-		int special_check = !MULTIPLAYER_CLIENT;
-
-		// now the actual checks
-		if (other_obj->type == OBJ_BEAM)
-		{
-			Assert((beam_get_weapon_info_index(other_obj) >= 0) && (beam_get_weapon_info_index(other_obj) < Num_weapon_types));
-			if (((Weapon_info[beam_get_weapon_info_index(other_obj)].subtype != WP_LASER) || special_check) && (Player_obj != NULL) && (ship_objp == Player_obj))
-			{
-				ship_hit_pain(damage * difficulty_scale_factor);
-			}	
-		}
-		if (other_obj_is_weapon)
-		{
-			Assert((Weapons[other_obj->instance].weapon_info_index > -1) && (Weapons[other_obj->instance].weapon_info_index < Num_weapon_types));
-			if (((Weapon_info[Weapons[other_obj->instance].weapon_info_index].subtype != WP_LASER) || special_check) && (Player_obj != NULL) && (ship_objp == Player_obj))
-			{
-				ship_hit_pain(damage * difficulty_scale_factor);
-			}
-		}
-	}	// read violation sanity check
-
-
 	// If the ship is invulnerable, do nothing
 	if (ship_objp->flags & OF_INVULNERABLE)	{
 		return;
@@ -2305,6 +2275,35 @@ static void ship_do_damage(object *ship_objp, object *other_obj, vec3d *hitpos, 
 		}
 	}
 
+	// if this is not a laser, or i'm not a multiplayer client
+	// apply pain to me
+
+	// Goober5000: make sure other_obj doesn't cause a read violation!
+	if (other_obj && !(Ship_info[Ships[Player_obj->instance].ship_info_index].flags2 & SIF2_NO_PAIN_FLASH))
+	{
+		// For the record, ship_hit_pain seems to simply be the red flash that appears
+		// on the screen when you're hit.
+		int special_check = !MULTIPLAYER_CLIENT;
+
+		// now the actual checks
+		if (other_obj->type == OBJ_BEAM)
+		{
+			Assert((beam_get_weapon_info_index(other_obj) >= 0) && (beam_get_weapon_info_index(other_obj) < Num_weapon_types));
+			if (((Weapon_info[beam_get_weapon_info_index(other_obj)].subtype != WP_LASER) || special_check) && (Player_obj != NULL) && (ship_objp == Player_obj))
+			{
+				ship_hit_pain(damage * difficulty_scale_factor, quadrant);
+			}
+		}
+		if (other_obj_is_weapon)
+		{
+			Assert((Weapons[other_obj->instance].weapon_info_index > -1) && (Weapons[other_obj->instance].weapon_info_index < Num_weapon_types));
+			if (((Weapon_info[Weapons[other_obj->instance].weapon_info_index].subtype != WP_LASER) || special_check) && (Player_obj != NULL) && (ship_objp == Player_obj))
+			{
+				ship_hit_pain(damage * difficulty_scale_factor, quadrant);
+			}
+		}
+	}	// read violation sanity check
+
 	// if the hitting object is a weapon, maybe do some fun stuff here
 	if(other_obj_is_weapon)
 	{
@@ -2569,11 +2568,25 @@ void ship_apply_wash_damage(object *ship_objp, object *other_obj, float damage)
 }
 
 // player pain
-void ship_hit_pain(float damage)
+void ship_hit_pain(float damage, int quadrant)
 {
+
+	ship *shipp = &Ships[Player_obj->instance];
+	ship_info *sip = &Ship_info[shipp->ship_info_index];
+
     if (!(Player_obj->flags & OF_INVULNERABLE))
     {
-    	game_flash( damage/15.0f, -damage/30.0f, -damage/30.0f );
+		if (Shield_pain_flash_factor != 0.0f && quadrant >= 0)
+		{ 
+			float effect = (Shield_pain_flash_factor * Player_obj->shield_quadrant[quadrant] * 4) / shipp->ship_max_shield_strength;
+
+			if (Shield_pain_flash_factor < 0.0f)
+				effect -= Shield_pain_flash_factor;
+
+			game_flash((sip->shield_color[0] * effect)/255.0f, (sip->shield_color[1] * effect)/255.0f, (sip->shield_color[2] * effect)/255.0f);
+		}
+		else
+			game_flash(damage * Generic_pain_flash_factor / 15.0f, -damage * Generic_pain_flash_factor / 30.0f, -damage * Generic_pain_flash_factor / 30.0f);
     }
 
 	// kill any active popups when you get hit.
