@@ -389,6 +389,7 @@ static char *opengl_load_shader(shader_type type_id, char *filename, int flags)
 int opengl_compile_shader(shader_type sdr, uint flags)
 {
 	int sdr_index = -1;
+	int empty_idx;
 	char *vert = NULL, *frag = NULL, *geom = NULL;
 
 	bool in_error = false;
@@ -494,7 +495,7 @@ int opengl_compile_shader(shader_type sdr, uint flags)
 
 	// add it to our list of embedded shaders
 	// see if we have empty shader slots
-	int empty_idx = -1;
+	empty_idx = -1;
 	for ( int i = 0; i < (int)GL_shader.size(); ++i ) {
 		if ( GL_shader[i].shader == NUM_SHADER_TYPES ) {
 			empty_idx = i;

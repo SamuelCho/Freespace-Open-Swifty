@@ -131,8 +131,22 @@ typedef struct tsb_t {
  * a list of triangles and their associated normals
  */
 class poly_list {
+	// helper function struct that let's us sort the indices.
+	// an instance is fed into std::sort and std::lower_bound.
+	// overloaded operator() is used for the comparison function.
+	struct finder {
+		poly_list* search_list;
+		bool compare_indices;
+		vertex* vert_to_find;
+		vec3d* norm_to_find;
+
+		finder(poly_list* _search_list): search_list(_search_list), vert_to_find(NULL), norm_to_find(NULL), compare_indices(true) {}
+		finder(poly_list* _search_list, vertex* _vert, vec3d* _norm): search_list(_search_list), vert_to_find(_vert), norm_to_find(_norm), compare_indices(false) {}
+
+		bool operator()(const uint a, const uint b);
+	};
 public:
-	poly_list(): n_verts(0), vert(NULL), norm(NULL), tsb(NULL), submodels(NULL), currently_allocated(0) {}
+	poly_list(): n_verts(0), vert(NULL), norm(NULL), tsb(NULL), submodels(NULL), currently_allocated(0), sorted_indices(NULL) {}
 	~poly_list();
 	poly_list& operator = (poly_list&);
 
@@ -145,13 +159,16 @@ public:
 	tsb_t *tsb;
 	int *submodels;
 
-	int find_index(poly_list *plist, int idx);
+	uint *sorted_indices;
 
+	int find_index(poly_list *plist, int idx);
+	int find_index_fast(poly_list *plist, int idx);
 private:
 	int currently_allocated;
 	int find_first_vertex(int idx);
+	int find_first_vertex_fast(int idx);
+	void generate_sorted_index_list();
 };
-
 
 class colored_vector
 {

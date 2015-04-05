@@ -221,9 +221,9 @@ void profile_dump_output()
 			// format the data
 			char avg[16], min[16], max[16], num[16];
 
-			sprintf(avg, "%3.1f (%3.1f)", avg_time, i2fl(avg_micro_seconds)*0.001f);
-			sprintf(min, "%3.1f (%3.1f)", min_time, i2fl(min_micro_seconds)*0.001f);
-			sprintf(max, "%3.1f (%3.1f)", max_time, i2fl(max_micro_seconds)*0.001f);
+			sprintf(avg, "%3.1f%% (%3.1fms)", avg_time, i2fl(avg_micro_seconds)*0.001f);
+			sprintf(min, "%3.1f%% (%3.1fms)", min_time, i2fl(min_micro_seconds)*0.001f);
+			sprintf(max, "%3.1f%% (%3.1fms)", max_time, i2fl(max_micro_seconds)*0.001f);
 			sprintf(num, "%3d", samples[i].profile_instances);
 
 			SCP_string indented_name(samples[i].name);
