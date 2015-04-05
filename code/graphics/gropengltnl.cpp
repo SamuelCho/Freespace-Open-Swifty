@@ -2285,6 +2285,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		}
 
 		if ( flags & TMAP_FLAG_ALPHA ) {
+			GL_state.SetAlphaBlendMode(ALPHA_BLEND_PREMULTIPLIED);
 			GL_state.Uniform.setUniformi("blend_alpha", 1);
 		} else {
 			GL_state.Uniform.setUniformi("blend_alpha", 0);
