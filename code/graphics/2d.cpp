@@ -1851,7 +1851,7 @@ bool poly_list::finder::operator()(const uint a, const uint b)
 		return vert_a->texture_position.v < vert_b->texture_position.v;
 	}
 
-	if ( a == search_list->n_verts || b == search_list->n_verts || !compare_indices ) {
+	if ( !compare_indices ) {
 		return vert_a->texture_position.v < vert_b->texture_position.v;
 	} else {
 		return a < b;
