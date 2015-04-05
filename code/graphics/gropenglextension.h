@@ -273,7 +273,7 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define PFNGLDRAWRANGEELEMENTSBASEVERTEXPROC    glDrawRangeElementsBaseVertexProcPtr
 #define PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXPROC glDrawElementsInstancedBaseVertexProcPtr
 #define PFNGLMULTIDRAWELEMENTSBASEVERTEXPROC    glMultiDrawElementsBaseVertexProcPtr
-#define PFNGLBLITFRAMEBUFFER					glBlitFramebufferEXTProcPtr
+#define PFNGLBLITFRAMEBUFFEREXTPROC				glBlitFramebufferEXTProcPtr
 #define PFNGLPROGRAMPARAMETERIEXTPROC			glProgramParameteriEXTProcPtr
 #define PFNGLFRAMEBUFFERTEXTUREEXTPROC			glFramebufferTextureEXTProcPtr
 #define PFNGLGETUNIFORMINDICESPROC				glGetUniformIndicesARBProcPtr
