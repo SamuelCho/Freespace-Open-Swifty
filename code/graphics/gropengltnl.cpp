@@ -628,8 +628,8 @@ void opengl_destroy_all_buffers()
 void opengl_tnl_init()
 {
 	GL_vertex_buffers.reserve(MAX_POLYGON_MODELS);
-	gr_opengl_deferred_light_sphere_init(16, 16);
 	gr_opengl_deferred_light_cylinder_init(16);
+	gr_opengl_deferred_light_sphere_init(16, 16);
 
 	Transform_buffer_handle = opengl_create_texture_buffer_object();
 
@@ -1455,6 +1455,8 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 					vert_def.add_vertex_component(vertex_format_data::UVEC, stride, ptr + up_offset);
 				}
 			}
+		} else {
+			opengl_shader_set_passthrough(true);
 		}
 
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
@@ -1464,6 +1466,8 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 		if ( tex_offset >= 0 ) {
 			vert_def.add_vertex_component(vertex_format_data::TEX_COORD, stride, ptr + tex_offset);
 		}
+	} else {
+		opengl_shader_set_passthrough(false);
 	}
 
 	if (flags & TMAP_FLAG_TRILIST) {
@@ -2281,7 +2285,12 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		}
 
 		if ( flags & TMAP_FLAG_ALPHA ) {
-			GL_state.SetAlphaBlendMode(ALPHA_BLEND_PREMULTIPLIED);
+			if ( flags & TMAP_HTL_3D_UNLIT ) {
+				GL_state.SetAlphaBlendMode(ALPHA_BLEND_ADDITIVE);
+			} else {
+				GL_state.SetAlphaBlendMode(ALPHA_BLEND_PREMULTIPLIED);
+			}
+
 			GL_state.Uniform.setUniformi("blend_alpha", 1);
 		} else {
 			GL_state.Uniform.setUniformi("blend_alpha", 0);
@@ -2473,6 +2482,7 @@ void opengl_tnl_set_material_soft_particle(uint flags)
 	GL_state.Uniform.setUniformf("window_height", (float)gr_screen.max_h);
 	GL_state.Uniform.setUniformf("nearZ", Min_draw_distance);
 	GL_state.Uniform.setUniformf("farZ", Max_draw_distance);
+	GL_state.Uniform.setUniformi("srgb", High_dynamic_range ? 1 : 0);
 
 	if ( Cmdline_no_deferred_lighting ) {
 		GL_state.Uniform.setUniformi("linear_depth", 0);

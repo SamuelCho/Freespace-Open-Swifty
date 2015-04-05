@@ -1062,11 +1062,11 @@
     <ClCompile Include="..\..\code\globalincs\profiling.cpp">
       <Filter>GlobalIncs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\code\model\modelrender.cpp">
-      <Filter>Model</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\code\graphics\shadows.cpp">
       <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\code\model\modelrender.cpp">
+      <Filter>Model</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1874,11 +1874,11 @@
     <ClInclude Include="..\..\code\PilotFile\pilotfile.h">
       <Filter>PilotFile</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\code\model\modelrender.h">
-      <Filter>Model</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\code\graphics\shadows.h">
       <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\code\model\modelrender.h">
+      <Filter>Model</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

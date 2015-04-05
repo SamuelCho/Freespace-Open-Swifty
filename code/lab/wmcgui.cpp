@@ -479,29 +479,37 @@ int GUIScreen::OnFrame(float frametime, bool doevents)
 		//as they use up statuses.
 		int status = OwnerSystem->GetStatus();
 
-		//Pass the status on
-		cgp = (GUIObject*)GET_LAST(&Guiobjects);
-		cgp->Status |= (status & GST_KEYBOARD_STATUS);
-		for (; cgp != END_OF_LIST(&Guiobjects); cgp = cgp_prev) {
-			//In case an object deletes itself
-			cgp_prev = (GUIObject*)GET_PREV(cgp);
-			cgp->LastStatus = cgp->Status;
-			cgp->Status = 0;
+		if ( OwnerSystem->GetFocusObject() != NULL ) {
+			GUIObject *csp = OwnerSystem->GetFocusObject();
+			csp->LastStatus = csp->Status;
+			csp->Status = status;
+			csp->OnFrame(frametime, &status);
+			SomethingPressed = true;
+		} else {
+			//Pass the status on
+			cgp = (GUIObject*)GET_LAST(&Guiobjects);
+			cgp->Status |= (status & GST_KEYBOARD_STATUS);
+			for (; cgp != END_OF_LIST(&Guiobjects); cgp = cgp_prev) {
+				//In case an object deletes itself
+				cgp_prev = (GUIObject*)GET_PREV(cgp);
+				cgp->LastStatus = cgp->Status;
+				cgp->Status = 0;
 
-			//If we are moving something, nothing else can get click events
-			if (OwnerSystem->GetGraspedObject() == NULL) {
-				if (OwnerSystem->GetMouseX() >= cgp->Coords[0]
-					&& OwnerSystem->GetMouseX() <= cgp->Coords[2]
-					&& OwnerSystem->GetMouseY() >= cgp->Coords[1]
-					&& OwnerSystem->GetMouseY() <= cgp->Coords[3]) {
-					cgp->Status |= (status & GST_MOUSE_STATUS);
-					if (status & GST_MOUSE_PRESS) {
-						SomethingPressed = true;
+				//If we are moving something, nothing else can get click events
+				if (OwnerSystem->GetGraspedObject() == NULL) {
+					if (OwnerSystem->GetMouseX() >= cgp->Coords[0]
+						&& OwnerSystem->GetMouseX() <= cgp->Coords[2]
+						&& OwnerSystem->GetMouseY() >= cgp->Coords[1]
+						&& OwnerSystem->GetMouseY() <= cgp->Coords[3]) {
+						cgp->Status |= (status & GST_MOUSE_STATUS);
+						if (status & GST_MOUSE_PRESS) {
+							SomethingPressed = true;
+						}
 					}
 				}
-			}
 
-			cgp->OnFrame(frametime, &status);
+				cgp->OnFrame(frametime, &status);
+			}
 		}
 	}
 
@@ -648,6 +656,12 @@ int GUISystem::OnFrame(float frametime, bool doevents, bool clearandflip)
 					GraspedGuiobject = NULL;
 				}
 			}
+
+			if ( FocusGuiObject != NULL ) {
+				if ( !( Status & GST_MOUSE_PRESS ) ) {
+					FocusGuiObject = NULL;
+				}
+			}
 		}
 
 		GUIScreen *csp_prev;	//so screens can delete themselves
@@ -697,6 +711,11 @@ void GUISystem::SetGraspedObject(GUIObject *cgp, int button)
 	GraspingButton = button;
 	GraspedDiff[0] = MouseX - cgp->Coords[0];
 	GraspedDiff[1] = MouseY - cgp->Coords[1];
+}
+
+void GUISystem::SetFocusObject(GUIObject *cgp)
+{
+	FocusGuiObject = cgp;
 }
 
 void GUISystem::DestroyClassInfo()
@@ -908,6 +927,7 @@ int GUIObject::OnFrame(float frametime, int *unused_queue)
 		//MOUSE DOWN
 		if (Status & GST_MOUSE_PRESS) {
 			rval = DoMouseDown(frametime);
+			OwnerSystem->SetFocusObject(this);
 
 			if (rval == OF_TRUE) {
 				(*unused_queue) &= ~(GST_MOUSE_LEFT_BUTTON | GST_MOUSE_RIGHT_BUTTON | GST_MOUSE_MIDDLE_BUTTON);
@@ -2597,4 +2617,111 @@ void ImageAnim::Stop()
 
 	Progress = 0.0f;
 	ElapsedTime = 0.0f;
+}
+
+//*****************************Slider*******************************
+
+Slider::Slider(const SCP_string &in_label, int x_coord, int y_coord, void(*in_function)(Slider *caller), int x_width, int y_height, int in_style)
+	:GUIObject(in_label, x_coord, y_coord, x_width, y_height, in_style)
+{
+	Label = in_label;
+
+	function = in_function;
+
+	SliderPos = 1.0f;
+	SliderWidth = 30;
+	SliderGrabbed = false;
+
+	//Set the type
+	Type = GT_SLIDER;
+}
+
+int Slider::DoRefreshSize()
+{
+	BarCoords[0] = Coords[0];
+	BarCoords[1] = Coords[1];
+	BarCoords[2] = Coords[2];
+	BarCoords[3] = Coords[3];
+
+	return OF_TRUE;
+}
+
+int Slider::GetSliderOffset()
+{
+	return SliderPos * (BarCoords[2] - BarCoords[0] - SliderWidth) + BarCoords[0];
+}
+
+float Slider::GetSliderPos(int x)
+{
+	return i2fl(x - BarCoords[0]) / i2fl(BarCoords[2] - BarCoords[0] - SliderWidth);
+}
+
+void Slider::UpdateSlider(int x)
+{
+	SliderPos = GetSliderPos(x);
+
+	CLAMP(SliderPos, 0.0, 1.0f);
+
+	if ( function != NULL ) {
+		function(this);
+	}
+}
+
+void Slider::DoMove(int dx, int dy)
+{
+	BarCoords[0] += dx;
+	BarCoords[2] += dx;
+	BarCoords[1] += dy;
+	BarCoords[3] += dy;
+}
+
+void Slider::DoDraw(float frametime)
+{
+	gr_set_color_fast(&Color_text_normal);
+
+	draw_open_rect(BarCoords[0], BarCoords[1], BarCoords[2], BarCoords[3], false);
+
+	float sliderX = GetSliderOffset();
+
+	draw_open_rect(sliderX, BarCoords[1], sliderX + SliderWidth, BarCoords[3], false);
+}
+
+int Slider::DoMouseDown(float frametime)
+{
+	OwnerSystem->SetActiveObject(this);
+
+	int x = OwnerSystem->GetMouseX();
+	int y = OwnerSystem->GetMouseY();
+
+	int sliderX = GetSliderOffset();
+
+	if ( SliderGrabbed ) {
+		UpdateSlider(x);
+	} else {
+		// first check if the mouse is within the slider bounds
+		if ( x >= sliderX 
+			&& x <= sliderX + SliderWidth 
+			&& y >= BarCoords[1] 
+			&& y <= BarCoords[3] ) {
+			// start grabbing the slider
+			SliderGrabbed = true;
+		} else if ( x >= BarCoords[0]
+			&& x <= BarCoords[2]
+			&& y >= BarCoords[1]
+			&& y <= BarCoords[3]) {
+			// we've clicked on an area of the bar but didn't click the slider
+			// move the slider to the new position
+			UpdateSlider(x);
+			SliderGrabbed = true;
+		}
+	}
+
+	return OF_TRUE;
+}
+
+int Slider::DoMouseUp(float frametime)
+{
+	SliderGrabbed = false;
+
+	return OF_TRUE;
 }

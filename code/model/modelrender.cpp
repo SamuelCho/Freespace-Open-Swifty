@@ -1362,6 +1362,9 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 			blend_filter = GR_ALPHABLEND_FILTER;
 		} else if ( buffer->flags & VB_FLAG_TRANS ) {
 			blend_filter = GR_ALPHABLEND_FILTER;
+		} else if ( render_as_thruster ) {
+			blend_filter = GR_ALPHABLEND_FILTER;
+			alpha_flag |= TMAP_HTL_3D_UNLIT;
 		}
 
 		if (forced_blend_filter != GR_ALPHABLEND_NONE) {
@@ -2409,7 +2412,7 @@ void model_queue_render_thrusters(model_render_params *interp, polymodel *pm, in
 					}
 
 					batch_add_beam(thruster_info.secondary_glow_bitmap,
-						TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT,
+						TMAP_FLAG_GOURAUD | TMAP_FLAG_RGB | TMAP_FLAG_TEXTURED | TMAP_FLAG_CORRECT | TMAP_HTL_3D_UNLIT | TMAP_FLAG_EMISSIVE,
 						&pnt, &norm2, wVal*thruster_info.secondary_glow_rad_factor*0.5f, d
 						);
 					if (Scene_framebuffer_in_frame && thruster_info.draw_distortion) {

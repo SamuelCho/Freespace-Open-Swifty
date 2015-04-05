@@ -1966,6 +1966,9 @@ void labviewer_make_render_options_window(Button *caller)
 	ADD_RENDER_FLAG("Show Ship Weapons", Lab_viewer_flags, LAB_FLAG_SHOW_WEAPONS);
 	ADD_RENDER_FLAG("Initial Rotation", Lab_viewer_flags, LAB_FLAG_INITIAL_ROTATION);
 
+	Slider *sldr = (Slider*)Lab_render_options_window->AddChild(new Slider("Intensity", 0, y + 2, NULL, Lab_render_options_window->GetWidth()));
+	y += sldr->GetHeight() + 1; 
+
 	// start tree
 	cmp = (Tree*)Lab_render_options_window->AddChild(new Tree("Detail Options Tree", 0, y + 2, NULL, Lab_render_options_window->GetWidth()));
 
