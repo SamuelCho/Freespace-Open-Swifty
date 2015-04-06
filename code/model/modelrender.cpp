@@ -1362,9 +1362,6 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 			blend_filter = GR_ALPHABLEND_FILTER;
 		} else if ( buffer->flags & VB_FLAG_TRANS ) {
 			blend_filter = GR_ALPHABLEND_FILTER;
-		} else if ( render_as_thruster ) {
-			blend_filter = GR_ALPHABLEND_FILTER;
-			alpha_flag |= TMAP_HTL_3D_UNLIT;
 		}
 
 		if (forced_blend_filter != GR_ALPHABLEND_NONE) {

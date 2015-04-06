@@ -2281,9 +2281,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		}
 
 		if ( flags & TMAP_FLAG_ALPHA ) {
-			if ( flags & TMAP_HTL_3D_UNLIT ) {
-				GL_state.SetAlphaBlendMode(ALPHA_BLEND_ADDITIVE);
-			} else {
+			if ( bm_has_alpha_channel(gr_screen.current_bitmap) ) {
 				GL_state.SetAlphaBlendMode(ALPHA_BLEND_PREMULTIPLIED);
 			}
 
