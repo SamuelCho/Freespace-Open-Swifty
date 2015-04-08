@@ -3159,13 +3159,9 @@ void gr_opengl_deferred_lighting_finish()
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Scene_specular_texture);
 
-	//vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, Scene_deferred_depth_texture, 0);
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, Scene_luminance_texture, 0);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, Scene_stencil_buffer);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, Scene_stencil_buffer);
-
-	opengl_check_for_errors();
-	opengl_check_framebuffer();
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -3247,9 +3243,6 @@ void gr_opengl_deferred_lighting_finish()
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, Scene_color_texture, 0);
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, Scene_depth_texture, 0);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
-
-	opengl_check_for_errors();
-	opengl_check_framebuffer();
 
 	gr_end_view_matrix();
 	gr_end_proj_matrix();
