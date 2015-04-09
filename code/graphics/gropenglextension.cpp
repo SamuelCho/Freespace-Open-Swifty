@@ -481,7 +481,8 @@ void opengl_extensions_init()
 		Cmdline_no_deferred_lighting = 1;
 	}
 
-	if ( Use_GLSL < 3 ) {
+	if ( Use_GLSL < 2 || !Is_Extension_Enabled(OGL_EXT_FRAMEBUFFER_OBJECT) || !Is_Extension_Enabled(OGL_ARB_FLOATING_POINT_TEXTURES) ) {
+        mprintf(("  No hardware support for deferred lighting. Deferred lighting will be disabled. \n"));
 		Cmdline_no_deferred_lighting = 1;
 		Cmdline_no_batching = true;
 	}

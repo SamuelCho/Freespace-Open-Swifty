@@ -254,7 +254,7 @@ int opengl_create_texture_buffer_object()
 
 	gr_opengl_update_buffer_object(buffer_object_handle, 100, NULL);
 
-	vglTexBufferARB(GL_TEXTURE_BUFFER_ARB, GL_RGBA32F, buffer_obj.buffer_id);
+	vglTexBufferARB(GL_TEXTURE_BUFFER_ARB, GL_RGBA32F_ARB, buffer_obj.buffer_id);
 
 	opengl_check_for_errors();
 
