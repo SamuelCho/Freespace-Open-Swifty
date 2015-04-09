@@ -1265,7 +1265,7 @@ int distortion_add_bitmap_rotated(int texture, int tmap_flags, vertex *pnt, floa
 		return 1;
 	}
 
-	if ( Use_GLSL <= 2 ) {
+	if ( Use_GLSL < 2 || !Is_Extension_Enabled(OGL_EXT_FRAMEBUFFER_OBJECT) ) {
 		// don't render distortions if we can't support them.
 		return 0;
 	}
@@ -1300,7 +1300,7 @@ int distortion_add_beam(int texture, int tmap_flags, vec3d *start, vec3d *end, f
 		return 1;
 	}
 
-	if ( Use_GLSL <= 2 ) {
+	if ( Use_GLSL < 2 || !Is_Extension_Enabled(OGL_EXT_FRAMEBUFFER_OBJECT) ) {
 		// don't render distortions if we can't support them.
 		return 0;
 	}

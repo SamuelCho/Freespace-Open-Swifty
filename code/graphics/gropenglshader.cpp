@@ -51,7 +51,7 @@ static opengl_shader_type_t GL_shader_types[] = {
 	{ SDR_TYPE_EFFECT_PARTICLE, "effect-v.sdr", "effect-particle-f.sdr", "effect-screen-g.sdr", {GL_POINTS, GL_TRIANGLE_STRIP, 4}, 
 		8, { "baseMap", "depthMap", "window_width", "window_height", "nearZ", "farZ", "linear_depth", "srgb" }, 1, {"radius"}, "Particle Effects" },
 
-	{ SDR_TYPE_EFFECT_DISTORTION, "effect-v.sdr", "effect-distort-f.sdr", 0, { 0, 0, 0 }, 
+	{ SDR_TYPE_EFFECT_DISTORTION, "effect-distort-v.sdr", "effect-distort-f.sdr", 0, { 0, 0, 0 }, 
 		6, { "baseMap", "window_width", "window_height", "distMap", "frameBuffer", "use_offset" }, 1, { "radius" }, "Distortion Effects" },
 
 	{ SDR_TYPE_POST_PROCESS_MAIN, "post-v.sdr", "post-f.sdr", 0, {0, 0, 0}, 
@@ -321,6 +321,8 @@ static char *opengl_load_shader(shader_type type_id, char *filename, int flags)
 {
 	SCP_string sflags;
 
+    sflags += "#version 120\n";
+    
 	if (Use_GLSL >= 4) {
 		sflags += "#define SHADER_MODEL 4\n";
 	}
@@ -879,8 +881,11 @@ void opengl_shader_init_uniform_block(const char *uniform_text)
 	}
 
 	new_uniform_block.text_id = uniform_text;
+#ifdef __APPLE__
+	new_uniform_block.location = vglGetUniformBlockIndexARB((long)Current_shader->program_id, uniform_text);
+#else
 	new_uniform_block.location = vglGetUniformBlockIndexARB(Current_shader->program_id, uniform_text);
-
+#endif
 	if (new_uniform_block.location < 0) {
 		nprintf(("SHADER-DEBUG", "WARNING: Unable to get shader uniform block location for \"%s\"!\n", uniform_text));
 		return;
