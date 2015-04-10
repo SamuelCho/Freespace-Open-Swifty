@@ -44,6 +44,7 @@ extern char* Default_fxaa_prepass_shader;
 extern char* Default_effect_vertex_shader;
 extern char* Default_effect_fragment_shader;
 extern char* Default_effect_particle_fragment_shader;
+extern char* Default_effect_distortion_vertex_shader;
 extern char* Default_effect_distortion_fragment_shader;
 extern char* Default_effect_ribbon_geometry_shader;
 extern char* Default_effect_screen_geometry_shader;
@@ -88,6 +89,7 @@ def_file Default_files[] =
 	{ "effect-v.sdr",			Default_effect_vertex_shader},
 	{ "effect-f.sdr",			Default_effect_fragment_shader},
 	{ "effect-particle-f.sdr",	Default_effect_particle_fragment_shader},
+    { "effect-distort-v.sdr",   Default_effect_distortion_vertex_shader},
 	{ "effect-distort-f.sdr",	Default_effect_distortion_fragment_shader},
 	{ "effect-screen-g.sdr",	Default_effect_screen_geometry_shader},
 	{ "shadowdebug-v.sdr",		Default_shadowdebug_vertex_shader},
@@ -1320,7 +1322,7 @@ $Add:			0								\n\
 //					DEFAULT SHADERS
 //===========================================================
 
-char* Default_main_vertex_shader = 
+char* Default_main_vertex_shader =
 "#ifdef APPLE\n"
 " #extension GL_ARB_draw_instanced : enable\n"
 "#else\n"
@@ -1371,7 +1373,11 @@ char* Default_main_vertex_shader =
 "uniform vec3 clip_position;\n"
 "//uniform vec4 clip_plane;\n"
 "uniform mat4 world_matrix;\n"
+"#ifdef FLAG_SHADOW_MAP\n"
+"varying float clip_distance_g;\n"
+"#else\n"
 "varying float clip_distance;\n"
+"#endif\n"
 "#endif\n"
 "varying vec4 position;\n"
 "varying vec3 lNormal;\n"
@@ -1458,7 +1464,13 @@ char* Default_main_vertex_shader =
 "	fogDist = clamp((gl_Position.z - gl_Fog.start) * 0.75 * gl_Fog.scale, 0.0, 1.0);\n"
 " #endif\n"
 " #ifdef FLAG_CLIP\n"
-"	if(use_clip_plane == 1) clip_distance = dot(normalize((world_matrix*orient*vertex).xyz - clip_position), clip_normal);\n"
+"   float clip_dist = 0.0;\n"
+"	if(use_clip_plane == 1) clip_dist = dot(normalize((world_matrix*orient*vertex).xyz - clip_position), clip_normal);\n"
+"  #ifdef FLAG_SHADOW_MAP\n"
+"   clip_distance_g = clip_dist;\n"
+"  #else\n"
+"   clip_distance = clip_dist;\n"
+"  #endif\n"
 " #endif\n"
 "	gl_ClipVertex = (gl_ModelViewMatrix * orient * vertex);\n"
 "}";
@@ -1768,7 +1780,9 @@ char *Default_main_fragment_shader =
 " #endif\n"
 "	baseColor = texture2D(sBasemap, diffuseTexCoord);																																						\n"
 "	if ( blend_alpha == 0 && baseColor.a < 0.95 ) discard; // if alpha blending is not on, discard transparent pixels																					\n"
-"	baseColor.rgb = mix(baseColor.rgb, baseColor.rgb * baseColor.a, float(blend_alpha));	// premultiply alpha. assume that our blend function is srcColor + (1-Alpha)*destColor\n"
+"	// premultiply alpha if blend_alpha is 1. assume that our blend function is srcColor + (1-Alpha)*destColor.\n"
+"	// if blend_alpha is 2, assume blend func is additive and don't modify color\n"
+"	if(blend_alpha == 1) baseColor.rgb = baseColor.rgb * baseColor.a;\n"
 " #ifdef FLAG_HDR\n"
 "	baseColor.rgb = pow(baseColor.rgb, vec3(SRGB_GAMMA));\n"
 " #endif\n"
@@ -1893,6 +1907,10 @@ char* Default_main_geometry_shader =
 "varying in float not_visible_g[];\n"
 "varying out float not_visible;\n"
 "#endif\n"
+"#ifdef FLAG_CLIP\n"
+"varying in float clip_distance_g[];\n"
+"varying out float clip_distance;\n"
+"#endif\n"
 "void main(void)\n"
 "{\n"
 "	int instanceID = int(Instance[0]);\n"
@@ -1906,6 +1924,9 @@ char* Default_main_geometry_shader =
 "		gl_Layer = instanceID;\n"
 "#ifdef FLAG_TRANSFORM\n"
 "		not_visible = not_visible_g[0];\n"
+"#endif\n"
+"#ifdef FLAG_CLIP\n"
+"		clip_distance = clip_distance_g[0];\n"
 "#endif\n"
 "		EmitVertex();\n"
 "	}\n"
@@ -2749,7 +2770,7 @@ char* Default_effect_particle_fragment_shader =
 "	vec4 sceneDepth = texture2D(depthMap, depthCoord);\n"
 "	float sceneDepthLinear;\n"
 "	float fragDepthLinear;\n"
-"	if ( linear_depth ) {\n"
+"	if ( linear_depth == 1 ) {\n"
 "		sceneDepthLinear = -sceneDepth.z;\n"
 "		fragDepthLinear = -position_p.z;\n"
 "	} else {\n"
@@ -2765,14 +2786,28 @@ char* Default_effect_particle_fragment_shader =
 "	gl_FragColor = max(fragmentColor, vec4(0.0))*2.5;\n"
 "}";
 
+char* Default_effect_distortion_vertex_shader =
+"attribute float radius;\n"
+"varying float offset_out;\n"
+"uniform float use_offset;\n"
+"void main()\n"
+"{\n"
+"   gl_Position = ftransform();\n"
+"	offset_out = radius * use_offset;\n"
+"	gl_TexCoord[0] = gl_MultiTexCoord0;\n"
+"	gl_FrontColor = gl_Color;\n"
+"	gl_FrontSecondaryColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
+" #ifdef  __GLSL_CG_DATA_TYPES\n"
+"	// Check necessary for ATI specific behavior\n"
+"	gl_ClipVertex = (gl_ModelViewMatrix * gl_Vertex);\n"
+" #endif\n"
+"}";
+
 char* Default_effect_distortion_fragment_shader =
 "uniform sampler2D baseMap;\n"
 "uniform sampler2D depthMap;\n"
 "uniform float window_width;\n"
 "uniform float window_height;\n"
-"uniform float nearZ;\n"
-"uniform float farZ;\n"
-"varying float radius_p;\n"
 "uniform sampler2D distMap;\n"
 "uniform sampler2D frameBuffer;\n"
 "varying float offset_out;\n"
@@ -2974,9 +3009,9 @@ char *Default_deferred_fragment_shader =
 "uniform float vpheight;																					   \n"
 "																											   \n"
 "uniform int lighttype;																						   \n"
-"in vec3 lightposition;																						   \n"
+"varying vec3 lightposition;																						   \n"
 "uniform float lightradius;																					   \n"
-"in vec3 beamvec;																							   \n"
+"varying vec3 beamvec;																							   \n"
 "uniform vec3 diffuselightcolor;																			   \n"
 "uniform vec3 speclightcolor;																				   \n"
 "uniform float cone_angle;																					   \n"
@@ -3077,9 +3112,9 @@ char *Default_deferred_clear_fragment_shader =
 "void main()\n"
 "{\n"
 "   gl_FragData[0] = vec4(0.0, 0.0, 0.0, 1.0); // color\n"
-"	gl_FragData[1] = vec4(0.0, 0.0, -1000000.0, 0.0); // position\n"
-"	gl_FragData[2] = vec4(0.0, 0.0, 0.0, 0.0); // normal\n"
-"	gl_FragData[3] = vec4(0.0, 0.0, 0.0, 0.0); // specular\n"
+"	gl_FragData[1] = vec4(0.0, 0.0, -1000000.0, 1.0); // position\n"
+"	gl_FragData[2] = vec4(0.0, 0.0, 0.0, 1.0); // normal\n"
+"	gl_FragData[3] = vec4(0.0, 0.0, 0.0, 1.0); // specular\n"
 "}\n";
 
 char *Default_gamma_correction_vertex_shader = 

@@ -370,13 +370,13 @@ void opengl_state::init()
 	normalize_Status = GL_FALSE;
 
 	for (i = 0; i < (int)(sizeof(clipplane_Status) / sizeof(GLboolean)); i++) {
-		glDisable(GL_CLIP_PLANE0+i);
+		//glDisable(GL_CLIP_PLANE0+i);
 		clipplane_Status[i] = GL_FALSE;
 	}
 
 	if (GL_version >= 30) {
 		for (i = 0; i < (int)(sizeof(clipdistance_Status) / sizeof(GLboolean)); i++) {
-			glDisable(GL_CLIP_DISTANCE0+i);
+			//glDisable(GL_CLIP_DISTANCE0+i);
 			clipdistance_Status[i] = GL_FALSE;
 		}
 	}
@@ -669,10 +669,10 @@ GLboolean opengl_state::ClipDistance(GLint num, GLint state)
 	if ( !((state == -1) || (state == clipdistance_Status[num])) ) {
 		if (state) {
 			Assert( state == GL_TRUE );
-			glEnable(GL_CLIP_DISTANCE0+num);
+			//glEnable(GL_CLIP_DISTANCE0+num);
 			clipdistance_Status[num] = GL_TRUE;
 		} else {
-			glDisable(GL_CLIP_DISTANCE0+num);
+			//glDisable(GL_CLIP_DISTANCE0+num);
 			clipdistance_Status[num] = GL_FALSE;
 		}
 	}

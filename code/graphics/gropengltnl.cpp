@@ -254,7 +254,7 @@ int opengl_create_texture_buffer_object()
 
 	gr_opengl_update_buffer_object(buffer_object_handle, 100, NULL);
 
-	vglTexBufferARB(GL_TEXTURE_BUFFER_ARB, GL_RGBA32F, buffer_obj.buffer_id);
+	vglTexBufferARB(GL_TEXTURE_BUFFER_ARB, GL_RGBA32F_ARB, buffer_obj.buffer_id);
 
 	opengl_check_for_errors();
 
@@ -2287,9 +2287,10 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		if ( flags & TMAP_FLAG_ALPHA ) {
 			if ( bm_has_alpha_channel(gr_screen.current_bitmap) ) {
 				GL_state.SetAlphaBlendMode(ALPHA_BLEND_PREMULTIPLIED);
+				GL_state.Uniform.setUniformi("blend_alpha", 1);
+			} else {
+				GL_state.Uniform.setUniformi("blend_alpha", 2);
 			}
-
-			GL_state.Uniform.setUniformi("blend_alpha", 1);
 		} else {
 			GL_state.Uniform.setUniformi("blend_alpha", 0);
 		}
