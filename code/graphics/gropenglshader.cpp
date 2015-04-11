@@ -309,7 +309,9 @@ static char *opengl_load_shader(shader_type type_id, char *filename, int flags)
 {
 	SCP_string sflags;
 
+#ifdef __APPLE__
     sflags += "#version 120\n";
+#endif
     
 	if (Use_GLSL >= 4) {
 		sflags += "#define SHADER_MODEL 4\n";
