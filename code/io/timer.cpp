@@ -44,7 +44,7 @@ static int Timer_inited = 0;
 
 static CRITICAL_SECTION Timer_lock;
 
-#define MICROSECONDS_IN_SECOND 1000000
+#define MICROSECONDS_PER_SECOND 1000000
 
 void timer_close()
 {
@@ -81,7 +81,7 @@ void timer_init()
 		// get the performance counter start time
 		gettimeofday(&time_value, NULL);
 
-		Timer_perf_counter_base = time_value.tv_sec * MICROSECONDS_IN_SECOND + time_value.tv_usec;
+		Timer_perf_counter_base = time_value.tv_sec * MICROSECONDS_PER_SECOND + time_value.tv_usec;
 
 		// get the performance counter's ticks per second frequency
 		Timer_perf_counter_freq = 1;
@@ -188,13 +188,13 @@ uint timer_get_high_res_microseconds()
 
 	LEAVE_CRITICAL_SECTION( Timer_lock);
 
-	return (uint)(elapsed * MICROSECONDS_IN_SECOND / Timer_perf_counter_freq);
+	return (uint)(elapsed * MICROSECONDS_PER_SECOND / Timer_perf_counter_freq);
 #else
 	timeval time_value;
 
 	gettimeofday(&time_value, NULL);
 
-	return time_value.tv_sec * MICROSECONDS_IN_SECOND + time_value.tv_usec;// - Timer_perf_counter_base);
+	return time_value.tv_sec * MICROSECONDS_PER_SECOND + time_value.tv_usec;// - Timer_perf_counter_base);
 #endif
 }
 
