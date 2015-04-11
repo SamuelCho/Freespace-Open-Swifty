@@ -187,7 +187,7 @@ uint timer_get_high_res_microseconds()
 
 	LEAVE_CRITICAL_SECTION( Timer_lock);
 
-	return elapsed * 1000000 / Timer_perf_counter_freq;
+	return (uint)(elapsed * 1000000 / Timer_perf_counter_freq);
 #else
     timeval time_value;
 
