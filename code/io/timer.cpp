@@ -13,6 +13,7 @@
 #include <windows.h>
 #else
 #include <SDL_timer.h>
+#include <sys/time.h>
 #endif
 
 #include <limits.h>
@@ -74,10 +75,15 @@ void timer_init()
 		Timer_perf_counter_freq = perf_frequency.QuadPart;
 #else
 		// get the performance counter start time
-		Timer_perf_counter_base = SDL_GetTicks();
+// 		Timer_perf_counter_base = SDL_GetTicks();
+        timeval time_value;
+
+        gettimeofday(&time_value, NULL);
+
+        Timer_perf_counter_base = time_value.tv_sec * 1000000 + time_value.tv_usec;
 
 		// get the performance counter's ticks per second frequency
-		Timer_perf_counter_freq = 1000;
+		Timer_perf_counter_freq = 1;
 #endif
 
 		Timer_inited = 1;
@@ -108,23 +114,6 @@ static uint timer_get()
 	return (uint)(time_now - Timer_base);
 #else
 	return SDL_GetTicks();
-#endif
-}
-
-static longlong timer_get_perf_count()
-{
-#ifdef _WIN32
-	ENTER_CRITICAL_SECTION( Timer_lock);
-
-	LARGE_INTEGER time;
-	QueryPerformanceCounter(&time);
-	longlong elapsed = time.QuadPart - Timer_perf_counter_base;
-
-	LEAVE_CRITICAL_SECTION( Timer_lock);
-
-	return elapsed;
-#else
-	return SDL_GetTicks() - Timer_perf_counter_base;
 #endif
 }
 
@@ -189,13 +178,23 @@ uint timer_get_high_res_microseconds()
 		return 0;
 	}
 
-	// We now have the elapsed number of ticks, along with the
-	// number of ticks-per-second. We use these values
-	// to convert to the number of elapsed microseconds.
-	// To guard against loss-of-precision, we convert
-	// to microseconds *before* dividing by ticks-per-second.
+#ifdef _WIN32
+	ENTER_CRITICAL_SECTION( Timer_lock);
 
-	return (timer_get_perf_count() * 1000000) / Timer_perf_counter_freq;
+	LARGE_INTEGER time;
+	QueryPerformanceCounter(&time);
+	longlong elapsed = time.QuadPart;// - Timer_perf_counter_base;
+
+	LEAVE_CRITICAL_SECTION( Timer_lock);
+
+	return elapsed * 1000000 / Timer_perf_counter_freq;
+#else
+    timeval time_value;
+
+    gettimeofday(&time_value, NULL);
+
+	return time_value.tv_sec * 1000000 + time_value.tv_usec;// - Timer_perf_counter_base);
+#endif
 }
 
 // 0 means invalid,
