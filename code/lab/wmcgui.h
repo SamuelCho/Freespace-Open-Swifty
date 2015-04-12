@@ -736,6 +736,8 @@ protected:
 
 public:
 	Slider(const SCP_string &in_label, int x_coord, int y_coord, void(*in_function)(Slider *caller) = NULL, int x_width = -1, int y_height = DEFAULT_BUTTON_HEIGHT, int in_style = 0);
+
+	float GetSliderValue() { return SliderPos; }
 };
 
 //*****************************GLOBALS*******************************

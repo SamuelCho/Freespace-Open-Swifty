@@ -2628,7 +2628,7 @@ Slider::Slider(const SCP_string &in_label, int x_coord, int y_coord, void(*in_fu
 
 	function = in_function;
 
-	SliderPos = 1.0f;
+	SliderPos = 0.0f;
 	SliderWidth = 30;
 	SliderGrabbed = false;
 

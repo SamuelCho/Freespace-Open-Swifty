@@ -62,6 +62,8 @@ void opengl_tcache_get_adjusted_texture_size(int w_in, int h_in, int *w_out, int
 int opengl_create_texture_sub(int bitmap_handle, int bitmap_type, int bmap_w, int bmap_h, int tex_w, int tex_h, ubyte *data = NULL, tcache_slot_opengl *t = NULL, int base_level = 0, int resize = 0, int reload = 0);
 int opengl_create_texture (int bitmap_handle, int bitmap_type, tcache_slot_opengl *tslot = NULL);
 
+extern int get_num_mipmap_levels(int w, int h);
+
 void opengl_set_additive_tex_env()
 {
 	GL_CHECK_FOR_ERRORS("start of set_additive_tex_env()");
@@ -846,6 +848,16 @@ int opengl_create_texture_sub(int bitmap_handle, int bitmap_type, int bmap_w, in
 	t->size = (dsize) ? ((doffset + dsize) - skip_size) : (tex_w * tex_h * byte_mult);
 	t->w = (ushort)tex_w;
 	t->h = (ushort)tex_h;
+
+	if ( t->mipmap_levels == 1 && bitmap_type == TCACHE_TYPE_CUBEMAP && Is_Extension_Enabled(OGL_EXT_FRAMEBUFFER_OBJECT) ) {
+		// generate mip maps for cube maps so we can get glossy reflections; necessary for gloss maps and physically-based lighting
+		t->mipmap_levels = get_num_mipmap_levels(t->w, t->h);
+
+		glTexParameteri(t->texture_target, GL_TEXTURE_MAX_LEVEL, t->mipmap_levels - 1);
+		glTexParameteri(t->texture_target, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
+		vglGenerateMipmapEXT(t->texture_target);
+	}
 
 	GL_textures_in_frame += t->size;
 
@@ -1656,7 +1668,7 @@ int opengl_set_render_target( int slot, int face, int is_static )
 	if (slot < 0) {
 		if ( (render_target != NULL) && (render_target->working_slot >= 0) ) {
 			if (Textures[render_target->working_slot].mipmap_levels > 1) {
-				gr_opengl_generate_mip_maps(render_target->working_slot);
+				gr_opengl_bm_generate_mip_maps(render_target->working_slot);
 			}
 
 			if (render_target->is_static) {
@@ -1999,9 +2011,13 @@ GLuint opengl_get_rtt_framebuffer()
 		return render_target->framebuffer_id;
 }
 
-void gr_opengl_generate_mip_maps(int slot)
+void gr_opengl_bm_generate_mip_maps(int slot)
 {
-	if (slot < 0) {
+	if ( !Is_Extension_Enabled(OGL_EXT_FRAMEBUFFER_OBJECT) ) {
+		return;
+	}
+
+	if ( slot < 0 ) {
 		Int3();
 		return;
 	}

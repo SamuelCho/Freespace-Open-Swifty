@@ -2295,6 +2295,13 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 			GL_state.Uniform.setUniformi("blend_alpha", 0);
 		}
 
+		if ( Basemap_color_override_set ) {
+			GL_state.Uniform.setUniformi("overrideDiffuse", 1);
+			GL_state.Uniform.setUniform3f("diffuseClr", Basemap_color_override[0], Basemap_color_override[1], Basemap_color_override[2]);
+		} else {
+			GL_state.Uniform.setUniformi("overrideDiffuse", 0);
+		}
+
 		gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale, render_pass);
 
 		++render_pass;
@@ -2303,6 +2310,13 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	if ( shader_flags & SDR_FLAG_MODEL_GLOW_MAP ) {
 		GL_state.Uniform.setUniformi("sGlowmap", render_pass);
 
+		if ( Glowmap_color_override_set ) {
+			GL_state.Uniform.setUniformi("overrideGlow", 1);
+			GL_state.Uniform.setUniform3f("glowClr", Glowmap_color_override[0], Glowmap_color_override[1], Glowmap_color_override[2]);
+		} else {
+			GL_state.Uniform.setUniformi("overrideGlow", 0);
+		}
+
 		gr_opengl_tcache_set(GLOWMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
 		++render_pass;
@@ -2310,6 +2324,13 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 
 	if ( shader_flags & SDR_FLAG_MODEL_SPEC_MAP ) {
 		GL_state.Uniform.setUniformi("sSpecmap", render_pass);
+
+		if ( Specmap_color_override_set ) {
+			GL_state.Uniform.setUniformi("overrideSpec", 1);
+			GL_state.Uniform.setUniform4f("specClr", Specmap_color_override[0], Specmap_color_override[1], Specmap_color_override[2], Specmap_color_override[3]);
+		} else {
+			GL_state.Uniform.setUniformi("overrideSpec", 0);
+		}
 
 		gr_opengl_tcache_set(SPECMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
