@@ -1807,7 +1807,7 @@ char *Default_main_fragment_shader =
 "		glossData = specClr.a;\n"
 "	}\n"
 "	specColour.rgb = max(specColour.rgb, vec3(0.04));\n"
-"   specData = vec4(specColour.rgb, 1.0);																																	\n"
+"   specData = vec4(specColour.rgb, glossData);																																	\n"
 "#endif																																															\n"
 "  																																																	\n"
 "#ifdef FLAG_MISC_MAP\n"
@@ -3084,7 +3084,8 @@ char *Default_deferred_fragment_shader =
 "		discard;																							   \n"
 "	vec3 color = texture2D(ColorBuffer, screenPos).rgb;														   \n"
 "	vec4 normal = texture2D(NormalBuffer, screenPos);														   \n"
-"	vec3 specColor = texture2D(SpecBuffer, screenPos).rgb;													   \n"
+"	vec4 specColor = texture2D(SpecBuffer, screenPos);														   \n"
+"	float gloss = specColor.a;																				   \n"
 "	vec3 eyeDir = normalize(-position);																		   \n"
 "																											   \n"
 "	if(lighttype == 1)																						   \n"
@@ -3106,12 +3107,11 @@ char *Default_deferred_fragment_shader =
 "	float NdotHV = clamp(dot(normal.xyz, half_vec), 0.0, 1.0);												   \n"
 "	float NdotL = clamp(dot(normal.xyz, lightDir), 0.0, 1.0);												   \n"
 "	gl_FragData[0].rgb = color * (diffuselightcolor * NdotL * attenuation);	   \n"
-"	gl_FragData[0].rgb += SpecularBlinnPhong(speclightcolor, lightDir, normal.xyz, half_vec, 80.0, NdotL).rgb * specColor * attenuation;\n"
-"   //gl_FragData[0].rgb += pow(NdotHV, spec_factor) * SPEC_INTENSITY_POINT * specColor * speclightcolor * attenuation;\n"
+"	gl_FragData[0].rgb += SpecularBlinnPhong(speclightcolor, lightDir, normal.xyz, half_vec, exp2(10.0 * gloss + 1.0), NdotL).rgb * specColor.rgb * attenuation;\n"
+"   //gl_FragData[0].rgb += pow(NdotHV, spec_factor) * SPEC_INTENSITY_POINT * specColor.rgb * speclightcolor * attenuation;\n"
 "	//gl_FragData[0].rgb = vec3(attenuation);																		   \n"
 "	gl_FragData[0].a = 1.0;																					   \n"
 "	gl_FragData[0] = max(gl_FragData[0], vec4(0.0));\n"
-"	//gl_FragData[0] = vec4(1.0, 1,0, 1.0, 1.0);\n"
 "}";
 
 char *Default_deferred_clear_vertex_shader =

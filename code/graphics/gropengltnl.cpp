@@ -2482,6 +2482,11 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	if ( shader_flags & SDR_FLAG_MODEL_THRUSTER ) {
 		GL_state.Uniform.setUniformf("thruster_scale", GL_thrust_scale);
 	}
+
+	if ( Deferred_lighting ) {
+		// don't blend if we're drawing to the g-buffers
+		GL_state.SetAlphaBlendMode(ALPHA_BLEND_NONE);
+	}
 }
 
 void opengl_tnl_set_material_soft_particle(uint flags)

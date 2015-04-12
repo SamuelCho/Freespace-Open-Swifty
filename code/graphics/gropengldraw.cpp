@@ -3179,6 +3179,7 @@ void gr_opengl_deferred_lighting_begin()
 		return;
 
 	Deferred_lighting = true;
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
 	GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT, GL_COLOR_ATTACHMENT2_EXT, GL_COLOR_ATTACHMENT3_EXT };
 	vglDrawBuffers(4, buffers);
@@ -3190,6 +3191,8 @@ void gr_opengl_deferred_lighting_end()
 		return;
 	Deferred_lighting = false;
 	glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
 }
 
 extern light Lights[MAX_LIGHTS];
