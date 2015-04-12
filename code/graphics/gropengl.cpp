@@ -2047,7 +2047,9 @@ bool gr_opengl_init()
 	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 	glHint(GL_FOG_HINT, GL_NICEST);
 
-	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+	if ( Is_Extension_Enabled(OGL_ARB_SEAMLESS_CUBEMAP) ) {
+		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+	}
 
 	glDepthRange(0.0, 1.0);
 
