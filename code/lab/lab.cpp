@@ -2055,7 +2055,7 @@ void labviewer_set_material_override_specular_blue(Slider *caller)
 
 void labviewer_set_material_override_specular_gloss(Slider *caller)
 {
-	Specmap_color_override[3] = caller->GetSliderValue();
+	Gloss_override = caller->GetSliderValue();
 }
 
 void labviewer_make_material_override_window(Button *caller)
@@ -2115,6 +2115,10 @@ void labviewer_make_material_override_window(Button *caller)
 
 		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Blue", 0, y + 2, labviewer_set_material_override_specular_blue, Lab_material_override_window->GetWidth()));
 		y += sldr->GetHeight() + 1;
+
+		cbp = (Checkbox*)Lab_material_override_window->AddChild(new Checkbox("Override Gloss", 2, y));
+		cbp->SetBool(&Gloss_override_set);
+		y += cbp->GetHeight() + 1;
 
 		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Gloss", 0, y + 2, labviewer_set_material_override_specular_gloss, Lab_material_override_window->GetWidth()));
 		y += sldr->GetHeight() + 1;

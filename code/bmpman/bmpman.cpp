@@ -52,6 +52,7 @@ extern int Cmdline_cache_bitmaps;
 // globals
 int GLOWMAP = -1;
 int SPECMAP = -1;
+int SPECGLOSSMAP = -1;
 int ENVMAP = -1;
 int NORMMAP = -1;
 int HEIGHTMAP = -1;

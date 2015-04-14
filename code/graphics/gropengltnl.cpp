@@ -39,6 +39,7 @@
 extern int GLOWMAP;
 extern int CLOAKMAP;
 extern int SPECMAP;
+extern int SPECGLOSSMAP;
 extern int NORMMAP;
 extern int MISCMAP;
 extern int HEIGHTMAP;
@@ -2237,6 +2238,12 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	int num_lights = MIN(Num_active_gl_lights, GL_max_lights) - 1;
 	GL_state.Uniform.setUniformi("n_lights", num_lights);
 	GL_state.Uniform.setUniformf( "light_factor", GL_light_factor );
+
+	if ( Gloss_override_set ) {
+		GL_state.Uniform.setUniformf( "defaultGloss", Gloss_override );
+	} else {
+		GL_state.Uniform.setUniformf( "defaultGloss", (sqrt(Cmdline_ogl_spec) - 1.0f) * 0.1f);
+	}
 	
 	if ( shader_flags & SDR_FLAG_MODEL_CLIP ) {
 		GL_state.Uniform.setUniformi("use_clip_plane", G3_user_clip);
@@ -2332,7 +2339,19 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 			GL_state.Uniform.setUniformi("overrideSpec", 0);
 		}
 
-		gr_opengl_tcache_set(SPECMAP, tmap_type, &u_scale, &v_scale, render_pass);
+		if ( SPECGLOSSMAP > 0 ) {
+			gr_opengl_tcache_set(SPECGLOSSMAP, tmap_type, &u_scale, &v_scale, render_pass);
+
+			if ( Gloss_override_set ) {
+				GL_state.Uniform.setUniformi("alphaGloss", 0);
+			} else {
+				GL_state.Uniform.setUniformi("alphaGloss", 1);
+			}
+		} else {
+			gr_opengl_tcache_set(SPECMAP, tmap_type, &u_scale, &v_scale, render_pass);
+
+			GL_state.Uniform.setUniformi("alphaGloss", 0);
+		}
 
 		++render_pass;
 
@@ -2344,6 +2363,12 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 
 			for ( int i = 0; i < 16; ++i ) {
 				texture_mat.a1d[i] = GL_env_texture_matrix[i];
+			}
+
+			if ( SPECGLOSSMAP > 0 || Gloss_override_set) {
+				GL_state.Uniform.setUniformi("envGloss", 1);
+			} else {
+				GL_state.Uniform.setUniformi("envGloss", 0);
 			}
 
 			GL_state.Uniform.setUniformi("alpha_spec", alpha_spec);
