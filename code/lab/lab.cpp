@@ -2006,7 +2006,6 @@ void labviewer_close_material_override_window(GUIObject *caller)
 	Specmap_color_override[0] = 0.0f;
 	Specmap_color_override[1] = 0.0f;
 	Specmap_color_override[2] = 0.0f;
-	Specmap_color_override[3] = 0.0f;
 }
 
 void labviewer_set_material_override_diffuse_red(Slider *caller)

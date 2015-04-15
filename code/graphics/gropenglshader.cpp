@@ -98,7 +98,7 @@ static opengl_shader_type_t GL_shader_types[] = {
  */
 static opengl_shader_variant_t GL_shader_variants[] = {
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_LIGHT, "FLAG_LIGHT", 
-		2, { "n_lights", "light_factor" }, 0, { NULL }, 
+		3, { "n_lights", "light_factor", "defaultGloss" }, 0, { NULL }, 
 		"Lighting" },
 
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_FOG, "FLAG_FOG", 
@@ -114,7 +114,7 @@ static opengl_shader_variant_t GL_shader_variants[] = {
 		"Glow Mapping" },
 	
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_SPEC_MAP, "FLAG_SPEC_MAP", 
-		3, { "sSpecmap", "overrideSpec", "specClr" }, 0, { NULL }, 
+		5, { "sSpecmap", "overrideSpec", "specClr", "gammaSpec", "alphaGloss" }, 0, { NULL }, 
 		"Specular Mapping" },
 	
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_NORMAL_MAP, "FLAG_NORMAL_MAP", 
@@ -126,7 +126,7 @@ static opengl_shader_variant_t GL_shader_variants[] = {
 		"Parallax Mapping" },
 	
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_ENV_MAP, "FLAG_ENV_MAP", 
-		3, { "sEnvmap", "alpha_spec", "envMatrix" }, 0, { NULL }, 
+		3, { "sEnvmap", "envGloss", "envMatrix" }, 0, { NULL }, 
 		"Environment Mapping" },
 	
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_ANIMATED, "FLAG_ANIMATED", 

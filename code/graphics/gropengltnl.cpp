@@ -2334,13 +2334,15 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 
 		if ( Specmap_color_override_set ) {
 			GL_state.Uniform.setUniformi("overrideSpec", 1);
-			GL_state.Uniform.setUniform4f("specClr", Specmap_color_override[0], Specmap_color_override[1], Specmap_color_override[2], Specmap_color_override[3]);
+			GL_state.Uniform.setUniform3f("specClr", Specmap_color_override[0], Specmap_color_override[1], Specmap_color_override[2]);
 		} else {
 			GL_state.Uniform.setUniformi("overrideSpec", 0);
 		}
 
 		if ( SPECGLOSSMAP > 0 ) {
 			gr_opengl_tcache_set(SPECGLOSSMAP, tmap_type, &u_scale, &v_scale, render_pass);
+
+			GL_state.Uniform.setUniformi("gammaSpec", 1);
 
 			if ( Gloss_override_set ) {
 				GL_state.Uniform.setUniformi("alphaGloss", 0);
@@ -2350,6 +2352,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		} else {
 			gr_opengl_tcache_set(SPECMAP, tmap_type, &u_scale, &v_scale, render_pass);
 
+			GL_state.Uniform.setUniformi("gammaSpec", 0);
 			GL_state.Uniform.setUniformi("alphaGloss", 0);
 		}
 

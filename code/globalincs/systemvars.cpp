@@ -86,7 +86,7 @@ bool Glowmap_color_override_set = false;
 float Glowmap_color_override[3] = {0.0f, 0.0f, 0.0f};
 
 bool Specmap_color_override_set = false;
-float Specmap_color_override[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+float Specmap_color_override[3] = {0.0f, 0.0f, 0.0f};
 
 bool Gloss_override_set = false;
 float Gloss_override = 0.0f;
