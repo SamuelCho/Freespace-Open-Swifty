@@ -722,6 +722,11 @@ class Slider : public GUIObject
 	float SliderPos;	// goes from 0.0 to 1.0f
 	int SliderWidth;
 
+	int BarWidth;
+	int BarHeight;
+
+	shader SliderShade;
+
 	bool SliderGrabbed;
 
 	int GetSliderOffset();

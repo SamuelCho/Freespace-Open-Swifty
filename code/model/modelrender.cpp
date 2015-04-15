@@ -513,6 +513,7 @@ void draw_list::add_buffer_draw(vertex_buffer *buffer, int texi, uint tmap_flags
 	draw_data.texture_maps[TM_BASE_TYPE] = Current_textures[TM_BASE_TYPE];
 	draw_data.texture_maps[TM_GLOW_TYPE] = Current_textures[TM_GLOW_TYPE];
 	draw_data.texture_maps[TM_SPECULAR_TYPE] = Current_textures[TM_SPECULAR_TYPE];
+	draw_data.texture_maps[TM_SPEC_GLOSS_TYPE] = Current_textures[TM_SPEC_GLOSS_TYPE];
 	draw_data.texture_maps[TM_NORMAL_TYPE] = Current_textures[TM_NORMAL_TYPE];
 	draw_data.texture_maps[TM_HEIGHT_TYPE] = Current_textures[TM_HEIGHT_TYPE];
 	draw_data.texture_maps[TM_MISC_TYPE] = Current_textures[TM_MISC_TYPE];
@@ -547,7 +548,7 @@ uint draw_list::determine_shader_flags(render_state *state, queued_buffer_draw *
 		tmap_flags & TMAP_FLAG_BATCH_TRANSFORMS && draw_info->transform_buffer_offset >= 0 && buffer->flags & VB_FLAG_MODEL_ID,
 		state->using_team_color,
 		tmap_flags, 
-		draw_info->texture_maps[TM_SPECULAR_TYPE],
+		(draw_info->texture_maps[TM_SPEC_GLOSS_TYPE] > 0) ? draw_info->texture_maps[TM_SPEC_GLOSS_TYPE] : draw_info->texture_maps[TM_SPECULAR_TYPE],
 		draw_info->texture_maps[TM_GLOW_TYPE],
 		draw_info->texture_maps[TM_NORMAL_TYPE],
 		draw_info->texture_maps[TM_HEIGHT_TYPE],
@@ -628,6 +629,7 @@ void draw_list::render_buffer(queued_buffer_draw &render_elements)
 
 	GLOWMAP = render_elements.texture_maps[TM_GLOW_TYPE];
 	SPECMAP = render_elements.texture_maps[TM_SPECULAR_TYPE];
+	SPECGLOSSMAP = render_elements.texture_maps[TM_SPEC_GLOSS_TYPE];
 	NORMMAP = render_elements.texture_maps[TM_NORMAL_TYPE];
 	HEIGHTMAP = render_elements.texture_maps[TM_HEIGHT_TYPE];
 	MISCMAP = render_elements.texture_maps[TM_MISC_TYPE];
@@ -636,6 +638,7 @@ void draw_list::render_buffer(queued_buffer_draw &render_elements)
 
 	GLOWMAP = -1;
 	SPECMAP = -1;
+	SPECGLOSSMAP = -1;
 	NORMMAP = -1;
 	HEIGHTMAP = -1;
 	MISCMAP = -1;
@@ -1255,6 +1258,7 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 		texture_maps[TM_BASE_TYPE] = -1;
 		texture_maps[TM_GLOW_TYPE] = -1;
 		texture_maps[TM_SPECULAR_TYPE] = -1;
+		texture_maps[TM_SPEC_GLOSS_TYPE] = -1;
 		texture_maps[TM_NORMAL_TYPE] = -1;
 		texture_maps[TM_HEIGHT_TYPE] = -1;
 		texture_maps[TM_MISC_TYPE] = -1;
@@ -1300,6 +1304,7 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 			if ( (Detail.lighting > 2)  && (detail_level < 2) ) {
 				// likewise, etc.
 				texture_info *spec_map = &tmap->textures[TM_SPECULAR_TYPE];
+				texture_info *specgloss_map = &tmap->textures[TM_SPEC_GLOSS_TYPE];
 				texture_info *norm_map = &tmap->textures[TM_NORMAL_TYPE];
 				texture_info *height_map = &tmap->textures[TM_HEIGHT_TYPE];
 				texture_info *misc_map = &tmap->textures[TM_MISC_TYPE];
@@ -1308,6 +1313,11 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 					if (replacement_textures[rt_begin_index + TM_SPECULAR_TYPE] >= 0) {
 						tex_replace[TM_SPECULAR_TYPE] = texture_info(replacement_textures[rt_begin_index + TM_SPECULAR_TYPE]);
 						spec_map = &tex_replace[TM_SPECULAR_TYPE];
+					}
+
+					if (replacement_textures[rt_begin_index + TM_SPEC_GLOSS_TYPE] >= 0) {
+						tex_replace[TM_SPEC_GLOSS_TYPE] = texture_info(replacement_textures[rt_begin_index + TM_SPEC_GLOSS_TYPE]);
+						specgloss_map = &tex_replace[TM_SPEC_GLOSS_TYPE];
 					}
 
 					if (replacement_textures[rt_begin_index + TM_NORMAL_TYPE] >= 0) {
@@ -1327,6 +1337,7 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 				}
 
 				texture_maps[TM_SPECULAR_TYPE] = model_interp_get_texture(spec_map, base_frametime);
+				texture_maps[TM_SPEC_GLOSS_TYPE] = model_interp_get_texture(specgloss_map, base_frametime);
 				texture_maps[TM_NORMAL_TYPE] = model_interp_get_texture(norm_map, base_frametime);
 				texture_maps[TM_HEIGHT_TYPE] = model_interp_get_texture(height_map, base_frametime);
 				texture_maps[TM_MISC_TYPE] = model_interp_get_texture(misc_map, base_frametime);
@@ -1385,6 +1396,7 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 		scene->set_texture(TM_BASE_TYPE,	texture_maps[TM_BASE_TYPE]);
 		scene->set_texture(TM_GLOW_TYPE,	texture_maps[TM_GLOW_TYPE]);
 		scene->set_texture(TM_SPECULAR_TYPE, texture_maps[TM_SPECULAR_TYPE]);
+		scene->set_texture(TM_SPEC_GLOSS_TYPE, texture_maps[TM_SPEC_GLOSS_TYPE]);
 		scene->set_texture(TM_NORMAL_TYPE, texture_maps[TM_NORMAL_TYPE]);
 		scene->set_texture(TM_HEIGHT_TYPE, texture_maps[TM_HEIGHT_TYPE]);
 		scene->set_texture(TM_MISC_TYPE,	texture_maps[TM_MISC_TYPE]);

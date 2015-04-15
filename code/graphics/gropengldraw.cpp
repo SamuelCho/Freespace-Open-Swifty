@@ -3160,11 +3160,15 @@ void opengl_clear_deferred_buffers()
 	GLboolean blend = GL_state.Blend(GL_FALSE);
 	GLboolean cull = GL_state.CullFace(GL_FALSE);
 
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
 	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_DEFERRED_CLEAR, 0) );
 
 	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 
 	opengl_shader_set_current();
+
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
 
 	GL_state.DepthTest(depth);
 	GL_state.DepthMask(depth_mask);

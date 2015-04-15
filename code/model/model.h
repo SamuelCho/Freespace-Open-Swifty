@@ -668,7 +668,8 @@ public:
 #define TM_NORMAL_TYPE		3		// optional normal map
 #define TM_HEIGHT_TYPE		4		// optional height map (for parallax mapping)
 #define TM_MISC_TYPE		5		// optional utility map
-#define TM_NUM_TYPES		6		//WMC - Number of texture_info objects in texture_map
+#define TM_SPEC_GLOSS_TYPE	6		// optional reflectance map (specular and gloss)
+#define TM_NUM_TYPES		7		//WMC - Number of texture_info objects in texture_map
 									//Used by scripting - if you change this, do a search
 									//to update switch() statement in lua.cpp
 // taylor

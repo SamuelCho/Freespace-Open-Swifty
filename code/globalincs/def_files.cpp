@@ -1801,7 +1801,7 @@ char *Default_main_fragment_shader =
 "	if(overrideDiffuse == 1) baseColor.rgb = diffuseClr;\n"
 "#endif																																															\n"
 "  																																																	\n"
-"   specData = vec4(baseColor.rgb * SPEC_FACTOR_NO_SPEC_MAP, 1.0);																															\n"
+"   specData = vec4(baseColor.rgb * SPEC_FACTOR_NO_SPEC_MAP, glossData);																															\n"
 "#ifdef FLAG_SPEC_MAP																																												\n"
 "   vec4 specColour = texture2D(sSpecmap, texCoord);																																				\n"
 "	if(alphaGloss) glossData = specColour.a;\n"
@@ -3129,7 +3129,7 @@ char *Default_deferred_clear_fragment_shader =
 "   gl_FragData[0] = vec4(0.0, 0.0, 0.0, 1.0); // color\n"
 "	gl_FragData[1] = vec4(0.0, 0.0, -1000000.0, 1.0); // position\n"
 "	gl_FragData[2] = vec4(0.0, 0.0, 0.0, 1.0); // normal\n"
-"	gl_FragData[3] = vec4(0.0, 0.0, 0.0, 1.0); // specular\n"
+"	gl_FragData[3] = vec4(0.0, 0.0, 0.0, 0.0); // specular\n"
 "}\n";
 
 char *Default_gamma_correction_vertex_shader = 

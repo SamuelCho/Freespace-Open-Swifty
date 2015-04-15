@@ -2413,12 +2413,22 @@ void model_load_texture(polymodel *pm, int i, char *file)
 
 	// specular maps -----------------------------------------------------------
 	texture_info *tspec = &tmap->textures[TM_SPECULAR_TYPE];
+	texture_info *tspecgloss = &tmap->textures[TM_SPEC_GLOSS_TYPE];
 	if ( (!Cmdline_spec && !Fred_running) || (tbase->GetTexture() < 0))
 	{
 		tspec->clear();
+		tspecgloss->clear();
 	}
 	else
 	{
+		// look for reflectance map
+		strcpy_s(tmp_name, file);
+		strcat_s(tmp_name, "-reflect");
+		strlwr(tmp_name);
+
+		tspecgloss->LoadTexture(tmp_name, pm->filename);
+
+		// look for a legacy shine map as well
 		strcpy_s(tmp_name, file);
 		strcat_s(tmp_name, "-shine");
 		strlwr(tmp_name);
@@ -2470,13 +2480,13 @@ void model_load_texture(polymodel *pm, int i, char *file)
 		shader_flags |= SDR_FLAG_MODEL_DIFFUSE_MAP;
 	if (tglow->GetTexture() > 0 && Cmdline_glow)
 		shader_flags |= SDR_FLAG_MODEL_GLOW_MAP;
-	if (tspec->GetTexture() > 0 && Cmdline_spec)
+	if ((tspec->GetTexture() > 0 || tspecgloss->GetTexture() > 0) && Cmdline_spec)
 		shader_flags |= SDR_FLAG_MODEL_SPEC_MAP;
 	if (tnorm->GetTexture() > 0 && Cmdline_normal)
 		shader_flags |= SDR_FLAG_MODEL_NORMAL_MAP;
 	if (theight->GetTexture() > 0 && Cmdline_height)
 		shader_flags |= SDR_FLAG_MODEL_HEIGHT_MAP;
-	if (tspec->GetTexture() > 0 && Cmdline_env && Cmdline_spec) // No env maps without spec map
+	if ((tspec->GetTexture() > 0 || tspecgloss->GetTexture() > 0) && Cmdline_env && Cmdline_spec) // No env maps without spec map
 		shader_flags |= SDR_FLAG_MODEL_ENV_MAP;
 	if (tmisc->GetTexture() > 0)
 		shader_flags |= SDR_FLAG_MODEL_MISC_MAP;

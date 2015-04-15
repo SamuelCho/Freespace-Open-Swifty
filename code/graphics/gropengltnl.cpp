@@ -843,7 +843,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 		(flags & TMAP_FLAG_BATCH_TRANSFORMS) && (GL_transform_buffer_offset >= 0) && (bufferp->flags & VB_FLAG_MODEL_ID),
 		Using_Team_Color, 
 		flags, 
-		SPECMAP, 
+		(SPECGLOSSMAP > 0) ? SPECGLOSSMAP : SPECMAP, 
 		GLOWMAP, 
 		NORMMAP, 
 		HEIGHTMAP, 
@@ -2242,7 +2242,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 	if ( Gloss_override_set ) {
 		GL_state.Uniform.setUniformf( "defaultGloss", Gloss_override );
 	} else {
-		GL_state.Uniform.setUniformf( "defaultGloss", (sqrt(Cmdline_ogl_spec) - 1.0f) * 0.1f);
+		GL_state.Uniform.setUniformf( "defaultGloss", 0.6f); // add user configurable default gloss in the command line later
 	}
 	
 	if ( shader_flags & SDR_FLAG_MODEL_CLIP ) {
