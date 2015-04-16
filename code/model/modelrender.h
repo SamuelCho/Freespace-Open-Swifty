@@ -282,7 +282,7 @@ class model_batch_buffer
 
 	void allocate_memory();
 public:
-	model_batch_buffer() : Current_offset(0), Mem_alloc(NULL), Mem_alloc_size(0) {};
+	model_batch_buffer() : Mem_alloc(NULL), Mem_alloc_size(0), Current_offset(0) {};
 
 	void reset();
 
