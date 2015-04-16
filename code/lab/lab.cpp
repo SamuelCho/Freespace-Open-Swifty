@@ -1967,9 +1967,6 @@ void labviewer_make_render_options_window(Button *caller)
 	ADD_RENDER_FLAG("Show Ship Weapons", Lab_viewer_flags, LAB_FLAG_SHOW_WEAPONS);
 	ADD_RENDER_FLAG("Initial Rotation", Lab_viewer_flags, LAB_FLAG_INITIAL_ROTATION);
 
-	Slider *sldr = (Slider*)Lab_render_options_window->AddChild(new Slider("Intensity", 0, y + 2, NULL, Lab_render_options_window->GetWidth()));
-	y += sldr->GetHeight() + 1; 
-
 	// start tree
 	cmp = (Tree*)Lab_render_options_window->AddChild(new Tree("Detail Options Tree", 0, y + 2, NULL, Lab_render_options_window->GetWidth()));
 
@@ -2020,36 +2017,36 @@ void labviewer_set_material_override_diffuse_green(Slider *caller)
 
 void labviewer_set_material_override_diffuse_blue(Slider *caller)
 {
-	Basemap_color_override[2] = caller->GetSliderValue() / 255.0f);
+	Basemap_color_override[2] = caller->GetSliderValue() / 255.0f;
 }
 void labviewer_set_material_override_glow_red(Slider *caller)
 {
-	Glowmap_color_override[0] = caller->GetSliderValue() / 255.0f);
+	Glowmap_color_override[0] = caller->GetSliderValue() / 255.0f;
 }
 
 void labviewer_set_material_override_glow_green(Slider *caller)
 {
-	Glowmap_color_override[1] = caller->GetSliderValue() / 255.0f);
+	Glowmap_color_override[1] = caller->GetSliderValue() / 255.0f;
 }
 
 void labviewer_set_material_override_glow_blue(Slider *caller)
 {
-	Glowmap_color_override[2] = caller->GetSliderValue() / 255.0f);
+	Glowmap_color_override[2] = caller->GetSliderValue() / 255.0f;
 }
 
 void labviewer_set_material_override_specular_red(Slider *caller)
 {
-	Specmap_color_override[0] = caller->GetSliderValue() / 255.0f);
+	Specmap_color_override[0] = caller->GetSliderValue() / 255.0f;
 }
 
 void labviewer_set_material_override_specular_green(Slider *caller)
 {
-	Specmap_color_override[1] = caller->GetSliderValue() / 255.0f);
+	Specmap_color_override[1] = caller->GetSliderValue() / 255.0f;
 }
 
 void labviewer_set_material_override_specular_blue(Slider *caller)
 {
-	Specmap_color_override[2] = caller->GetSliderValue() / 255.0f);
+	Specmap_color_override[2] = caller->GetSliderValue() / 255.0f;
 }
 
 void labviewer_set_material_override_specular_gloss(Slider *caller)
@@ -2067,7 +2064,7 @@ void labviewer_make_material_override_window(Button *caller)
 		return;
 	}
 
-	Lab_material_override_window = (Window*)Lab_screen->Add(new Window("Material Override", gr_screen.max_w - 100, 200));
+	Lab_material_override_window = (Window*)Lab_screen->Add(new Window("Material Override", gr_screen.max_w - 300, 200));
 	Assert(Lab_material_override_window != NULL);
 
 	// add all of the flags that we want/need...
@@ -2586,8 +2583,8 @@ void lab_init()
 		Lab_insignia_bitmap = bm_load_duplicate(Pilot_squad_image_names[Lab_insignia_index]);
 	}
 
-	// disable post-processing by default in the lab
-	PostProcessing_override = true;
+	// enable post-processing by default in the lab
+	PostProcessing_override = false;
 	// disable model rotation by default in the lab
 	Lab_viewer_flags |= LAB_FLAG_NO_ROTATION;
 	Lab_viewer_flags |= LAB_FLAG_INITIAL_ROTATION;
