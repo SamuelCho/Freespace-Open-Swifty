@@ -719,7 +719,7 @@ class Slider : public GUIObject
 	void(*function)(Slider *caller);
 
 	int BarCoords[4];
-	float SliderPos;	// goes from 0.0 to 1.0f
+	float SliderScale;	// goes from 0.0 to 1.0f
 	int SliderWidth;
 
 	int BarWidth;
@@ -728,6 +728,8 @@ class Slider : public GUIObject
 	shader SliderShade;
 
 	bool SliderGrabbed;
+
+	float Min, Max;
 
 	int GetSliderOffset();
 	float GetSliderPos(int x);
@@ -740,9 +742,9 @@ protected:
 	int DoMouseUp(float frametime);
 
 public:
-	Slider(const SCP_string &in_label, int x_coord, int y_coord, void(*in_function)(Slider *caller) = NULL, int x_width = -1, int y_height = DEFAULT_BUTTON_HEIGHT, int in_style = 0);
+	Slider(const SCP_string &in_label, float min, float max, int x_coord, int y_coord, void(*in_function)(Slider *caller) = NULL, int x_width = -1, int y_height = DEFAULT_BUTTON_HEIGHT, int in_style = 0);
 
-	float GetSliderValue() { return SliderPos; }
+	float GetSliderValue();
 };
 
 //*****************************GLOBALS*******************************

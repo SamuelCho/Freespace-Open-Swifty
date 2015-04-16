@@ -2010,51 +2010,51 @@ void labviewer_close_material_override_window(GUIObject *caller)
 
 void labviewer_set_material_override_diffuse_red(Slider *caller)
 {
-	Basemap_color_override[0] = caller->GetSliderValue();
+	Basemap_color_override[0] = caller->GetSliderValue() / 255.0f;
 }
 
 void labviewer_set_material_override_diffuse_green(Slider *caller)
 {
-	Basemap_color_override[1] = caller->GetSliderValue();
+	Basemap_color_override[1] = caller->GetSliderValue() / 255.0f;
 }
 
 void labviewer_set_material_override_diffuse_blue(Slider *caller)
 {
-	Basemap_color_override[2] = caller->GetSliderValue();
+	Basemap_color_override[2] = caller->GetSliderValue() / 255.0f);
 }
 void labviewer_set_material_override_glow_red(Slider *caller)
 {
-	Glowmap_color_override[0] = caller->GetSliderValue();
+	Glowmap_color_override[0] = caller->GetSliderValue() / 255.0f);
 }
 
 void labviewer_set_material_override_glow_green(Slider *caller)
 {
-	Glowmap_color_override[1] = caller->GetSliderValue();
+	Glowmap_color_override[1] = caller->GetSliderValue() / 255.0f);
 }
 
 void labviewer_set_material_override_glow_blue(Slider *caller)
 {
-	Glowmap_color_override[2] = caller->GetSliderValue();
+	Glowmap_color_override[2] = caller->GetSliderValue() / 255.0f);
 }
 
 void labviewer_set_material_override_specular_red(Slider *caller)
 {
-	Specmap_color_override[0] = caller->GetSliderValue();
+	Specmap_color_override[0] = caller->GetSliderValue() / 255.0f);
 }
 
 void labviewer_set_material_override_specular_green(Slider *caller)
 {
-	Specmap_color_override[1] = caller->GetSliderValue();
+	Specmap_color_override[1] = caller->GetSliderValue() / 255.0f);
 }
 
 void labviewer_set_material_override_specular_blue(Slider *caller)
 {
-	Specmap_color_override[2] = caller->GetSliderValue();
+	Specmap_color_override[2] = caller->GetSliderValue() / 255.0f);
 }
 
 void labviewer_set_material_override_specular_gloss(Slider *caller)
 {
-	Gloss_override = caller->GetSliderValue();
+	Gloss_override = caller->GetSliderValue() / 255.0f;
 }
 
 void labviewer_make_material_override_window(Button *caller)
@@ -2078,13 +2078,13 @@ void labviewer_make_material_override_window(Button *caller)
 	cbp->SetBool(&Basemap_color_override_set);
 	y += cbp->GetHeight() + 1;
 
-	sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Red", 0, y + 2, labviewer_set_material_override_diffuse_red, 200));
+	sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Red", 0.0f, 255.0f, 0, y + 2, labviewer_set_material_override_diffuse_red, 275));
 	y += sldr->GetHeight() + 1;
 
-	sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Green", 0, y + 2, labviewer_set_material_override_diffuse_green, 200));
+	sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Green", 0.0f, 255.0f, 0, y + 2, labviewer_set_material_override_diffuse_green, 275));
 	y += sldr->GetHeight() + 1;
 
-	sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Blue", 0, y + 2, labviewer_set_material_override_diffuse_blue, 200));
+	sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Blue", 0.0f, 255.0f, 0, y + 2, labviewer_set_material_override_diffuse_blue, 275));
 	y += sldr->GetHeight() + 1;
 
 	if (Cmdline_glow) {
@@ -2092,13 +2092,13 @@ void labviewer_make_material_override_window(Button *caller)
 		cbp->SetBool(&Glowmap_color_override_set);
 		y += cbp->GetHeight() + 1;
 
-		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Red", 0, y + 2, labviewer_set_material_override_glow_red, 200));
+		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Red", 0.0f, 255.0f, 0, y + 2, labviewer_set_material_override_glow_red, 275));
 		y += sldr->GetHeight() + 1;
 
-		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Green", 0, y + 2, labviewer_set_material_override_glow_green, 200));
+		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Green", 0.0f, 255.0f, 0, y + 2, labviewer_set_material_override_glow_green, 275));
 		y += sldr->GetHeight() + 1;
 
-		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Blue", 0, y + 2, labviewer_set_material_override_glow_blue, 200));
+		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Blue", 0.0f, 255.0f, 0, y + 2, labviewer_set_material_override_glow_blue, 275));
 		y += sldr->GetHeight() + 1;
 	}
 	if (Cmdline_spec) {
@@ -2106,20 +2106,20 @@ void labviewer_make_material_override_window(Button *caller)
 		cbp->SetBool(&Specmap_color_override_set);
 		y += cbp->GetHeight() + 1;
 
-		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Red", 0, y + 2, labviewer_set_material_override_specular_red, 200));
+		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Red", 0.0f, 255.0f, 0, y + 2, labviewer_set_material_override_specular_red, 275));
 		y += sldr->GetHeight() + 1;
 
-		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Green", 0, y + 2, labviewer_set_material_override_specular_green, 200));
+		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Green", 0.0f, 255.0f, 0, y + 2, labviewer_set_material_override_specular_green, 275));
 		y += sldr->GetHeight() + 1;
 
-		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Blue", 0, y + 2, labviewer_set_material_override_specular_blue, 200));
+		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Blue", 0.0f, 255.0f, 0, y + 2, labviewer_set_material_override_specular_blue, 275));
 		y += sldr->GetHeight() + 1;
 
 		cbp = (Checkbox*)Lab_material_override_window->AddChild(new Checkbox("Override Gloss", 2, y));
 		cbp->SetBool(&Gloss_override_set);
 		y += cbp->GetHeight() + 1;
 
-		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Gloss", 0, y + 2, labviewer_set_material_override_specular_gloss, 200));
+		sldr = (Slider*)Lab_material_override_window->AddChild(new Slider("Gloss", 0.0f, 255.0f, 0, y + 2, labviewer_set_material_override_specular_gloss, 275));
 		y += sldr->GetHeight() + 1;
 	}
 

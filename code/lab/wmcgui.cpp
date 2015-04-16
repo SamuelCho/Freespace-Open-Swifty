@@ -2621,17 +2621,20 @@ void ImageAnim::Stop()
 
 //*****************************Slider*******************************
 
-Slider::Slider(const SCP_string &in_label, int x_coord, int y_coord, void(*in_function)(Slider *caller), int x_width, int y_height, int in_style)
+Slider::Slider(const SCP_string &in_label, float min, float max, int x_coord, int y_coord, void(*in_function)(Slider *caller), int x_width, int y_height, int in_style)
 	:GUIObject(in_label, x_coord, y_coord, x_width, y_height, in_style)
 {
 	Label = in_label;
+
+	Min = min;
+	Max = max;
 
 	function = in_function;
 
 	BarWidth = x_width;
 	BarHeight = y_height;
 
-	SliderPos = 0.0f;
+	SliderScale = 0.0f;
 	SliderWidth = 30;
 	SliderGrabbed = false;
 
@@ -2663,7 +2666,7 @@ int Slider::DoRefreshSize()
 
 int Slider::GetSliderOffset()
 {
-	return SliderPos * (BarCoords[2] - BarCoords[0] - SliderWidth) + BarCoords[0];
+	return SliderScale * (BarCoords[2] - BarCoords[0] - SliderWidth) + BarCoords[0];
 }
 
 float Slider::GetSliderPos(int x)
@@ -2673,13 +2676,18 @@ float Slider::GetSliderPos(int x)
 
 void Slider::UpdateSlider(int x)
 {
-	SliderPos = GetSliderPos(x);
+	SliderScale = GetSliderPos(x);
 
-	CLAMP(SliderPos, 0.0, 1.0f);
+	CLAMP(SliderScale, 0.0, 1.0f);
 
 	if ( function != NULL ) {
 		function(this);
 	}
+}
+
+float Slider::GetSliderValue()
+{
+	return (SliderScale * (Max - Min) + Min);
 }
 
 void Slider::DoMove(int dx, int dy)
@@ -2697,7 +2705,7 @@ void Slider::DoDraw(float frametime)
 	gr_string(Coords[0], Coords[1], Label.c_str(), GR_RESIZE_NONE);
 
 	char value_txt[32];
-	sprintf(value_txt, "%.2f", SliderPos);
+	sprintf(value_txt, "%.2f", GetSliderValue());
 	int w, h;
 	gr_get_string_size(&w, &h, value_txt);
 	gr_string(Coords[2] - 3 - w, Coords[1], value_txt, GR_RESIZE_NONE);
