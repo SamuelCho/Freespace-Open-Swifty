@@ -7,6 +7,8 @@
  *
 */ 
 
+#include <algorithm>
+
 #include "globalincs/pstypes.h"
 #include "io/timer.h"
 #include "math/vecmat.h"
