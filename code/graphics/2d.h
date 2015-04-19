@@ -140,13 +140,13 @@ class poly_list {
 		vertex* vert_to_find;
 		vec3d* norm_to_find;
 
-		finder(poly_list* _search_list): search_list(_search_list), vert_to_find(NULL), norm_to_find(NULL), compare_indices(true) {}
-		finder(poly_list* _search_list, vertex* _vert, vec3d* _norm): search_list(_search_list), vert_to_find(_vert), norm_to_find(_norm), compare_indices(false) {}
+		finder(poly_list* _search_list): search_list(_search_list), compare_indices(true), vert_to_find(NULL), norm_to_find(NULL) {}
+		finder(poly_list* _search_list, vertex* _vert, vec3d* _norm): search_list(_search_list), compare_indices(false), vert_to_find(_vert), norm_to_find(_norm) {}
 
 		bool operator()(const uint a, const uint b);
 	};
 public:
-	poly_list(): n_verts(0), vert(NULL), norm(NULL), tsb(NULL), submodels(NULL), currently_allocated(0), sorted_indices(NULL) {}
+	poly_list(): n_verts(0), vert(NULL), norm(NULL), tsb(NULL), submodels(NULL), sorted_indices(NULL), currently_allocated(0) {}
 	~poly_list();
 	poly_list& operator = (poly_list&);
 
