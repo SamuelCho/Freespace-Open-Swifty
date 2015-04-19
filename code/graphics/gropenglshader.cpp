@@ -89,7 +89,7 @@ static opengl_shader_type_t GL_shader_types[] = {
 		3, { "ytex", "utex", "vtex" }, 0, { NULL }, "Video Playback" },
 
 	{ SDR_TYPE_PASSTHROUGH_RENDER, "passthrough-v.sdr", "passthrough-f.sdr", 0, { 0, 0, 0 },
-		5, { "baseMap", "noTexturing", "alphaTexture", "srgb", "colorScale" }, 0, { NULL }, "Passthrough" }
+		5, { "baseMap", "noTexturing", "alphaTexture", "srgb", "intensity" }, 0, { NULL }, "Passthrough" }
 };
 
 /**
@@ -1044,5 +1044,5 @@ void opengl_shader_set_passthrough(bool textured, bool alpha, float color_scale)
 		GL_state.Uniform.setUniformi("srgb", 0);
 	}
 
-	GL_state.Uniform.setUniformf("colorScale", color_scale);
+	GL_state.Uniform.setUniformf("intensity", color_scale);
 }

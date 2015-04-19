@@ -2985,13 +2985,13 @@ char* Default_passthrough_fragment_shader =
 "uniform int alphaTexture;\n"
 "uniform int noTexturing;\n"
 "uniform int srgb;\n"
-"uniform float colorScale;\n"
+"uniform float intensity;\n"
 "#define SRGB_GAMMA 2.2\n"
 "void main()\n"
 "{\n"
 "	vec4 baseColor = texture2D(baseMap, gl_TexCoord[0].xy)*gl_Color;\n"
 "	baseColor.rgb = mix(baseColor.rgb, pow(baseColor.rgb, vec3(SRGB_GAMMA)), float(srgb));\n"
-"	gl_FragColor = mix(gl_Color, mix(baseColor, vec4(gl_Color.rgb, baseColor.a), float(alphaTexture)), float(noTexturing)) * colorScale;\n"
+"	gl_FragColor = mix(gl_Color, mix(baseColor, vec4(gl_Color.rgb, baseColor.a), float(alphaTexture)), float(noTexturing)) * intensity;\n"
 "}";
 
 char *Default_deferred_vertex_shader =
