@@ -614,6 +614,10 @@
 		918A074C1804B4A600983AE1 /* libjansson.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 918A07221804AFAA00983AE1 /* libjansson.a */; };
 		918A074D1804B4A600983AE1 /* libmongoose.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 918A07141804AF0F00983AE1 /* libmongoose.a */; };
 		9193B29817EDFEB7003CC0BA /* profiling.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9193B29717EDFEB7003CC0BA /* profiling.cpp */; };
+		C88C9BFC1AD383A90059E7DC /* shadows.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C88C9BFA1AD383A90059E7DC /* shadows.cpp */; };
+		C88C9BFD1AD383A90059E7DC /* shadows.h in Headers */ = {isa = PBXBuildFile; fileRef = C88C9BFB1AD383A90059E7DC /* shadows.h */; };
+		C88C9C001AD383C60059E7DC /* modelrender.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C88C9BFE1AD383C60059E7DC /* modelrender.cpp */; };
+		C88C9C011AD383C60059E7DC /* modelrender.h in Headers */ = {isa = PBXBuildFile; fileRef = C88C9BFF1AD383C60059E7DC /* modelrender.h */; };
 		F007DDF612F4F44600D2F6C1 /* jconfig.h in Headers */ = {isa = PBXBuildFile; fileRef = F007DDB512F4F44600D2F6C1 /* jconfig.h */; };
 		F007DDF712F4F44600D2F6C1 /* jdct.h in Headers */ = {isa = PBXBuildFile; fileRef = F007DDB612F4F44600D2F6C1 /* jdct.h */; };
 		F007DDF912F4F44600D2F6C1 /* jerror.h in Headers */ = {isa = PBXBuildFile; fileRef = F007DDB812F4F44600D2F6C1 /* jerror.h */; };
@@ -1558,6 +1562,10 @@
 		9193B29717EDFEB7003CC0BA /* profiling.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = profiling.cpp; sourceTree = "<group>"; };
 		B2F67ED704C74A3F00A80002 /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = /System/Library/Frameworks/OpenGL.framework; sourceTree = "<absolute>"; };
 		B2F67F1E04C773E400A80002 /* GLUT.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GLUT.framework; path = /System/Library/Frameworks/GLUT.framework; sourceTree = "<absolute>"; };
+		C88C9BFA1AD383A90059E7DC /* shadows.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = shadows.cpp; sourceTree = "<group>"; };
+		C88C9BFB1AD383A90059E7DC /* shadows.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = shadows.h; sourceTree = "<group>"; };
+		C88C9BFE1AD383C60059E7DC /* modelrender.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = modelrender.cpp; sourceTree = "<group>"; };
+		C88C9BFF1AD383C60059E7DC /* modelrender.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = modelrender.h; sourceTree = "<group>"; };
 		F007DDB512F4F44600D2F6C1 /* jconfig.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = jconfig.h; sourceTree = "<group>"; };
 		F007DDB612F4F44600D2F6C1 /* jdct.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = jdct.h; sourceTree = "<group>"; };
 		F007DDB812F4F44600D2F6C1 /* jerror.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = jerror.h; sourceTree = "<group>"; };
@@ -2264,6 +2272,8 @@
 		3459536208C3D6A0003B1351 /* graphics */ = {
 			isa = PBXGroup;
 			children = (
+				C88C9BFA1AD383A90059E7DC /* shadows.cpp */,
+				C88C9BFB1AD383A90059E7DC /* shadows.h */,
 				345A81150B4941D700282E7A /* grstub.cpp */,
 				3468A8D20991BD5B00123C87 /* generic.cpp */,
 				3468A8D30991BD5B00123C87 /* generic.h */,
@@ -2546,6 +2556,8 @@
 		3459544408C3D6A0003B1351 /* model */ = {
 			isa = PBXGroup;
 			children = (
+				C88C9BFE1AD383C60059E7DC /* modelrender.cpp */,
+				C88C9BFF1AD383C60059E7DC /* modelrender.h */,
 				349807E00A25B98A0013844A /* modelanim.cpp */,
 				3488083A0DA054F1001CAB39 /* modelanim.h */,
 				3459544508C3D6A0003B1351 /* model.h */,
@@ -3249,10 +3261,12 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C88C9C011AD383C60059E7DC /* modelrender.h in Headers */,
 				3459585208C3D8CB003B1351 /* SDLMain.h in Headers */,
 				60B56A33124BBFD5005AF5A9 /* fsmemory.h in Headers */,
 				60B18456127F544400CD9F1E /* pilotfile.h in Headers */,
 				60B18458127F544400CD9F1E /* pilotfile_convert.h in Headers */,
+				C88C9BFD1AD383A90059E7DC /* shadows.h in Headers */,
 				5C06872F14BCDEDA0043BFB9 /* pngconf.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -3865,6 +3879,8 @@
 				3459594C08C3D8CB003B1351 /* SDLMain.m in Sources */,
 				606CBAE2126A1BFF007BE418 /* fsmemory.cpp in Sources */,
 				60B18453127F544400CD9F1E /* csg.cpp in Sources */,
+				C88C9C001AD383C60059E7DC /* modelrender.cpp in Sources */,
+				C88C9BFC1AD383A90059E7DC /* shadows.cpp in Sources */,
 				60B18454127F544400CD9F1E /* csg_convert.cpp in Sources */,
 				60B18455127F544400CD9F1E /* pilotfile.cpp in Sources */,
 				60B18457127F544400CD9F1E /* pilotfile_convert.cpp in Sources */,
@@ -4428,7 +4444,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = "3.7.1";
+				CURRENT_PROJECT_VERSION = 3.7.1;
 				DEAD_CODE_STRIPPING = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
@@ -4474,7 +4490,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = "3.7.1";
+				CURRENT_PROJECT_VERSION = 3.7.1;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;

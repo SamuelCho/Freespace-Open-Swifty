@@ -725,7 +725,7 @@ void shadows_render_all(float fov, matrix *eye_orient, vec3d *eye_pos)
 	}
 
 	scene.init_render();
-	scene.render_all();
+	scene.render_all(GR_ZBUFF_FULL);
 
 	shadows_end_render();
 

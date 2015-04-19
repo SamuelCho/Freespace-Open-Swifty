@@ -202,8 +202,14 @@ void opengl_extensions_init();
 
 
 #ifdef __APPLE__
-// special one, since it's a core feature
+// !-----REMOVE WHEN WE MIGRATE TO THE OPENGL CORE PROFILE-----!
 typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices);
+typedef void (* glTexBufferARBProcPtr) (GLenum target, GLenum internalformat, GLuint buffer);
+typedef GLuint (* glGetUniformBlockIndexARBProcPtr) (GLuint program, const GLchar *uniformBlockName);
+
+#define GL_TEXTURE_BUFFER_ARB               0x8C2A
+#define GL_UNIFORM_BUFFER                   0x8A11
+// !-----REMOVE WHEN WE MIGRATE TO THE OPENGL CORE PROFILE-----!
 
 // OS X doesn't have the PFN* names so we have to use the real OSX function ptrs
 #define PFNGLFOGCOORDFEXTPROC					glFogCoordfEXTProcPtr
@@ -263,7 +269,7 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define PFNGLUNIFORM1FARBPROC					glUniform1fARBProcPtr
 #define PFNGLUNIFORM2FARBPROC					glUniform2fARBProcPtr
 #define PFNGLUNIFORM3FARBPROC					glUniform3fARBProcPtr
-#define PFNGLUNIFORM4FARBPROC					glUnifrom4fARBProcPtr
+#define PFNGLUNIFORM4FARBPROC					glUniform4fARBProcPtr
 #define PFNGLUNIFORM3FVARBPROC					glUniform3fvARBProcPtr
 #define PFNGLUNIFORM4FVARBPROC					glUniform4fvARBProcPtr
 #define PFNGLUNIFORM1IARBPROC					glUniform1iARBProcPtr
@@ -273,7 +279,7 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define PFNGLDRAWRANGEELEMENTSBASEVERTEXPROC    glDrawRangeElementsBaseVertexProcPtr
 #define PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXPROC glDrawElementsInstancedBaseVertexProcPtr
 #define PFNGLMULTIDRAWELEMENTSBASEVERTEXPROC    glMultiDrawElementsBaseVertexProcPtr
-#define PFNGLBLITFRAMEBUFFER					glBlitFramebufferEXTProcPtr
+#define PFNGLBLITFRAMEBUFFEREXTPROC				glBlitFramebufferEXTProcPtr
 #define PFNGLPROGRAMPARAMETERIEXTPROC			glProgramParameteriEXTProcPtr
 #define PFNGLFRAMEBUFFERTEXTUREEXTPROC			glFramebufferTextureEXTProcPtr
 #define PFNGLGETUNIFORMINDICESPROC				glGetUniformIndicesARBProcPtr
@@ -291,8 +297,8 @@ typedef void (* glDrawRangeElementsProcPtr) (GLenum mode, GLuint start, GLuint e
 #define PFNGLTRANSFORMFEEDBACKVARYINGSEXTPROC	glTransformFeedbackVaryingsEXTProcPtr
 #define PFNGLGETTRANSFORMFEEDBACKVARYINGEXTPROC	glGetTransformFeedbackVaryingEXTProcPtr
 #define PFNGLDRAWARRAYSINSTANCEDARBPROC			glDrawArraysInstancedARBProcPtr
-#define PFNGLDRAWELEMENTSINSTANCEDARBPROC		glDrawElementsInstancedARBProcPtr;
-#define PFNGLTEXBUFFERARBPROC					glTexBufferARBProcPtr;
+#define PFNGLDRAWELEMENTSINSTANCEDARBPROC		glDrawElementsInstancedARBProcPtr
+#define PFNGLTEXBUFFERARBPROC					glTexBufferARBProcPtr
 #endif	// __APPLE__
 
 #define vglFogCoordfEXT					GLEXT_CALL( OGL_FOG_COORDF, PFNGLFOGCOORDFEXTPROC )

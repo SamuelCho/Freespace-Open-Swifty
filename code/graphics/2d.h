@@ -28,18 +28,18 @@ extern int gr_zbuffering, gr_zbuffering_mode;
 extern int gr_global_zbuffering;
 
 enum shader_type {
-	MODEL,
-	EFFECT_PARTICLE,
-	EFFECT_DISTORTION,
-	POST_PROCESS_MAIN,
-	POST_PROCESS_BLUR,
-	POST_PROCESS_BRIGHTPASS,
-	POST_PROCESS_FXAA,
-	POST_PROCESS_FXAA_PREPASS,
-	POST_PROCESS_LIGHTSHAFTS,
-	DEFERRED_LIGHTING,
-	DEFERRED_CLEAR,
-	VIDEO_PROCESS,
+	SDR_TYPE_MODEL,
+	SDR_TYPE_EFFECT_PARTICLE,
+	SDR_TYPE_EFFECT_DISTORTION,
+	SDR_TYPE_POST_PROCESS_MAIN,
+	SDR_TYPE_POST_PROCESS_BLUR,
+	SDR_TYPE_POST_PROCESS_BRIGHTPASS,
+	SDR_TYPE_POST_PROCESS_FXAA,
+	SDR_TYPE_POST_PROCESS_FXAA_PREPASS,
+	SDR_TYPE_POST_PROCESS_LIGHTSHAFTS,
+	SDR_TYPE_DEFERRED_LIGHTING,
+	SDR_TYPE_DEFERRED_CLEAR,
+	SDR_TYPE_VIDEO_PROCESS,
 
 	NUM_SHADER_TYPES
 };
@@ -127,8 +127,22 @@ typedef struct tsb_t {
  * a list of triangles and their associated normals
  */
 class poly_list {
+	// helper function struct that let's us sort the indices.
+	// an instance is fed into std::sort and std::lower_bound.
+	// overloaded operator() is used for the comparison function.
+	struct finder {
+		poly_list* search_list;
+		bool compare_indices;
+		vertex* vert_to_find;
+		vec3d* norm_to_find;
+
+		finder(poly_list* _search_list): search_list(_search_list), compare_indices(true), vert_to_find(NULL), norm_to_find(NULL) {}
+		finder(poly_list* _search_list, vertex* _vert, vec3d* _norm): search_list(_search_list), compare_indices(false), vert_to_find(_vert), norm_to_find(_norm) {}
+
+		bool operator()(const uint a, const uint b);
+	};
 public:
-	poly_list(): n_verts(0), vert(NULL), norm(NULL), tsb(NULL), submodels(NULL), currently_allocated(0) {}
+	poly_list(): n_verts(0), vert(NULL), norm(NULL), tsb(NULL), submodels(NULL), sorted_indices(NULL), currently_allocated(0) {}
 	~poly_list();
 	poly_list& operator = (poly_list&);
 
@@ -141,13 +155,16 @@ public:
 	tsb_t *tsb;
 	int *submodels;
 
-	int find_index(poly_list *plist, int idx);
+	uint *sorted_indices;
 
+	int find_index(poly_list *plist, int idx);
+	int find_index_fast(poly_list *plist, int idx);
 private:
 	int currently_allocated;
 	int find_first_vertex(int idx);
+	int find_first_vertex_fast(int idx);
+	void generate_sorted_index_list();
 };
-
 
 class colored_vector
 {
@@ -992,7 +1009,7 @@ void gr_set_color_fast(color *dst);
 void gr_create_shader(shader *shade, ubyte r, ubyte g, ubyte b, ubyte c);
 void gr_set_shader(shader *shade);
 
-uint gr_determine_shader_flags(
+uint gr_determine_model_shader_flags(
 	bool lighting, 
 	bool fog, 
 	bool textured, 

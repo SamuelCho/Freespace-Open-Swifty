@@ -4355,6 +4355,13 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 		bsp_polies->generate_triangles(i, polygon_list[i].vert, polygon_list[i].norm);
 		polygon_list[i].n_verts = vert_count;
 
+		// set submodel ID
+		if ( Use_GLSL >= 3 ) {
+			for ( int j = 0; j < polygon_list[i].n_verts; ++j ) {
+				polygon_list[i].submodels[j] = mn;
+			}
+		}
+
 		// for the moment we can only support INT_MAX worth of verts per index buffer
 		if (total_verts > INT_MAX) {
 			Error( LOCATION, "Unable to generate vertex buffer data because model '%s' with %i verts is over the maximum of %i verts!\n", pm->filename, total_verts, INT_MAX);
@@ -4406,7 +4413,7 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 		}
 
 		if ( Use_GLSL >= 3 ) {
-			memset( (model_list->submodels) + model_list->n_verts, mn, sizeof(int) * polygon_list[i].n_verts );
+			memcpy( (model_list->submodels) + model_list->n_verts, polygon_list[i].submodels, sizeof(int) * polygon_list[i].n_verts );
 		}
 
 		model_list->n_verts += polygon_list[i].n_verts;
@@ -4530,7 +4537,7 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 
 				new_buffer.assign(j, first_index);
 			} else {
-				first_index = model_list->find_index(&polygon_list[i], j);
+				first_index = model_list->find_index_fast(&polygon_list[i], j);
 				Assert(first_index != -1);
 
 				new_buffer.assign(j, first_index);
@@ -4644,6 +4651,10 @@ void interp_fill_detail_index_buffer(SCP_vector<int> &submodel_list, polymodel *
 	// finally copy over the indexes
 	for ( i = 0; i < submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
+
+		if (pm->submodel[model_num].is_thruster) {
+			continue;
+		}
 
 		interp_copy_index_buffer(&pm->submodel[model_num].buffer, buffer, index_counts);
 	}

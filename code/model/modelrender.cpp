@@ -7,6 +7,8 @@
  *
 */ 
 
+#include <algorithm>
+
 #include "globalincs/pstypes.h"
 #include "io/timer.h"
 #include "math/vecmat.h"
@@ -78,37 +80,37 @@ model_render_params::model_render_params():
 	}
 }
 
-const uint model_render_params::get_model_flags()
+uint model_render_params::get_model_flags()
 {
 	return Model_flags; 
 }
 
-const uint model_render_params::get_debug_flags()
+uint model_render_params::get_debug_flags()
 {
 	return Debug_flags;
 }
 
-const int model_render_params::get_object_number()
+int model_render_params::get_object_number()
 { 
 	return Objnum; 
 }
 
-const int model_render_params::get_detail_level_lock()
+int model_render_params::get_detail_level_lock()
 { 
 	return Detail_level_locked; 
 }
 
-const float model_render_params::get_depth_scale()
+float model_render_params::get_depth_scale()
 { 
 	return Depth_scale; 
 }
 
-const int model_render_params::get_warp_bitmap()
+int model_render_params::get_warp_bitmap()
 { 
 	return Warp_bitmap; 
 }
 
-const float model_render_params::get_warp_alpha()
+float model_render_params::get_warp_alpha()
 { 
 	return Warp_alpha; 
 }
@@ -122,17 +124,17 @@ const color& model_render_params::get_outline_color()
 { 
 	return Outline_color; 
 }
-const float model_render_params::get_alpha()
+float model_render_params::get_alpha()
 { 
 	return Xparent_alpha; 
 }
 
-const int model_render_params::get_forced_bitmap()
+int model_render_params::get_forced_bitmap()
 { 
 	return Forced_bitmap; 
 }
 
-const int model_render_params::get_insignia_bitmap()
+int model_render_params::get_insignia_bitmap()
 { 
 	return Insignia_bitmap; 
 }
@@ -157,12 +159,12 @@ const vec3d& model_render_params::get_clip_plane_normal()
 	return Clip_normal; 
 }
 
-const int model_render_params::get_animated_effect_num()
+int model_render_params::get_animated_effect_num()
 { 
 	return Animated_effect; 
 }
 
-const float model_render_params::get_animated_effect_timer()
+float model_render_params::get_animated_effect_timer()
 { 
 	return Animated_timer; 
 }
@@ -538,7 +540,7 @@ uint draw_list::determine_shader_flags(render_state *state, queued_buffer_draw *
 		use_thrust_scale = true;
 	}
 
-	return gr_determine_shader_flags(
+	return gr_determine_model_shader_flags(
 		state->lighting, 
 		fog, 
 		texture, 

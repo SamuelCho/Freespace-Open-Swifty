@@ -94,9 +94,6 @@ inline void opengl_draw_textured_quad_instanced(
 
 	//glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	vglDrawArraysInstancedARB(GL_TRIANGLE_STRIP, 0, 4, count);
-
-	GL_state.Array.DisableClientVertex();
-	GL_state.Array.DisableClientTexture();
 }
 
 inline void opengl_draw_textured_quad(
@@ -120,9 +117,6 @@ inline void opengl_draw_textured_quad(
 	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-	GL_state.Array.DisableClientVertex();
-	GL_state.Array.DisableClientTexture();
 }
 
 inline void opengl_draw_coloured_quad(
@@ -143,8 +137,6 @@ inline void opengl_draw_coloured_quad(
 	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-	GL_state.Array.DisableClientVertex();
 }
 
 inline void opengl_draw_coloured_quad(
@@ -165,8 +157,6 @@ inline void opengl_draw_coloured_quad(
 	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-	GL_state.Array.DisableClientVertex();
 }
 
 extern int Scene_texture_initialized;

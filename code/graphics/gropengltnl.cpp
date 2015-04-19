@@ -211,10 +211,6 @@ void gr_opengl_update_buffer_object(int handle, uint size, void* data)
 	GL_vertex_data_in += buffer_obj.size;
 
 	vglBufferDataARB(buffer_obj.type, size, data, buffer_obj.usage);
-
-	if ( opengl_check_for_errors() ) {
-		//Int3();
-	}
 }
 
 void opengl_delete_buffer_object(int handle)
@@ -259,7 +255,7 @@ int opengl_create_texture_buffer_object()
 
 	gr_opengl_update_buffer_object(buffer_object_handle, 100, NULL);
 
-	vglTexBufferARB(GL_TEXTURE_BUFFER_ARB, GL_RGBA32F, buffer_obj.buffer_id);
+	vglTexBufferARB(GL_TEXTURE_BUFFER_ARB, GL_RGBA32F_ARB, buffer_obj.buffer_id);
 
 	opengl_check_for_errors();
 
@@ -838,7 +834,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	int textured = ((flags & TMAP_FLAG_TEXTURED) && (bufferp->flags & VB_FLAG_UV1));
 
 	// setup shader flags for the things that we want/need
-	shader_flags = gr_determine_shader_flags(
+	shader_flags = gr_determine_model_shader_flags(
 		lighting_is_enabled, 
 		GL_state.Fog(), 
 		textured, 
@@ -859,7 +855,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	if (shader_flags == GL_last_shader_flags) {
 		sdr_index = GL_last_shader_index;
 	} else {
-		sdr_index = gr_opengl_maybe_create_shader(shader_type::MODEL, shader_flags);
+		sdr_index = gr_opengl_maybe_create_shader(SDR_TYPE_MODEL, shader_flags);
 
 		if (sdr_index < 0) {
 			opengl_render_pipeline_fixed(start, bufferp, datap, flags);
@@ -1469,9 +1465,6 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 		if ( tex_offset >= 0 ) {
 			vert_def.add_vertex_component(vertex_format_data::TEX_COORD, stride, ptr + tex_offset);
 		}
-	} else {
-		GL_state.Array.SetActiveClientUnit(0);
-		GL_state.Array.DisableClientTexture();
 	}
 
 	if (flags & TMAP_FLAG_TRILIST) {
@@ -1492,7 +1485,6 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 		vert_def.add_vertex_component(vertex_format_data::COLOR4, stride, ptr + color_offset);
 	} else {
 		// use what opengl_setup_render_states() gives us since this works much better for nebula and transparency
-		GL_state.Array.DisableClientColor();
 		GL_state.Color( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)alpha );
 	}
 
@@ -2212,9 +2204,6 @@ void gr_opengl_end_shadow_map()
 // 			vglDrawBuffers(2, buffers);
 		}
 
-		GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT };
-		vglDrawBuffers(2, buffers);
-
 		Glowpoint_override = Glowpoint_override_save;
 		GL_htl_projection_matrix_set = 0;
 		
@@ -2293,7 +2282,12 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 		}
 
 		if ( flags & TMAP_FLAG_ALPHA ) {
-			GL_state.Uniform.setUniformi("blend_alpha", 1);
+			if ( bm_has_alpha_channel(gr_screen.current_bitmap) ) {
+				GL_state.SetAlphaBlendMode(ALPHA_BLEND_PREMULTIPLIED);
+				GL_state.Uniform.setUniformi("blend_alpha", 1);
+			} else {
+				GL_state.Uniform.setUniformi("blend_alpha", 2);
+			}
 		} else {
 			GL_state.Uniform.setUniformi("blend_alpha", 0);
 		}
@@ -2320,7 +2314,7 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 
 		if ( shader_flags & SDR_FLAG_MODEL_ENV_MAP) {
 			// 0 == env with non-alpha specmap, 1 == env with alpha specmap
-			int alpha_spec = bm_has_alpha_channel(ENVMAP);
+			int alpha_spec = bm_has_alpha_channel(SPECMAP);
 
 			matrix4 texture_mat;
 
@@ -2474,7 +2468,7 @@ void opengl_tnl_set_material_soft_particle(uint flags)
 		sdr_effect_flags |= SDR_FLAG_PARTICLE_POINT_GEN;
 	}
 
-	int sdr_index = gr_opengl_maybe_create_shader(EFFECT_PARTICLE, sdr_effect_flags);
+	int sdr_index = gr_opengl_maybe_create_shader(SDR_TYPE_EFFECT_PARTICLE, sdr_effect_flags);
 
 	opengl_shader_set_current(sdr_index);
 
@@ -2508,7 +2502,7 @@ void opengl_tnl_set_material_soft_particle(uint flags)
 
 void opengl_tnl_set_material_distortion(uint flags)
 {
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(EFFECT_DISTORTION, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_EFFECT_DISTORTION, 0) );
 
 	GL_state.Uniform.setUniformi("baseMap", 0);
 	GL_state.Uniform.setUniformi("depthMap", 1);

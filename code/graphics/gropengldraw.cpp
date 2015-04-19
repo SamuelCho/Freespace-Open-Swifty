@@ -166,11 +166,15 @@ void opengl_bind_vertex_component(vertex_format_data &vert_component)
 
 void opengl_bind_vertex_layout(vertex_layout &layout)
 {
+	GL_state.Array.BindPointersBegin();
+
 	uint num_vertex_bindings = layout.get_num_vertex_components();
 
 	for ( uint i = 0; i < num_vertex_bindings; ++i ) {
 		opengl_bind_vertex_component(*layout.get_vertex_component(i));
 	}
+
+	GL_state.Array.BindPointersEnd();
 }
 
 void gr_opengl_pixel(int x, int y, int resize_mode)
@@ -647,9 +651,6 @@ void gr_opengl_string(float sx, float sy, const char *s, int resize_mode)
 		glDrawArrays(GL_TRIANGLES, 0, buffer_offset);
 	}
 
-	GL_state.Array.DisableClientVertex();
-	GL_state.Array.DisableClientTexture();
-
 	GL_state.CullFace(cull_face);
 
 	GL_CHECK_FOR_ERRORS("end of string()");
@@ -711,8 +712,6 @@ void gr_opengl_line(int x1,int y1,int x2,int y2, int resize_mode)
 
 		glDrawArrays(GL_POINTS, 0, 1);
 
-		GL_state.Array.DisableClientVertex();
-
 		GL_CHECK_FOR_ERRORS("end of opengl_line()");
 		
 		gr_opengl_end_2d_matrix();
@@ -750,8 +749,6 @@ void gr_opengl_line(int x1,int y1,int x2,int y2, int resize_mode)
 	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_LINES, 0, 2);
-
-	GL_state.Array.DisableClientVertex();
 
 	GL_CHECK_FOR_ERRORS("end of opengl_line()");
 
@@ -792,8 +789,6 @@ void gr_opengl_line_htl(vec3d *start, vec3d *end)
 	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_LINES, 0, 2);
-
-	GL_state.Array.DisableClientVertex();
 
 	GL_CHECK_FOR_ERRORS("end of opengl_line_htl()");
 }
@@ -840,8 +835,6 @@ void gr_opengl_aaline(vertex *v1, vertex *v2)
 
 		glDrawArrays(GL_POINTS, 0, 1);
 
-		GL_state.Array.DisableClientVertex();
-
 		GL_CHECK_FOR_ERRORS("end of opengl_aaline()");
 
 		gr_opengl_end_2d_matrix();
@@ -878,8 +871,6 @@ void gr_opengl_aaline(vertex *v1, vertex *v2)
 	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_LINES, 0, 2);
-
-	GL_state.Array.DisableClientVertex();
 
 	GL_CHECK_FOR_ERRORS("end of opengl_aaline()");
 
@@ -950,10 +941,6 @@ void gr_opengl_gradient(int x1, int y1, int x2, int y2, int resize_mode)
 	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_LINES, 0, 2);
-
-	GL_state.Array.DisableClientVertex();
-	GL_state.Array.DisableClientColor();
-
 }
 
 void gr_opengl_circle(int xc, int yc, int d, int resize_mode)
@@ -1041,8 +1028,6 @@ void gr_opengl_unfilled_circle(int xc, int yc, int d, int resize_mode)
 	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_QUAD_STRIP, 0, segments * 2);
-
-	GL_state.Array.DisableClientVertex();
 
 	GL_CHECK_FOR_ERRORS("end of opengl_unfilled_circle()");
 
@@ -1170,8 +1155,6 @@ void gr_opengl_arc(int xc, int yc, float r, float angle_start, float angle_end, 
 
 		glDrawArrays(GL_QUAD_STRIP, 0, segments * 2);
 	}
-
-	GL_state.Array.DisableClientVertex();
 
 	GL_CHECK_FOR_ERRORS("end of opengl_arc()");
 
@@ -1415,15 +1398,6 @@ void opengl_draw_primitive(int nv, vertex **verts, uint flags, float u_scale, fl
 
 	glDrawArrays(gl_mode, 0, nv);
 
-	GL_state.Array.DisableClientVertex();
-	GL_state.Array.DisableClientColor();
-
-	GL_state.Array.SetActiveClientUnit(1);
-	GL_state.Array.DisableClientTexture();
-
-	GL_state.Array.SetActiveClientUnit(0);
-	GL_state.Array.DisableClientTexture();
-
 	GL_CHECK_FOR_ERRORS("start of draw_primitive()");
 
 	vm_free(vertPos);
@@ -1586,10 +1560,6 @@ void opengl_tmapper_internal3d(int nv, vertex **verts, uint flags)
 
 	glDrawArrays(gl_mode, 0, nv);
 
-	if (isRGB) GL_state.Array.DisableClientColor();
-	GL_state.Array.DisableClientTexture();
-	GL_state.Array.DisableClientVertex();
-
 	GL_state.CullFace(cull_face);
 
 	GL_CHECK_FOR_ERRORS("end of tmapper_internal3d()");
@@ -1687,10 +1657,6 @@ void opengl_render_internal(int nverts, vertex *verts, uint flags)
 
 	glPopMatrix();
 
-	GL_state.Array.DisableClientTexture();
-	GL_state.Array.DisableClientVertex();
-	GL_state.Array.DisableClientColor();
-
 	GL_CHECK_FOR_ERRORS("end of render()");
 }
 
@@ -1744,10 +1710,6 @@ void opengl_render_internal3d(int nverts, vertex *verts, uint flags)
 	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(gl_mode, 0, nverts);
-
-	GL_state.Array.DisableClientTexture();
-	GL_state.Array.DisableClientVertex();
-	GL_state.Array.DisableClientColor();
 
 	GL_state.CullFace(cull_face);
 	GL_state.Lighting(lighting);
@@ -1831,22 +1793,7 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 
 	opengl_shader_set_current();
 
-	GL_state.Texture.SetActiveUnit(1);
-	GL_state.Texture.Disable();
-
-	GL_state.Texture.SetActiveUnit(2);
-	GL_state.Texture.Disable();
-
-	GL_state.Texture.SetActiveUnit(3);
-	GL_state.Texture.Disable();
-
-	GL_state.Array.DisableClientTexture();
-	GL_state.Array.DisableClientVertex();
-	GL_state.Array.DisableClientColor();
-
-	if ( attrib_index >= 0 ) {
-		GL_state.Array.DisableVertexAttrib(attrib_index);
-	}
+	GL_state.Texture.DisableAll();
 
 	GL_state.CullFace(cull_face);
 	GL_state.Lighting(lighting);
@@ -2478,37 +2425,20 @@ void gr_opengl_draw_deferred_light_sphere(vec3d *position, float rad, bool clear
 
 	g3_start_instance_matrix(position, &vmd_identity_matrix, true);
 	
-	GL_state.Uniform.setUniform3f("Scale", rad, rad, rad);
+	GL_state.Uniform.setUniform3f("scale", rad, rad, rad);
 
 	GL_state.Array.BindArrayBuffer(deferred_light_sphere_vbo);
 	GL_state.Array.BindElementBuffer(deferred_light_sphere_ibo);
-// 	vglBindBufferARB(GL_ARRAY_BUFFER, deferred_light_sphere_vbo);
-// 	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, deferred_light_sphere_ibo);
 
-	GL_state.Array.EnableVertexAttrib(0);
-	GL_state.Array.VertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	vertex_layout vertex_declare;
 
-// 	vglEnableVertexAttribArrayARB(0);
-// 	vglVertexAttribPointerARB(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	vertex_declare.add_vertex_component(vertex_format_data::POSITION3, 0, 0);
 
-// 	glEnable(GL_STENCIL_TEST);
-// 	glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
-// 	glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
-// 	glStencilMask(0xFF);
-
-// 	if(clearStencil)
-// 		glClear(GL_STENCIL_BUFFER_BIT);
+	opengl_bind_vertex_layout(vertex_declare);
 
 	vglDrawRangeElements(GL_TRIANGLES, 0, deferred_light_sphere_vcount, deferred_light_sphere_icount, GL_UNSIGNED_SHORT, 0);
 	
 	g3_done_instance(true);
-	
-//	glDisable(GL_STENCIL_TEST);
-
-// 	vglDisableVertexAttribArrayARB(0);
-// 
-// 	vglBindBufferARB(GL_ARRAY_BUFFER, 0);
-// 	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void gr_opengl_deferred_light_cylinder_init(int segments) // Generate a VBO of a cylinder of radius and height 1.0f, based on code at http://www.ogre3d.org/tikiwiki/ManualSphereMeshes
@@ -2627,36 +2557,20 @@ void gr_opengl_draw_deferred_light_cylinder(vec3d *position,matrix *orient, floa
 
 	g3_start_instance_matrix(position, orient, true);
 
-	GL_state.Uniform.setUniform3f("Scale", rad, rad, length);
+	GL_state.Uniform.setUniform3f("scale", rad, rad, length);
 
 	GL_state.Array.BindArrayBuffer(deferred_light_cylinder_vbo);
 	GL_state.Array.BindElementBuffer(deferred_light_cylinder_ibo);
-// 	vglBindBufferARB(GL_ARRAY_BUFFER, deferred_light_cylinder_vbo);
-// 	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, deferred_light_cylinder_ibo);
 
- 	GL_state.Array.EnableVertexAttrib(0);
- 	GL_state.Array.VertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-//	vglEnableVertexAttribArrayARB(0);
-//	vglVertexAttribPointerARB(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	vertex_layout vertex_declare;
 
-// 	glEnable(GL_STENCIL_TEST);
-// 	glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
-// 	glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
-// 	glStencilMask(0xFF);
+	vertex_declare.add_vertex_component(vertex_format_data::POSITION3, 0, 0);
 
-// 	if(clearStencil)
-// 		glClear(GL_STENCIL_BUFFER_BIT);
-	
+	opengl_bind_vertex_layout(vertex_declare);
+
 	vglDrawRangeElements(GL_TRIANGLES, 0, deferred_light_cylinder_vcount, deferred_light_cylinder_icount, GL_UNSIGNED_SHORT, 0);
 	
 	g3_done_instance(true);
-	
-//	glDisable(GL_STENCIL_TEST);
-
-// 	vglDisableVertexAttribArrayARB(0);
-// 
-// 	vglBindBufferARB(GL_ARRAY_BUFFER, 0);
-// 	vglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void gr_opengl_draw_line_list(colored_vector *lines, int num)
@@ -2848,7 +2762,7 @@ void opengl_setup_scene_textures()
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, Scene_texture_width, Scene_texture_height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, Scene_depth_texture, 0);
-
+    
 	//setup main stencil buffer
 	vglGenRenderbuffersEXT(1, &Scene_stencil_buffer);
     vglBindRenderbufferEXT(GL_RENDERBUFFER, Scene_stencil_buffer);
@@ -3111,9 +3025,6 @@ void gr_opengl_scene_texture_end()
 			opengl_bind_vertex_layout(vert_def);
 
 			glDrawArrays(GL_QUADS, 0, 4);
-			
-			GL_state.Array.DisableClientVertex();
-			GL_state.Array.DisableClientTexture();
 		}
 		else
 		{
@@ -3139,9 +3050,6 @@ void gr_opengl_scene_texture_end()
 			opengl_bind_vertex_layout(vert_def);
 		
 			glDrawArrays(GL_QUADS, 0, 4);
-			
-			GL_state.Array.DisableClientVertex();
-			GL_state.Array.DisableClientTexture();
 		}
 
 		GL_state.Texture.SetActiveUnit(0);
@@ -3182,7 +3090,7 @@ void opengl_clear_deferred_buffers()
 	GLboolean blend = GL_state.Blend(GL_FALSE);
 	GLboolean cull = GL_state.CullFace(GL_FALSE);
 
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(shader_type::DEFERRED_CLEAR, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_DEFERRED_CLEAR, 0) );
 
 	opengl_draw_textured_quad(-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 
@@ -3233,7 +3141,7 @@ void gr_opengl_deferred_lighting_finish()
 	//GL_state.DepthFunc(GL_GREATER);
 	//GL_state.DepthMask(GL_FALSE);
 
-	opengl_shader_set_current( gr_opengl_maybe_create_shader(DEFERRED_LIGHTING, 0) );
+	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_DEFERRED_LIGHTING, 0) );
 	
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
@@ -3251,15 +3159,11 @@ void gr_opengl_deferred_lighting_finish()
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Scene_specular_texture);
 
-	//vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0); 
-	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_luminance_texture, 0);
+	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, Scene_luminance_texture, 0);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, Scene_stencil_buffer);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, Scene_stencil_buffer);
 
-	opengl_check_for_errors();
-	opengl_check_framebuffer();
-
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	light lights_copy[MAX_LIGHTS];
@@ -3275,19 +3179,19 @@ void gr_opengl_deferred_lighting_finish()
 	for(int i = 0; i < Num_lights; ++i)
 	{
 		light *l = &lights_copy[i];
-		GL_state.Uniform.setUniformi( "lighttype", 0 );
+		GL_state.Uniform.setUniformi( "lightType", 0 );
 		switch(l->type)
 		{
 			case LT_CONE:
-				GL_state.Uniform.setUniformi( "lighttype", 2 );
-				GL_state.Uniform.setUniformi( "dual_cone", l->dual_cone );
-				GL_state.Uniform.setUniformf( "cone_angle", l->cone_angle );
-				GL_state.Uniform.setUniformf( "cone_inner_angle", l->cone_inner_angle );
+				GL_state.Uniform.setUniformi( "lightType", 2 );
+				GL_state.Uniform.setUniformi( "dualCone", l->dual_cone );
+				GL_state.Uniform.setUniformf( "coneAngle", l->cone_angle );
+				GL_state.Uniform.setUniformf( "coneInnerAngle", l->cone_inner_angle );
 				GL_state.Uniform.setUniform3f( "coneDir", l->vec2.xyz.x, l->vec2.xyz.y, l->vec2.xyz.z); 
 			case LT_POINT:
-				GL_state.Uniform.setUniform3f( "diffuselightcolor", l->r * l->intensity * static_point_factor, l->g * l->intensity * static_point_factor, l->b * l->intensity * static_point_factor );
-				GL_state.Uniform.setUniform3f( "speclightcolor", l->spec_r * l->intensity * static_point_factor, l->spec_g * l->intensity * static_point_factor, l->spec_b * l->intensity * static_point_factor );
-				GL_state.Uniform.setUniformf( "lightradius", MAX(l->rada, l->radb) * 1.25f );
+				GL_state.Uniform.setUniform3f( "diffuseLightColor", l->r * l->intensity * static_point_factor, l->g * l->intensity * static_point_factor, l->b * l->intensity * static_point_factor );
+				GL_state.Uniform.setUniform3f( "specLightColor", l->spec_r * l->intensity * static_point_factor, l->spec_g * l->intensity * static_point_factor, l->spec_b * l->intensity * static_point_factor );
+				GL_state.Uniform.setUniformf( "lightRadius", MAX(l->rada, l->radb) * 1.25f );
 
 				/*float dist;
 				vec3d a;
@@ -3298,10 +3202,10 @@ void gr_opengl_deferred_lighting_finish()
 				gr_opengl_draw_deferred_light_sphere(&l->vec, MAX(l->rada, l->radb) * 1.28f);
 				break;
 			case LT_TUBE:
-				GL_state.Uniform.setUniform3f( "diffuselightcolor", l->r * l->intensity * static_tube_factor, l->g * l->intensity * static_tube_factor, l->b * l->intensity * static_tube_factor );
-				GL_state.Uniform.setUniform3f( "speclightcolor", l->spec_r * l->intensity * static_tube_factor, l->spec_g * l->intensity * static_tube_factor, l->spec_b * l->intensity * static_tube_factor );
-				GL_state.Uniform.setUniformf( "lightradius", l->radb * 1.5f );
-				GL_state.Uniform.setUniformi( "lighttype", 1 );
+				GL_state.Uniform.setUniform3f( "diffuseLightColor", l->r * l->intensity * static_tube_factor, l->g * l->intensity * static_tube_factor, l->b * l->intensity * static_tube_factor );
+				GL_state.Uniform.setUniform3f( "specLightColor", l->spec_r * l->intensity * static_tube_factor, l->spec_g * l->intensity * static_tube_factor, l->spec_b * l->intensity * static_tube_factor );
+				GL_state.Uniform.setUniformf( "lightRadius", l->radb * 1.5f );
+				GL_state.Uniform.setUniformi( "lightType", 1 );
 			
 				vec3d a, b;
 				matrix orient;
@@ -3324,7 +3228,7 @@ void gr_opengl_deferred_lighting_finish()
 
 				glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 				gr_opengl_draw_deferred_light_cylinder(&l->vec2, &orient, l->radb * 1.53f, length);
-				GL_state.Uniform.setUniformi( "lighttype", 0 );
+				GL_state.Uniform.setUniformi( "lightType", 0 );
 				gr_opengl_draw_deferred_light_sphere(&l->vec, l->radb * 1.53f, false);
 				gr_opengl_draw_deferred_light_sphere(&l->vec2, l->radb * 1.53f, false);
 				glStencilOp(GL_ZERO, GL_ZERO, GL_ZERO);
@@ -3339,9 +3243,6 @@ void gr_opengl_deferred_lighting_finish()
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, Scene_color_texture, 0);
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, Scene_depth_texture, 0);
 	vglFramebufferRenderbufferEXT(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
-
-	opengl_check_for_errors();
-	opengl_check_framebuffer();
 
 	gr_end_view_matrix();
 	gr_end_proj_matrix();
@@ -3368,19 +3269,6 @@ void gr_opengl_deferred_lighting_finish()
 
 	opengl_shader_set_current();
 
-	GL_state.Array.SetActiveClientUnit(1);
-	GL_state.Array.DisableClientTexture();
-
-	GL_state.Array.SetActiveClientUnit(0);
-	GL_state.Array.DisableClientTexture();
-
-	GL_state.Array.DisableClientColor();
-	GL_state.Array.DisableClientNormal();
-	GL_state.Array.DisableClientVertex();
-
-	GL_state.Array.ResetVertexAttribUsed();
-	GL_state.Array.DisabledVertexAttribUnused();
-
 	GL_state.Array.BindArrayBuffer(0);
 	GL_state.Array.BindElementBuffer(0);
 
@@ -3400,9 +3288,6 @@ void gr_opengl_deferred_lighting_finish()
 	GL_state.SetAlphaBlendMode( ALPHA_BLEND_ADDITIVE );
 
 	glDrawArrays(GL_QUADS, 0, 4);
-
-	GL_state.Array.DisableClientVertex();
-	GL_state.Array.DisableClientTexture();
 
 	gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
 	gr_set_view_matrix(&Eye_position, &Eye_matrix);
@@ -3466,9 +3351,6 @@ void gr_opengl_update_distortion()
 	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_QUADS, 0, 4);
-	
-	GL_state.Array.DisableClientVertex();
-	GL_state.Array.DisableClientTexture();
 
 	GL_state.Texture.Disable();
 
@@ -3495,9 +3377,7 @@ void gr_opengl_update_distortion()
 	opengl_bind_vertex_layout(vert_def);
 		
 	glDrawArrays(GL_POINTS, 0, 33);
-			
-	GL_state.Array.DisableClientVertex();
-	GL_state.Array.DisableClientColor();
+	
 	Distortion_switch = !Distortion_switch;
 
 	// reset state
@@ -3510,4 +3390,9 @@ void gr_opengl_update_distortion()
 	GL_state.Lighting(light);
 	GL_state.Blend(blend);
 	GL_state.CullFace(cull);
+}
+
+void opengl_draw(vertex_layout vertex_binding, GLenum prim_type, int count, int vbuffer_handle)
+{
+
 }

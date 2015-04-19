@@ -798,9 +798,6 @@ void mve_play(MVESTREAM *mve)
 void mve_shutdown()
 {
 	if (gr_screen.mode == GR_OPENGL) {
-		GL_state.Array.DisableClientVertex();
-		GL_state.Array.DisableClientTexture();
-
 		if (mve_scale_video) {
 			glMatrixMode(GL_MODELVIEW);
 			glPopMatrix();
