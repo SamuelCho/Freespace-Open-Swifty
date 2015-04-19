@@ -120,24 +120,24 @@ public:
 	bool is_clip_plane_set();
 	bool is_team_color_set();
 
-	const uint get_model_flags();
-	const uint get_debug_flags();
-	const int get_object_number();
-	const int get_detail_level_lock();
-	const float get_depth_scale();
-	const int get_warp_bitmap();
-	const float get_warp_alpha();
+	uint get_model_flags();
+	uint get_debug_flags();
+	int get_object_number();
+	int get_detail_level_lock();
+	float get_depth_scale();
+	int get_warp_bitmap();
+	float get_warp_alpha();
 	const vec3d& get_warp_scale();
 	const color& get_outline_color();
-	const float get_alpha();
-	const int get_forced_bitmap();
-	const int get_insignia_bitmap();
+	float get_alpha();
+	int get_forced_bitmap();
+	int get_insignia_bitmap();
 	const int* get_replacement_textures();
 	const team_color& get_team_color();
 	const vec3d& get_clip_plane_pos();
 	const vec3d& get_clip_plane_normal();
-	const int get_animated_effect_num();
-	const float get_animated_effect_timer();
+	int get_animated_effect_num();
+	float get_animated_effect_timer();
 	const mst_info& get_thruster_info();
 };
 
@@ -282,7 +282,7 @@ class model_batch_buffer
 
 	void allocate_memory();
 public:
-	model_batch_buffer() : Current_offset(0), Mem_alloc(NULL), Mem_alloc_size(0) {};
+	model_batch_buffer() : Mem_alloc(NULL), Mem_alloc_size(0), Current_offset(0) {};
 
 	void reset();
 
