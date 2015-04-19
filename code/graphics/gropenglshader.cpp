@@ -89,7 +89,7 @@ static opengl_shader_type_t GL_shader_types[] = {
 		3, { "ytex", "utex", "vtex" }, 0, { NULL }, "Video Playback" },
 
 	{ SDR_TYPE_PASSTHROUGH_RENDER, "passthrough-v.sdr", "passthrough-f.sdr", 0, { 0, 0, 0 },
-		5, { "baseMap", "no_texturing", "alpha_texture", "srgb", "color_scale" }, 0, { NULL }, "Passthrough" }
+		5, { "baseMap", "noTexturing", "alphaTexture", "srgb", "colorScale" }, 0, { NULL }, "Passthrough" }
 };
 
 /**
@@ -1002,8 +1002,8 @@ void opengl_shader_compile_passthrough_shader()
 
 		//Hardcoded Uniforms
 		GL_state.Uniform.setUniformi("baseMap", 0);
-		GL_state.Uniform.setUniformi("no_texturing", 0);
-		GL_state.Uniform.setUniformi("alpha_texture", 0);
+		GL_state.Uniform.setUniformi("noTexturing", 0);
+		GL_state.Uniform.setUniformi("alphaTexture", 0);
 		GL_state.Uniform.setUniformi("srgb", 0);
 	} else {
 		opengl_shader_set_current();
@@ -1027,15 +1027,15 @@ void opengl_shader_set_passthrough(bool textured, bool alpha, float color_scale)
 	opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_PASSTHROUGH_RENDER, 0));
 
 	if (textured) {
-		GL_state.Uniform.setUniformi("no_texturing", 1);
+		GL_state.Uniform.setUniformi("noTexturing", 1);
 	} else {
-		GL_state.Uniform.setUniformi("no_texturing", 0);
+		GL_state.Uniform.setUniformi("noTexturing", 0);
 	}
 
 	if (alpha) {
-		GL_state.Uniform.setUniformi("alpha_texture", 1);
+		GL_state.Uniform.setUniformi("alphaTexture", 1);
 	} else {
-		GL_state.Uniform.setUniformi("alpha_texture", 0);
+		GL_state.Uniform.setUniformi("alphaTexture", 0);
 	}
 
 	if (High_dynamic_range) {
@@ -1044,5 +1044,5 @@ void opengl_shader_set_passthrough(bool textured, bool alpha, float color_scale)
 		GL_state.Uniform.setUniformi("srgb", 0);
 	}
 
-	GL_state.Uniform.setUniformf("color_scale", color_scale);
+	GL_state.Uniform.setUniformf("colorScale", color_scale);
 }
