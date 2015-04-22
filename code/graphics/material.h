@@ -18,281 +18,333 @@ public:
 
 extern uniform_name_manager Uniform_name_lookup;
 
-// base common class for our uniform data containers
-class uniform
+struct uniform_data
 {
-public:
-	enum render_resource {
-		RESOURCE_SHADOW_PROJ_MATRIX,
-		RESOURCE_SHADOW_MODELVIEW_MATRIX,
-		RESOURCE_SHADOW_DIST0,
-		RESOURCE_SHADOW_DIST1,
-		RESOURCE_SHADOW_DIST2,
-		RESOURCE_SHADOW_DIST3,
-		RESOURCE_ENV_TEXTURE_MATRIX,
-		RESOURCE_NUM_LIGHTS,
-		RESOURCE_INV_SCREEN_WIDTH,
-		RESOURCE_INV_SCREEN_HEIGHT
-	};
+	// when adding a new data type to support, create a vector for it here
+	SCP_vector<int> int_data;
+	SCP_vector<float> float_data;
+	SCP_vector<vec2d> vec2_data;
+	SCP_vector<vec3d> vec3_data;
+	SCP_vector<vec4> vec4_data;
+	SCP_vector<matrix4> matrix4_data;
 
-	// types to tell which type of uniform data is being held
-	enum type
+	void clear()
 	{
+		int_data.clear();
+		float_data.clear();
+		vec2_data.clear();
+		vec3_data.clear();
+		vec4_data.clear();
+		matrix4_data.clear();
+	}
+
+	template <class T> SCP_vector<T>& get_array();
+	template <> SCP_vector<int>& get_array<int>() { return int_data; }
+	template <> SCP_vector<float>& get_array<float>() { return float_data; }
+	template <> SCP_vector<vec2d>& get_array<vec2d>() { return vec2_data; }
+	template <> SCP_vector<vec3d>& get_array<vec3d>() { return vec3_data; }
+	template <> SCP_vector<vec4>& get_array<vec4>() { return vec4_data; }
+	template <> SCP_vector<matrix4>& get_array<matrix4>() { return matrix4_data; }
+
+	// add a single value to the data pool
+	template <class T> int set_value(const T& val)
+	{
+		SCP_vector<T>& data = get_array<T>();
+
+		data.push_back(val);
+
+		return (int)data.size() - 1;
+	}
+
+	// overwrite an existing single value to the data pool
+	template <class T> void set_value(int location, const T& val)
+	{
+		SCP_vector<T>& data = get_array<T>();
+
+		Assert(location < data.size());
+
+		data[location] = val;
+	}
+
+	// add multiple values to the data pool
+	template <class T> int set_values(T* val, int size)
+	{
+		SCP_vector<T>& data = get_array<T>();
+
+		int start_index = data.size();
+
+		for ( size_t i = 0; i < size; i++ ) {
+			data.push_back(val[i]);
+		}
+
+		return start_index;
+	}
+
+	// overwrite multiple existing values to the data pool
+	template <class T> void set_values(int location, T* val, int size)
+	{
+		SCP_vector<T>& data = get_array<T>();
+
+		Assert(location < data.size());
+
+		for (size_t i = 0; i < size; i++) {
+			// check to make sure we don't go out of bounds
+			if ( location + i < data.size() ) {
+				data[location + i] = val[i];
+			} else {
+				data.push_back(val[i]);
+			}
+			
+		}
+	}
+};
+
+struct uniform
+{
+	SCP_string name;
+
+	enum data_type {
 		INT,
 		FLOAT,
 		VEC2,
 		VEC3,
 		VEC4,
-		MATRIX4,
-		RENDER_RESOURCE,
-		UNDEFINED
+		MATRIX4
 	};
 
-private:
-	type data_type;
-	bool array_type;
-	bool dirty;
-public:
-	template<class T> uniform(T* value, bool _is_array = false) :
-		data_type(determine_data_type(value)), array_type(_is_array), dirty(false) { }
+	data_type type;
+	int index;
 
-	type get_data_type() {
-		return data_type;
-	}
+	int count;
 
-	bool is_array() {
-		return array_type;
-	}
-
-	bool is_dirty() {
-		return dirty;
-	}
-
-	void set_dirty(bool val) {
-		dirty = val;
-	}
-
-	// using function overloading to figure out the type being used in the child classes
-	// if you want to add more supported uniform types, add a type to the enum and make a corresponding method here
-	template<class T> static type determine_data_type(T* value) { return UNDEFINED; }
-	template<> static type determine_data_type<int>(int* value) { return INT; }
-	template<> static type determine_data_type<float>(float* value) { return FLOAT; }
-	template<> static type determine_data_type<vec2d>(vec2d* value) { return VEC2; }
-	template<> static type determine_data_type<vec3d>(vec3d* value) { return VEC3; }
-	template<> static type determine_data_type<vec4>(vec4* value) { return VEC4; }
-	template<> static type determine_data_type<matrix4>(matrix4* value) { return MATRIX4; }
-
-	// kind of icky but this is just a stop gap solution until we get off our asses and start overloading operators
-	// to add support for more uniform types, create a compare method for your type here
-	template<class T> static bool compare(T& a, T& b) { return false; }
-	template<> static bool compare<int>(int& a, int& b) { return a == b; }
-	template<> static bool compare<float>(float& a, float& b) { return a == b; }
-	template<> static bool compare<vec2d>(vec2d& a, vec2d& b) { return vm_vec_equal(a, b); }
-	template<> static bool compare<vec3d>(vec3d& a, vec3d& b) { return vm_vec_equal(a, b); }
-	template<> static bool compare<vec4>(vec4& a, vec4& b) { return vm_vec_equal(a, b); }
-	template<> static bool compare<matrix4>(matrix4& a, matrix4& b) { return vm_matrix_equal(a, b); }
+	template <class T> data_type determine_type();
+	template <> data_type determine_type<int>() { return INT; }
+	template <> data_type determine_type<float>() { return FLOAT; }
+	template <> data_type determine_type<vec2d>() { return VEC2; }
+	template <> data_type determine_type<vec3d>() { return VEC3; }
+	template <> data_type determine_type<vec4>() { return VEC4; }
+	template <> data_type determine_type<matrix4>() { return MATRIX4; }
 };
 
-template<class T>
-class uniform_data : public uniform
+class uniform_block
 {
-	T data;
-public:
-	uniform_data(const T& value) : uniform(&value), data(value) {}
+	SCP_vector<uniform> Uniforms;
 
-	void set_data(const T& _data) {
-		data = _data;
+	uniform_data* Data_store;
+	bool Local_data_store;
 
-		set_dirty(false);
-	}
+	bool Compare;
 
-	const T& get_data() {
-		return data;
-	}
-};
+	int find_uniform(const SCP_string& name);
 
-template<class T>
-class uniform_array : public uniform
-{
-	T* buffer;
-	int size;
-	int capacity;
-public:
-	uniform_array(const T* _buffer, const int _size) : buffer(NULL), size(0), capacity(0), uniform(_buffer, true) {
-		set_data(_buffer, _size);
-	}
+	template <class T> bool compare(uniform& u, const T& val);
 
-	const T* get_data() {
-		return buffer;
-	}
-
-	void set_data(const T* _buffer, const int _size) {
-		Assert(_buffer != NULL);
-		Assert(_size > 0);
-
-		if (buffer == NULL || capacity < _size) {
-			if (buffer != NULL) {
-				delete buffer;
-			}
-
-			buffer = new T[_size];
-			capacity = _size;
-		}
-
-		memcpy(buffer, _buffer, sizeof(T) * _size);
-		size = _size;
-
-		set_dirty(false);
-	}
-
-	void set_data(const T& _data, const int index) {
-		Assert(index < size);
-
-		buffer[index] = _data;
-
-		set_dirty(false);
-	}
-
-	const int get_size() {
-		return size;
-	}
-
-	const T& get_data(const int index) {
-		Assert(index < size);
-
-		return buffer[index];
-	}
-};
-
-class uniform_handler
-{
-public:
-	typedef SCP_map<SCP_string, uniform*> uniform_map;
-private:
-	uniform_map uniforms;
-
-	uniform* find_uniform(const SCP_string &name)
+	template <> bool compare<int>(uniform& u, const int& val)
 	{
-		uniform_map::iterator iter = uniforms.find(name);
+		Assert(Data_store != NULL);
 
-		if (iter == uniforms.end()) {
-			return NULL;
+		if ( u.type != uniform::INT || u.count != 1) {
+			return false;
 		}
 
-		return iter->second;
+		return Data_store->int_data[u.index] == val;
+	}
+
+	template <> bool compare<float>(uniform& u, const float& val)
+	{
+		Assert(Data_store != NULL);
+		
+		if ( u.type != uniform::FLOAT || u.count != 1 ) {
+			return false;
+		}
+
+		return Data_store->float_data[u.index] == val;
+	}
+
+	template <> bool compare<vec2d>(uniform& u, const vec2d& val)
+	{
+		Assert(Data_store != NULL);
+		
+		if ( u.type != uniform::VEC2 || u.count != 1 ) {
+			return false;
+		}
+
+		return vm_vec_equal(Data_store->vec2_data[u.index], val);
+	}
+
+	template <> bool compare<vec3d>(uniform& u, const vec3d& val)
+	{
+		Assert(Data_store != NULL);
+		
+		if ( u.type == uniform::VEC3 || u.count != 1 ) {
+			return false;
+		}
+
+		return vm_vec_equal(Data_store->vec3_data[u.index], val);
+	}
+
+	template <> bool compare<vec4>(uniform& u, const vec4& val)
+	{
+		Assert(Data_store != NULL);
+		
+		if ( u.type == uniform::VEC4 || u.count != 1 ) {
+			return false;
+		}
+
+		return vm_vec_equal(Data_store->vec4_data[u.index], val);
+	}
+
+	template <> bool compare<matrix4>(uniform& u, const matrix4& val)
+	{
+		Assert(Data_store != NULL);
+		
+		if ( u.type == uniform::MATRIX4 || u.count != 1 ) {
+			return false;
+		}
+
+		return vm_matrix_equal(Data_store->matrix4_data[u.index], val);
+	}
+
+	template <class T> bool compare(uniform& u, T* val, int count);
+
+	template <> bool compare<matrix4>(uniform& u, matrix4* val, int count)
+	{
+		Assert(Data_store != NULL);
+		
+		if ( u.type != uniform::MATRIX4 || u.count != count ) {
+			return false;
+		}
+
+		for (int i = 0; i < u.count; ++i) {
+			if (!vm_matrix_equal(Data_store->matrix4_data[u.index + i], val[i])) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 public:
-	~uniform_handler() {
-		uniform_map::iterator iter;
+	uniform_block(bool compare = false, uniform_data* data_store = NULL);
+	~uniform_block();
 
-		for (iter = uniforms.begin(); iter != uniforms.end(); ++iter) {
-			uniform* container = iter->second;
+	template <class T> bool set_value(const SCP_string& name, const T& val)
+	{
+		Assert(Data_store != NULL);
 
-			if (container != NULL) {
-				delete container;
+		uniform::data_type uniform_type = uniform::determine_type<T>();
+		int index = find_uniform(name);
+
+		if (index >= 0) {
+			uniform& info = Uniforms[index];
+
+			if ( Compare && compare(info, val) ) {
+				return false;
 			}
 
-			iter->second = NULL;
-		}
+			info.type = uniform_type;
+			info.count = 1;
 
-		uniforms.clear();
-	}
+			Data_store->set_value(info.index, val);
 
-	void reset() {
-		// set all uniforms to dirty so we'll always replace them
-		uniform_map::iterator iter;
-
-		for (iter = uniforms.begin(); iter != uniforms.end(); ++iter) {
-			uniform* container = iter->second;
-
-			container->set_dirty(true);
-		}
-	}
-
-	uniform_map &get_uniforms() {
-		return uniforms;
-	}
-
-	// assigns a value to a saved uniform based on name. returns false if nothing was changed.
-	template <class T> bool set_value(const SCP_string &name, const T& value) {
-		// figure out if this uniform is resident
-		uniform* container = find_uniform(name);
-
-		if (container == NULL) {
-			// not resident; create a new one.
-			uniforms[name] = new uniform_data<T>(value);
 			return true;
 		}
-		else {
-			// figure out if this is the same data type and make sure it's not an array uniform
-			if (!container->is_array() && container->get_data_type() == uniform::determine_data_type(&value)) {
-				uniform_data<T>* current_data = static_cast<uniform_data<T>*>(container);
 
-				// kay, it's the same data type but does it have the same values?
-				if (current_data->is_dirty() || !uniform::compare(current_data->get_data(), value)) {
-					// nope, replace the stored values.
-					current_data->set_data(value);
-					return true;
-				}
-			}
-			else {
-				// not the same data type. trash and replace the entire container.
-				delete container;
+		uniform u;
 
-				uniforms[name] = new uniform_data<T>(value);
-				return true;
-			}
-		}
+		u.count = 1;
+		u.type = uniform_type;
+		u.name = name;
+		u.index = Data_store->set_value(val);
 
-		return false;
+		Uniforms.push_back(u);
+
+		return true;
 	}
 
-	// assigns values to a uniform array based on name. returns false if nothing was changed.
-	template <class T> bool set_array(const SCP_string &name, const T* buffer, const int size) {
-		// figure out if this uniform is resident
-		uniform* container = find_uniform(name);
+	template <class T> bool set_values(const SCP_string& name, T* val, int size)
+	{
+		Assert(Data_store != NULL);
 
-		if (container == NULL) {
-			// not resident; create a new one.
-			uniforms[name] = new uniform_array<T>(buffer, size);
+		uniform::data_type uniform_type = uniform::determine_type<T>();
+		int index = find_uniform(name);
+
+		if (index >= 0) {
+			uniform& info = Uniforms[index];
+
+			if ( Compare && compare(info, val, size) ) {
+				return false;
+			}
+
+			info.type = uniform_type;
+
+			if ( info.count < size ) {
+				// we're going to overflow so append instead of replace
+				info.count = size;
+				info.index = Data_store->set_values(val, size);
+			} else {
+				info.count = size;
+				Data_store->set_values(info.index, val, size);
+			}
+
 			return true;
 		}
-		else {
-			// figure out if this is the same data type and make sure it's an array uniform
-			if (container->is_array() && container->get_data_type() == uniform::determine_data_type(buffer)) {
-				uniform_array<T>* current_data = static_cast<uniform_array<T>*>(container);
 
-				bool equal = true;
+		uniform u;
 
-				// first check if this uniform is dirty or not the same size
-				if (current_data->is_dirty() || current_data->get_size() != size) {
-					current_data->set_data(buffer, size);
-					return true;
-				}
+		u.count = size;
+		u.type = uniform_type;
+		u.name = name;
+		u.index = Data_store->set_values(val, size);
 
-				// it's the same size so compare each element in both buffers
-				for (int i = 0; i < size; ++i) {
-					const T& value = current_data->get_data(i);
+		Uniforms.push_back(u);
 
-					if (!uniform::compare(buffer[i], value)) {
-						current_data->set_data(buffer[i], i);
-						equal = false;
-					}
-				}
+		return true;
+	}
 
-				if (!equal) {
-					return true;
-				}
-			}
-			else {
-				// not the same data type. trash and replace the entire container.
-				delete container;
-				uniforms[name] = new uniform_array<T>(buffer, size);
-				return true;
-			}
-		}
+	int num_uniforms() 
+	{ 
+		return (int)Uniforms.size(); 
+	}
 
-		return false;
+	uniform::data_type get_type(int i) 
+	{
+		Assert(i < (int)Uniforms.size());
+
+		return Uniforms[i].type;
+	}
+
+	const SCP_string& get_name(int i)
+	{
+		Assert(i < (int)Uniforms.size());
+
+		return Uniforms[i].name;
+	}
+
+	template <class T> T& get_value(int i)
+	{
+		int index = Uniforms[i].index;
+
+		Assert(Data_store != NULL);
+		Assert(Uniforms[i].type == uniform::determine_type<T>());
+
+		SCP_vector<T>& data = Data_store->get_array<T>();
+
+		return data[index];
+	}
+
+	template <class T> T& get_value(int i, int offset)
+	{
+		int index = Uniforms[i].index;
+
+		Assert(Data_store != NULL);
+		Assert(Uniforms[i].type == uniform::determine_type<T>());
+		Assert(offset < Uniforms[i].count);
+
+		SCP_vector<T>& data = Data_store->get_array<T>();
+
+		Assert(index + offset < (int)data.size());
+
+		return data[index + offset];
 	}
 };
 
@@ -319,11 +371,12 @@ public:
 private:
 	int shader_handle;
 	SCP_vector<material::texture_unit> textures;
-	uniform_handler uniforms;
+	uniform_block uniforms;
 
 	void set_texture(uint slot_num, int bitmap_num, texture_type tex_type, const SCP_string &name);
 public:
 	material();
+	material(uniform_data* data_storage);
 
 	void set_shader(int sdr_handle);
 
@@ -333,17 +386,14 @@ public:
 	void set_texture_effect_texture(uint slot_num, const SCP_string &name);
 	void set_texture_shadow_map(uint slot_num, const SCP_string &name);
 
-	template <class T> void set_uniform(const SCP_string &name, const T &val) {
-		uniforms.set_value(name, val);
-	}
+	void set_uniform(const SCP_string &name, const int& val);
+	void set_uniform(const SCP_string &name, const float& val);
+	void set_uniform(const SCP_string &name, const vec2d& val);
+	void set_uniform(const SCP_string &name, const vec3d& val);
+	void set_uniform(const SCP_string &name, const vec4& val);
+	void set_uniform(const SCP_string &name, const matrix4& val);
 
-	template <class T> void set_uniform(const SCP_string &name, const int size, const T *val) {
-		uniforms.set_array(name, size, val);
-	}
-
-	uniform_handler& get_uniforms() {
-		return uniforms;
-	}
+	uniform_block& get_uniforms();
 };
 
 #endif

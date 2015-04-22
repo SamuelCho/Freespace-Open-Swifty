@@ -286,25 +286,6 @@ class opengl_array_state
 		void BindUniformBufferBindingIndex(GLuint id, GLuint index);
 };
 
-struct uniform_bind
-{
-	SCP_string name;
-
-	enum data_type {
-		INT,
-		FLOAT,
-		VEC2,
-		VEC3,
-		VEC4,
-		MATRIX4
-	};
-
-	uniform_bind::data_type type;
-	int index;
-
-	int count;
-};
-
 class opengl_uniforms : public uniform_handler 
 {
 public:
