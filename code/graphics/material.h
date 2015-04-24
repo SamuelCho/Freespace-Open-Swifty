@@ -97,6 +97,50 @@ struct uniform_data
 			
 		}
 	}
+
+	template <class T> bool compare(int index, const T& val);
+	template <class T> bool compare(int index, T* val, int count);
+
+	template <> bool compare<int>(int index, const int& val)
+	{
+		return int_data[index] == val;
+	}
+
+	template <> bool compare<float>(int index, const float& val)
+	{
+		return fl_equal(float_data[index], val);
+	}
+
+	template <> bool compare<vec2d>(int index, const vec2d& val)
+	{
+		return vm_vec_equal(vec2_data[index], val);
+	}
+
+	template <> bool compare<vec3d>(int index, const vec3d& val)
+	{
+		return vm_vec_equal(vec3_data[index], val);
+	}
+
+	template <> bool compare<vec4>(int index, const vec4& val)
+	{
+		return vm_vec_equal(vec4_data[index], val);
+	}
+
+	template <> bool compare<matrix4>(int index, const matrix4& val)
+	{
+		return vm_matrix_equal(matrix4_data[index], val);
+	}
+
+	template <> bool compare<matrix4>(int index, matrix4* val, int count)
+	{
+		for (int i = 0; i < count; ++i) {
+			if (!vm_matrix_equal(matrix4_data[index + i], val[i])) {
+				return false;
+			}
+		}
+
+		return true;
+	}
 };
 
 struct uniform
@@ -117,6 +161,19 @@ struct uniform
 
 	int count;
 
+	uniform_data *data_src;
+
+	uniform(): data_src(NULL)
+	{
+
+	}
+
+	uniform(uniform_data* _data_src):
+		data_src(_data_src)
+	{
+
+	}
+
 	template <class T> data_type determine_type();
 	template <> data_type determine_type<int>() { return INT; }
 	template <> data_type determine_type<float>() { return FLOAT; }
@@ -124,6 +181,77 @@ struct uniform
 	template <> data_type determine_type<vec3d>() { return VEC3; }
 	template <> data_type determine_type<vec4>() { return VEC4; }
 	template <> data_type determine_type<matrix4>() { return MATRIX4; }
+
+	template <class T>
+	void init(const SCP_string& init_name, const T& val)
+	{
+		name = init_name;
+		type = determine_type<T>();
+		count = 1;
+		index = data_src->set_value(val);
+	}
+
+	template <class T>
+	void init(const SCP_string &name, T* val, int size)
+	{
+		name = init_name;
+		type = determine_type<T>();
+		count = size;
+		index = data_src->set_value(val, size);
+	}
+
+	template <class T>
+	bool update(const T& val)
+	{
+		data_type uniform_type = determine_type<T>();
+
+		if ( uniform_type == type ) {
+			if ( count == 1 && data_src->compare(index, val) ) {
+				return false;
+			}
+
+			count = 1;
+
+			data_src->set_value(index, val);
+
+			return true;
+		}
+
+		count = 1;
+		uniform_type = type;
+		index = data_src->set_value(val);
+
+		return true;
+	}
+
+	template <class T>
+	bool update(T* val, int size)
+	{
+		data_type uniform_type = determine_type<T>();
+
+		if (uniform_type == type) {
+			if (count == size && data_src->compare(index, val, size)) {
+				return false;
+			}
+
+			if (count < size) {
+				// we're going to overflow so append instead of replace
+				count = size;
+				index = data_src->set_values(val, size);
+			} else {
+				count = size;
+				data_src->set_values(index, val, size);
+			}
+
+			return true;
+		}
+
+		count = size;
+		uniform_type = type;
+		index = data_src->set_value(val, size);
+
+		return true;
+	}
 };
 
 class uniform_block
@@ -133,96 +261,7 @@ class uniform_block
 	uniform_data* Data_store;
 	bool Local_data_store;
 
-	bool Compare;
-
 	int find_uniform(const SCP_string& name);
-
-	template <class T> bool compare(uniform& u, const T& val);
-
-	template <> bool compare<int>(uniform& u, const int& val)
-	{
-		Assert(Data_store != NULL);
-
-		if ( u.type != uniform::INT || u.count != 1) {
-			return false;
-		}
-
-		return Data_store->int_data[u.index] == val;
-	}
-
-	template <> bool compare<float>(uniform& u, const float& val)
-	{
-		Assert(Data_store != NULL);
-		
-		if ( u.type != uniform::FLOAT || u.count != 1 ) {
-			return false;
-		}
-
-		return Data_store->float_data[u.index] == val;
-	}
-
-	template <> bool compare<vec2d>(uniform& u, const vec2d& val)
-	{
-		Assert(Data_store != NULL);
-		
-		if ( u.type != uniform::VEC2 || u.count != 1 ) {
-			return false;
-		}
-
-		return vm_vec_equal(Data_store->vec2_data[u.index], val);
-	}
-
-	template <> bool compare<vec3d>(uniform& u, const vec3d& val)
-	{
-		Assert(Data_store != NULL);
-		
-		if ( u.type == uniform::VEC3 || u.count != 1 ) {
-			return false;
-		}
-
-		return vm_vec_equal(Data_store->vec3_data[u.index], val);
-	}
-
-	template <> bool compare<vec4>(uniform& u, const vec4& val)
-	{
-		Assert(Data_store != NULL);
-		
-		if ( u.type == uniform::VEC4 || u.count != 1 ) {
-			return false;
-		}
-
-		return vm_vec_equal(Data_store->vec4_data[u.index], val);
-	}
-
-	template <> bool compare<matrix4>(uniform& u, const matrix4& val)
-	{
-		Assert(Data_store != NULL);
-		
-		if ( u.type == uniform::MATRIX4 || u.count != 1 ) {
-			return false;
-		}
-
-		return vm_matrix_equal(Data_store->matrix4_data[u.index], val);
-	}
-
-	template <class T> bool compare(uniform& u, T* val, int count);
-
-	template <> bool compare<matrix4>(uniform& u, matrix4* val, int count)
-	{
-		Assert(Data_store != NULL);
-		
-		if ( u.type != uniform::MATRIX4 || u.count != count ) {
-			return false;
-		}
-
-		for (int i = 0; i < u.count; ++i) {
-			if (!vm_matrix_equal(Data_store->matrix4_data[u.index + i], val[i])) {
-				return false;
-			}
-		}
-
-		return true;
-	}
 public:
 	uniform_block(bool compare = false, uniform_data* data_store = NULL);
 	~uniform_block();
@@ -235,26 +274,12 @@ public:
 		int index = find_uniform(name);
 
 		if (index >= 0) {
-			uniform& info = Uniforms[index];
-
-			if ( Compare && compare(info, val) ) {
-				return false;
-			}
-
-			info.type = uniform_type;
-			info.count = 1;
-
-			Data_store->set_value(info.index, val);
-
-			return true;
+			return Uniforms[index].update(val);
 		}
 
-		uniform u;
+		uniform u(Data_store);
 
-		u.count = 1;
-		u.type = uniform_type;
-		u.name = name;
-		u.index = Data_store->set_value(val);
+		u.init(name, val);
 
 		Uniforms.push_back(u);
 
@@ -269,32 +294,12 @@ public:
 		int index = find_uniform(name);
 
 		if (index >= 0) {
-			uniform& info = Uniforms[index];
-
-			if ( Compare && compare(info, val, size) ) {
-				return false;
-			}
-
-			info.type = uniform_type;
-
-			if ( info.count < size ) {
-				// we're going to overflow so append instead of replace
-				info.count = size;
-				info.index = Data_store->set_values(val, size);
-			} else {
-				info.count = size;
-				Data_store->set_values(info.index, val, size);
-			}
-
-			return true;
+			return Uniforms[index].update(val, size);
 		}
 
-		uniform u;
+		uniform u(Data_store);
 
-		u.count = size;
-		u.type = uniform_type;
-		u.name = name;
-		u.index = Data_store->set_values(val, size);
+		u.init(name, val, size);
 
 		Uniforms.push_back(u);
 
@@ -376,7 +381,7 @@ private:
 	void set_texture(uint slot_num, int bitmap_num, texture_type tex_type, const SCP_string &name);
 public:
 	material();
-	material(uniform_data* data_storage);
+	material(uniform_data* uniform_data_pool);
 
 	void set_shader(int sdr_handle);
 
@@ -392,6 +397,7 @@ public:
 	void set_uniform(const SCP_string &name, const vec3d& val);
 	void set_uniform(const SCP_string &name, const vec4& val);
 	void set_uniform(const SCP_string &name, const matrix4& val);
+	void set_uniform(const SCP_string &name, matrix4* val, int size);
 
 	uniform_block& get_uniforms();
 };

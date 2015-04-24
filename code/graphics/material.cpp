@@ -56,51 +56,6 @@ int uniform_block::find_uniform(const SCP_string& name)
 	return -1;
 }
 
-int uniform_block::num_uniforms()
-{
-
-}
-
-uniform::data_type uniform_block::get_type(int i)
-{
-
-}
-
-const SCP_string& uniform_block::get_name(int i)
-{
-
-}
-
-int uniform_block::get_int(int i)
-{
-
-}
-
-float uniform_block::get_float(int i)
-{
-
-}
-
-vec2d& uniform_block::get_vec2(int i)
-{
-
-}
-
-vec3d& uniform_block::get_vec3(int i)
-{
-
-}
-
-vec4& uniform_block::get_vec4(int i)
-{
-
-}
-
-matrix4& uniform_block::get_matrix4(int i)
-{
-
-}
-
 material::material():
 shader_handle(-1) 
 {
@@ -152,12 +107,12 @@ void material::set_texture_shadow_map(uint slot_num, const SCP_string &name)
 	set_texture(slot_num, -1, TEX_RESOURCE_SHADOW_MAP, name);
 }
 
-void material::set_uniform(const SCP_string &name, int val)
+void material::set_uniform(const SCP_string &name, const int& val)
 {
 	uniforms.set_value(name, val);
 }
 
-void material::set_uniform(const SCP_string &name, float val)
+void material::set_uniform(const SCP_string &name, const float& val)
 {
 	uniforms.set_value(name, val);
 }
@@ -180,6 +135,11 @@ void material::set_uniform(const SCP_string &name, const vec4& val)
 void material::set_uniform(const SCP_string &name, const matrix4& val)
 {
 	uniforms.set_value(name, val);
+}
+
+void material::set_uniform(const SCP_string &name, matrix4* val, int size)
+{
+	uniforms.set_values(name, val, size);
 }
 
 uniform_block& material::get_uniforms() 

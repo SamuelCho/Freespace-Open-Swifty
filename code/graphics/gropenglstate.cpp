@@ -1296,6 +1296,7 @@ void opengl_array_state::BindUniformBuffer(GLuint id)
 
 opengl_uniform_state::opengl_uniform_state()
 {
+	uniform_table = new uniform[MAX_UNIFORM_LOCATIONS];
 }
 
 int opengl_uniform_state::findUniform(const SCP_string &name)
@@ -1319,32 +1320,17 @@ void opengl_uniform_state::setUniformi(const SCP_string &name, const int val)
 	if ( uniform_index >= 0) {
 		Assert( (size_t)uniform_index < uniforms.size() );
 
-		uniform_bind *bind_info = &uniforms[uniform_index];
-
-		if ( bind_info->type == uniform_bind::INT ) {
-			if ( uniform_data_ints[bind_info->index] == val ) {
-				return;
-			} 
-
-			uniform_data_ints[bind_info->index] = val;
-			resident = true;
+		if ( !uniforms[uniform_index].update(val) ) {
+			return;
 		}
-	} 
+	} else {
+		uniform u(&uniform_data_pool);
 
-	if ( !resident ) {
-		// uniform doesn't exist in our previous uniform block so queue this new value
-		uniform_data_ints.push_back(val);
+		u.init(name, val);
 
-		uniform_bind new_bind;
+		uniforms.push_back(u);
 
-		new_bind.count = 1;
-		new_bind.index = uniform_data_ints.size() - 1;
-		new_bind.type = uniform_bind::INT;
-		new_bind.name = name;
-
-		uniforms.push_back(new_bind);
-
-		uniform_lookup[name] = uniforms.size()-1;
+		uniform_lookup[name] = uniforms.size() - 1;
 	}
 
 	vglUniform1iARB(opengl_shader_get_uniform(name.c_str()), val);
@@ -1358,32 +1344,17 @@ void opengl_uniform_state::setUniformf(const SCP_string &name, const float val)
 	if ( uniform_index >= 0) {
 		Assert( (size_t)uniform_index < uniforms.size() );
 
-		uniform_bind *bind_info = &uniforms[uniform_index];
-
-		if ( bind_info->type == uniform_bind::FLOAT ) {
-			if ( fl_equal(uniform_data_floats[bind_info->index], val) ) {
-				return;
-			}
-
-			uniform_data_floats[bind_info->index] = val;
-			resident = true;
+		if ( !uniforms[uniform_index].update(val) ) {
+			return;
 		}
-	} 
+	} else {
+		uniform u(&uniform_data_pool);
 
-	if ( !resident ) {
-		// uniform doesn't exist in our previous uniform block so queue this new value
-		uniform_data_floats.push_back(val);
+		u.init(name, val);
 
-		uniform_bind new_bind;
+		uniforms.push_back(u);
 
-		new_bind.count = 1;
-		new_bind.index = uniform_data_floats.size() - 1;
-		new_bind.type = uniform_bind::FLOAT;
-		new_bind.name = name;
-
-		uniforms.push_back(new_bind);
-
-		uniform_lookup[name] = uniforms.size()-1;
+		uniform_lookup[name] = uniforms.size() - 1;
 	}
 
 	vglUniform1fARB(opengl_shader_get_uniform(name.c_str()), val);
@@ -1637,7 +1608,7 @@ void opengl_uniform_state::reset()
 	uniform_lookup.clear();
 }
 
-void opengl_uniforms::setUniforms(uniform_handler& uniforms)
+void opengl_uniforms::setUniforms(uniform_block& uniforms)
 {
 	uniform_map &uniforms_to_set = uniforms.get_uniforms();
 

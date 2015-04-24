@@ -18,6 +18,7 @@
 #include "graphics/material.h"
 
 #define MAX_UNIFORM_BUFFERS 6
+#define MAX_UNIFORM_LOCATIONS 256
 
 struct opengl_texture_unit {
 	GLboolean active;	// unit is active
@@ -303,7 +304,10 @@ public:
 
 class opengl_uniform_state
 {
-	SCP_vector<uniform_bind> uniforms;
+	SCP_vector<uniform> uniforms;
+	uniform* uniform_table;
+
+	uniform_data uniform_data_pool;
 
 	SCP_vector<int> uniform_data_ints;
 	SCP_vector<float> uniform_data_floats;
@@ -315,8 +319,45 @@ class opengl_uniform_state
 	SCP_map<SCP_string, int> uniform_lookup;
 
 	int findUniform(const SCP_string &name);
+	
+	template <class T> void setDeviceUniform(GLint uniform_location, const T& val);
+	template <class T> void setDeviceUniform(GLint uniform_location, T* val, int size);
+
+	template <> void setDeviceUniform<int>(GLint uniform_location, const int& val);
+	template <> void setDeviceUniform<float>(GLint uniform_location, const float& val);
+
+	template <> void setDeviceUniform<matrix4>(GLint uniform_location, matrix4* val, int size)
+	{
+		vglUniformMatrix4fvARB(uniform_location, size, GL_FALSE, (const GLfloat*)val);
+	}
+
 public:
 	opengl_uniform_state();
+
+	template <class T>
+	void setUniform(const SCP_string &name, const T& val)
+	{
+		GLint uniform_handle = opengl_shader_get_uniform(name.c_str());
+		uniform& current = uniform_table[uniform_handle];
+
+		if ( current.data_src != NULL ) {
+			Assert((size_t)uniform_index < uniforms.size());
+
+			if (!uniforms[uniform_index].update(val)) {
+				return;
+			}
+		} else {
+			uniform u(&uniform_data_pool);
+
+			u.init(name, val);
+
+			uniforms.push_back(u);
+
+			uniform_table[uniform_handle] = u;
+		}
+
+		setDeviceUniform(uniform_handle, val);
+	}
 
 	void setUniformi(const SCP_string &name, const int value);
 	void setUniformf(const SCP_string &name, const float value);
