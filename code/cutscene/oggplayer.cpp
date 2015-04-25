@@ -490,9 +490,9 @@ static void OGG_video_init(theora_info *tinfo)
 			gl_screenU = i2fl(tinfo->frame_width-1) / i2fl(2048) ;
 			gl_screenV = i2fl(tinfo->frame_height-1) / i2fl(2048);
 			GL_state.Texture.SetShaderMode(GL_TRUE);
-			GL_state.Uniform.setUniformi("ytex", 0);
-			GL_state.Uniform.setUniformi("utex", 1);
-			GL_state.Uniform.setUniformi("vtex", 2);
+			GL_state.Uniform.setUniform("ytex", 0);
+			GL_state.Uniform.setUniform("utex", 1);
+			GL_state.Uniform.setUniform("vtex", 2);
 		}
 
 		glVertices[0][0] = (GLfloat)g_screenX;

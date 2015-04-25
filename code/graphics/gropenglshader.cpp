@@ -946,13 +946,13 @@ void opengl_shader_compile_deferred_light_shader()
 	if ( sdr_handle >= 0 ) {
 		opengl_shader_set_current(sdr_handle);
 
-		GL_state.Uniform.setUniformi("ColorBuffer", 0);
-		GL_state.Uniform.setUniformi("NormalBuffer", 1);
-		GL_state.Uniform.setUniformi("PositionBuffer", 2);
-		GL_state.Uniform.setUniformi("SpecBuffer", 3);
-		GL_state.Uniform.setUniformf("invScreenWidth", 1.0f / gr_screen.max_w);
-		GL_state.Uniform.setUniformf("invScreenHeight", 1.0f / gr_screen.max_h);
-		GL_state.Uniform.setUniformf("specFactor", Cmdline_ogl_spec);
+		GL_state.Uniform.setUniform("ColorBuffer", 0);
+		GL_state.Uniform.setUniform("NormalBuffer", 1);
+		GL_state.Uniform.setUniform("PositionBuffer", 2);
+		GL_state.Uniform.setUniform("SpecBuffer", 3);
+		GL_state.Uniform.setUniform("invScreenWidth", 1.0f / gr_screen.max_w);
+		GL_state.Uniform.setUniform("invScreenHeight", 1.0f / gr_screen.max_h);
+		GL_state.Uniform.setUniform("specFactor", Cmdline_ogl_spec);
 	} else {
 		opengl_shader_set_current();
 		mprintf(("Failed to compile deferred lighting shader!\n"));

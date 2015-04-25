@@ -2425,7 +2425,7 @@ void gr_opengl_draw_deferred_light_sphere(vec3d *position, float rad, bool clear
 
 	g3_start_instance_matrix(position, &vmd_identity_matrix, true);
 	
-	GL_state.Uniform.setUniform3f("scale", rad, rad, rad);
+	GL_state.Uniform.setUniform("scale", rad, rad, rad);
 
 	GL_state.Array.BindArrayBuffer(deferred_light_sphere_vbo);
 	GL_state.Array.BindElementBuffer(deferred_light_sphere_ibo);
@@ -2557,7 +2557,7 @@ void gr_opengl_draw_deferred_light_cylinder(vec3d *position,matrix *orient, floa
 
 	g3_start_instance_matrix(position, orient, true);
 
-	GL_state.Uniform.setUniform3f("scale", rad, rad, length);
+	GL_state.Uniform.setUniform("scale", rad, rad, length);
 
 	GL_state.Array.BindArrayBuffer(deferred_light_cylinder_vbo);
 	GL_state.Array.BindElementBuffer(deferred_light_cylinder_ibo);
@@ -3179,19 +3179,19 @@ void gr_opengl_deferred_lighting_finish()
 	for(int i = 0; i < Num_lights; ++i)
 	{
 		light *l = &lights_copy[i];
-		GL_state.Uniform.setUniformi( "lightType", 0 );
+		GL_state.Uniform.setUniform( "lightType", 0 );
 		switch(l->type)
 		{
 			case LT_CONE:
-				GL_state.Uniform.setUniformi( "lightType", 2 );
-				GL_state.Uniform.setUniformi( "dualCone", l->dual_cone );
-				GL_state.Uniform.setUniformf( "coneAngle", l->cone_angle );
-				GL_state.Uniform.setUniformf( "coneInnerAngle", l->cone_inner_angle );
-				GL_state.Uniform.setUniform3f( "coneDir", l->vec2.xyz.x, l->vec2.xyz.y, l->vec2.xyz.z); 
+				GL_state.Uniform.setUniform( "lightType", 2 );
+				GL_state.Uniform.setUniform( "dualCone", l->dual_cone );
+				GL_state.Uniform.setUniform( "coneAngle", l->cone_angle );
+				GL_state.Uniform.setUniform( "coneInnerAngle", l->cone_inner_angle );
+				GL_state.Uniform.setUniform( "coneDir", l->vec2.xyz.x, l->vec2.xyz.y, l->vec2.xyz.z); 
 			case LT_POINT:
-				GL_state.Uniform.setUniform3f( "diffuseLightColor", l->r * l->intensity * static_point_factor, l->g * l->intensity * static_point_factor, l->b * l->intensity * static_point_factor );
-				GL_state.Uniform.setUniform3f( "specLightColor", l->spec_r * l->intensity * static_point_factor, l->spec_g * l->intensity * static_point_factor, l->spec_b * l->intensity * static_point_factor );
-				GL_state.Uniform.setUniformf( "lightRadius", MAX(l->rada, l->radb) * 1.25f );
+				GL_state.Uniform.setUniform( "diffuseLightColor", l->r * l->intensity * static_point_factor, l->g * l->intensity * static_point_factor, l->b * l->intensity * static_point_factor );
+				GL_state.Uniform.setUniform( "specLightColor", l->spec_r * l->intensity * static_point_factor, l->spec_g * l->intensity * static_point_factor, l->spec_b * l->intensity * static_point_factor );
+				GL_state.Uniform.setUniform( "lightRadius", MAX(l->rada, l->radb) * 1.25f );
 
 				/*float dist;
 				vec3d a;
@@ -3202,10 +3202,10 @@ void gr_opengl_deferred_lighting_finish()
 				gr_opengl_draw_deferred_light_sphere(&l->vec, MAX(l->rada, l->radb) * 1.28f);
 				break;
 			case LT_TUBE:
-				GL_state.Uniform.setUniform3f( "diffuseLightColor", l->r * l->intensity * static_tube_factor, l->g * l->intensity * static_tube_factor, l->b * l->intensity * static_tube_factor );
-				GL_state.Uniform.setUniform3f( "specLightColor", l->spec_r * l->intensity * static_tube_factor, l->spec_g * l->intensity * static_tube_factor, l->spec_b * l->intensity * static_tube_factor );
-				GL_state.Uniform.setUniformf( "lightRadius", l->radb * 1.5f );
-				GL_state.Uniform.setUniformi( "lightType", 1 );
+				GL_state.Uniform.setUniform( "diffuseLightColor", l->r * l->intensity * static_tube_factor, l->g * l->intensity * static_tube_factor, l->b * l->intensity * static_tube_factor );
+				GL_state.Uniform.setUniform( "specLightColor", l->spec_r * l->intensity * static_tube_factor, l->spec_g * l->intensity * static_tube_factor, l->spec_b * l->intensity * static_tube_factor );
+				GL_state.Uniform.setUniform( "lightRadius", l->radb * 1.5f );
+				GL_state.Uniform.setUniform( "lightType", 1 );
 			
 				vec3d a, b;
 				matrix orient;
@@ -3228,7 +3228,7 @@ void gr_opengl_deferred_lighting_finish()
 
 				glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 				gr_opengl_draw_deferred_light_cylinder(&l->vec2, &orient, l->radb * 1.53f, length);
-				GL_state.Uniform.setUniformi( "lightType", 0 );
+				GL_state.Uniform.setUniform( "lightType", 0 );
 				gr_opengl_draw_deferred_light_sphere(&l->vec, l->radb * 1.53f, false);
 				gr_opengl_draw_deferred_light_sphere(&l->vec2, l->radb * 1.53f, false);
 				glStencilOp(GL_ZERO, GL_ZERO, GL_ZERO);

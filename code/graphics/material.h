@@ -61,7 +61,7 @@ struct uniform_data
 	{
 		SCP_vector<T>& data = get_array<T>();
 
-		Assert(location < data.size());
+		Assert(location < (int)data.size());
 
 		data[location] = val;
 	}
@@ -73,7 +73,7 @@ struct uniform_data
 
 		int start_index = data.size();
 
-		for ( size_t i = 0; i < size; i++ ) {
+		for ( int i = 0; i < size; i++ ) {
 			data.push_back(val[i]);
 		}
 
@@ -85,7 +85,7 @@ struct uniform_data
 	{
 		SCP_vector<T>& data = get_array<T>();
 
-		Assert(location < data.size());
+		Assert(location < (int)data.size());
 
 		for (size_t i = 0; i < size; i++) {
 			// check to make sure we don't go out of bounds
@@ -192,12 +192,12 @@ struct uniform
 	}
 
 	template <class T>
-	void init(const SCP_string &name, T* val, int size)
+	void init(const SCP_string &init_name, T* val, int size)
 	{
 		name = init_name;
 		type = determine_type<T>();
 		count = size;
-		index = data_src->set_value(val, size);
+		index = data_src->set_values(val, size);
 	}
 
 	template <class T>
@@ -248,7 +248,7 @@ struct uniform
 
 		count = size;
 		uniform_type = type;
-		index = data_src->set_value(val, size);
+		index = data_src->set_values(val, size);
 
 		return true;
 	}
@@ -263,14 +263,13 @@ class uniform_block
 
 	int find_uniform(const SCP_string& name);
 public:
-	uniform_block(bool compare = false, uniform_data* data_store = NULL);
+	uniform_block(uniform_data* data_store = NULL);
 	~uniform_block();
 
 	template <class T> bool set_value(const SCP_string& name, const T& val)
 	{
 		Assert(Data_store != NULL);
 
-		uniform::data_type uniform_type = uniform::determine_type<T>();
 		int index = find_uniform(name);
 
 		if (index >= 0) {
@@ -290,7 +289,6 @@ public:
 	{
 		Assert(Data_store != NULL);
 
-		uniform::data_type uniform_type = uniform::determine_type<T>();
 		int index = find_uniform(name);
 
 		if (index >= 0) {

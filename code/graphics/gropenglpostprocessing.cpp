@@ -97,7 +97,7 @@ static bool opengl_post_pass_bloom()
 
 	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BRIGHTPASS, 0) );
 
-	GL_state.Uniform.setUniformi( "tex", 0 );
+	GL_state.Uniform.setUniform( "tex", 0 );
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
@@ -135,8 +135,8 @@ static bool opengl_post_pass_bloom()
 			opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_BLUR, SDR_FLAG_BLUR_HORIZONTAL) );
 		}
 
-		GL_state.Uniform.setUniformi( "tex", 0 );
-		GL_state.Uniform.setUniformf( "bsize", (pass) ? (float)width : (float)height );
+		GL_state.Uniform.setUniform( "tex", 0 );
+		GL_state.Uniform.setUniform( "bsize", (pass) ? (float)width : (float)height );
 
 		GL_state.Texture.Enable(Post_bloom_texture_id[pass]);
 
@@ -213,7 +213,7 @@ void opengl_post_pass_fxaa() {
 	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_POST_PROCESS_FXAA_PREPASS, 0) );
 
 	// basic/default uniforms
-	GL_state.Uniform.setUniformi( "tex", 0 );
+	GL_state.Uniform.setUniform( "tex", 0 );
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_luminance_texture, 0);
 
@@ -231,9 +231,9 @@ void opengl_post_pass_fxaa() {
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Scene_color_texture, 0);
 
 	// basic/default uniforms
-	GL_state.Uniform.setUniformi( "tex0", 0 );
-	GL_state.Uniform.setUniformf( "rt_w", static_cast<float>(Post_texture_width));
-	GL_state.Uniform.setUniformf( "rt_h", static_cast<float>(Post_texture_height));
+	GL_state.Uniform.setUniform( "tex0", 0 );
+	GL_state.Uniform.setUniform( "rt_w", static_cast<float>(Post_texture_width));
+	GL_state.Uniform.setUniform( "rt_h", static_cast<float>(Post_texture_height));
 
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
@@ -291,14 +291,14 @@ void gr_opengl_post_process_end()
 				
 				x = asin(vm_vec_dot( &light_dir, &Eye_matrix.vec.rvec ))/PI*1.5f+0.5f; //cant get the coordinates right but this works for the limited glare fov
 				y = asin(vm_vec_dot( &light_dir, &Eye_matrix.vec.uvec ))/PI*1.5f*gr_screen.clip_aspect+0.5f;
-				GL_state.Uniform.setUniform2f( "sun_pos", x, y);
-				GL_state.Uniform.setUniformi( "scene", 0);
-				GL_state.Uniform.setUniformi( "cockpit", 1);
-				GL_state.Uniform.setUniformf( "density", ls_density);
-				GL_state.Uniform.setUniformf( "falloff", ls_falloff);
-				GL_state.Uniform.setUniformf( "weight", ls_weight);
-				GL_state.Uniform.setUniformf( "intensity", Sun_spot * ls_intensity);
-				GL_state.Uniform.setUniformf( "cp_intensity", Sun_spot * ls_cpintensity);
+				GL_state.Uniform.setUniform( "sun_pos", x, y);
+				GL_state.Uniform.setUniform( "scene", 0);
+				GL_state.Uniform.setUniform( "cockpit", 1);
+				GL_state.Uniform.setUniform( "density", ls_density);
+				GL_state.Uniform.setUniform( "falloff", ls_falloff);
+				GL_state.Uniform.setUniform( "weight", ls_weight);
+				GL_state.Uniform.setUniform( "intensity", Sun_spot * ls_intensity);
+				GL_state.Uniform.setUniform( "cp_intensity", Sun_spot * ls_cpintensity);
 
 				GL_state.Texture.SetActiveUnit(0);
 				GL_state.Texture.SetTarget(GL_TEXTURE_2D);
@@ -355,16 +355,16 @@ void gr_opengl_post_process_end()
 	opengl_shader_set_current(post_sdr_handle);
 
 	// basic/default uniforms
-	GL_state.Uniform.setUniformi( "tex", 0 );
-	GL_state.Uniform.setUniformi( "depth_tex", 2);
-	GL_state.Uniform.setUniformf( "timer", static_cast<float>(timer_get_milliseconds() % 100 + 1) );
+	GL_state.Uniform.setUniform( "tex", 0 );
+	GL_state.Uniform.setUniform( "depth_tex", 2);
+	GL_state.Uniform.setUniform( "timer", static_cast<float>(timer_get_milliseconds() % 100 + 1) );
 
 	for (size_t idx = 0; idx < Post_effects.size(); idx++) {
 		if ( GL_shader[post_sdr_handle].flags & (1<<idx) ) {
 			const char *name = Post_effects[idx].uniform_name.c_str();
 			float value = Post_effects[idx].intensity;
 
-			GL_state.Uniform.setUniformf( name, value);
+			GL_state.Uniform.setUniform( name, value);
 		}
 	}
 
@@ -377,16 +377,16 @@ void gr_opengl_post_process_end()
 			intensity /= 3.0f;
 		}
 
-		GL_state.Uniform.setUniformf( "bloom_intensity", intensity );
+		GL_state.Uniform.setUniform( "bloom_intensity", intensity );
 
-		GL_state.Uniform.setUniformi( "bloomed", 1 );
+		GL_state.Uniform.setUniform( "bloomed", 1 );
 
 		GL_state.Texture.SetActiveUnit(1);
 		GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 		GL_state.Texture.Enable(Post_bloom_texture_id[2]);
 	}
 	else
-		GL_state.Uniform.setUniformf( "bloom_intensity", 0.0f );
+		GL_state.Uniform.setUniform( "bloom_intensity", 0.0f );
 
 	// now render it to the screen ...
 	vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT,0);

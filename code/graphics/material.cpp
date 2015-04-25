@@ -21,8 +21,8 @@ uint uniform_name_manager::get_id(const SCP_string &name)
 	return Num_names - 1;
 }
 
-uniform_block::uniform_block(bool _compare = false, uniform_data* _data_store = NULL):
-Compare(_compare), Data_store(_data_store)
+uniform_block::uniform_block(uniform_data* _data_store):
+Data_store(_data_store)
 {
 	if ( Data_store != NULL ) {
 		Local_data_store = false;
