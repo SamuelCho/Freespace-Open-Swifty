@@ -1294,19 +1294,6 @@ void opengl_array_state::BindUniformBuffer(GLuint id)
 	uniform_buffer = id;
 }
 
-opengl_uniform_state::opengl_uniform_state()
-{
-}
-
-void opengl_uniform_state::reset()
-{
-	for ( int i = 0; i < MAX_UNIFORM_LOCATIONS; ++i ) {
-		uniform_table[i] = uniform();
-	}
-
-	uniform_data_pool.clear();
-}
-
 void gr_opengl_clear_states()
 {
 	GL_state.Texture.DisableAll();

@@ -1,26 +1,5 @@
 #include "graphics/material.h"
 
-uniform_name_manager Uniform_name_lookup;
-
-uniform_name_manager::uniform_name_manager(): 
-Num_names(0)
-{
-}
-
-uint uniform_name_manager::get_id(const SCP_string &name)
-{
-	name_hash_map::iterator iter = Name_table.find(name);
-
-	if ( iter == Name_table.end() ) {
-		return iter->second;		
-	}
-
-	Name_table[name] = Num_names;
-	++Num_names;
-
-	return Num_names - 1;
-}
-
 uniform_block::uniform_block(uniform_data* _data_store):
 Data_store(_data_store)
 {

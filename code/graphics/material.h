@@ -4,20 +4,6 @@
 #include "globalincs/pstypes.h"
 #include "math/vecmat.h"
 
-class uniform_name_manager
-{
-	typedef SCP_hash_map<SCP_string, uint> name_hash_map;
-
-	uint Num_names;
-	name_hash_map Name_table;
-public:
-	uniform_name_manager();
-
-	uint get_id(const SCP_string &name);
-};
-
-extern uniform_name_manager Uniform_name_lookup;
-
 struct uniform_data
 {
 	// when adding a new data type to support, create a vector for it here
@@ -87,9 +73,9 @@ struct uniform_data
 
 		Assert(location < (int)data.size());
 
-		for (size_t i = 0; i < size; i++) {
+		for (int i = 0; i < size; i++) {
 			// check to make sure we don't go out of bounds
-			if ( location + i < data.size() ) {
+			if ( location + i < (int)data.size() ) {
 				data[location + i] = val[i];
 			} else {
 				data.push_back(val[i]);

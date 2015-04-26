@@ -290,9 +290,9 @@ class opengl_array_state
 
 class opengl_uniform_state
 {
-	uniform uniform_table[MAX_UNIFORM_LOCATIONS];
-
 	uniform_data uniform_data_pool;
+
+	SCP_map<SCP_string, uniform> uniform_lookup;
 	
 	template <class T> void setDeviceUniform(GLint uniform_location, const T& val);
 	template <class T> void setDeviceUniform(GLint uniform_location, T* val, int size);
@@ -327,8 +327,21 @@ class opengl_uniform_state
 		vglUniformMatrix4fvARB(uniform_location, size, GL_FALSE, (const GLfloat*)val);
 	}
 
+	uniform* findUniform(const SCP_string& name)
+	{
+		SCP_map<SCP_string, uniform>::iterator iter = uniform_lookup.find(name);
+
+		if ( iter == uniform_lookup.end() ) {
+			return NULL;
+		}
+
+		return &iter->second;
+	}
 public:
-	opengl_uniform_state();
+	opengl_uniform_state()
+	{
+		reset();
+	}
 
 	void setUniform(const SCP_string &name, float x, float y)
 	{
@@ -358,11 +371,16 @@ public:
 
 	template <class T> void setUniform(const SCP_string &name, const T& val)
 	{
-		GLint uniform_handle = opengl_shader_get_uniform(name.c_str());
-		uniform& current = uniform_table[uniform_handle];
+		GLint uniform_location = opengl_shader_get_uniform(name.c_str());
 
-		if ( current.data_src != NULL ) {
-			if (!current.update(val)) {
+		if ( uniform_location < 0 ) {
+			return;
+		}
+
+		uniform* ptr = findUniform(name);
+
+		if ( ptr != NULL ) {
+			if ( !ptr->update(val) ) {
 				return;
 			}
 		} else {
@@ -370,19 +388,24 @@ public:
 
 			u.init(name, val);
 
-			uniform_table[uniform_handle] = u;
+			uniform_lookup[name] = u;
 		}
 
-		setDeviceUniform(uniform_handle, val);
+		setDeviceUniform(uniform_location, val);
 	}
 
 	template <class T> void setUniform(const SCP_string &name, T* val, int size)
 	{
-		GLint uniform_handle = opengl_shader_get_uniform(name.c_str());
-		uniform& current = uniform_table[uniform_handle];
+		GLint uniform_location = opengl_shader_get_uniform(name.c_str());
 
-		if (current.data_src != NULL) {
-			if (!current.update(val, size)) {
+		if ( uniform_location < 0 ) {
+			return;
+		}
+
+		uniform* ptr = findUniform(name);
+
+		if ( ptr != NULL ) {
+			if ( !ptr->update(val, size) ) {
 				return;
 			}
 		}
@@ -391,13 +414,17 @@ public:
 
 			u.init(name, val, size);
 
-			uniform_table[uniform_handle] = u;
+			uniform_lookup[name] = u;
 		}
 
-		setDeviceUniform(uniform_handle, val, size);
+		setDeviceUniform(uniform_location, val, size);
 	}
 
-	void reset();
+	void reset()
+	{
+		uniform_data_pool.clear();
+		uniform_lookup.clear();
+	}
 };
 
 class opengl_state
