@@ -604,7 +604,7 @@ void draw_list::render_buffer(queued_buffer_draw &render_elements)
 
 	gr_set_transform_buffer_offset(render_elements.transform_buffer_offset);
 
-	gr_set_color_fast(&render_elements.clr);
+	gr_set_color_fast(&draw_state.clr);
 
 	gr_set_light_factor(draw_state.light_factor);
 

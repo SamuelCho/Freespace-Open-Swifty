@@ -1789,7 +1789,7 @@ void draw_model_rotating(model_render_params *render_info, int model_id, int x1,
 				if (time >= 1.5f) // Just clip the wireframe after Phase 1
 					render_info->set_clip_plane(plane_point,wire_normal);
 				
-				render_info->set_flags(flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS);
+				render_info->set_flags(flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_NO_TEXTURING | MR_NO_LIGHTING);
 
 				model_render_immediate(render_info, model_id, &model_orient, &vmd_zero_vector);
 			}
