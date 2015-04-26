@@ -1793,7 +1793,7 @@ char *Default_main_fragment_shader =
 "#endif\n"
 "\n"
 "#ifdef FLAG_FOG\n"
-"   baseColor.rgb = mix(baseColor.rgb, gl_Fog.color.rgb, fogDist);\n"
+"   baseColor.rgb = mix(baseColor.rgb, gl_Fog.color.rgb * ((blend_alpha == 1) ? baseColor.a : 1.0), fogDist);\n"
 "	specData.rgb *= fogDist;\n"
 "#endif\n"
 "\n"
