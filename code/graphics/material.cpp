@@ -1,40 +1,5 @@
 #include "graphics/material.h"
 
-uniform_block::uniform_block(uniform_data* _data_store):
-Data_store(_data_store)
-{
-	if ( Data_store != NULL ) {
-		Local_data_store = false;
-	} else {
-		// allocate our own data storage
-		Data_store = new uniform_data;
-		Local_data_store = true;
-	}
-}
-
-uniform_block::~uniform_block()
-{
-	if ( Local_data_store && Data_store != NULL ) {
-		delete Data_store;
-		Data_store = NULL;
-	}
-}
-
-int uniform_block::find_uniform(const SCP_string& name)
-{
-	size_t count = Uniforms.size();
-
-	for ( size_t i = 0; i < count; ++i ) {
-		uniform& u = Uniforms[i];
-
-		if ( u.name == name ) {
-			return i;
-		}
-	}
-
-	return -1;
-}
-
 material::material():
 shader_handle(-1) 
 {

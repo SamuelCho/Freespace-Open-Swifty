@@ -247,10 +247,39 @@ class uniform_block
 	uniform_data* Data_store;
 	bool Local_data_store;
 
-	int find_uniform(const SCP_string& name);
+	int find_uniform(const SCP_string& name)
+	{
+		size_t count = Uniforms.size();
+
+		for (size_t i = 0; i < count; ++i) {
+			uniform& u = Uniforms[i];
+
+			if (u.name == name) {
+				return i;
+			}
+		}
+
+		return -1;
+	}
 public:
-	uniform_block(uniform_data* data_store = NULL);
-	~uniform_block();
+	uniform_block(uniform_data* data_store = NULL)
+	{
+		if (Data_store != NULL) {
+			Local_data_store = false;
+		} else {
+			// allocate our own data storage
+			Data_store = new uniform_data;
+			Local_data_store = true;
+		}
+	}
+
+	~uniform_block()
+	{
+		if (Local_data_store && Data_store != NULL) {
+			delete Data_store;
+			Data_store = NULL;
+		}
+	}
 
 	template <class T> bool set_value(const SCP_string& name, const T& val)
 	{
