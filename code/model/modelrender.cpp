@@ -2850,7 +2850,7 @@ void model_render_queue(model_render_params *interp, draw_list *scene, int model
 		scene->set_zbias(0);
 	}
 
-	if ( GL_use_transform_buffer && !Cmdline_no_batching && !(model_flags & MR_NO_BATCH) && pm->flags & PM_FLAG_BATCHED 
+	if ( !Cmdline_no_batching && !(model_flags & MR_NO_BATCH) && pm->flags & PM_FLAG_BATCHED 
 		&& !(is_outlines_only || is_outlines_only_htl) ) {
 		// always set batched rendering on if supported
 		tmap_flags |= TMAP_FLAG_BATCH_TRANSFORMS;
