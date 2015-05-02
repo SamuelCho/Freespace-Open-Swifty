@@ -654,15 +654,12 @@ typedef struct screen {
 	void (*gf_clear_states)();
 
 	void (*gf_set_team_color)(team_color *colors);
-	void (*gf_enable_team_color)();
-	void (*gf_disable_team_color)();
 
 	void (*gf_update_texture)(int bitmap_handle, int bpp, ubyte* data, int width, int height);
 	void (*gf_get_bitmap_from_texture)(void* data_out, int bitmap_num);
 
-	void (*gf_start_shadow_map)(float neardist, float middist, float fardist);
-	void (*gf_end_shadow_map)();
-	void (*gf_clear_shadow_map)();
+	void (*gf_shadow_map_start)(matrix4 *shadow_view_matrix, matrix *light_matrix);
+	void (*gf_shadow_map_end)();
 } screen;
 
 // handy macro
@@ -993,14 +990,12 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_clear_states					GR_CALL(*gr_screen.gf_clear_states)
 
 #define gr_set_team_color				GR_CALL(*gr_screen.gf_set_team_color)
-#define gr_disable_team_color			GR_CALL(*gr_screen.gf_disable_team_color)
 
 #define gr_update_texture				GR_CALL(*gr_screen.gf_update_texture)
 #define gr_get_bitmap_from_texture		GR_CALL(*gr_screen.gf_get_bitmap_from_texture)
 
-#define gr_start_shadow_map				GR_CALL(*gr_screen.gf_start_shadow_map)
-#define gr_end_shadow_map				GR_CALL(*gr_screen.gf_end_shadow_map)
-#define gr_clear_shadow_map				GR_CALL(*gr_screen.gf_clear_shadow_map)
+#define gr_shadow_map_start				GR_CALL(*gr_screen.gf_shadow_map_start)
+#define gr_shadow_map_end				GR_CALL(*gr_screen.gf_shadow_map_end)
 
 // color functions
 void gr_get_color( int *r, int *g, int  b );
