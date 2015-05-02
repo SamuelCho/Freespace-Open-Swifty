@@ -73,8 +73,8 @@ static opengl_shader_type_t GL_shader_types[] = {
 		8, { "scene", "cockpit", "sun_pos", "weight", "intensity", "falloff", "density", "cp_intensity" }, 0, { NULL }, "Lightshafts" },
 
 	{ SDR_TYPE_DEFERRED_LIGHTING, "deferred-v.sdr", "deferred-f.sdr", 0, { 0, 0, 0 }, 
-		16, { "Scale", "ColorBuffer", "NormalBuffer", "PositionBuffer", "SpecBuffer", "vpwidth", "vpheight", "lighttype", "lightradius", "diffuselightcolor", 
-		"speclightcolor", "dual_cone", "coneDir", "cone_angle", "cone_inner_angle", "spec_factor" }, 0, { NULL }, "Deferred Lighting" },
+		16, { "scale", "ColorBuffer", "NormalBuffer", "PositionBuffer", "SpecBuffer", "invScreenWidth", "invScreenHeight", "lightType", "lightRadius", "diffuseLightColor", 
+		"specLightColor", "dualCone", "coneDir", "coneAngle", "coneInnerAngle", "specFactor" }, 0, { NULL }, "Deferred Lighting" },
 	
 	{ SDR_TYPE_DEFERRED_CLEAR, "deferred-clear-v.sdr", "deferred-clear-f.sdr", 0, {0, 0, 0}, 
 		0, { NULL }, 0, { NULL }, "Clear Deferred Lighting Buffer" },
@@ -309,7 +309,9 @@ static char *opengl_load_shader(shader_type type_id, char *filename, int flags)
 {
 	SCP_string sflags;
 
+#ifdef __APPLE__
     sflags += "#version 120\n";
+#endif
     
 	if (Use_GLSL >= 4) {
 		sflags += "#define SHADER_MODEL 4\n";
@@ -948,9 +950,9 @@ void opengl_shader_compile_deferred_light_shader()
 		GL_state.Uniform.setUniformi("NormalBuffer", 1);
 		GL_state.Uniform.setUniformi("PositionBuffer", 2);
 		GL_state.Uniform.setUniformi("SpecBuffer", 3);
-		GL_state.Uniform.setUniformf("vpwidth", 1.0f / gr_screen.max_w);
-		GL_state.Uniform.setUniformf("vpheight", 1.0f / gr_screen.max_h);
-		GL_state.Uniform.setUniformf("spec_factor", Cmdline_ogl_spec);
+		GL_state.Uniform.setUniformf("invScreenWidth", 1.0f / gr_screen.max_w);
+		GL_state.Uniform.setUniformf("invScreenHeight", 1.0f / gr_screen.max_h);
+		GL_state.Uniform.setUniformf("specFactor", Cmdline_ogl_spec);
 	} else {
 		opengl_shader_set_current();
 		mprintf(("Failed to compile deferred lighting shader!\n"));

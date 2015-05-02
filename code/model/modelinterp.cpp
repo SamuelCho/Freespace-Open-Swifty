@@ -2911,7 +2911,7 @@ void model_render_glow_points_DEPRECATED(polymodel *pm, ship *shipp, matrix *ori
 
 void light_set_all_relevent();
 extern int Warp_model;
-extern bool in_shadow_map;
+extern bool Rendering_to_shadow_map;
 
 void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags, int render, int objnum )
 {
@@ -3212,7 +3212,7 @@ void model_really_render(int model_num, matrix *orient, vec3d * pos, uint flags,
 
 	// Draw the subobjects	
 	i = pm->submodel[pm->detail[Interp_detail_level]].first_child;
-	if(in_shadow_map)
+	if(Rendering_to_shadow_map)
 		gr_zbias(-1024);
 	else
 		gr_zbias(0);
@@ -3479,7 +3479,7 @@ void submodel_render_DEPRECATED(int model_num, int submodel_num, matrix *orient,
 			neb2_get_fog_color(&r, &g, &b);
 			gr_fog_set(GR_FOGMODE_FOG, r, g, b, fog_near, fog_far);
 		}
-		if(in_shadow_map)
+		if(Rendering_to_shadow_map)
 			gr_zbias(-1024);
 		else
 			gr_zbias(0);

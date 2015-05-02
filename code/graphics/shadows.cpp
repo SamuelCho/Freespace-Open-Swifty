@@ -23,97 +23,46 @@
 
 extern vec3d check_offsets[8];
 
-light_frustum_info shadow_frustums[4];
+matrix4 Shadow_view_matrix;
+matrix4 Shadow_proj_matrix[MAX_SHADOW_CASCADES];
+float Shadow_cascade_distances[MAX_SHADOW_CASCADES];
 
-bool shadows_obj_in_frustum(object *objp, matrix *light_orient, light_frustum_info *shadow_frustum)
+light_frustum_info Shadow_frustums[MAX_SHADOW_CASCADES];
+
+bool shadows_obj_in_frustum(object *objp, matrix *light_orient, vec3d *min, vec3d *max)
 {
 	int i;
 	vec3d pts[8], tmp, pt, pos_lightspace, pos_viewspace;
 	vec3d obj_min = ZERO_VECTOR;
 	vec3d obj_max = ZERO_VECTOR;
-	vec3d &min = shadow_frustum->min;
-	vec3d &max = shadow_frustum->max;
-
-// 	vm_vec_sub(&tmp, &objp->pos, &View_position);
-// 	vm_vec_unrotate(&pos_lightspace, &tmp, light_orient);
 
 	vec3d pos, pos_rot;
 
 	vm_vec_sub(&pos, &objp->pos, &Eye_position);
 	vm_vec_rotate(&pos_rot, &pos, light_orient);
 
-	if((pos_rot.xyz.x - objp->radius) > max.xyz.x || (pos_rot.xyz.x + objp->radius) < min.xyz.x || (pos_rot.xyz.y - objp->radius) > max.xyz.y || (pos_rot.xyz.y + objp->radius) < min.xyz.y || (pos_rot.xyz.z - objp->radius) > max.xyz.z)
+	if ( (pos_rot.xyz.x - objp->radius) > max->xyz.x 
+		|| (pos_rot.xyz.x + objp->radius) < min->xyz.x 
+		|| (pos_rot.xyz.y - objp->radius) > max->xyz.y 
+		|| (pos_rot.xyz.y + objp->radius) < min->xyz.y 
+		|| (pos_rot.xyz.z - objp->radius) > max->xyz.z ) {
 		return false;
-
-// 	for ( i = 0; i < 8; i++ ) {
-// 		vm_vec_scale_add(&pt, &pos_lightspace, &check_offsets[i], objp->radius);
-// 
-// 		// first point, set it as max and min
-// 		if ( i == 0 ) {
-// 			obj_min = pt;
-// 			obj_max = pt;
-// 		} else {
-// 			if ( pt.xyz.x < obj_min.xyz.x ) {
-// 				obj_min.xyz.x = pt.xyz.x;
-// 			}
-// 			
-// 			if ( pt.xyz.x > obj_max.xyz.x ) {
-// 				obj_max.xyz.x = pt.xyz.x;
-// 			}
-// 
-// 			if ( pt.xyz.y < obj_min.xyz.y ) {
-// 				obj_min.xyz.y = pt.xyz.y;
-// 			}
-// 			
-// 			if ( pt.xyz.y > obj_max.xyz.y ) {
-// 				obj_max.xyz.y = pt.xyz.y;
-// 			}
-// 
-// 			if ( pt.xyz.z < obj_min.xyz.z ) {
-// 				obj_min.xyz.z = pt.xyz.z;
-// 			}
-// 			
-// 			if ( pt.xyz.z > obj_max.xyz.z ) {
-// 				obj_max.xyz.z = pt.xyz.z;
-// 			}
-// 		}
-// 	}
-// 
-// 	// check to see if the AABB of the object in light space intersects the light frustum
-// 	if ( obj_min.xyz.x > max.xyz.x || obj_max.xyz.x < min.xyz.x ) return false;
-// 	if ( obj_min.xyz.y > max.xyz.y || obj_max.xyz.y < min.xyz.y ) return false;
-// 	if ( obj_min.xyz.z > max.xyz.z || obj_max.xyz.z < min.xyz.z ) return false;
+	}
 
 	return true;
 }
 
 void shadows_construct_light_proj(light_frustum_info *shadow_data)
 {
-	memset(shadow_data->proj_matrix, 0, sizeof(float) * 16);
+	memset(&shadow_data->proj_matrix, 0, sizeof(matrix4));
 
-// 	shadow_data->proj_matrix[0] = 2.0f / ( -1.0f - 1.0f );
-// 	shadow_data->proj_matrix[5] = 2.0f / ( 1.0f - -1.0f );
-// 	shadow_data->proj_matrix[10] = -2.0f / ( Max_draw_distance - Min_draw_distance );
-// 	shadow_data->proj_matrix[12] = -(-1.0f + 1.0f) / ( -1.0f - 1.0f );
-// 	shadow_data->proj_matrix[13] = -(1.0f + -1.0f) / ( 1.0f - -1.0f  );
-// 	shadow_data->proj_matrix[14] = -(Max_draw_distance + Min_draw_distance) / ( Max_draw_distance - Min_draw_distance );
-// 	shadow_data->proj_matrix[15] = 1.0f;
-
-// 	shadow_data->proj_matrix[0] = 1.0f;
-// 	shadow_data->proj_matrix[5] = 1.0f;
-// 	shadow_data->proj_matrix[10] = 1.0f;
-// 	shadow_data->proj_matrix[12] = 1.0f;
-// 	shadow_data->proj_matrix[13] = 1.0f;
-// 	shadow_data->proj_matrix[14] = 1.0f;
-// 	shadow_data->proj_matrix[15] = 1.0f;
-
-	shadow_data->proj_matrix[0] = 2.0f / ( shadow_data->max.xyz.x - shadow_data->min.xyz.x );
-	shadow_data->proj_matrix[5] = 2.0f / ( shadow_data->max.xyz.y - shadow_data->min.xyz.y );
-	shadow_data->proj_matrix[10] = -2.0f / ( shadow_data->max.xyz.z - shadow_data->min.xyz.z );
-	shadow_data->proj_matrix[12] = -(shadow_data->max.xyz.x + shadow_data->min.xyz.x) / ( shadow_data->max.xyz.x - shadow_data->min.xyz.x );
-	shadow_data->proj_matrix[13] = -(shadow_data->max.xyz.y + shadow_data->min.xyz.y) / ( shadow_data->max.xyz.y - shadow_data->min.xyz.y );
-	shadow_data->proj_matrix[14] = -(shadow_data->max.xyz.z + shadow_data->min.xyz.z) / ( shadow_data->max.xyz.z - shadow_data->min.xyz.z );
-	shadow_data->proj_matrix[15] = 1.0f;
+	shadow_data->proj_matrix.a1d[0] = 2.0f / ( shadow_data->max.xyz.x - shadow_data->min.xyz.x );
+	shadow_data->proj_matrix.a1d[5] = 2.0f / ( shadow_data->max.xyz.y - shadow_data->min.xyz.y );
+	shadow_data->proj_matrix.a1d[10] = -2.0f / ( shadow_data->max.xyz.z - shadow_data->min.xyz.z );
+	shadow_data->proj_matrix.a1d[12] = -(shadow_data->max.xyz.x + shadow_data->min.xyz.x) / ( shadow_data->max.xyz.x - shadow_data->min.xyz.x );
+	shadow_data->proj_matrix.a1d[13] = -(shadow_data->max.xyz.y + shadow_data->min.xyz.y) / ( shadow_data->max.xyz.y - shadow_data->min.xyz.y );
+	shadow_data->proj_matrix.a1d[14] = -(shadow_data->max.xyz.z + shadow_data->min.xyz.z) / ( shadow_data->max.xyz.z - shadow_data->min.xyz.z );
+	shadow_data->proj_matrix.a1d[15] = 1.0f;
 }
 
 void shadows_debug_show_frustum(matrix* orient, vec3d *pos, float fov, float aspect, float z_near, float z_far)
@@ -243,153 +192,6 @@ void shadows_debug_show_frustum(matrix* orient, vec3d *pos, float fov, float asp
 	g3_draw_htl_line(&far_top_right, &far_bottom_right);
 	g3_draw_htl_line(&far_bottom_right, &far_bottom_left);
 	g3_draw_htl_line(&far_bottom_left, &far_top_left);
-
-	vec3d frustum_pts[8];
-
-	// bring frustum points into light space
-// 	vm_vec_unrotate(&frustum_pts[0], &near_bottom_left, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[1], &near_bottom_right, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[2], &near_top_right, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[3], &near_top_left, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[4], &far_top_left, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[5], &far_top_right, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[6], &far_bottom_right, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[7], &far_bottom_left, light_matrix);
-
-	frustum_pts[0] = near_bottom_left;
-	frustum_pts[1] = near_bottom_right;
-	frustum_pts[2] = near_top_right;
-	frustum_pts[3] = near_top_left;
-	frustum_pts[4] = far_top_left;
-	frustum_pts[5] = far_top_right;
-	frustum_pts[6] = far_bottom_right;
-	frustum_pts[7] = far_bottom_left;
-
-	vec3d min = ZERO_VECTOR;
-	vec3d max = ZERO_VECTOR;
-
-	// find min and max of frustum points
-	for ( int i = 0; i < 8; ++i ) {
-		if ( i == 0 ) {
-			min = frustum_pts[i];
-			max = frustum_pts[i];
-		} else {
-			if ( frustum_pts[i].xyz.x < min.xyz.x ) {
-				min.xyz.x = frustum_pts[i].xyz.x;
-			} 
-
-			if ( frustum_pts[i].xyz.x > max.xyz.x ) {
-				max.xyz.x = frustum_pts[i].xyz.x;
-			}
-
-			if ( frustum_pts[i].xyz.y < min.xyz.y ) {
-				min.xyz.y = frustum_pts[i].xyz.y;
-			} 
-
-			if ( frustum_pts[i].xyz.y > max.xyz.y ) {
-				max.xyz.y = frustum_pts[i].xyz.y;
-			}
-
-			if ( frustum_pts[i].xyz.z < min.xyz.z ) {
-				min.xyz.z = frustum_pts[i].xyz.z;
-			} 
-
-			if ( frustum_pts[i].xyz.z > max.xyz.z ) {
-				max.xyz.z = frustum_pts[i].xyz.z;
-			}
-		}
-	}
-	
-	vec3d pnt;
-	vec3d pnt2;
-
-	pnt.xyz.x = min.xyz.x;
-	pnt.xyz.y = min.xyz.y;
-	pnt.xyz.z = min.xyz.z;
-
-	pnt2.xyz.x = max.xyz.x;
-	pnt2.xyz.y = min.xyz.y;
-	pnt2.xyz.z = min.xyz.z;
-
-// 	g3_draw_htl_line(&pnt, &pnt2);
-// 
-// 	pnt.xyz.x = max.xyz.x;
-// 	pnt.xyz.y = max.xyz.y;
-// 	pnt.xyz.z = min.xyz.z;
-// 
-// 	g3_draw_htl_line(&pnt2, &pnt);
-// 
-// 	pnt2.xyz.x = min.xyz.x;
-// 	pnt2.xyz.y = max.xyz.y;
-// 	pnt2.xyz.z = min.xyz.z;
-// 
-// 	g3_draw_htl_line(&pnt, &pnt2);
-// 
-// 	pnt.xyz.x = max.xyz.x;
-// 	pnt.xyz.y = max.xyz.y;
-// 	pnt.xyz.z = max.xyz.z;
-// 
-// 	g3_draw_htl_line(&pnt, &pnt2);
-// 
-// 	pnt2.xyz.x = min.xyz.x;
-// 	pnt2.xyz.y = max.xyz.y;
-// 	pnt2.xyz.z = max.xyz.z;
-// 
-// 	g3_draw_htl_line(&pnt, &pnt2);
-// 
-// 	pnt.xyz.x = min.xyz.x;
-// 	pnt.xyz.y = min.xyz.y;
-// 	pnt.xyz.z = max.xyz.z;
-// 
-// 	g3_draw_htl_line(&pnt, &pnt2);
-// 
-// 	pnt2.xyz.x = max.xyz.x;
-// 	pnt2.xyz.y = min.xyz.y;
-// 	pnt2.xyz.z = max.xyz.z;
-// 
-// 	g3_draw_htl_line(&pnt, &pnt2);
-// 
-// 	pnt.xyz.x = max.xyz.x;
-// 	pnt.xyz.y = max.xyz.y;
-// 	pnt.xyz.z = max.xyz.z;
-// 
-// 	g3_draw_htl_line(&pnt, &pnt2);
-// 
-// 	pnt2.xyz.x = max.xyz.x;
-// 	pnt2.xyz.y = min.xyz.y;
-// 	pnt2.xyz.z = min.xyz.z;
-// 
-// 	g3_draw_htl_line(&pnt, &pnt2);
-// 
-// 	pnt2.xyz.x = max.xyz.x;
-// 	pnt2.xyz.y = max.xyz.y;
-// 	pnt2.xyz.z = min.xyz.z;
-// 
-// 	pnt.xyz.x = max.xyz.x;
-// 	pnt.xyz.y = min.xyz.y;
-// 	pnt.xyz.z = max.xyz.z;
-// 
-// 	g3_draw_htl_line(&pnt, &pnt2);
-// 
-// 	pnt2.xyz.x = max.xyz.x;
-// 	pnt2.xyz.y = max.xyz.y;
-// 	pnt2.xyz.z = max.xyz.z;
-// 
-// 	pnt.xyz.x = max.xyz.x;
-// 	pnt.xyz.y = min.xyz.y;
-// 	pnt.xyz.z = max.xyz.z;
-// 
-// 	g3_draw_htl_line(&pnt, &pnt2);
-// 
-// 	pnt2.xyz.x = max.xyz.x;
-// 	pnt2.xyz.y = max.xyz.y;
-// 	pnt2.xyz.z = max.xyz.z;
-// 
-// 	pnt.xyz.x = min.xyz.x;
-// 	pnt.xyz.y = min.xyz.y;
-// 	pnt.xyz.z = min.xyz.z;
-// 
-// 	g3_draw_htl_line(&pnt, &pnt2);
 }
 
 void shadows_construct_light_frustum(light_frustum_info *shadow_data, matrix *light_matrix, matrix *orient, vec3d *pos, float fov, float aspect, float z_near, float z_far)
@@ -499,29 +301,10 @@ void shadows_construct_light_frustum(light_frustum_info *shadow_data, matrix *li
 
 	vm_vec_add(&far_bottom_right, &up_scale, &right_scale);
 	vm_vec_add2(&far_bottom_right, &forward_scale_far);
-
-	// translate frustum
-// 	vm_vec_add2(&near_bottom_left, pos);
-// 	vm_vec_add2(&near_bottom_right, pos);
-// 	vm_vec_add2(&near_top_right, pos);
-// 	vm_vec_add2(&near_top_left, pos);
-// 	vm_vec_add2(&far_top_left, pos);
-// 	vm_vec_add2(&far_top_right, pos);
-// 	vm_vec_add2(&far_bottom_right, pos);
-// 	vm_vec_add2(&far_bottom_left, pos);
 	
 	vec3d frustum_pts[8];
 
 	// bring frustum points into light space
-// 	vm_vec_unrotate(&frustum_pts[0], &near_bottom_left, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[1], &near_bottom_right, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[2], &near_top_right, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[3], &near_top_left, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[4], &far_top_left, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[5], &far_top_right, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[6], &far_bottom_right, light_matrix);
-// 	vm_vec_unrotate(&frustum_pts[7], &far_bottom_left, light_matrix);
-
 	vm_vec_rotate(&frustum_pts[0], &near_bottom_left, light_matrix);
 	vm_vec_rotate(&frustum_pts[1], &near_bottom_right, light_matrix);
 	vm_vec_rotate(&frustum_pts[2], &near_top_right, light_matrix);
@@ -531,74 +314,38 @@ void shadows_construct_light_frustum(light_frustum_info *shadow_data, matrix *li
 	vm_vec_rotate(&frustum_pts[6], &far_bottom_right, light_matrix);
 	vm_vec_rotate(&frustum_pts[7], &far_bottom_left, light_matrix);
 
-// 	frustum_pts[0] = near_bottom_left;
-// 	frustum_pts[1] = near_bottom_right;
-// 	frustum_pts[2] = near_top_right;
-// 	frustum_pts[3] = near_top_left;
-// 	frustum_pts[4] = far_top_left;
-// 	frustum_pts[5] = far_top_right;
-// 	frustum_pts[6] = far_bottom_right;
-// 	frustum_pts[7] = far_bottom_left;
-
 	vec3d min = ZERO_VECTOR;
 	vec3d max = ZERO_VECTOR;
 
+	min = frustum_pts[0];
+	max = frustum_pts[0];
+
 	// find min and max of frustum points
-	for ( int i = 0; i < 8; ++i ) {
-		if ( i == 0 ) {
-			min = frustum_pts[i];
-			max = frustum_pts[i];
-		} else {
-			if ( frustum_pts[i].xyz.x < min.xyz.x ) {
-				min.xyz.x = frustum_pts[i].xyz.x;
-			} 
+	for (int i = 0; i < 8; ++i) {
+		if ( frustum_pts[i].xyz.x < min.xyz.x ) {
+			min.xyz.x = frustum_pts[i].xyz.x;
+		}
 
-			if ( frustum_pts[i].xyz.x > max.xyz.x ) {
-				max.xyz.x = frustum_pts[i].xyz.x;
-			}
+		if ( frustum_pts[i].xyz.x > max.xyz.x ) {
+			max.xyz.x = frustum_pts[i].xyz.x;
+		}
 
-			if ( frustum_pts[i].xyz.y < min.xyz.y ) {
-				min.xyz.y = frustum_pts[i].xyz.y;
-			} 
+		if ( frustum_pts[i].xyz.y < min.xyz.y ) {
+			min.xyz.y = frustum_pts[i].xyz.y;
+		}
 
-			if ( frustum_pts[i].xyz.y > max.xyz.y ) {
-				max.xyz.y = frustum_pts[i].xyz.y;
-			}
+		if ( frustum_pts[i].xyz.y > max.xyz.y ) {
+			max.xyz.y = frustum_pts[i].xyz.y;
+		}
 
-			if ( frustum_pts[i].xyz.z < min.xyz.z ) {
-				min.xyz.z = frustum_pts[i].xyz.z;
-			} 
+		if ( frustum_pts[i].xyz.z < min.xyz.z ) {
+			min.xyz.z = frustum_pts[i].xyz.z;
+		}
 
-			if ( frustum_pts[i].xyz.z > max.xyz.z ) {
-				max.xyz.z = frustum_pts[i].xyz.z;
-			}
+		if ( frustum_pts[i].xyz.z > max.xyz.z ) {
+			max.xyz.z = frustum_pts[i].xyz.z;
 		}
 	}
-
-// 	vec3d light_pos;
-// 	
-// 	light_pos.xyz.x = (max.xyz.x - min.xyz.x)*0.5f;
-// 	light_pos.xyz.y = (max.xyz.y - min.xyz.y)*0.5f;
-// 	light_pos.xyz.z = min.xyz.z;
-// 
-// 	vm_vec_rotate(&shadow_data->view_position, &light_pos, light_matrix);
-// 
-// 	min.xyz.x = min.xyz.x - light_pos.xyz.x;
-// 	max.xyz.x = max.xyz.x - light_pos.xyz.x;
-// 
-// 	min.xyz.y = min.xyz.y - light_pos.xyz.y;
-// 	min.xyz.y = max.xyz.y - light_pos.xyz.y;
-// 
-// 	min.xyz.z = min.xyz.z - light_pos.xyz.z;
-// 	max.xyz.z = max.xyz.z - light_pos.xyz.z;
-
-// 	min.xyz.x = -1.0f;
-// 	min.xyz.y = -1.0f;
-// 	min.xyz.z = Min_draw_distance;
-// 
-// 	max.xyz.x = 1.0f;
-// 	max.xyz.y = 1.0f;
-// 	max.xyz.z = Max_draw_distance;
 
 	shadow_data->min = min;
 	shadow_data->max = max;
@@ -623,27 +370,29 @@ matrix shadows_start_render(matrix *eye_orient, vec3d *eye_pos, float fov, float
 	vm_vec_copy_normalize(&light_dir, &lp->vec);
 	vm_vector_2_matrix(&light_matrix, &light_dir, &eye_orient->vec.uvec, NULL);
 
-	shadow_veryneardist = veryneardist;
-	shadow_neardist = neardist;
-	shadow_middist = middist;
-	shadow_fardist = fardist;
-
-	shadows_construct_light_frustum(&shadow_frustums[0], &light_matrix, eye_orient, eye_pos, fov, aspect, 0.0f, veryneardist);
-
-	shadows_construct_light_frustum(&shadow_frustums[1], &light_matrix, eye_orient, eye_pos, fov, aspect, veryneardist - (veryneardist - 0.0f)* 0.2f, neardist);
-
-	shadows_construct_light_frustum(&shadow_frustums[2], &light_matrix, eye_orient, eye_pos, fov, aspect, neardist - (neardist - veryneardist) * 0.2f, middist);
-
-	shadows_construct_light_frustum(&shadow_frustums[3], &light_matrix, eye_orient, eye_pos, fov, aspect, middist - (middist - neardist) * 0.2f, fardist);
+	shadows_construct_light_frustum(&Shadow_frustums[0], &light_matrix, eye_orient, eye_pos, fov, aspect, 0.0f, veryneardist);
+	shadows_construct_light_frustum(&Shadow_frustums[1], &light_matrix, eye_orient, eye_pos, fov, aspect, veryneardist - (veryneardist - 0.0f)* 0.2f, neardist);
+	shadows_construct_light_frustum(&Shadow_frustums[2], &light_matrix, eye_orient, eye_pos, fov, aspect, neardist - (neardist - veryneardist) * 0.2f, middist);
+	shadows_construct_light_frustum(&Shadow_frustums[3], &light_matrix, eye_orient, eye_pos, fov, aspect, middist - (middist - neardist) * 0.2f, fardist);
 	
-	gr_opengl_shadow_map_start(&light_matrix, &shadow_frustums[0], &shadow_frustums[1], &shadow_frustums[2], &shadow_frustums[3]);
+	Shadow_cascade_distances[0] = veryneardist;
+	Shadow_cascade_distances[1] = neardist;
+	Shadow_cascade_distances[2] = middist;
+	Shadow_cascade_distances[3] = fardist;
+
+	Shadow_proj_matrix[0] = Shadow_frustums[0].proj_matrix;
+	Shadow_proj_matrix[1] = Shadow_frustums[1].proj_matrix;
+	Shadow_proj_matrix[2] = Shadow_frustums[2].proj_matrix;
+	Shadow_proj_matrix[3] = Shadow_frustums[3].proj_matrix;
+
+	gr_shadow_map_start(&Shadow_view_matrix, &light_matrix);
 
 	return light_matrix;
 }
 
 void shadows_end_render()
 {
-	gr_opengl_end_shadow_map();
+	gr_shadow_map_end();
 }
 
 void shadows_render_all(float fov, matrix *eye_orient, vec3d *eye_pos)
@@ -673,8 +422,8 @@ void shadows_render_all(float fov, matrix *eye_orient, vec3d *eye_pos)
 	for ( int i = 0; i <= Highest_object_index; i++, objp++ ) {
 		bool cull = true;
 
-		for ( int j = 0; j < 4; ++j ) {
-			if ( shadows_obj_in_frustum(objp, &light_matrix, &shadow_frustums[j]) ) {
+		for ( int j = 0; j < MAX_SHADOW_CASCADES; ++j ) {
+			if ( shadows_obj_in_frustum(objp, &light_matrix, &Shadow_frustums[j].min, &Shadow_frustums[j].max) ) {
 				cull = false;
 				break;
 			}

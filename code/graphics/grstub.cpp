@@ -742,24 +742,14 @@ void gr_stub_set_animated_effect(int effect, float timer)
 
 }
 
-void gr_stub_start_shadow_map(float neardist, float middist, float fardist)
-{
-}
-
 void gr_stub_set_team_color(team_color *colors) {
 }
 
-void gr_stub_enable_team_color() {
-}
-
-void gr_stub_disable_team_color() {
-}
-
-void gr_stub_end_shadow_map()
+void gr_stub_shadow_map_start(matrix4 *shadow_view_matrix, matrix* light_matrix)
 {
 }
 
-void gr_stub_clear_shadow_map()
+void gr_stub_shadow_map_end()
 {
 }
 
@@ -949,9 +939,8 @@ bool gr_stub_init()
 	gr_screen.gf_line_htl			= gr_stub_draw_htl_line;
 	gr_screen.gf_sphere_htl			= gr_stub_draw_htl_sphere;
 
-	gr_screen.gf_start_shadow_map	= gr_stub_start_shadow_map;
-	gr_screen.gf_end_shadow_map		= gr_stub_end_shadow_map;
-	gr_screen.gf_clear_shadow_map	= gr_stub_clear_shadow_map;
+	gr_screen.gf_shadow_map_start	= gr_stub_shadow_map_start;
+	gr_screen.gf_shadow_map_end		= gr_stub_shadow_map_end;
 
 	gr_screen.gf_maybe_create_shader = gr_stub_maybe_create_shader;
 
@@ -960,8 +949,6 @@ bool gr_stub_init()
 	gr_screen.gf_clear_states	= gr_stub_clear_states;
 
 	gr_screen.gf_set_team_color		= gr_stub_set_team_color;
-	gr_screen.gf_enable_team_color  = gr_stub_enable_team_color;
-	gr_screen.gf_disable_team_color = gr_stub_disable_team_color;
 
 	gr_screen.gf_update_texture = gr_stub_update_texture;
 	gr_screen.gf_get_bitmap_from_texture = gr_stub_get_bitmap_from_texture;

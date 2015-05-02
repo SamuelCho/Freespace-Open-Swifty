@@ -2495,8 +2495,7 @@ void model_load_texture(polymodel *pm, int i, char *file)
 	gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT);
 	gr_maybe_create_shader(SDR_TYPE_MODEL, shader_flags | SDR_FLAG_MODEL_LIGHT | SDR_FLAG_MODEL_FOG);
 	
-	extern bool GL_use_transform_buffer;
-	if( !Cmdline_no_batching && GL_use_transform_buffer && Use_GLSL >= 3 ) {
+	if( !Cmdline_no_batching && Use_GLSL >= 3 ) {
 		shader_flags &= ~SDR_FLAG_MODEL_DEFERRED;
 		shader_flags |= SDR_FLAG_MODEL_TRANSFORM;
 
