@@ -86,7 +86,6 @@ team_color* Current_team_color;
 team_color Current_temp_color;
 bool Using_Team_Color = false;
 
-bool GL_use_transform_buffer = false;
 int GL_transform_buffer_offset = -1;
 
 GLuint Shadow_map_texture = 0;
@@ -627,8 +626,8 @@ void opengl_tnl_init()
 
 	Transform_buffer_handle = opengl_create_texture_buffer_object();
 
-	if ( Transform_buffer_handle >= 0 && !Cmdline_no_batching ) {
-		GL_use_transform_buffer = true;
+	if ( Transform_buffer_handle < 0 ) {
+		Cmdline_no_batching = true;
 	}
 
 	if(Cmdline_shadow_quality)

@@ -31,8 +31,6 @@ extern float shadow_middist;
 extern float shadow_fardist;
 extern bool Rendering_to_shadow_map;
 
-extern bool GL_use_transform_buffer;
-
 void gr_opengl_start_instance_matrix(vec3d *offset, matrix *rotation);
 void gr_opengl_start_instance_angles(vec3d *pos, angles *rotation);
 void gr_opengl_end_instance_matrix();
