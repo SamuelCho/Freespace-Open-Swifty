@@ -7,6 +7,8 @@
  *
 */ 
 
+#include <algorithm>
+
 #include "globalincs/pstypes.h"
 #include "io/timer.h"
 #include "math/vecmat.h"
@@ -78,37 +80,37 @@ model_render_params::model_render_params():
 	}
 }
 
-const uint model_render_params::get_model_flags()
+uint model_render_params::get_model_flags()
 {
 	return Model_flags; 
 }
 
-const uint model_render_params::get_debug_flags()
+uint model_render_params::get_debug_flags()
 {
 	return Debug_flags;
 }
 
-const int model_render_params::get_object_number()
+int model_render_params::get_object_number()
 { 
 	return Objnum; 
 }
 
-const int model_render_params::get_detail_level_lock()
+int model_render_params::get_detail_level_lock()
 { 
 	return Detail_level_locked; 
 }
 
-const float model_render_params::get_depth_scale()
+float model_render_params::get_depth_scale()
 { 
 	return Depth_scale; 
 }
 
-const int model_render_params::get_warp_bitmap()
+int model_render_params::get_warp_bitmap()
 { 
 	return Warp_bitmap; 
 }
 
-const float model_render_params::get_warp_alpha()
+float model_render_params::get_warp_alpha()
 { 
 	return Warp_alpha; 
 }
@@ -122,17 +124,17 @@ const color& model_render_params::get_outline_color()
 { 
 	return Outline_color; 
 }
-const float model_render_params::get_alpha()
+float model_render_params::get_alpha()
 { 
 	return Xparent_alpha; 
 }
 
-const int model_render_params::get_forced_bitmap()
+int model_render_params::get_forced_bitmap()
 { 
 	return Forced_bitmap; 
 }
 
-const int model_render_params::get_insignia_bitmap()
+int model_render_params::get_insignia_bitmap()
 { 
 	return Insignia_bitmap; 
 }
@@ -157,12 +159,12 @@ const vec3d& model_render_params::get_clip_plane_normal()
 	return Clip_normal; 
 }
 
-const int model_render_params::get_animated_effect_num()
+int model_render_params::get_animated_effect_num()
 { 
 	return Animated_effect; 
 }
 
-const float model_render_params::get_animated_effect_timer()
+float model_render_params::get_animated_effect_timer()
 { 
 	return Animated_timer; 
 }
@@ -513,6 +515,7 @@ void draw_list::add_buffer_draw(vertex_buffer *buffer, int texi, uint tmap_flags
 	draw_data.texture_maps[TM_BASE_TYPE] = Current_textures[TM_BASE_TYPE];
 	draw_data.texture_maps[TM_GLOW_TYPE] = Current_textures[TM_GLOW_TYPE];
 	draw_data.texture_maps[TM_SPECULAR_TYPE] = Current_textures[TM_SPECULAR_TYPE];
+	draw_data.texture_maps[TM_SPEC_GLOSS_TYPE] = Current_textures[TM_SPEC_GLOSS_TYPE];
 	draw_data.texture_maps[TM_NORMAL_TYPE] = Current_textures[TM_NORMAL_TYPE];
 	draw_data.texture_maps[TM_HEIGHT_TYPE] = Current_textures[TM_HEIGHT_TYPE];
 	draw_data.texture_maps[TM_MISC_TYPE] = Current_textures[TM_MISC_TYPE];
@@ -542,12 +545,12 @@ uint draw_list::determine_shader_flags(render_state *state, queued_buffer_draw *
 		state->lighting, 
 		fog, 
 		texture, 
-		in_shadow_map, 
+		Rendering_to_shadow_map, 
 		use_thrust_scale,
 		tmap_flags & TMAP_FLAG_BATCH_TRANSFORMS && draw_info->transform_buffer_offset >= 0 && buffer->flags & VB_FLAG_MODEL_ID,
 		state->using_team_color,
 		tmap_flags, 
-		draw_info->texture_maps[TM_SPECULAR_TYPE],
+		(draw_info->texture_maps[TM_SPEC_GLOSS_TYPE] > 0) ? draw_info->texture_maps[TM_SPEC_GLOSS_TYPE] : draw_info->texture_maps[TM_SPECULAR_TYPE],
 		draw_info->texture_maps[TM_GLOW_TYPE],
 		draw_info->texture_maps[TM_NORMAL_TYPE],
 		draw_info->texture_maps[TM_HEIGHT_TYPE],
@@ -602,7 +605,7 @@ void draw_list::render_buffer(queued_buffer_draw &render_elements)
 
 	gr_set_transform_buffer_offset(render_elements.transform_buffer_offset);
 
-	gr_set_color_fast(&render_elements.clr);
+	gr_set_color_fast(&draw_state.clr);
 
 	gr_set_light_factor(draw_state.light_factor);
 
@@ -628,6 +631,7 @@ void draw_list::render_buffer(queued_buffer_draw &render_elements)
 
 	GLOWMAP = render_elements.texture_maps[TM_GLOW_TYPE];
 	SPECMAP = render_elements.texture_maps[TM_SPECULAR_TYPE];
+	SPECGLOSSMAP = render_elements.texture_maps[TM_SPEC_GLOSS_TYPE];
 	NORMMAP = render_elements.texture_maps[TM_NORMAL_TYPE];
 	HEIGHTMAP = render_elements.texture_maps[TM_HEIGHT_TYPE];
 	MISCMAP = render_elements.texture_maps[TM_MISC_TYPE];
@@ -636,6 +640,7 @@ void draw_list::render_buffer(queued_buffer_draw &render_elements)
 
 	GLOWMAP = -1;
 	SPECMAP = -1;
+	SPECGLOSSMAP = -1;
 	NORMMAP = -1;
 	HEIGHTMAP = -1;
 	MISCMAP = -1;
@@ -1255,6 +1260,7 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 		texture_maps[TM_BASE_TYPE] = -1;
 		texture_maps[TM_GLOW_TYPE] = -1;
 		texture_maps[TM_SPECULAR_TYPE] = -1;
+		texture_maps[TM_SPEC_GLOSS_TYPE] = -1;
 		texture_maps[TM_NORMAL_TYPE] = -1;
 		texture_maps[TM_HEIGHT_TYPE] = -1;
 		texture_maps[TM_MISC_TYPE] = -1;
@@ -1300,6 +1306,7 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 			if ( (Detail.lighting > 2)  && (detail_level < 2) ) {
 				// likewise, etc.
 				texture_info *spec_map = &tmap->textures[TM_SPECULAR_TYPE];
+				texture_info *specgloss_map = &tmap->textures[TM_SPEC_GLOSS_TYPE];
 				texture_info *norm_map = &tmap->textures[TM_NORMAL_TYPE];
 				texture_info *height_map = &tmap->textures[TM_HEIGHT_TYPE];
 				texture_info *misc_map = &tmap->textures[TM_MISC_TYPE];
@@ -1308,6 +1315,11 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 					if (replacement_textures[rt_begin_index + TM_SPECULAR_TYPE] >= 0) {
 						tex_replace[TM_SPECULAR_TYPE] = texture_info(replacement_textures[rt_begin_index + TM_SPECULAR_TYPE]);
 						spec_map = &tex_replace[TM_SPECULAR_TYPE];
+					}
+
+					if (replacement_textures[rt_begin_index + TM_SPEC_GLOSS_TYPE] >= 0) {
+						tex_replace[TM_SPEC_GLOSS_TYPE] = texture_info(replacement_textures[rt_begin_index + TM_SPEC_GLOSS_TYPE]);
+						specgloss_map = &tex_replace[TM_SPEC_GLOSS_TYPE];
 					}
 
 					if (replacement_textures[rt_begin_index + TM_NORMAL_TYPE] >= 0) {
@@ -1327,6 +1339,7 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 				}
 
 				texture_maps[TM_SPECULAR_TYPE] = model_interp_get_texture(spec_map, base_frametime);
+				texture_maps[TM_SPEC_GLOSS_TYPE] = model_interp_get_texture(specgloss_map, base_frametime);
 				texture_maps[TM_NORMAL_TYPE] = model_interp_get_texture(norm_map, base_frametime);
 				texture_maps[TM_HEIGHT_TYPE] = model_interp_get_texture(height_map, base_frametime);
 				texture_maps[TM_MISC_TYPE] = model_interp_get_texture(misc_map, base_frametime);
@@ -1335,7 +1348,7 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 			alpha = forced_alpha;
 
 			//Check for invisible or transparent textures so they don't show up in the shadow maps - Valathil
-			if ( in_shadow_map ) {
+			if ( Rendering_to_shadow_map ) {
 				if ( (replacement_textures != NULL) && (replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
 					tex_replace[TM_BASE_TYPE] = texture_info(replacement_textures[rt_begin_index + TM_BASE_TYPE]);
 					texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tex_replace[TM_BASE_TYPE], base_frametime);
@@ -1385,6 +1398,7 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 		scene->set_texture(TM_BASE_TYPE,	texture_maps[TM_BASE_TYPE]);
 		scene->set_texture(TM_GLOW_TYPE,	texture_maps[TM_GLOW_TYPE]);
 		scene->set_texture(TM_SPECULAR_TYPE, texture_maps[TM_SPECULAR_TYPE]);
+		scene->set_texture(TM_SPEC_GLOSS_TYPE, texture_maps[TM_SPEC_GLOSS_TYPE]);
 		scene->set_texture(TM_NORMAL_TYPE, texture_maps[TM_NORMAL_TYPE]);
 		scene->set_texture(TM_HEIGHT_TYPE, texture_maps[TM_HEIGHT_TYPE]);
 		scene->set_texture(TM_MISC_TYPE,	texture_maps[TM_MISC_TYPE]);
@@ -1736,7 +1750,7 @@ void submodel_render_queue(model_render_params *render_info, draw_list *scene, i
 		scene->set_fog(GR_FOGMODE_NONE, 0, 0, 0);
 	}
 
-	if(in_shadow_map) {
+	if(Rendering_to_shadow_map) {
 		scene->set_zbias(-1024);
 	} else {
 		scene->set_zbias(0);
@@ -2086,7 +2100,7 @@ void model_render_set_glow_points(polymodel *pm, int objnum)
 
 void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d *pos, bool use_depth_buffer = true)
 {
-	if ( in_shadow_map ) {
+	if ( Rendering_to_shadow_map ) {
 		return;
 	}
 
@@ -2162,7 +2176,7 @@ void model_queue_render_thrusters(model_render_params *interp, polymodel *pm, in
 	vertex p;
 	bool do_render = false;
 
-	if ( in_shadow_map ) {
+	if ( Rendering_to_shadow_map ) {
 		return;
 	}
 
@@ -2830,13 +2844,13 @@ void model_render_queue(model_render_params *interp, draw_list *scene, int model
 		scene->set_buffer(pm->vertex_buffer_id);
 	}
 
-	if ( in_shadow_map ) {
+	if ( Rendering_to_shadow_map ) {
 		scene->set_zbias(-1024);
 	} else {
 		scene->set_zbias(0);
 	}
 
-	if ( GL_use_transform_buffer && !Cmdline_no_batching && !(model_flags & MR_NO_BATCH) && pm->flags & PM_FLAG_BATCHED 
+	if ( !Cmdline_no_batching && !(model_flags & MR_NO_BATCH) && pm->flags & PM_FLAG_BATCHED 
 		&& !(is_outlines_only || is_outlines_only_htl) ) {
 		// always set batched rendering on if supported
 		tmap_flags |= TMAP_FLAG_BATCH_TRANSFORMS;

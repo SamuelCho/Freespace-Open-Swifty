@@ -310,9 +310,10 @@ public:
 		: movement_type(-1), movement_axis(0), can_move(false), bsp_data_size(0), bsp_data(NULL), collision_tree_index(-1),
 		rad(0.0f), blown_off(0), my_replacement(-1), i_replace(-1), is_live_debris(0), num_live_debris(0), sii(NULL),
 		is_thruster(0), is_damaged(0), parent(-1), num_children(0), first_child(-1), next_sibling(-1), num_details(0),
-		num_arcs(0), render_sphere_radius(0.0f), use_render_box(0), use_render_box_offset(false), use_render_sphere(0), use_render_sphere_offset(false), gun_rotation(false), no_collisions(false),
+		num_arcs(0), outline_buffer(NULL), n_verts_outline(0), render_sphere_radius(0.0f), use_render_box(0), use_render_box_offset(false),
+		use_render_sphere(0), use_render_sphere_offset(false), gun_rotation(false), no_collisions(false),
 		nocollide_this_only(false), collide_invisible(false), force_turret_normal(false), attach_thrusters(false), dumb_turn_rate(0.0f),
-		look_at_num(-1), outline_buffer(NULL), n_verts_outline(0)
+		look_at_num(-1)
 	{
 		name[0] = 0;
 		lod_name[0] = 0;
@@ -668,7 +669,8 @@ public:
 #define TM_NORMAL_TYPE		3		// optional normal map
 #define TM_HEIGHT_TYPE		4		// optional height map (for parallax mapping)
 #define TM_MISC_TYPE		5		// optional utility map
-#define TM_NUM_TYPES		6		//WMC - Number of texture_info objects in texture_map
+#define TM_SPEC_GLOSS_TYPE	6		// optional reflectance map (specular and gloss)
+#define TM_NUM_TYPES		7		//WMC - Number of texture_info objects in texture_map
 									//Used by scripting - if you change this, do a search
 									//to update switch() statement in lua.cpp
 // taylor

@@ -79,8 +79,8 @@ static opengl_shader_type_t GL_shader_types[] = {
 		2, { "tex", "exposure" }, 0, { NULL }, "Tonemapping" },
 
 	{ SDR_TYPE_DEFERRED_LIGHTING, "deferred-v.sdr", "deferred-f.sdr", 0, { 0, 0, 0 }, 
-		16, { "Scale", "ColorBuffer", "NormalBuffer", "PositionBuffer", "SpecBuffer", "vpwidth", "vpheight", "lighttype", "lightradius", "diffuselightcolor", 
-		"speclightcolor", "dual_cone", "coneDir", "cone_angle", "cone_inner_angle", "spec_factor" }, 0, { NULL }, "Deferred Lighting" },
+		16, { "scale", "ColorBuffer", "NormalBuffer", "PositionBuffer", "SpecBuffer", "invScreenWidth", "invScreenHeight", "lightType", "lightRadius", "diffuseLightColor", 
+		"specLightColor", "dualCone", "coneDir", "coneAngle", "coneInnerAngle", "specFactor" }, 0, { NULL }, "Deferred Lighting" },
 	
 	{ SDR_TYPE_DEFERRED_CLEAR, "deferred-clear-v.sdr", "deferred-clear-f.sdr", 0, {0, 0, 0}, 
 		0, { NULL }, 0, { NULL }, "Clear Deferred Lighting Buffer" },
@@ -89,7 +89,7 @@ static opengl_shader_type_t GL_shader_types[] = {
 		3, { "ytex", "utex", "vtex" }, 0, { NULL }, "Video Playback" },
 
 	{ SDR_TYPE_PASSTHROUGH_RENDER, "passthrough-v.sdr", "passthrough-f.sdr", 0, { 0, 0, 0 },
-		5, { "baseMap", "no_texturing", "alpha_texture", "srgb", "color_scale" }, 0, { NULL }, "Passthrough" }
+		5, { "baseMap", "noTexturing", "alphaTexture", "srgb", "intensity" }, 0, { NULL }, "Passthrough" }
 };
 
 /**
@@ -98,7 +98,7 @@ static opengl_shader_type_t GL_shader_types[] = {
  */
 static opengl_shader_variant_t GL_shader_variants[] = {
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_LIGHT, "FLAG_LIGHT", 
-		2, { "n_lights", "light_factor" }, 0, { NULL }, 
+		3, { "n_lights", "light_factor", "defaultGloss" }, 0, { NULL }, 
 		"Lighting" },
 
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_FOG, "FLAG_FOG", 
@@ -106,15 +106,15 @@ static opengl_shader_variant_t GL_shader_variants[] = {
 		"Fog Effect" },
 
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_DIFFUSE_MAP, "FLAG_DIFFUSE_MAP", 
-		4, { "sBasemap", "desaturate", "desaturate_clr", "blend_alpha" }, 0, { NULL }, 
+		6, { "sBasemap", "desaturate", "desaturate_clr", "blend_alpha", "overrideDiffuse", "diffuseClr" }, 0, { NULL }, 
 		"Diffuse Mapping" },
 	
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_GLOW_MAP, "FLAG_GLOW_MAP", 
-		1, { "sGlowmap" }, 0, { NULL }, 
+		3, { "sGlowmap", "overrideGlow", "glowClr" }, 0, { NULL }, 
 		"Glow Mapping" },
 	
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_SPEC_MAP, "FLAG_SPEC_MAP", 
-		1, { "sSpecmap" }, 0, { NULL }, 
+		5, { "sSpecmap", "overrideSpec", "specClr", "gammaSpec", "alphaGloss" }, 0, { NULL }, 
 		"Specular Mapping" },
 	
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_NORMAL_MAP, "FLAG_NORMAL_MAP", 
@@ -126,7 +126,7 @@ static opengl_shader_variant_t GL_shader_variants[] = {
 		"Parallax Mapping" },
 	
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_ENV_MAP, "FLAG_ENV_MAP", 
-		3, { "sEnvmap", "alpha_spec", "envMatrix" }, 0, { NULL }, 
+		3, { "sEnvmap", "envGloss", "envMatrix" }, 0, { NULL }, 
 		"Environment Mapping" },
 	
 	{ SDR_TYPE_MODEL, false, SDR_FLAG_MODEL_ANIMATED, "FLAG_ANIMATED", 
@@ -321,7 +321,9 @@ static char *opengl_load_shader(shader_type type_id, char *filename, int flags)
 {
 	SCP_string sflags;
 
+#ifdef __APPLE__
     sflags += "#version 120\n";
+#endif
     
 	if (Use_GLSL >= 4) {
 		sflags += "#define SHADER_MODEL 4\n";
@@ -964,9 +966,9 @@ void opengl_shader_compile_deferred_light_shader()
 		GL_state.Uniform.setUniformi("NormalBuffer", 1);
 		GL_state.Uniform.setUniformi("PositionBuffer", 2);
 		GL_state.Uniform.setUniformi("SpecBuffer", 3);
-		GL_state.Uniform.setUniformf("vpwidth", 1.0f / gr_screen.max_w);
-		GL_state.Uniform.setUniformf("vpheight", 1.0f / gr_screen.max_h);
-		GL_state.Uniform.setUniformf("spec_factor", Cmdline_ogl_spec);
+		GL_state.Uniform.setUniformf("invScreenWidth", 1.0f / gr_screen.max_w);
+		GL_state.Uniform.setUniformf("invScreenHeight", 1.0f / gr_screen.max_h);
+		GL_state.Uniform.setUniformf("specFactor", Cmdline_ogl_spec);
 	} else {
 		opengl_shader_set_current();
 		mprintf(("Failed to compile deferred lighting shader!\n"));
@@ -1000,8 +1002,8 @@ void opengl_shader_compile_passthrough_shader()
 
 		//Hardcoded Uniforms
 		GL_state.Uniform.setUniformi("baseMap", 0);
-		GL_state.Uniform.setUniformi("no_texturing", 0);
-		GL_state.Uniform.setUniformi("alpha_texture", 0);
+		GL_state.Uniform.setUniformi("noTexturing", 0);
+		GL_state.Uniform.setUniformi("alphaTexture", 0);
 		GL_state.Uniform.setUniformi("srgb", 0);
 	} else {
 		opengl_shader_set_current();
@@ -1025,15 +1027,15 @@ void opengl_shader_set_passthrough(bool textured, bool alpha, float color_scale)
 	opengl_shader_set_current(gr_opengl_maybe_create_shader(SDR_TYPE_PASSTHROUGH_RENDER, 0));
 
 	if (textured) {
-		GL_state.Uniform.setUniformi("no_texturing", 1);
+		GL_state.Uniform.setUniformi("noTexturing", 1);
 	} else {
-		GL_state.Uniform.setUniformi("no_texturing", 0);
+		GL_state.Uniform.setUniformi("noTexturing", 0);
 	}
 
 	if (alpha) {
-		GL_state.Uniform.setUniformi("alpha_texture", 1);
+		GL_state.Uniform.setUniformi("alphaTexture", 1);
 	} else {
-		GL_state.Uniform.setUniformi("alpha_texture", 0);
+		GL_state.Uniform.setUniformi("alphaTexture", 0);
 	}
 
 	if (High_dynamic_range) {
@@ -1042,5 +1044,5 @@ void opengl_shader_set_passthrough(bool textured, bool alpha, float color_scale)
 		GL_state.Uniform.setUniformi("srgb", 0);
 	}
 
-	GL_state.Uniform.setUniformf("color_scale", color_scale);
+	GL_state.Uniform.setUniformf("intensity", color_scale);
 }

@@ -1920,7 +1920,7 @@ void shipfx_queue_render_ship_halves_and_debris(draw_list *scene, clip_ship* hal
 	// set up render flags
 	uint render_flags = MR_NORMAL;
 
-	if ( in_shadow_map ) {
+	if ( Rendering_to_shadow_map ) {
 		render_flags |= MR_NO_TEXTURING | MR_NO_LIGHTING;
 	}
 

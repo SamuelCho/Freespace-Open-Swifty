@@ -287,6 +287,7 @@ void bm_get_components(ubyte *pixel, ubyte *r, ubyte *g, ubyte *b, ubyte *a);
 
 extern int GLOWMAP;	//this holds a reference to a map that is a fully lit version of its index -Bobboau
 extern int SPECMAP;	//this holds a reference to a map that is for specular mapping -Bobboau
+extern int SPECGLOSSMAP;	//this holds a reference to a map that is for specular mapping -Bobboau
 extern int ENVMAP;	//this holds a reference to a map that is for environment mapping -Bobboau
 extern int NORMMAP;	// normal mapping
 extern int HEIGHTMAP;	// height map for normal mapping

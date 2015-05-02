@@ -2621,16 +2621,24 @@ void ImageAnim::Stop()
 
 //*****************************Slider*******************************
 
-Slider::Slider(const SCP_string &in_label, int x_coord, int y_coord, void(*in_function)(Slider *caller), int x_width, int y_height, int in_style)
+Slider::Slider(const SCP_string &in_label, float min, float max, int x_coord, int y_coord, void(*in_function)(Slider *caller), int x_width, int y_height, int in_style)
 	:GUIObject(in_label, x_coord, y_coord, x_width, y_height, in_style)
 {
 	Label = in_label;
 
+	Min = min;
+	Max = max;
+
 	function = in_function;
 
-	SliderPos = 1.0f;
+	BarWidth = x_width;
+	BarHeight = y_height;
+
+	SliderScale = 0.0f;
 	SliderWidth = 30;
 	SliderGrabbed = false;
+
+	gr_create_shader(&SliderShade, 50, 50, 50, 200);
 
 	//Set the type
 	Type = GT_SLIDER;
@@ -2638,17 +2646,27 @@ Slider::Slider(const SCP_string &in_label, int x_coord, int y_coord, void(*in_fu
 
 int Slider::DoRefreshSize()
 {
+	int w, h;
+
+	// get the height of this label
+	gr_get_string_size(&w, &h, Label.c_str());
+
+	int bar_start_y = h + 3;
+
 	BarCoords[0] = Coords[0];
-	BarCoords[1] = Coords[1];
-	BarCoords[2] = Coords[2];
-	BarCoords[3] = Coords[3];
+	BarCoords[1] = Coords[1] + bar_start_y;
+	BarCoords[2] = Coords[0] + BarWidth;
+	BarCoords[3] = Coords[1] + bar_start_y + BarHeight;
+
+	Coords[2] = BarCoords[2];
+	Coords[3] = BarCoords[3];
 
 	return OF_TRUE;
 }
 
 int Slider::GetSliderOffset()
 {
-	return SliderPos * (BarCoords[2] - BarCoords[0] - SliderWidth) + BarCoords[0];
+	return SliderScale * (BarCoords[2] - BarCoords[0] - SliderWidth) + BarCoords[0];
 }
 
 float Slider::GetSliderPos(int x)
@@ -2658,13 +2676,18 @@ float Slider::GetSliderPos(int x)
 
 void Slider::UpdateSlider(int x)
 {
-	SliderPos = GetSliderPos(x);
+	SliderScale = GetSliderPos(x);
 
-	CLAMP(SliderPos, 0.0, 1.0f);
+	CLAMP(SliderScale, 0.0, 1.0f);
 
 	if ( function != NULL ) {
 		function(this);
 	}
+}
+
+float Slider::GetSliderValue()
+{
+	return (SliderScale * (Max - Min) + Min);
 }
 
 void Slider::DoMove(int dx, int dy)
@@ -2679,11 +2702,20 @@ void Slider::DoDraw(float frametime)
 {
 	gr_set_color_fast(&Color_text_normal);
 
+	gr_string(Coords[0], Coords[1], Label.c_str(), GR_RESIZE_NONE);
+
+	char value_txt[32];
+	sprintf(value_txt, "%.2f", GetSliderValue());
+	int w, h;
+	gr_get_string_size(&w, &h, value_txt);
+	gr_string(Coords[2] - 3 - w, Coords[1], value_txt, GR_RESIZE_NONE);
+
 	draw_open_rect(BarCoords[0], BarCoords[1], BarCoords[2], BarCoords[3], false);
 
 	float sliderX = GetSliderOffset();
 
-	draw_open_rect(sliderX, BarCoords[1], sliderX + SliderWidth, BarCoords[3], false);
+	gr_set_shader(&SliderShade);
+	gr_opengl_shade(sliderX, BarCoords[1], sliderX + SliderWidth, BarCoords[3], false);
 }
 
 int Slider::DoMouseDown(float frametime)

@@ -39,7 +39,6 @@ SCP_vector<profile_sample_history> history;
 uint start_profile_time = 0;
 uint end_profile_time = 0;
 
-//char profile_output[2048] = "";
 SCP_string profile_output;
 std::ofstream profiling_file;
 
@@ -82,8 +81,22 @@ void profile_begin(const char* name)
 {
 	if (Cmdline_frame_profile)
 	{
+		int parent = -1;
+		for (int i = 0; i < (int)samples.size(); i++) {
+			if ( !samples[i].open_profiles ) {
+				continue;
+			}
+
+			samples[i].num_children++;
+
+			if (samples[i].num_children == 1) {
+				// this is our direct parent for this new sample
+				parent = i;
+			}
+		}
+
 		for(int i = 0; i < (int)samples.size(); i++) {
-			if(samples[i].valid && !strcmp(samples[i].name.c_str(), name) ) {
+			if( !strcmp(samples[i].name.c_str(), name) && samples[i].parent == parent ) {
 				// found the profile sample
 				samples[i].open_profiles++;
 				samples[i].profile_instances++;
@@ -97,35 +110,16 @@ void profile_begin(const char* name)
 		profile_sample new_sample;
 
 		new_sample.name = SCP_string(name);
-		new_sample.valid = true;
 		new_sample.open_profiles = 1;
 		new_sample.profile_instances = 1;
 		new_sample.accumulator = 0;
 		new_sample.start_time = timer_get_high_res_microseconds(); //f2fl(timer_get_fixed_seconds());
 		new_sample.children_sample_time = 0;
+		new_sample.num_children = 0;
+		new_sample.parent = parent;
 
 		samples.push_back(new_sample);
 	}
-}
-
-/**
- * Used to start profiling a section of code. A section started by profile_begin needs to be closed off by calling
- * profile_end with the same argument.
- * @param name A globally unique string that will be displayed in the HUD readout
- */
-void profile_begin(SCP_string &output_handle, const char *name)
-{
-	output_handle.clear();
-
-	for ( size_t i = 0; i < (int)samples.size(); i++ ) {
-		if(samples[i].open_profiles > 0) {
-			output_handle += samples[i].name;
-		}
-	}
-
-	output_handle += name;
-
-	profile_begin(output_handle.c_str());
 }
 
 /**
@@ -137,24 +131,34 @@ void profile_end(const char* name)
 {
 	if (Cmdline_frame_profile) {
 		int num_parents = 0;
+		int child_of = -1;
 
-		for(int i = 0; i < (int)samples.size(); i++) {
-			if(samples[i].valid && !strcmp(samples[i].name.c_str(), name) ) {
+		for ( int i = 0; i < (int)samples.size(); i++ ) {
+			if ( samples[i].open_profiles ) {
+				if ( samples[i].num_children == 1 ) {
+					child_of = i;
+				}
+			}
+		}
+
+		for ( int i = 0; i < (int)samples.size(); i++ ) {
+			if ( !strcmp(samples[i].name.c_str(), name) && samples[i].parent == child_of ) {
 				int inner = 0;
 				int parent = -1;
 				uint end_time = timer_get_high_res_microseconds(); //f2fl(timer_get_fixed_seconds());
 				samples[i].open_profiles--;
 
 				// count all parents and find the immediate parent
-				while(samples[inner].valid && inner < (int)samples.size()) {
-					if(samples[inner].open_profiles > 0) {
+				while ( inner < (int)samples.size() ) {
+					if ( samples[inner].open_profiles > 0 ) {
 						// found a parent (any open profiles are parents)
 						num_parents++;
 
-						if(parent < 0) {
+						if (parent < 0) {
 							// replace invalid parent (index)
 							parent = inner;
-						} else if(samples[inner].start_time >= samples[parent].start_time) {
+						}
+						else if (samples[inner].start_time >= samples[parent].start_time) {
 							// replace with more immediate parent
 							parent = inner;
 						}
@@ -165,15 +169,22 @@ void profile_end(const char* name)
 				// remember the current number of parents of the sample
 				samples[i].num_parents = num_parents;
 
-				if(parent >= 0) {
+				if ( parent >= 0 ) {
 					// record this time in children_sample_time (add it in)
 					samples[parent].children_sample_time += end_time - samples[i].start_time;
 				}
 
 				// save sample time in accumulator
 				samples[i].accumulator += end_time - samples[i].start_time;
-			
-				return;
+
+				break;
+			}
+		}
+
+		for (int i = 0; i < (int)samples.size(); i++) {
+			if (samples[i].open_profiles) {
+				samples[i].num_children--;
+				samples[i].num_children = MAX(samples[i].num_children, 0);
 			}
 		}
 	}
@@ -219,7 +230,7 @@ void profile_dump_output()
 			get_profile_from_history(samples[i].name, &avg_time, &min_time, &max_time, &avg_micro_seconds, &min_micro_seconds, &max_micro_seconds);
 
 			// format the data
-			char avg[16], min[16], max[16], num[16];
+			char avg[64], min[64], max[64], num[64];
 
 			sprintf(avg, "%3.1f%% (%3.1fms)", avg_time, i2fl(avg_micro_seconds)*0.001f);
 			sprintf(min, "%3.1f%% (%3.1fms)", min_time, i2fl(min_micro_seconds)*0.001f);

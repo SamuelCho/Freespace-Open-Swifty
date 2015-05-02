@@ -1931,9 +1931,8 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_set_animated_effect = gr_opengl_shader_set_animated_effect;
 
 	gr_screen.gf_maybe_create_shader = gr_opengl_maybe_create_shader;
-	gr_screen.gf_start_shadow_map	= gr_opengl_start_shadow_map;
-	gr_screen.gf_end_shadow_map		= gr_opengl_end_shadow_map;
-	gr_screen.gf_clear_shadow_map	= gr_opengl_clear_shadow_map;
+	gr_screen.gf_shadow_map_start	= gr_opengl_shadow_map_start;
+	gr_screen.gf_shadow_map_end		= gr_opengl_shadow_map_end;
 
 	gr_screen.gf_update_texture = gr_opengl_update_texture;
 	gr_screen.gf_get_bitmap_from_texture = gr_opengl_get_bitmap_from_texture;
@@ -1941,7 +1940,6 @@ void opengl_setup_function_pointers()
 	gr_screen.gf_clear_states	= gr_opengl_clear_states;
 
 	gr_screen.gf_set_team_color		= gr_opengl_set_team_color;
-	gr_screen.gf_disable_team_color = gr_opengl_disable_team_color;
 
 	// NOTE: All function pointers here should have a Cmdline_nohtl check at the top
 	//       if they shouldn't be run in non-HTL mode, Don't keep separate entries.
@@ -2047,7 +2045,9 @@ bool gr_opengl_init()
 	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 	glHint(GL_FOG_HINT, GL_NICEST);
 
-	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+	if ( Is_Extension_Enabled(OGL_ARB_SEAMLESS_CUBEMAP) ) {
+		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+	}
 
 	glDepthRange(0.0, 1.0);
 

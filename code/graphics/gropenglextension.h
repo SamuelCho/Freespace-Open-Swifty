@@ -83,8 +83,9 @@ extern ogl_function GL_EXT_Special[];
 #define OGL_ARB_DRAW_INSTANCED				32
 #define OGL_ARB_TEXTURE_BUFFER				33
 #define OGL_ARB_COLOR_BUFFER_FLOAT			34
+#define OGL_ARB_SEAMLESS_CUBEMAP			35
 
-#define NUM_OGL_EXTENSIONS					35
+#define NUM_OGL_EXTENSIONS					36
 
 
 // Functions
