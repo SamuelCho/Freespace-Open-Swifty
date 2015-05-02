@@ -544,7 +544,7 @@ uint draw_list::determine_shader_flags(render_state *state, queued_buffer_draw *
 		state->lighting, 
 		fog, 
 		texture, 
-		in_shadow_map, 
+		Rendering_to_shadow_map, 
 		use_thrust_scale,
 		tmap_flags & TMAP_FLAG_BATCH_TRANSFORMS && draw_info->transform_buffer_offset >= 0 && buffer->flags & VB_FLAG_MODEL_ID,
 		state->using_team_color,
@@ -1337,7 +1337,7 @@ void model_render_buffers(draw_list* scene, model_render_params* interp, vertex_
 			alpha = forced_alpha;
 
 			//Check for invisible or transparent textures so they don't show up in the shadow maps - Valathil
-			if ( in_shadow_map ) {
+			if ( Rendering_to_shadow_map ) {
 				if ( (replacement_textures != NULL) && (replacement_textures[rt_begin_index + TM_BASE_TYPE] >= 0) ) {
 					tex_replace[TM_BASE_TYPE] = texture_info(replacement_textures[rt_begin_index + TM_BASE_TYPE]);
 					texture_maps[TM_BASE_TYPE] = model_interp_get_texture(&tex_replace[TM_BASE_TYPE], base_frametime);
@@ -1738,7 +1738,7 @@ void submodel_render_queue(model_render_params *render_info, draw_list *scene, i
 		scene->set_fog(GR_FOGMODE_NONE, 0, 0, 0);
 	}
 
-	if(in_shadow_map) {
+	if(Rendering_to_shadow_map) {
 		scene->set_zbias(-1024);
 	} else {
 		scene->set_zbias(0);
@@ -2088,7 +2088,7 @@ void model_render_set_glow_points(polymodel *pm, int objnum)
 
 void model_render_glow_points(polymodel *pm, ship *shipp, matrix *orient, vec3d *pos, bool use_depth_buffer = true)
 {
-	if ( in_shadow_map ) {
+	if ( Rendering_to_shadow_map ) {
 		return;
 	}
 
@@ -2164,7 +2164,7 @@ void model_queue_render_thrusters(model_render_params *interp, polymodel *pm, in
 	vertex p;
 	bool do_render = false;
 
-	if ( in_shadow_map ) {
+	if ( Rendering_to_shadow_map ) {
 		return;
 	}
 
@@ -2832,7 +2832,7 @@ void model_render_queue(model_render_params *interp, draw_list *scene, int model
 		scene->set_buffer(pm->vertex_buffer_id);
 	}
 
-	if ( in_shadow_map ) {
+	if ( Rendering_to_shadow_map ) {
 		scene->set_zbias(-1024);
 	} else {
 		scene->set_zbias(0);

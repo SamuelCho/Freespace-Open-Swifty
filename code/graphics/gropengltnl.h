@@ -29,7 +29,7 @@ extern float shadow_veryneardist;
 extern float shadow_neardist;
 extern float shadow_middist;
 extern float shadow_fardist;
-extern bool in_shadow_map;
+extern bool Rendering_to_shadow_map;
 
 extern bool GL_use_transform_buffer;
 
@@ -71,7 +71,6 @@ void gr_opengl_set_state_block(int);
 
 void gr_opengl_set_thrust_scale(float scale = -1.0f);
 void gr_opengl_set_team_color(team_color *colors);
-void gr_opengl_disable_team_color();
 
 void opengl_tnl_shutdown();
 
