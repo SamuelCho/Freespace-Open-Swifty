@@ -6580,9 +6580,9 @@ ADE_VIRTVAR(AmmoMax, l_WeaponBank, "number", "Maximum ammo for the current bank<
 	{
 		case SWH_PRIMARY:
 			{
-				if(ADE_SETTING_VAR && ammomax > -1) {
+			if(ADE_SETTING_VAR && ammomax > -1) {
 					bh->sw->primary_bank_capacity[bh->bank] = ammomax;
-				}
+			}
 
 				int weapon_class = bh->sw->primary_bank_weapons[bh->bank];
 
@@ -6592,9 +6592,9 @@ ADE_VIRTVAR(AmmoMax, l_WeaponBank, "number", "Maximum ammo for the current bank<
 			}
 		case SWH_SECONDARY:
 			{
-				if(ADE_SETTING_VAR && ammomax > -1) {
+			if(ADE_SETTING_VAR && ammomax > -1) {
 					bh->sw->secondary_bank_capacity[bh->bank] = ammomax;
-				}
+			}
 
 				int weapon_class = bh->sw->secondary_bank_weapons[bh->bank];
 

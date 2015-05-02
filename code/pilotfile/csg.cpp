@@ -810,7 +810,7 @@ void pilotfile::csg_read_redalert()
 		} else if ( (i < 0 ) && (i >= RED_ALERT_LOWEST_VALID_SHIP_CLASS) ) {  // ship destroyed/exited
 			ras.ship_class = i;
 		} else {
-			ras.ship_class = ship_list[i].index;
+		ras.ship_class = ship_list[i].index;
 		}
 
 		// subsystem hits

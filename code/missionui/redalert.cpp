@@ -780,7 +780,7 @@ void red_alert_delete_ship(ship *shipp, int ship_state)
 {
 	if ( (shipp->wing_status_wing_index >= 0) && (shipp->wing_status_wing_pos >= 0) ) {
 		if (ship_state == RED_ALERT_DESTROYED_SHIP_CLASS) {
-			hud_set_wingman_status_dead(shipp->wing_status_wing_index, shipp->wing_status_wing_pos);
+		hud_set_wingman_status_dead(shipp->wing_status_wing_index, shipp->wing_status_wing_pos);
 		} else if (ship_state == RED_ALERT_PLAYER_DEL_SHIP_CLASS) {
 			hud_set_wingman_status_none(shipp->wing_status_wing_index, shipp->wing_status_wing_pos);
 		} else {

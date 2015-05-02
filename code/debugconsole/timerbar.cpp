@@ -4,7 +4,7 @@
  * You may not sell or otherwise commercially exploit the source or things you 
  * created based on the source.
  *
-*/
+*/ 
 
 /*
  * This module is intended as a debug tool to measure the speed of blocks of code and display
@@ -23,7 +23,7 @@
 
 
 // Internal structure for handling frame data
-typedef	struct
+typedef	struct 
 {
 	LARGE_INTEGER start_value;
 	LARGE_INTEGER total_value;
@@ -101,7 +101,7 @@ void timerbar_start_frame()
 
 	if(QueryPerformanceCounter(&timerbar_ultimate_start_value) == FALSE)
 	{
-		// DBUGFILE_OUTPUT_0("QueryPerformanceCounter not supported by hardware");
+//		DBUGFILE_OUTPUT_0("QueryPerformanceCounter not supported by hardware");
 		draw_func_ptr = NULL;
 	}
 
@@ -125,8 +125,8 @@ void timerbar_conv_and_draw(int colour, int xpos, int xwidth, int yrow)
 {
 	float fxpos  = (float) xpos;
 	float fxwidth = (float) xwidth;
-
-	draw_func_ptr(colour,
+		   
+	draw_func_ptr(colour, 
 		fxpos / WIDTHF,
 		yrow * 0.01f,
 		fxwidth / WIDTHF,
@@ -151,8 +151,8 @@ void timerbar_end_frame()
 
 
 	for(int i = 0; i < MAX_NUM_TIMERBARS; i++)
-	{
-		// Nothing to render this frame
+	{		
+		// Nothing to render this frame	 
 		if(profiles[i].frame_total.QuadPart == 0)
 		{
 			continue;
@@ -206,22 +206,22 @@ void timerbar_switch_type(int num)
 	LARGE_INTEGER now;
 	if(QueryPerformanceCounter(&now) == FALSE)
 	{
-		// DBUGFILE_OUTPUT_0("QueryPerformanceCounter not supported by hardware");
+//		DBUGFILE_OUTPUT_0("QueryPerformanceCounter not supported by hardware");
 	}
 
 	profiles[timerbar_current_profile].frame_total.QuadPart += 
-		(now.QuadPart - timerbar_last_start_value.QuadPart);
+		(now.QuadPart - timerbar_last_start_value.QuadPart);  
 
 	if(num != -1)
 	{
 		// Switch to new profile
-		timerbar_current_profile = num;
+		timerbar_current_profile = num; 
 	}
 
 	// Update time to count from
 	if(QueryPerformanceCounter(&timerbar_last_start_value) == FALSE)
 	{
-		// DBUGFILE_OUTPUT_0("QueryPerformanceCounter not supported by hardware");
+//		DBUGFILE_OUTPUT_0("QueryPerformanceCounter not supported by hardware");
 	}
 }
 
@@ -234,6 +234,6 @@ void timerbar_switch_type(int num)
  */
 void timerbar_set_draw_func(void (*new_draw_func_ptr)(int colour, float x, float y, float w, float h))
 {
-	draw_func_ptr = new_draw_func_ptr;
+  	draw_func_ptr = new_draw_func_ptr;
 }
 

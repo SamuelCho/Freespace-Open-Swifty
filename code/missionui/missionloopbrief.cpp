@@ -247,7 +247,7 @@ void loop_brief_do(float frametime)
 
 	// render the briefing text
 	brief_render_text(0, Loop_brief_text_coords[gr_screen.res][0], Loop_brief_text_coords[gr_screen.res][1], Loop_brief_text_coords[gr_screen.res][3], flFrametime);
-	
+
 	if(Loop_anim.num_frames > 0) {
 		int x;
 		int y;

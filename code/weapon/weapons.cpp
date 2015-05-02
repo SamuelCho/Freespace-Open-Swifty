@@ -320,50 +320,52 @@ int weapon_explosions::GetAnim(int weapon_expl_index, vec3d *pos, float size)
 
 void parse_weapon_expl_tbl(const char *filename)
 {
-	int rval;
 	uint i;
 	lod_checker lod_check;
-
-	if ((rval = setjmp(parse_abort)) != 0) {
-		mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", filename, rval));
-		return;
-	}
-
-	read_file_text(filename, CF_TYPE_TABLES);
-	reset_parse();		
-
-	required_string("#Start");
-	while (required_string_either("#End","$Name:"))
+	
+	try
 	{
-		memset( &lod_check, 0, sizeof(lod_checker) );
+		read_file_text(filename, CF_TYPE_TABLES);
+		reset_parse();
 
-		// base filename
-		required_string("$Name:");
-		stuff_string(lod_check.filename, F_NAME, MAX_FILENAME_LEN);
-
-		//Do we have an LOD num
-		if (optional_string("$LOD:"))
+		required_string("#Start");
+		while (required_string_either("#End", "$Name:"))
 		{
-			stuff_int(&lod_check.num_lods);
-		}
+			memset(&lod_check, 0, sizeof(lod_checker));
 
-		// only bother with this if we have 1 or more lods and less than max lods,
-		// otherwise the stardard level loading will take care of the different effects
-		if ( (lod_check.num_lods > 0) || (lod_check.num_lods < MAX_WEAPON_EXPL_LOD) ) {
-			// name check, update lod count if it already exists
-			for (i = 0; i < LOD_checker.size(); i++) {
-				if ( !stricmp(LOD_checker[i].filename, lod_check.filename) ) {
-					LOD_checker[i].num_lods = lod_check.num_lods;
+			// base filename
+			required_string("$Name:");
+			stuff_string(lod_check.filename, F_NAME, MAX_FILENAME_LEN);
+
+			//Do we have an LOD num
+			if (optional_string("$LOD:"))
+			{
+				stuff_int(&lod_check.num_lods);
+			}
+
+			// only bother with this if we have 1 or more lods and less than max lods,
+			// otherwise the stardard level loading will take care of the different effects
+			if ((lod_check.num_lods > 0) || (lod_check.num_lods < MAX_WEAPON_EXPL_LOD)) {
+				// name check, update lod count if it already exists
+				for (i = 0; i < LOD_checker.size(); i++) {
+					if (!stricmp(LOD_checker[i].filename, lod_check.filename)) {
+						LOD_checker[i].num_lods = lod_check.num_lods;
+					}
+				}
+
+				// old entry not found, add new entry
+				if (i == LOD_checker.size()) {
+					LOD_checker.push_back(lod_check);
 				}
 			}
-
-			// old entry not found, add new entry
-			if ( i == LOD_checker.size() ) {
-				LOD_checker.push_back(lod_check);
-			}
 		}
+		required_string("#End");
 	}
-	required_string("#End");
+	catch (const parse::ParseException& e)
+	{
+		mprintf(("TABLES: Unable to parse '%s'!  Error message = %s.\n", filename, e.what()));
+		return;
+	}
 }
 
 /**
@@ -663,6 +665,8 @@ void parse_wi_flags(weapon_info *weaponp, int wi_flags, int wi_flags2, int wi_fl
 			weaponp->wi_flags3 |= WIF3_TURRET_INTERCEPTABLE;
 		else if (!stricmp(NOX("fighter interceptable"), weapon_strings[i]))
 			weaponp->wi_flags3 |= WIF3_FIGHTER_INTERCEPTABLE;
+		else if (!stricmp(NOX("apply recoil"), weapon_strings[i]))
+			weaponp->wi_flags3 |= WIF3_APPLY_RECOIL;
 		else
 			Warning(LOCATION, "Bogus string in weapon flags: %s\n", weapon_strings[i]);
 	}
@@ -956,6 +960,7 @@ void init_weapon_entry(int weap_info_index)
 
 	wip->emp_intensity = EMP_DEFAULT_INTENSITY;
 	wip->emp_time = EMP_DEFAULT_TIME;	// Goober5000: <-- Look!  I fixed a Volition bug!  Gimme $5, Dave!
+	wip->recoil_modifier = 1.0f;
 	wip->weapon_reduce = ESUCK_DEFAULT_WEAPON_REDUCE;
 	wip->afterburner_reduce = ESUCK_DEFAULT_AFTERBURNER_REDUCE;
 
@@ -1305,10 +1310,22 @@ int parse_weapon(int subtype, bool replace)
 
 	if(optional_string("@Laser Color:"))
 	{
+		// This might be confusing at first glance. If we're a modular table (!first_time),
+		// AND we're providing a new color for the laser (being in this block at all),
+		// AND the RGB values for laser_color_1 and laser_color_2 match...
+		// THEN we conclude that laser_color_2 wasn't explicitly defined before, and the modder would probably prefer
+		// it if the laser didn't suddenly start changing colors from the new to the old over its lifespan. -MageKing17
+		bool reset = (!first_time && (
+			(wip->laser_color_1.red == wip->laser_color_2.red) &&
+			(wip->laser_color_1.green == wip->laser_color_2.green) &&
+			(wip->laser_color_1.blue == wip->laser_color_2.blue)));
 		stuff_ubyte(&r);
 		stuff_ubyte(&g);
 		stuff_ubyte(&b);
 		gr_init_color( &wip->laser_color_1, r, g, b );
+		if (reset) {
+			gr_init_color( &wip->laser_color_2, wip->laser_color_1.red, wip->laser_color_1.green, wip->laser_color_1.blue );
+		}
 	}
 
 	// optional string for cycling laser colors
@@ -1317,7 +1334,7 @@ int parse_weapon(int subtype, bool replace)
 		stuff_ubyte(&g);
 		stuff_ubyte(&b);
 		gr_init_color( &wip->laser_color_2, r, g, b );
-	} else {
+	} else if (first_time) {
 		gr_init_color( &wip->laser_color_2, wip->laser_color_1.red, wip->laser_color_1.green, wip->laser_color_1.blue );
 	}
 
@@ -1951,6 +1968,15 @@ int parse_weapon(int subtype, bool replace)
 	
 	if( optional_string("$EMP Time:") ){
 		stuff_float(&wip->emp_time);
+	}
+
+	// This is an optional modifier for a weapon that uses the "apply recoil" flag. recoil_force in ship.cpp line 10445 is multiplied by this if defined.
+	if (optional_string("$Recoil Modifier:")){
+		if (!(wip->wi_flags3 & WIF3_APPLY_RECOIL)){
+			Warning(LOCATION, "$Recoil Modifier specified for weapon %s but this weapon does not have the \"apply recoil\" weapon flag set. Automatically setting the flag", wip->name);
+			wip->wi_flags3 |= WIF3_APPLY_RECOIL;
+		}
+		stuff_float(&wip->recoil_modifier);
 	}
 
 	// Energy suck optional stuff (if WIF_ENERGY_SUCK is not set, none of this matters anyway)
@@ -2782,83 +2808,83 @@ static char Default_cmeasure_name[NAME_LENGTH] = "";
 
 void parse_weaponstbl(const char *filename)
 {
-	int rval;
-
-	if ((rval = setjmp(parse_abort)) != 0)
+	try
 	{
-		mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", filename, rval));
+		read_file_text(filename, CF_TYPE_TABLES);
+		reset_parse();
+
+		if (optional_string("#Primary Weapons"))
+		{
+			while (required_string_either("#End", "$Name:")) {
+				// AL 28-3-98: If parse_weapon() fails, try next .tbl weapon
+				if (parse_weapon(WP_LASER, Parsing_modular_table) < 0) {
+					continue;
+				}
+			}
+			required_string("#End");
+		}
+
+		if (optional_string("#Secondary Weapons"))
+		{
+			while (required_string_either("#End", "$Name:")) {
+				// AL 28-3-98: If parse_weapon() fails, try next .tbl weapon
+				if (parse_weapon(WP_MISSILE, Parsing_modular_table) < 0) {
+					continue;
+				}
+			}
+			required_string("#End");
+		}
+
+		if (optional_string("#Beam Weapons"))
+		{
+			while (required_string_either("#End", "$Name:")) {
+				// AL 28-3-98: If parse_weapon() fails, try next .tbl weapon
+				if (parse_weapon(WP_BEAM, Parsing_modular_table) < 0) {
+					continue;
+				}
+			}
+			required_string("#End");
+		}
+
+		if (optional_string("#Countermeasures"))
+		{
+			while (required_string_either("#End", "$Name:"))
+			{
+				int idx = parse_weapon(WP_MISSILE, Parsing_modular_table);
+
+				if (idx < 0) {
+					continue;
+				}
+
+				//Make sure cmeasure flag is set
+				Weapon_info[idx].wi_flags |= WIF_CMEASURE;
+
+				//Set cmeasure index
+				if (!strlen(Default_cmeasure_name)) {
+					//We can't be sure that index will be the same after sorting, so save the name
+					strcpy_s(Default_cmeasure_name, Weapon_info[idx].name);
+				}
+			}
+
+			required_string("#End");
+		}
+
+		// Read in a list of weapon_info indicies that are an ordering of the player weapon precedence.
+		// This list is used to select an alternate weapon when a particular weapon is not available
+		// during weapon selection.
+		if ((!Parsing_modular_table && required_string("$Player Weapon Precedence:")) || optional_string("$Player Weapon Precedence:"))
+		{
+			Num_player_weapon_precedence = stuff_int_list(Player_weapon_precedence, MAX_WEAPON_TYPES, WEAPON_LIST_TYPE);
+		}
+
+		// add tbl/tbm to multiplayer validation list
+		fs2netd_add_table_validation(filename);
+	}
+	catch (const parse::ParseException& e)
+	{
+		mprintf(("TABLES: Unable to parse '%s'!  Error message = %s.\n", filename, e.what()));
 		return;
 	}
-
-	read_file_text(filename, CF_TYPE_TABLES);
-	reset_parse();
-
-	if(optional_string("#Primary Weapons"))
-	{
-		while (required_string_either("#End", "$Name:")) {
-			// AL 28-3-98: If parse_weapon() fails, try next .tbl weapon
-			if ( parse_weapon(WP_LASER, Parsing_modular_table) < 0 ) {
-				continue;
-			}
-		}
-		required_string("#End");
-	}
-
-	if(optional_string("#Secondary Weapons"))
-	{
-		while (required_string_either("#End", "$Name:")) {
-			// AL 28-3-98: If parse_weapon() fails, try next .tbl weapon
-			if ( parse_weapon(WP_MISSILE, Parsing_modular_table) < 0) {
-				continue;
-			}
-		}
-		required_string("#End");
-	}
-
-	if(optional_string("#Beam Weapons"))
-	{
-		while (required_string_either("#End", "$Name:")) {
-			// AL 28-3-98: If parse_weapon() fails, try next .tbl weapon
-			if ( parse_weapon(WP_BEAM, Parsing_modular_table) < 0) {
-				continue;
-			}
-		}
-		required_string("#End");
-	}
-
-	if(optional_string("#Countermeasures"))
-	{
-		while (required_string_either("#End", "$Name:"))
-		{
-			int idx = parse_weapon(WP_MISSILE, Parsing_modular_table);
-
-			if(idx < 0) {
-				continue;
-			}
-
-			//Make sure cmeasure flag is set
-			Weapon_info[idx].wi_flags |= WIF_CMEASURE;
-
-			//Set cmeasure index
-			if(!strlen(Default_cmeasure_name)) {
-				//We can't be sure that index will be the same after sorting, so save the name
-				strcpy_s(Default_cmeasure_name, Weapon_info[idx].name);
-			}
-		}
-
-		required_string("#End");
-	}
-
-	// Read in a list of weapon_info indicies that are an ordering of the player weapon precedence.
-	// This list is used to select an alternate weapon when a particular weapon is not available
-	// during weapon selection.
-	if ( (!Parsing_modular_table && required_string("$Player Weapon Precedence:")) || optional_string("$Player Weapon Precedence:") )
-	{
-		Num_player_weapon_precedence = stuff_int_list(Player_weapon_precedence, MAX_WEAPON_TYPES, WEAPON_LIST_TYPE);
-	}
-
-	// add tbl/tbm to multiplayer validation list
-	fs2netd_add_table_validation(filename);
 }
 
 //uses a simple bucket sort to sort weapons, order of importance is:
@@ -4811,7 +4837,14 @@ void weapon_process_post(object * obj, float frame_time)
 			//create the warphole
 			vm_vec_add2(&warpout,&obj->pos);
 			wp->lssm_warp_idx=fireball_create(&warpout, FIREBALL_WARP, FIREBALL_WARP_EFFECT, -1,obj->radius*1.5f,1,&vmd_zero_vector,wp->lssm_warp_time,0,&obj->orient);
-			wp->lssm_stage=2;
+
+			if (wp->lssm_warp_idx < 0) {
+				mprintf(("LSSM: Failed to create warp effect! Please report if this happens frequently.\n"));
+				// Abort warping
+				wp->lssm_stage = 0;
+			} else {
+				wp->lssm_stage = 2;
+			}
 		}
 
 		//its just entered subspace subspace. don't collide or render
@@ -6030,9 +6063,9 @@ void weapon_hit( object * weapon_obj, object * other_obj, vec3d * hitpos, int qu
 	int			weapon_type = Weapons[num].weapon_info_index;
 	int			expl_ani_handle;
 	weapon_info	*wip;
-	weapon      *wp;
+	weapon *wp;
 	bool		hit_target = false;
-    
+
 	object      *other_objp;
 	ship_obj	*so;
 	ship		*shipp;
@@ -6132,7 +6165,7 @@ void weapon_hit( object * weapon_obj, object * other_obj, vec3d * hitpos, int qu
 			}
 		}
 	}
-    
+
 	// For all objects that had this weapon as a target, wipe it out, forcing find of a new enemy
 	for ( so = GET_FIRST(&Ship_obj_list); so != END_OF_LIST(&Ship_obj_list); so = GET_NEXT(so) ) {
 		other_objp = &Objects[so->objnum];

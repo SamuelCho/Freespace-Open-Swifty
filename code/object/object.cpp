@@ -51,7 +51,7 @@
 
 object obj_free_list;
 object obj_used_list;
-object obj_create_list;
+object obj_create_list;	
 
 object *Player_obj = NULL;
 object *Viewer_obj = NULL;
@@ -716,7 +716,7 @@ void obj_move_one_docked_object(object *objp, object *parent_objp)
  * Deals with firing player things like lasers, missiles, etc.
  *
  * Separated out because of multiplayer issues.
- */
+*/
 void obj_player_fire_stuff( object *objp, control_info ci )
 {
 	ship *shipp;
@@ -888,7 +888,7 @@ void obj_move_call_physics(object *objp, float frametime)
 				goto obj_maybe_fire;
 			}
 
-			physics_sim(&objp->pos, &objp->orient, &objp->phys_info, frametime );		// simulate the physics
+				physics_sim(&objp->pos, &objp->orient, &objp->phys_info, frametime );		// simulate the physics
 
 			// if the object is the player object, do things that need to be done after the ship
 			// is moved (like firing weapons, etc).  This routine will get called either single
@@ -906,7 +906,7 @@ obj_maybe_fire:
 			// do stream weapon firing for all ships themselves. 
 			if(objp->type == OBJ_SHIP){
 				ship_fire_primary(objp, 1, 0);
-				has_fired = 1;
+					has_fired = 1;
 			}
 		}
 	}
@@ -1411,7 +1411,7 @@ void obj_move_all(float frametime)
 		vec3d cur_pos = objp->pos;			// Save the current position
 
 #ifdef OBJECT_CHECK 
-		obj_check_object( objp );
+			obj_check_object( objp );
 #endif
 
 		// pre-move
@@ -1708,7 +1708,7 @@ void obj_get_average_ship_pos( vec3d *pos )
 
 	vm_vec_zero( pos );
 
-	// average up all ship positions
+   // average up all ship positions
 	count = 0;
 	for ( objp = GET_FIRST(&obj_used_list); objp != END_OF_LIST(&obj_used_list); objp = GET_NEXT(objp) ) {
 		if ( objp->type != OBJ_SHIP )
