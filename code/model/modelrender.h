@@ -18,7 +18,7 @@
 extern light Lights[MAX_LIGHTS];
 extern int Num_lights;
 
-extern bool in_shadow_map;
+extern bool Rendering_to_shadow_map;
 
 extern matrix Object_matrix;
 extern vec3d Object_position;

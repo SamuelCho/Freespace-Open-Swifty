@@ -52,11 +52,8 @@ void gr_opengl_draw_deferred_light_cylinder(vec3d *position,matrix *orient, floa
 
 void gr_opengl_draw_line_list(colored_vector *lines, int num);
 
-void gr_opengl_start_shadow_map(float neardist, float middist, float fardist);
-void gr_opengl_end_shadow_map();
-void gr_opengl_clear_shadow_map();
-
-void gr_opengl_shadow_map_start(matrix *light_orient, light_frustum_info *verynear, light_frustum_info *near, light_frustum_info *mid, light_frustum_info *far);
+void gr_opengl_shadow_map_start(matrix4 *shadow_view_matrix, matrix *light_orient);
+void gr_opengl_shadow_map_end();
 
 void opengl_setup_scene_textures();
 void opengl_scene_texture_shutdown();
