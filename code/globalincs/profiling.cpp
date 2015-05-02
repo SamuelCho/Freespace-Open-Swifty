@@ -39,7 +39,6 @@ SCP_vector<profile_sample_history> history;
 uint start_profile_time = 0;
 uint end_profile_time = 0;
 
-//char profile_output[2048] = "";
 SCP_string profile_output;
 std::ofstream profiling_file;
 
@@ -121,26 +120,6 @@ void profile_begin(const char* name)
 
 		samples.push_back(new_sample);
 	}
-}
-
-/**
- * Used to start profiling a section of code. A section started by profile_begin needs to be closed off by calling
- * profile_end with the same argument.
- * @param name A globally unique string that will be displayed in the HUD readout
- */
-void profile_begin(SCP_string &output_handle, const char *name)
-{
-	output_handle.clear();
-
-	for ( size_t i = 0; i < (int)samples.size(); i++ ) {
-		if(samples[i].open_profiles > 0) {
-			output_handle += samples[i].name;
-		}
-	}
-
-	output_handle += name;
-
-	profile_begin(output_handle.c_str());
 }
 
 /**
