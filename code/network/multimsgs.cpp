@@ -2751,7 +2751,7 @@ void process_wing_create_packet( ubyte *data, header *hinfo )
 
 	// do a sanity check on the wing to be sure that we are actually working on a valid wing
 	if ( (index < 0) || (index >= Num_wings) || (Wings[index].num_waves == -1) ) {
-		nprintf(("Network", "invalid index %d for wing create packet\n"));
+		nprintf(("Network", "Invalid index %d for wing create packet\n", index));
 		return;
 	}
 	if ( (num_to_create <= 0) || (num_to_create > Wings[index].wave_count) ) {
@@ -6035,7 +6035,10 @@ void process_post_sync_data_packet(ubyte *data, header *hinfo)
 		objp = multi_get_network_object(net_sig);
 
 		// make sure we found a ship
-		Assert((objp != NULL) && (objp->type == OBJ_SHIP));
+		Assertion(objp != NULL, "idx: %d, ship_count: %d, sinfo_index: %u, ts_index: %u, net_sig: %u",
+			idx, ship_count, sinfo_index, ts_index, net_sig);
+		Assertion(objp->type == OBJ_SHIP, "type: %d, idx: %d, ship_count: %d, sinfo_index: %u, ts_index: %u, net_sig: %u",
+			objp->type, idx, ship_count, sinfo_index, ts_index, net_sig);
 
 		// set the ship to be the right class
 		change_ship_type(objp->instance,(int)sinfo_index);
@@ -7330,7 +7333,7 @@ void send_homing_weapon_info( int weapon_num )
 	// homing signature.
 	homing_signature = 0;
 	homing_object = wp->homing_object;
-	if ( homing_object != NULL ) {
+	if ( homing_object != &obj_used_list ) {
 		homing_signature = homing_object->net_signature;
 
 		// get the subsystem index.
@@ -8470,7 +8473,7 @@ void process_player_pain_packet(ubyte *data, header *hinfo)
 }
 
 // lightning packet
-void send_lightning_packet(int bolt_type, vec3d *start, vec3d *strike)
+void send_lightning_packet(int bolt_type_internal, vec3d *start, vec3d *strike)
 {
 	ubyte data[MAX_PACKET_SIZE];
 	char val;
@@ -8478,7 +8481,7 @@ void send_lightning_packet(int bolt_type, vec3d *start, vec3d *strike)
 
 	// build the header and add the data
 	BUILD_HEADER(LIGHTNING_PACKET);
-	val = (char)bolt_type;
+	val = (char)bolt_type_internal;
 	ADD_DATA(val);
 	ADD_VECTOR((*start));
 	ADD_VECTOR((*strike));
@@ -8490,23 +8493,23 @@ void send_lightning_packet(int bolt_type, vec3d *start, vec3d *strike)
 void process_lightning_packet(ubyte *data, header *hinfo)
 {
 	int offset;
-	char bolt_type;
+	char bolt_type_internal;
 	vec3d start, strike;
 
 	// read the data
 	offset = HEADER_LENGTH;
-	GET_DATA(bolt_type);
+	GET_DATA(bolt_type_internal);
 	GET_VECTOR(start);
 	GET_VECTOR(strike);
 	PACKET_SET_SIZE();
 
 	// invalid bolt?
-	if(bolt_type < 0){
+	if(bolt_type_internal < 0){
 		return;
 	}
 
 	// fire it up
-	nebl_bolt(bolt_type, &start, &strike);
+	nebl_bolt(bolt_type_internal, &start, &strike);
 }
 
 void send_bytes_recvd_packet(net_player *pl)

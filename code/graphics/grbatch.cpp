@@ -6,14 +6,14 @@
  *
 */ 
 
-#include "globalincs/pstypes.h"
-#include "graphics/gropenglstate.h"
-#include "graphics/gropengldraw.h"
-#include "graphics/grbatch.h"
-#include "graphics/2d.h"
-#include "cmdline/cmdline.h"
-#include "render/3d.h"
 #include "bmpman/bmpman.h"
+#include "cmdline/cmdline.h"
+#include "globalincs/pstypes.h"
+#include "graphics/2d.h"
+#include "graphics/grbatch.h"
+#include "graphics/gropengldraw.h"
+#include "graphics/gropenglstate.h"
+#include "render/3d.h"
 
 geometry_batcher::~geometry_batcher()
 {
@@ -173,11 +173,11 @@ void geometry_batcher::draw_bitmap(vertex *pnt, int orient, float rad, float dep
 	uvec = View_matrix.vec.uvec;
 
 	// make a right vector from the f and up vector, this r vec is exactly what we want, so...
-	vm_vec_crossprod(&rvec, &View_matrix.vec.fvec, &uvec);
+	vm_vec_cross(&rvec, &View_matrix.vec.fvec, &uvec);
 	vm_vec_normalize_safe(&rvec);
 
 	// fix the u vec with it
-	vm_vec_crossprod(&uvec, &View_matrix.vec.fvec, &rvec);
+	vm_vec_cross(&uvec, &View_matrix.vec.fvec, &rvec);
 
 	// move the center of the sprite based on the depth parameter
 	if ( depth != 0.0f )
@@ -284,9 +284,9 @@ void geometry_batcher::draw_bitmap(vertex *pnt, float rad, float angle, float de
 
 	vm_rot_point_around_line(&uvec, &View_matrix.vec.uvec, angle, &vmd_zero_vector, &View_matrix.vec.fvec);
 
-	vm_vec_crossprod(&rvec, &View_matrix.vec.fvec, &uvec);
+	vm_vec_cross(&rvec, &View_matrix.vec.fvec, &uvec);
 	vm_vec_normalize_safe(&rvec);
-	vm_vec_crossprod(&uvec, &View_matrix.vec.fvec, &rvec);
+	vm_vec_cross(&uvec, &View_matrix.vec.fvec, &rvec);
 
 	vm_vec_scale_add(&PNT, &PNT, &fvec, depth);
 	vm_vec_scale_add(&p[0], &PNT, &rvec, rad);
@@ -373,13 +373,13 @@ void geometry_batcher::draw_beam(vec3d *start, vec3d *end, float width, float in
 	vm_vec_sub(&evec, &View_position, start);
 	vm_vec_normalize_safe(&evec);
 
-	vm_vec_crossprod(&uvecs, &fvec, &evec);
+	vm_vec_cross(&uvecs, &fvec, &evec);
 	vm_vec_normalize_safe(&uvecs);
 
 	vm_vec_sub(&evec, &View_position, end);
 	vm_vec_normalize_safe(&evec);
 
-	vm_vec_crossprod(&uvece, &fvec, &evec);
+	vm_vec_cross(&uvece, &fvec, &evec);
 	vm_vec_normalize_safe(&uvece);
 
 
@@ -441,13 +441,13 @@ float geometry_batcher::draw_laser(vec3d *p0, float width1, vec3d *p1, float wid
 	vm_vec_normalize(&reye);
 
 	// compute the up vector
-	vm_vec_crossprod(&uvec, &fvec, &reye);
+	vm_vec_cross(&uvec, &fvec, &reye);
 	vm_vec_normalize_safe(&uvec);
 	// ... the forward vector
-	vm_vec_crossprod(&fvec, &uvec, &reye);
+	vm_vec_cross(&fvec, &uvec, &reye);
 	vm_vec_normalize_safe(&fvec);
 	// now recompute right vector, in case it wasn't entirely perpendiclar
-	vm_vec_crossprod(&rvec, &uvec, &fvec);
+	vm_vec_cross(&rvec, &uvec, &fvec);
 
 	// Now have uvec, which is up vector and rvec which is the normal
 	// of the face.
@@ -617,7 +617,6 @@ void geometry_shader_batcher::load_buffer(particle_pnt* buffer, int *n_verts)
 
 void geometry_shader_batcher::draw_bitmap(vertex *position, int orient, float rad, float depth)
 {
-	float radius = rad;
 	rad *= 1.41421356f;//1/0.707, becase these are the points of a square or width and height rad
 
 	vec3d PNT(position->world);
@@ -632,7 +631,7 @@ void geometry_shader_batcher::draw_bitmap(vertex *position, int orient, float ra
 		vm_vec_scale_add(&PNT, &PNT, &fvec, depth);
 
 	particle_pnt new_particle;
-	vec3d up = {0.0f, 1.0f, 0.0f};
+	vec3d up = {{{0.0f, 1.0f, 0.0f}}};
 
 	new_particle.position = position->world;
 	new_particle.size = rad;
@@ -695,69 +694,6 @@ size_t Batch_buffer_size = 0;
 
 void *Batch_geometry_buffer = NULL;
 size_t Batch_geometry_buffer_size = 0;
-
-// static size_t find_good_batch_item(int texture)
-// {
-// 	size_t max_size = geometry_map.size();
-// 
-// 	for (size_t i = 0; i < max_size; i++) {
-// 		if (geometry_map[i].texture == texture)
-// 			return i;
-// 	}
-// 
-// 	// don't have an existing match so add a new entry
-// 	batch_item new_item;
-// 
-// 	new_item.texture = texture;
-// 
-// 	geometry_map.push_back(new_item);
-// 
-// 	return (geometry_map.size() - 1);
-// }
-// 
-// static size_t find_good_g_sdr_batch_item(int texture)
-// {
-// 	size_t max_size = geometry_shader_map.size();
-// 
-// 	for (size_t i = 0; i < max_size; i++) {
-// 		if (geometry_shader_map[i].texture == texture)
-// 			return i;
-// 	}
-// 
-// 	// don't have an existing match so add a new entry
-// 	g_sdr_batch_item new_item;
-// 
-// 	new_item.texture = texture;
-// 
-// 	geometry_shader_map.push_back(new_item);
-// 
-// 	return (geometry_shader_map.size() - 1);
-// }
-// 
-// static bool find_good_distortion_item(int texture)
-// {
-// 	SCP_map<int, batch_item>::iterator it = distortion_map.find(texture);
-// 
-// 	if ( it == distortion_map.end() ) {
-// 
-// 	}
-// 
-// 	size_t max_size = distortion_map.size();
-// 
-// 	for (size_t i = 0; i < max_size; i++) {
-// 		if (distortion_map[i].texture == texture)
-// 			return i;
-// 	}
-// 
-// 	// don't have an existing match so add a new entry
-// 	batch_item new_item;
-// 
-// 	new_item.texture = texture;
-// 
-// 	distortion_map.push_back(new_item);
-// 
-// 	return (distortion_map.size() - 1);
-// }
 
 float batch_add_laser(int texture, vec3d *p0, float width1, vec3d *p1, float width2, int r, int g, int b)
 {
@@ -853,28 +789,6 @@ int geometry_batch_add_bitmap(int texture, int tmap_flags, vertex *pnt, int orie
 
 	return 0;
 }
-
-// int geometry_batch_add_bitmap_rotated(int texture, int tmap_flags, vertex *pnt, float angle, float rad, float alpha, float depth)
-// {
-// 	if (texture < 0) {
-// 		Int3();
-// 		return 1;
-// 	}
-// 
-// 	geometry_shader_batcher *item = NULL;
-// 	size_t index = find_good_batch_item(texture);
-// 
-// 	Assertion( (geometry_shader_map[index].laser == false), "Particle effect %s used as laser glow or laser bitmap\n", bm_get_filename(texture) );
-// 
-// 	geometry_shader_map[index].tmap_flags = tmap_flags;
-// 	geometry_shader_map[index].alpha = alpha;
-// 
-// 	item = &geometry_shader_map[index].batch;
-// 
-// 	item->draw_bitmap(pnt, rad, angle, depth);
-// 
-// 	return 0;
-// }
 
 int batch_add_bitmap_rotated(int texture, int tmap_flags, vertex *pnt, float angle, float rad, float alpha, float depth)
 {
@@ -984,7 +898,7 @@ int batch_add_polygon(int texture, int tmap_flags, vec3d *pos, matrix *orient, f
 
 	const int NUM_VERTICES = 4;
 	vec3d p[NUM_VERTICES] = { ZERO_VECTOR };
-	vertex v[NUM_VERTICES];
+	vertex v[NUM_VERTICES] = { vertex() };
 
 	p[0].xyz.x = width;
 	p[0].xyz.y = height;

@@ -11,22 +11,22 @@
 
 #include <limits.h>
 
-#include "math/vecmat.h"
-#include "render/3d.h"
-#include "starfield/starfield.h"
-#include "freespace2/freespace.h"
-#include "io/timer.h"
-#include "starfield/nebula.h"
-#include "lighting/lighting.h"
-#include "mission/missionparse.h"
-#include "nebula/neb.h"
-#include "starfield/supernova.h"
 #include "cmdline/cmdline.h"
-#include "parse/parselo.h"
+#include "debugconsole/console.h"
+#include "freespace2/freespace.h"
 #include "hud/hud.h"
 #include "hud/hudtarget.h"
+#include "io/timer.h"
+#include "lighting/lighting.h"
+#include "math/vecmat.h"
+#include "mission/missionparse.h"
 #include "model/modelrender.h"
-#include "debugconsole/console.h"
+#include "nebula/neb.h"
+#include "parse/parselo.h"
+#include "render/3d.h"
+#include "starfield/nebula.h"
+#include "starfield/starfield.h"
+#include "starfield/supernova.h"
 
 #define MAX_DEBRIS_VCLIPS			4
 #define DEBRIS_ROT_MIN				10000
@@ -296,10 +296,9 @@ static void starfield_create_bitmap_buffer(const int si_idx)
 	vm_angles_2_matrix(&m_bank, &bank_first);
 
 	// convert angles to matrix
-	float b_save = a->b;
-	a->b = 0.0f;
-	vm_angles_2_matrix(&m, a);
-	a->b = b_save;
+	angles a_temp = *a;
+	a_temp.b = 0.0f;
+	vm_angles_2_matrix(&m, &a_temp);
 
 	// generate the bitmap points
 	for(idx=0; idx<=div_x; idx++) {
@@ -404,183 +403,192 @@ void parse_startbl(const char *filename)
 {
 	char name[MAX_FILENAME_LEN], tempf[16];
 	starfield_bitmap sbm;
-	int idx, rval;
+	int idx;
 	bool in_check = false;
 	int rc = -1;
 	int run_count = 0;
 
-	if ((rval = setjmp(parse_abort)) != 0) {
-		mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", filename, rval));
-		return;
+	try
+	{
+		read_file_text(filename, CF_TYPE_TABLES);
+		reset_parse();
+
+		// freaky! ;)
+		while (!check_for_eof()) {
+			while ((rc = optional_string_either("$Bitmap:", "$BitmapX:")) != -1) {
+				in_check = true;
+
+				starfield_bitmap_entry_init(&sbm);
+
+				stuff_string(sbm.filename, F_NAME, MAX_FILENAME_LEN);
+				sbm.xparent = rc;  // 0 == intensity alpha bitmap,  1 == green xparency bitmap
+
+				if ((idx = stars_find_bitmap(sbm.filename)) >= 0) {
+					if (sbm.xparent == Starfield_bitmaps[idx].xparent) {
+						if (!Parsing_modular_table)
+							Warning(LOCATION, "Starfield bitmap '%s' listed more than once!!  Only using the first entry!", sbm.filename);
+					}
+					else {
+						Warning(LOCATION, "Starfield bitmap '%s' already listed as a %s bitmap!!  Only using the xparent version!",
+							sbm.filename, (rc) ? "xparent" : "non-xparent");
+					}
+				}
+				else {
+					Starfield_bitmaps.push_back(sbm);
+				}
+			}
+
+			CHECK_END();
+
+			while (optional_string("$Sun:")) {
+				in_check = true;
+
+				starfield_bitmap_entry_init(&sbm);
+
+				stuff_string(sbm.filename, F_NAME, MAX_FILENAME_LEN);
+
+				// associated glow
+				required_string("$Sunglow:");
+				stuff_string(sbm.glow_filename, F_NAME, MAX_FILENAME_LEN);
+
+				// associated lighting values
+				required_string("$SunRGBI:");
+				stuff_float(&sbm.r);
+				stuff_float(&sbm.g);
+				stuff_float(&sbm.b);
+				stuff_float(&sbm.i);
+
+				if (optional_string("$SunSpecularRGB:")) {
+					stuff_float(&sbm.spec_r);
+					stuff_float(&sbm.spec_g);
+					stuff_float(&sbm.spec_b);
+				}
+				else {
+					sbm.spec_r = sbm.r;
+					sbm.spec_g = sbm.g;
+					sbm.spec_b = sbm.b;
+				}
+
+				// lens flare stuff
+				if (optional_string("$Flare:")) {
+					sbm.flare = 1;
+
+					required_string("+FlareCount:");
+					stuff_int(&sbm.n_flares);
+
+					// if there's a flare, it has to have at least one texture
+					required_string("$FlareTexture1:");
+					stuff_string(sbm.flare_bitmaps[0].filename, F_NAME, MAX_FILENAME_LEN);
+
+					sbm.n_flare_bitmaps = 1;
+
+					for (idx = 1; idx < MAX_FLARE_BMP; idx++) {
+						// allow 9999 textures (theoretically speaking, that is)
+						sprintf(tempf, "$FlareTexture%d:", idx + 1);
+
+						if (optional_string(tempf)) {
+							sbm.n_flare_bitmaps++;
+							stuff_string(sbm.flare_bitmaps[idx].filename, F_NAME, MAX_FILENAME_LEN);
+						}
+						//	else break; //don't allow flaretexture1 and then 3, etc.
+					}
+
+					required_string("$FlareGlow1:");
+
+					required_string("+FlareTexture:");
+					stuff_int(&sbm.flare_infos[0].tex_num);
+
+					required_string("+FlarePos:");
+					stuff_float(&sbm.flare_infos[0].pos);
+
+					required_string("+FlareScale:");
+					stuff_float(&sbm.flare_infos[0].scale);
+
+					sbm.n_flares = 1;
+
+					for (idx = 1; idx < MAX_FLARE_COUNT; idx++) {
+						// allow a lot of glows
+						sprintf(tempf, "$FlareGlow%d:", idx + 1);
+
+						if (optional_string(tempf)) {
+							sbm.n_flares++;
+
+							required_string("+FlareTexture:");
+							stuff_int(&sbm.flare_infos[idx].tex_num);
+
+							required_string("+FlarePos:");
+							stuff_float(&sbm.flare_infos[idx].pos);
+
+							required_string("+FlareScale:");
+							stuff_float(&sbm.flare_infos[idx].scale);
+						}
+						//	else break; //don't allow "flare 1" and then "flare 3"
+					}
+				}
+
+				sbm.glare = !optional_string("$NoGlare:");
+
+				sbm.xparent = 1;
+
+				if ((idx = stars_find_sun(sbm.filename)) >= 0) {
+					if (Parsing_modular_table)
+						Sun_bitmaps[idx] = sbm;
+					else
+						Warning(LOCATION, "Sun bitmap '%s' listed more than once!!  Only using the first entry!", sbm.filename);
+				}
+				else {
+					Sun_bitmaps.push_back(sbm);
+				}
+			}
+
+			CHECK_END();
+
+			// normal debris pieces
+			while (optional_string("$Debris:")) {
+				in_check = true;
+
+				stuff_string(name, F_NAME, MAX_FILENAME_LEN);
+
+				if (Num_debris_normal < MAX_DEBRIS_VCLIPS) {
+					strcpy_s(Debris_vclips_normal[Num_debris_normal++].name, name);
+				}
+				else {
+					Warning(LOCATION, "Could not load normal motion debris '%s'; maximum of %d exceeded.", name, MAX_DEBRIS_VCLIPS);
+				}
+			}
+
+			CHECK_END();
+
+			// nebula debris pieces
+			while (optional_string("$DebrisNeb:")) {
+				in_check = true;
+
+				stuff_string(name, F_NAME, MAX_FILENAME_LEN);
+
+				if (Num_debris_nebula < MAX_DEBRIS_VCLIPS) {
+					strcpy_s(Debris_vclips_nebula[Num_debris_nebula++].name, name);
+				}
+				else {
+					Warning(LOCATION, "Could not load nebula motion debris '%s'; maximum of %d exceeded.", name, MAX_DEBRIS_VCLIPS);
+				}
+			}
+
+			CHECK_END();
+
+			// since it's possible for some idiot to have a tbl screwed up enough
+			// that this ends up in an endless loop, give an opportunity to advance
+			// through the file no matter what, because even the retail tbl has an
+			// extra "#end" line in it.
+			if (optional_string("#end") || (run_count++ > 5)) {
+				run_count = 0;
+				advance_to_eoln(NULL);
+			}
+		}
 	}
-
-	read_file_text(filename, CF_TYPE_TABLES);
-	reset_parse();
-
-	// freaky! ;)
-	while ( !check_for_eof() ) {
-		while ( (rc = optional_string_either("$Bitmap:", "$BitmapX:")) != -1 ) {
-			in_check = true;
-
-			starfield_bitmap_entry_init( &sbm );
-
-			stuff_string(sbm.filename, F_NAME, MAX_FILENAME_LEN);
-			sbm.xparent = rc;  // 0 == intensity alpha bitmap,  1 == green xparency bitmap
-
-			if ( (idx = stars_find_bitmap(sbm.filename)) >= 0 ) {
-				if (sbm.xparent == Starfield_bitmaps[idx].xparent) {
-					if ( !Parsing_modular_table )
-						Warning(LOCATION, "Starfield bitmap '%s' listed more than once!!  Only using the first entry!", sbm.filename);
-				} else {
-					Warning(LOCATION, "Starfield bitmap '%s' already listed as a %sxparent bitmap!!  Only using the xparent version!",
-										(rc) ? "xparent" : "non-xparent", (rc) ? "xparent" : "non-xparent", sbm.filename);
-				}
-			} else {
-				Starfield_bitmaps.push_back(sbm);
-			}
-		}
-
-		CHECK_END();
-
-		while ( optional_string("$Sun:") ) {
-			in_check = true;
-
-			starfield_bitmap_entry_init( &sbm );
-
-			stuff_string(sbm.filename, F_NAME, MAX_FILENAME_LEN);
-
-			// associated glow
-			required_string("$Sunglow:");
-			stuff_string(sbm.glow_filename, F_NAME, MAX_FILENAME_LEN);
-
-			// associated lighting values
-			required_string("$SunRGBI:");
-			stuff_float(&sbm.r);
-			stuff_float(&sbm.g);
-			stuff_float(&sbm.b);
-			stuff_float(&sbm.i);
-
-			if ( optional_string("$SunSpecularRGB:") ) {
-				stuff_float(&sbm.spec_r);
-				stuff_float(&sbm.spec_g);
-				stuff_float(&sbm.spec_b);
-			} else {
-				sbm.spec_r = sbm.r;
-				sbm.spec_g = sbm.g;
-				sbm.spec_b = sbm.b;
-			}
-
-			// lens flare stuff
-			if ( optional_string("$Flare:") ) {
-				sbm.flare = 1;
-
-				required_string("+FlareCount:");
-				stuff_int(&sbm.n_flares);
-
-				// if there's a flare, it has to have at least one texture
-				required_string("$FlareTexture1:");
-				stuff_string(sbm.flare_bitmaps[0].filename, F_NAME, MAX_FILENAME_LEN);
-
-				sbm.n_flare_bitmaps = 1;
-
-				for (idx = 1; idx < MAX_FLARE_BMP; idx++) {
-					// allow 9999 textures (theoretically speaking, that is)
-					sprintf(tempf, "$FlareTexture%d:", idx+1);
-
-					if (optional_string(tempf)) {
-						sbm.n_flare_bitmaps++;
-						stuff_string(sbm.flare_bitmaps[idx].filename, F_NAME, MAX_FILENAME_LEN);
-					}
-				//	else break; //don't allow flaretexture1 and then 3, etc.
-				}
-
-				required_string("$FlareGlow1:");
-
-				required_string("+FlareTexture:");
-				stuff_int(&sbm.flare_infos[0].tex_num);
-
-				required_string("+FlarePos:");
-				stuff_float(&sbm.flare_infos[0].pos);
-
-				required_string("+FlareScale:");
-				stuff_float(&sbm.flare_infos[0].scale);
-				
-				sbm.n_flares = 1;
-
-				for (idx = 1; idx < MAX_FLARE_COUNT; idx++) {
-					// allow a lot of glows
-					sprintf(tempf, "$FlareGlow%d:", idx+1);
-
-					if (optional_string(tempf)) {
-						sbm.n_flares++;
-
-						required_string("+FlareTexture:");
-						stuff_int(&sbm.flare_infos[idx].tex_num);
-
-						required_string("+FlarePos:");
-						stuff_float(&sbm.flare_infos[idx].pos);
-
-						required_string("+FlareScale:");
-						stuff_float(&sbm.flare_infos[idx].scale);
-					}
-				//	else break; //don't allow "flare 1" and then "flare 3"
-				}
-			}
-
-			sbm.glare = !optional_string("$NoGlare:");
-
-			sbm.xparent = 1;
-
-			if ( (idx = stars_find_sun(sbm.filename)) >= 0 ) {
-				if (Parsing_modular_table)
-					Sun_bitmaps[idx] = sbm;
-				else
-					Warning(LOCATION, "Sun bitmap '%s' listed more than once!!  Only using the first entry!", sbm.filename);
-			} else {
-				Sun_bitmaps.push_back(sbm);
-			}
-		}
-
-		CHECK_END();
-
-		// normal debris pieces
-		while ( optional_string("$Debris:") ) {
-			in_check = true;
-
-			stuff_string(name, F_NAME, MAX_FILENAME_LEN);
-
-			if (Num_debris_normal < MAX_DEBRIS_VCLIPS) {
-				strcpy_s(Debris_vclips_normal[Num_debris_normal++].name, name);
-			} else {
-				Warning(LOCATION, "Could not load normal motion debris '%s'; maximum of %d exceeded.", name, MAX_DEBRIS_VCLIPS);
-			}
-		}
-
-		CHECK_END();
-
-		// nebula debris pieces
-		while ( optional_string("$DebrisNeb:") ) {
-			in_check = true;
-
-			stuff_string(name, F_NAME, MAX_FILENAME_LEN);
-
-			if (Num_debris_nebula < MAX_DEBRIS_VCLIPS) {
-				strcpy_s(Debris_vclips_nebula[Num_debris_nebula++].name, name);
-			} else {
-				Warning(LOCATION, "Could not load nebula motion debris '%s'; maximum of %d exceeded.", name, MAX_DEBRIS_VCLIPS);
-			}
-		}
-
-		CHECK_END();
-
-		// since it's possible for some idiot to have a tbl screwed up enough
-		// that this ends up in an endless loop, give an opportunity to advance
-		// through the file no matter what, because even the retail tbl has an
-		// extra "#end" line in it.
-		if ( optional_string("#end") || (run_count++ > 5) ) {
-			run_count = 0;
-			advance_to_eoln(NULL);
-		}
+	catch (const parse::ParseException& e)
+	{
+		mprintf(("TABLES: Unable to parse '%s'!  Error message = %s.\n", filename, e.what()));
+		return;
 	}
 }
 
@@ -2156,7 +2164,7 @@ void stars_draw_background()
 	render_info.set_alpha(1.0f);
 	render_info.set_flags(Nmodel_flags | MR_SKYBOX);
 
-	model_render_immediate(&render_info, Nmodel_num, &Nmodel_orient, &Eye_position, MODEL_RENDER_ALL);
+	model_render_immediate(&render_info, Nmodel_num, &Nmodel_orient, &Eye_position, MODEL_RENDER_ALL, false);
 }
 
 // call this to set a specific model as the background model
@@ -2617,28 +2625,6 @@ void stars_delete_entry_FRED(int index, bool is_a_sun)
 void stars_load_first_valid_background()
 {
 	int background_idx = stars_get_first_valid_background();
-
-#ifndef NDEBUG
-	if (background_idx < 0 && !Fred_running)
-	{
-		int i;
-		bool at_least_one_bitmap = false;
-		for (i = 0; i < Num_backgrounds; i++)
-		{
-			if (Backgrounds[i].bitmaps.size() > 0)
-				at_least_one_bitmap = true;
-		}
-
-		if (at_least_one_bitmap)
-		{
-			if (Num_backgrounds == 1)
-				Warning(LOCATION, "Unable to find a sufficient number of bitmaps for this mission's background.  The background will not be displayed.");	
-			else if (Num_backgrounds > 1)
-				Warning(LOCATION, "Unable to find a sufficient number of bitmaps for any background listed in this mission.  No background will be displayed.");
-		}
-	}
-#endif
-
 	stars_load_background(background_idx);
 }
 
@@ -2650,32 +2636,43 @@ int stars_get_first_valid_background()
 	if (Num_backgrounds == 0)
 		return -1;
 
-	// get the first background with > 50% of its suns and > 50% of its bitmaps present
-	for (i = 0; i < (uint)Num_backgrounds; i++)
+	// scan every background except the last and return the first one that has all its suns and bitmaps present
+	for (i = 0; i < (uint)Num_backgrounds - 1; i++)
 	{
-		uint total_suns = 0;
-		uint total_bitmaps = 0;
+		bool valid = true;
 		background_t *background = &Backgrounds[i];
 
 		for (j = 0; j < background->suns.size(); j++)
 		{
-			if (stars_find_sun(background->suns[j].filename) >= 0)
-				total_suns++;
+			if (stars_find_sun(background->suns[j].filename) < 0)
+			{
+				mprintf(("Failed to load sun %s for background %d, falling back to background %d\n",
+					background->suns[j].filename, i + 1, i + 2));
+				valid = false;
+				break;
+			}
 		}
 
-		for (j = 0; j < background->bitmaps.size(); j++)
+		if (valid)
 		{
-			if (stars_find_bitmap(background->bitmaps[j].filename) >= 0)
-				total_bitmaps++;
+			for (j = 0; j < background->bitmaps.size(); j++)
+			{
+				if (stars_find_bitmap(background->bitmaps[j].filename) < 0)
+				{
+					mprintf(("Failed to load bitmap %s for background %d, falling back to background %d\n",
+						background->suns[j].filename, i + 1, i + 2));
+					valid = false;
+					break;
+				}
+			}
 		}
 
-		// add 1 so rounding will work properly
-		if ((total_suns >= (background->suns.size() + 1) / 2) && (total_bitmaps >= (background->bitmaps.size() + 1) / 2))
+		if (valid)
 			return i;
 	}
 
-	// didn't find a valid entry
-	return -1;
+	// didn't find a valid background yet, so return the last one
+	return Num_backgrounds - 1;
 }
 
 // Goober5000

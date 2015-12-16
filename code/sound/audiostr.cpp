@@ -10,15 +10,15 @@
 
 #define NEED_STRHDL		// for STRHTL struct in audiostr.h
 
+#include "cfile/cfile.h"
 #include "globalincs/pstypes.h"
-#include "sound/openal.h"
+#include "io/timer.h"
+#include "sound/acm.h"
 #include "sound/audiostr.h"
 #include "sound/ds.h"
-#include "sound/acm.h"
-#include "cfile/cfile.h"
-#include "sound/sound.h"
 #include "sound/ogg/ogg.h"
-#include "io/timer.h"
+#include "sound/openal.h"
+#include "sound/sound.h"
 
 #define THREADED
 #include "osapi/osapi.h"
@@ -44,6 +44,10 @@ ubyte *Compressed_buffer = NULL;				// Used to load in compressed data during a 
 ubyte *Compressed_service_buffer = NULL;	// Used to read in compressed data during a service interval
 
 #define AS_HIGHEST_MAX	999999999	// max uncompressed filesize supported is 999 meg
+
+// Globalize the list of audio extensions for use in several sound related files
+const char *audio_ext_list[] = { ".ogg", ".wav" };
+const int NUM_AUDIO_EXT = sizeof(audio_ext_list) / sizeof(char*);
 
 
 int Audiostream_inited = 0;
@@ -436,8 +440,6 @@ bool WaveFile::Open(char *pszFilename, bool keep_ext)
 	int FileSize, FileOffset;
 	char fullpath[MAX_PATH];
 	char filename[MAX_FILENAME_LEN];
-	const int NUM_EXT = 2;
-	const char *audio_ext[NUM_EXT] = { ".ogg", ".wav" };
 
 	m_total_uncompressed_bytes_read = 0;
 	m_max_uncompressed_bytes_to_read = AS_HIGHEST_MAX;
@@ -448,8 +450,8 @@ bool WaveFile::Open(char *pszFilename, bool keep_ext)
 
 	// if we are supposed to load the file as passed...
 	if (keep_ext) {
-		for (int i = 0; i < NUM_EXT; i++) {
-			if ( stristr(pszFilename, audio_ext[i]) ) {
+		for (int i = 0; i < NUM_AUDIO_EXT; i++) {
+			if ( stristr(pszFilename, audio_ext_list[i]) ) {
 				rc = i;
 				break;
 			}
@@ -463,14 +465,13 @@ bool WaveFile::Open(char *pszFilename, bool keep_ext)
 	}
 	// ... otherwise we just find the best match
 	else {
-		rc = cf_find_file_location_ext(filename, NUM_EXT, audio_ext, CF_TYPE_ANY, sizeof(fullpath) - 1, fullpath, &FileSize, &FileOffset);
-	}
+		rc = cf_find_file_location_ext(filename, NUM_AUDIO_EXT, audio_ext_list, CF_TYPE_ANY, sizeof(fullpath) - 1, fullpath, &FileSize, &FileOffset);
 
-	if (rc < 0) {
-		goto OPEN_ERROR;
-	} else {
+		if (rc < 0)
+			goto OPEN_ERROR;
+
 		// set proper filename for later use (assumes that it doesn't already have an extension)
-		strcat_s( filename, audio_ext[rc] );
+		strcat_s( filename, audio_ext_list[rc] );
 	}
 
 	m_snd_info.cfp = mmioOpen( fullpath, NULL, MMIO_ALLOCBUF | MMIO_READ );
@@ -1709,7 +1710,7 @@ void audiostream_close()
 //	
 // returns:	success => handle to identify streaming sound
 //				failure => -1
-int audiostream_open( char *filename, int type )
+int audiostream_open( const char *filename, int type )
 {
 	int i, rc;
 	char fname[MAX_FILENAME_LEN];

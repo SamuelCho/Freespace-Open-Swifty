@@ -11,31 +11,29 @@
 
 #define MODEL_LIB
 
-#include "model/model.h"
-#include "model/modelsinc.h"
-#include "graphics/2d.h"
-#include "render/3dinternal.h"
-#include "math/fvi.h"
-#include "lighting/lighting.h"
 #include "bmpman/bmpman.h"
+#include "cmdline/cmdline.h"
+#include "debugconsole/console.h"
+#include "gamesequence/gamesequence.h"
+#include "gamesnd/gamesnd.h"
+#include "globalincs/alphacolors.h"
+#include "globalincs/linklist.h"
+#include "graphics/2d.h"
+#include "graphics/gropengllight.h"
 #include "io/key.h"
 #include "io/timer.h"
-#include "mission/missionparse.h"
-#include "nebula/neb.h"
+#include "math/fvi.h"
 #include "math/staticrand.h"
-#include "particle/particle.h"
-#include "ship/ship.h"
-#include "cmdline/cmdline.h"
-#include "gamesnd/gamesnd.h"
-#include "globalincs/linklist.h"
-#include "weapon/shockwave.h"
-#include "parse/parselo.h"
-#include "graphics/gropengllight.h"
-#include "ship/shipfx.h"
-#include "gamesequence/gamesequence.h"
-#include "globalincs/alphacolors.h"
+#include "mission/missionparse.h"
 #include "model/modelrender.h"
-#include "debugconsole/console.h"
+#include "model/modelsinc.h"
+#include "nebula/neb.h"
+#include "parse/parselo.h"
+#include "particle/particle.h"
+#include "render/3dinternal.h"
+#include "ship/ship.h"
+#include "ship/shipfx.h"
+#include "weapon/shockwave.h"
 
 #include <limits.h>
 
@@ -129,10 +127,6 @@ static vertex **Interp_list = NULL;
 static int  Num_interp_list_verts_allocated = 0;
 
 static float Interp_box_scale = 1.0f; // this is used to scale both detail boxes and spheres
-static vec3d Interp_render_box_min = ZERO_VECTOR;
-static vec3d Interp_render_box_max = ZERO_VECTOR;
-static float Interp_render_sphere_radius = 0.0f;
-static vec3d Interp_render_sphere_offset = ZERO_VECTOR;
 
 // -------------------------------------------------------------------
 // lighting save stuff 
@@ -424,10 +418,6 @@ void interp_clear_instance()
 	}
 
 	Interp_box_scale = 1.0f;
-	Interp_render_box_min = vmd_zero_vector;
-	Interp_render_box_max = vmd_zero_vector;
-	Interp_render_sphere_radius = 0.0f;
-	Interp_render_sphere_offset = vmd_zero_vector;
 
 	Interp_team_color_set = false;
 
@@ -1307,7 +1297,7 @@ void model_draw_paths( int model_num, uint flags )
 			// For this example, I am just drawing a sphere at that
 			// point.
 			{
-				vertex tmp;
+				vertex tmp = vertex();
 				g3_rotate_vertex(&tmp,&pnt);
 
 				if ( pm->paths[i].verts[j].nturrets > 0 ){
@@ -1482,7 +1472,7 @@ static const int MAX_ARC_SEGMENT_POINTS = 50;
 int Num_arc_segment_points = 0;
 vec3d Arc_segment_points[MAX_ARC_SEGMENT_POINTS];
 
-extern int g3_draw_rod(int num_points, vec3d *vecs, float width, uint tmap_flags);
+extern int g3_draw_rod(int num_points, const vec3d *vecs, float width, uint tmap_flags);
 
 void interp_render_arc_segment( vec3d *v1, vec3d *v2, int depth )
 {
@@ -1638,7 +1628,7 @@ void model_interp_subcall(polymodel * pm, int mn, int detail_level)
 	vm_rotate_matrix_by_angles(&rotation_matrix, &pm->submodel[mn].angs);
 
 	matrix inv_orientation;
-	vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[mn].orientation);
+	vm_copy_transpose(&inv_orientation, &pm->submodel[mn].orientation);
 
 	matrix submodel_matrix;
 	vm_matrix_x_matrix(&submodel_matrix, &rotation_matrix, &inv_orientation);
@@ -1651,8 +1641,8 @@ void model_interp_subcall(polymodel * pm, int mn, int detail_level)
 
 	model_interp_sub( pm->submodel[mn].bsp_data, pm, &pm->submodel[mn], 0 );
 
-//	if (Interp_flags & MR_SHOW_PIVOTS )
-//		model_draw_debug_points( pm, &pm->submodel[mn], Interp_flags );
+	if (Interp_flags & MR_DEPRECATED_SHOW_PIVOTS )
+		model_draw_debug_points( pm, &pm->submodel[mn], Interp_flags );
 
 	if ( pm->submodel[mn].num_arcs )	{
 		interp_render_lightning( pm, &pm->submodel[mn]);
@@ -1771,11 +1761,11 @@ int model_interp_sub(void *model_ptr, polymodel * pm, bsp_info *sm, int do_box_c
 				}
 			}
 
-//			if (Interp_flags & MR_SHOW_PIVOTS )	{
-//				#ifndef NDEBUG
-//				modelstats_num_boxes++;
-//				#endif
-//			}
+			if (Interp_flags & MR_DEPRECATED_SHOW_PIVOTS )	{
+				#ifndef NDEBUG
+				modelstats_num_boxes++;
+				#endif
+			}
 
 			if ( !(Interp_flags & MR_NO_LIGHTING ) )	{
 				if ( pushed )	{
@@ -1815,7 +1805,7 @@ void model_render_shields( polymodel * pm, uint flags )
 {
 	int i, j;
 	shield_tri *tri;
-	vertex pnt0, tmp, prev_pnt;
+	vertex pnt0, prev_pnt, tmp = vertex();
 
 	if ( flags & MR_SHOW_OUTLINE_PRESET )	{
 		return;
@@ -2030,7 +2020,7 @@ void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint fl
 
 	glow_point_bank_override *gpo = NULL;
 	bool override_all = false;
-	SCP_hash_map<int, void*>::iterator gpoi;
+	SCP_unordered_map<int, void*>::iterator gpoi;
 	ship_info *sip = NULL;
 	ship *shipp = NULL;
 	
@@ -2039,7 +2029,7 @@ void model_render_DEPRECATED(int model_num, matrix *orient, vec3d * pos, uint fl
 		{
 			shipp = &Ships[Objects[objnum].instance];
 			sip = &Ship_info[shipp->ship_info_index];
-			SCP_hash_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
+			gpoi = sip->glowpoint_bank_override_map.find(-1);
 		
 			if(gpoi != sip->glowpoint_bank_override_map.end()) {
 				override_all = true;
@@ -2249,7 +2239,7 @@ void moldel_calc_facing_pts( vec3d *top, vec3d *bot, vec3d *fvec, vec3d *pos, fl
 	vm_vec_sub( &rvec, Eyeposition, &temp );
 	vm_vec_normalize( &rvec );	
 
-	vm_vec_crossprod(&uvec,fvec,&rvec);
+	vm_vec_cross(&uvec,fvec,&rvec);
 	vm_vec_normalize(&uvec);
 
 	vm_vec_scale_add( top, &temp, &uvec, w/2.0f );
@@ -2579,8 +2569,8 @@ void model_render_thrusters(polymodel *pm, int objnum, ship *shipp, matrix *orie
 					pe.max_rad = gpt->radius * tp->max_rad;
 					// How close they stick to that normal 0=on normal, 1=180, 2=360 degree
 					pe.normal_variance = tp->variance;
-					pe.min_life = 0.0;
-					pe.max_life = 1.0;
+					pe.min_life = 0.0f;
+					pe.max_life = 1.0f;
 
 					particle_emit( &pe, PARTICLE_BITMAP, tp->thruster_bitmap.first_frame);
 				}
@@ -2602,13 +2592,13 @@ void model_render_glow_points_DEPRECATED(polymodel *pm, ship *shipp, matrix *ori
 	
 	glow_point_bank_override *gpo = NULL;
 	bool override_all = false;
-	SCP_hash_map<int, void*>::iterator gpoi;
+	SCP_unordered_map<int, void*>::iterator gpoi;
 	ship_info *sip = NULL;
 
 	if(shipp)
 	{
 		sip = &Ship_info[shipp->ship_info_index];
-		SCP_hash_map<int, void*>::iterator gpoi = sip->glowpoint_bank_override_map.find(-1);
+		gpoi = sip->glowpoint_bank_override_map.find(-1);
 		
 		if(gpoi != sip->glowpoint_bank_override_map.end()) {
 			override_all = true;
@@ -3505,8 +3495,8 @@ void submodel_render_DEPRECATED(int model_num, int submodel_num, matrix *orient,
 		interp_render_lightning( pm, &pm->submodel[submodel_num]);
 	}
 
-// 	if (Interp_flags & MR_SHOW_PIVOTS )
-// 		model_draw_debug_points( pm, &pm->submodel[submodel_num], Interp_flags );
+	if (Interp_flags & MR_DEPRECATED_SHOW_PIVOTS )
+		model_draw_debug_points( pm, &pm->submodel[submodel_num], Interp_flags );
 
 	if ( !(Interp_flags & MR_NO_LIGHTING ) )	{
 		light_filter_pop();	
@@ -3613,8 +3603,21 @@ void submodel_get_two_random_points(int model_num, int submodel_num, vec3d *v1, 
 		return;
 	}
 
-	int vn1 = (myrand()>>5) % nv;
-	int vn2 = (myrand()>>5) % nv;
+#ifndef NDEBUG
+	if (RAND_MAX < nv)
+	{
+		static int submodel_get_two_random_points_warned = false;
+		if (!submodel_get_two_random_points_warned)
+		{
+			polymodel *pm = model_get(model_num);
+			Warning(LOCATION, "RAND_MAX is only %d, but submodel %d for model %s has %d vertices!  Explosions will not propagate through the entire model!\n", RAND_MAX, submodel_num, pm->filename, nv);
+			submodel_get_two_random_points_warned = true;
+		}
+	}
+#endif
+
+	int vn1 = myrand() % nv;
+	int vn2 = myrand() % nv;
 
 	*v1 = *Interp_verts[vn1];
 	*v2 = *Interp_verts[vn2];
@@ -3651,9 +3654,20 @@ void submodel_get_two_random_points_better(int model_num, int submodel_num, vec3
 			return;
 		}
 
-		Assert(nv > 0);	// Goober5000 - to avoid div-0 error
-		int vn1 = (myrand()>>5) % nv;
-		int vn2 = (myrand()>>5) % nv;
+#ifndef NDEBUG
+		if (RAND_MAX < nv)
+		{
+			static int submodel_get_two_random_points_warned = false;
+			if (!submodel_get_two_random_points_warned)
+			{
+				Warning(LOCATION, "RAND_MAX is only %d, but submodel %d for model %s has %d vertices!  Explosions will not propagate through the entire model!\n", RAND_MAX, submodel_num, pm->filename, nv);
+				submodel_get_two_random_points_warned = true;
+			}
+		}
+#endif
+
+		int vn1 = myrand() % nv;
+		int vn2 = myrand() % nv;
 
 		*v1 = tree->point_list[vn1];
 		*v2 = tree->point_list[vn2];
@@ -4296,16 +4310,6 @@ void find_sortnorm(int offset, ubyte *bsp_data)
 	if (postlist) find_tri_counts(offset+postlist, bsp_data);
 }
 
-
-static void allocate_poly_list()
-{
-	for (int i = 0; i < MAX_MODEL_TEXTURES; i++) {
-		polygon_list[i].allocate(tri_count[i]*3);
-	}
-
-	model_allocate_interp_data(Interp_num_verts, Interp_num_norms);
-}
-
 void interp_pack_vertex_buffers(polymodel *pm, int mn)
 {
 	Assert( pm->vertex_buffer_id >= 0 );
@@ -4357,7 +4361,7 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 
 		// set submodel ID
 		if ( Use_GLSL >= 3 ) {
-			for ( int j = 0; j < polygon_list[i].n_verts; ++j ) {
+			for ( j = 0; j < polygon_list[i].n_verts; ++j ) {
 				polygon_list[i].submodels[j] = mn;
 			}
 		}
@@ -4419,94 +4423,10 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 		model_list->n_verts += polygon_list[i].n_verts;
 	}
 
-	// IBX stuff
-	extern IBX ibuffer_info;
+	// no read file so we'll have to generate
+	model_list->make_index_buffer(vertex_list);
 
-	if (ibuffer_info.read != NULL) {
-		int ibx_verts = 0;
-		int ibx_size = 0;
-
-		ibx_verts = cfread_int( ibuffer_info.read );
-		ibuffer_info.size -= sizeof(int);	// subtract
-
-		// vertex count (indexed vertex count)
-		ibx_size += ibx_verts * sizeof(int);
-		// index count (original vertex count)
-		ibx_size += model_list->n_verts * sizeof(int);
-
-		// safety check for this section
-		// ibuffer_info.size should be greater than or equal to ibx_size at this point
-		if (ibx_size > ibuffer_info.size) {
-			// AAAAAHH! not enough stored data - Abort, Retry, Fail?
-			Warning(LOCATION, "IBX: Safety Check Failure!  The file doesn't contain enough data, deleting '%s'\n", ibuffer_info.name);
-
-			cfclose( ibuffer_info.read );
-			ibuffer_info.read = NULL;
-			ibuffer_info.size = 0;
-			cf_delete( ibuffer_info.name, CF_TYPE_CACHE );
-
-			// force generate
-			model_list->make_index_buffer(vertex_list);
-
-			vertex_list.clear();	// don't actually need this now
-		} else {
-			poly_list *tlist = new(std::nothrow) poly_list;
-
-			if ( !tlist ) {
-				Error( LOCATION, "Unable to allocate memory for IBX poly_list!\n" );
-			}
-
-			tlist->allocate( ibx_verts );
-
-			// we have to generate tangent data manually for model_list
-			// (since it's otherwise done during make_index_buffer())
-			model_list->calculate_tangent();
-
-			for (i = 0; i < ibx_verts; i++) {
-				int ivert = cfread_int( ibuffer_info.read );
-
-				tlist->vert[i] = model_list->vert[ivert];
-				tlist->norm[i] = model_list->norm[ivert];
-
-				if (Cmdline_normal) {
-					tlist->tsb[i] = model_list->tsb[ivert];
-				}
-
-				if ( Use_GLSL >= 3 ) {
-					tlist->submodels[i] = mn;
-				}
-			}
-
-			tlist->n_verts = ibx_verts;
-
-			// change from old model_list to new one
-			delete model_list;
-
-			model->buffer.model_list = tlist;
-			model_list = tlist;
-
-			// subtract this block of data from the total size for next check
-			// remember that this includes the next set of reads too
-			ibuffer_info.size -= ibx_size;
-		}
-	} else {
-		// no read file so we'll have to generate
-		model_list->make_index_buffer(vertex_list);
-
-		if (ibuffer_info.write != NULL) {
-			cfwrite_int( model_list->n_verts, ibuffer_info.write );
-
-			int count = (int)vertex_list.size();
-			Assert( model_list->n_verts == count );
-
-			for (i = 0; i < count; i++) {
-				cfwrite_int( vertex_list[i], ibuffer_info.write );
-			}
-		}
-
-		vertex_list.clear();	// done
-	}
-	// end IBX stuff
+	vertex_list.clear();	// done
 
 	int vertex_flags = (VB_FLAG_POSITION | VB_FLAG_NORMAL | VB_FLAG_UV1);
 
@@ -4531,21 +4451,10 @@ void interp_configure_vertex_buffers(polymodel *pm, int mn)
 		Verify( new_buffer.get_index() != NULL );
 
 		for (j = 0; j < polygon_list[i].n_verts; j++) {
-			if (ibuffer_info.read != NULL) {
-				first_index = cfread_int(ibuffer_info.read);
-				Assert( first_index >= 0 );
+			first_index = model_list->find_index_fast(&polygon_list[i], j);
+			Assert(first_index != -1);
 
-				new_buffer.assign(j, first_index);
-			} else {
-				first_index = model_list->find_index_fast(&polygon_list[i], j);
-				Assert(first_index != -1);
-
-				new_buffer.assign(j, first_index);
-
-				if (ibuffer_info.write != NULL) {
-					cfwrite_int(first_index, ibuffer_info.write);
-				}
-			}
+			new_buffer.assign(j, first_index);
 		}
 
 		new_buffer.texture = i;
@@ -4609,18 +4518,18 @@ void interp_fill_detail_index_buffer(SCP_vector<int> &submodel_list, polymodel *
 	buffer->vertex_offset = 0;
 	buffer->model_list = new(std::nothrow) poly_list;
 
-	size_t num_buffers;
+	int num_buffers;
 	int tex_num;
 
 	// need to first count how many indexes there are in this entire detail model hierarchy
-	for ( i = 0; i < submodel_list.size(); ++i ) {
+	for ( i = 0; i < (int)submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
 
 		if ( pm->submodel[model_num].is_thruster ) {
 			continue;
 		}
 
-		num_buffers = pm->submodel[model_num].buffer.tex_buf.size();
+		num_buffers = (int)pm->submodel[model_num].buffer.tex_buf.size();
 
 		buffer->flags |= pm->submodel[model_num].buffer.flags;
 
@@ -4644,12 +4553,12 @@ void interp_fill_detail_index_buffer(SCP_vector<int> &submodel_list, polymodel *
 		new_buffer.texture = i;
 	}
 
-	for ( i = 0; i < buffer->tex_buf.size(); ++i ) {
+	for ( i = 0; i < (int)buffer->tex_buf.size(); ++i ) {
 		buffer->tex_buf[i].n_verts = 0;
 	}
 
 	// finally copy over the indexes
-	for ( i = 0; i < submodel_list.size(); ++i ) {
+	for ( i = 0; i < (int)submodel_list.size(); ++i ) {
 		model_num = submodel_list[i];
 
 		if (pm->submodel[model_num].is_thruster) {
@@ -4660,7 +4569,7 @@ void interp_fill_detail_index_buffer(SCP_vector<int> &submodel_list, polymodel *
 	}
 
 	// check which buffers need to have the > USHORT flag
-	for ( i = 0; i < buffer->tex_buf.size(); ++i ) {
+	for ( i = 0; i < (int)buffer->tex_buf.size(); ++i ) {
 		if ( buffer->tex_buf[i].i_last >= USHRT_MAX ) {
 			buffer->tex_buf[i].flags |= VB_FLAG_LARGE_INDEX;
 		}
@@ -4669,8 +4578,6 @@ void interp_fill_detail_index_buffer(SCP_vector<int> &submodel_list, polymodel *
 
 void interp_create_detail_index_buffer(polymodel *pm, int detail_num)
 {
-	size_t i, j;
-	int model_num;
 	SCP_vector<int> submodel_list;
 
 	submodel_list.clear();
@@ -4718,7 +4625,7 @@ void interp_create_transparency_index_buffer(polymodel *pm, int mn)
 	bool transparent_tri = false;
 	int num_tris = 0;
 
-	for ( int i = 0; i < tex_buffers.size(); ++i ) {
+	for ( int i = 0; i < (int)tex_buffers.size(); ++i ) {
 		buffer_data *tex_buf = &tex_buffers[i];
 
 		if ( tex_buf->n_verts < 1 ) {
@@ -4791,7 +4698,7 @@ void interp_create_transparency_index_buffer(polymodel *pm, int mn)
 		buffer_data &new_buff = trans_buffer->tex_buf.back();
 		new_buff.texture = tex_buf->texture;
 
-		for ( int j = 0; j < transparent_indices.size(); ++j ) {
+		for ( int j = 0; j < (int)transparent_indices.size(); ++j ) {
 			new_buff.assign(j, transparent_indices[j]);
 		}
 	}
@@ -4830,21 +4737,36 @@ void model_render_children_buffers_DEPRECATED(polymodel *pm, int mn, int detail_
 
 	// if using detail boxes or spheres, check that we are valid for the range
 	if ( !(Interp_flags & MR_FULL_DETAIL) && model->use_render_box ) {
-		vm_vec_copy_scale(&Interp_render_box_min, &model->render_box_min, Interp_box_scale);
-		vm_vec_copy_scale(&Interp_render_box_max, &model->render_box_max, Interp_box_scale);
+		vec3d box_min, box_max, offset;
 
-		if ( (-model->use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &model->offset, &View_position)) )
+		if (model->use_render_box_offset) {
+			model_find_submodel_offset(&offset, pm->id, mn);
+			vm_vec_sub(&offset, &vmd_zero_vector, &offset);
+			vm_vec_add2(&offset, &model->render_box_offset);
+		} else {
+			offset = vmd_zero_vector;
+		}
+
+		vm_vec_copy_scale(&box_min, &model->render_box_min, Interp_box_scale);
+		vm_vec_copy_scale(&box_max, &model->render_box_max, Interp_box_scale);
+
+		if ( (-model->use_render_box + in_box(&box_min, &box_max, &offset, &View_position)) )
 			return;
 	}
 	if ( !(Interp_flags & MR_FULL_DETAIL) && model->use_render_sphere ) {
-		Interp_render_sphere_radius = model->render_sphere_radius * Interp_box_scale;
+		float radius = model->render_sphere_radius * Interp_box_scale;
 
 		// TODO: doesn't consider submodel rotations yet -zookeeper
 		vec3d offset;
-		model_find_submodel_offset(&offset, pm->id, mn);
-		vm_vec_add2(&offset, &model->render_sphere_offset);
+		if (model->use_render_sphere_offset) {
+			model_find_submodel_offset(&offset, pm->id, mn);
+			vm_vec_sub(&offset, &vmd_zero_vector, &offset);
+			vm_vec_add2(&offset, &model->render_sphere_offset);
+		} else {
+			offset = vmd_zero_vector;
+		}
 
-		if ( (-model->use_render_sphere + in_sphere(&offset, Interp_render_sphere_radius, &View_position)) )
+		if ( (-model->use_render_sphere + in_sphere(&offset, radius, &View_position)) )
 			return;
 	}
 
@@ -4873,7 +4795,7 @@ void model_render_children_buffers_DEPRECATED(polymodel *pm, int mn, int detail_
 	vm_rotate_matrix_by_angles(&rotation_matrix, &ang);
 
 	matrix inv_orientation;
-	vm_copy_transpose_matrix(&inv_orientation, &model->orientation);
+	vm_copy_transpose(&inv_orientation, &model->orientation);
 
 	matrix submodel_matrix;
 	vm_matrix_x_matrix(&submodel_matrix, &rotation_matrix, &inv_orientation);
@@ -4882,8 +4804,8 @@ void model_render_children_buffers_DEPRECATED(polymodel *pm, int mn, int detail_
 	
 	model_render_buffers_DEPRECATED(pm, mn, render, true);
 
-// 	if (Interp_flags & MR_SHOW_PIVOTS)
-// 		model_draw_debug_points( pm, &pm->submodel[mn], Interp_flags );
+	if (Interp_flags & MR_DEPRECATED_SHOW_PIVOTS)
+		model_draw_debug_points( pm, &pm->submodel[mn], Interp_flags );
 
 	if (model->num_arcs)
 		interp_render_lightning( pm, &pm->submodel[mn]);
@@ -4925,21 +4847,36 @@ void model_render_buffers_DEPRECATED(polymodel *pm, int mn, int render, bool is_
 
 	// if using detail boxes or spheres, check that we are valid for the range
 	if ( !is_child && !(Interp_flags & MR_FULL_DETAIL) && model->use_render_box ) {
-		vm_vec_copy_scale(&Interp_render_box_min, &model->render_box_min, Interp_box_scale);
-		vm_vec_copy_scale(&Interp_render_box_max, &model->render_box_max, Interp_box_scale);
+		vec3d box_min, box_max, offset;
 
-		if ( (-model->use_render_box + in_box(&Interp_render_box_min, &Interp_render_box_max, &model->offset, &View_position)) )
+		if (model->use_render_box_offset) {
+			model_find_submodel_offset(&offset, pm->id, mn);
+			vm_vec_sub(&offset, &vmd_zero_vector, &offset);
+			vm_vec_add2(&offset, &model->render_box_offset);
+		} else {
+			offset = vmd_zero_vector;
+		}
+
+		vm_vec_copy_scale(&box_min, &model->render_box_min, Interp_box_scale);
+		vm_vec_copy_scale(&box_max, &model->render_box_max, Interp_box_scale);
+
+		if ( (-model->use_render_box + in_box(&box_min, &box_max, &offset, &View_position)) )
 			return;
 	}
 	if ( !is_child && !(Interp_flags & MR_FULL_DETAIL) && model->use_render_sphere ) {
-		Interp_render_sphere_radius = model->render_sphere_radius * Interp_box_scale;
+		float radius = model->render_sphere_radius * Interp_box_scale;
 
 		// TODO: doesn't consider submodel rotations yet -zookeeper
 		vec3d offset;
-		model_find_submodel_offset(&offset, pm->id, mn);
-		vm_vec_add2(&offset, &model->render_sphere_offset);
+		if (model->use_render_sphere_offset) {
+			model_find_submodel_offset(&offset, pm->id, mn);
+			vm_vec_sub(&offset, &vmd_zero_vector, &offset);
+			vm_vec_add2(&offset, &model->render_sphere_offset);
+		} else {
+			offset = vmd_zero_vector;
+		}
 
-		if ( (-model->use_render_sphere + in_sphere(&offset, Interp_render_sphere_radius, &View_position)) )
+		if ( (-model->use_render_sphere + in_sphere(&offset, radius, &View_position)) )
 			return;
 	}
 
@@ -5269,7 +5206,9 @@ bool model_get_team_color( team_color *clr, const SCP_string &team, const SCP_st
 			}
 
 			team_color end = Team_Colors[secondaryteam];
-			float time_remaining = (f2fl(Missiontime - timestamp) * 1000)/fadetime;
+			float time_remaining = 0.0f;
+			if (fadetime != 0) // avoid potential div-by-zero
+				time_remaining = (f2fl(Missiontime - timestamp) * 1000)/fadetime;
 			CLAMP(time_remaining, 0.0f, 1.0f);
 			model_mix_two_team_colors(&temp_color, &start, &end, time_remaining);
 
@@ -5525,7 +5464,6 @@ void bsp_polygon_data::process_defpoints(int off, ubyte* bsp_data)
 	int i, n;
 	int nverts = w(off + bsp_data + 8);
 	int offset = w(off + bsp_data + 16);
-	int next_norm = 0;
 
 	ubyte *normcount = off + bsp_data + 20;
 	vec3d *src = vp(off + bsp_data + offset);

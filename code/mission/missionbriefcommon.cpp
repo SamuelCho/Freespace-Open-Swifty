@@ -10,29 +10,29 @@
 
 
 
-#include "mission/missionbriefcommon.h"
-#include "mission/missionparse.h"
-#include "parse/parselo.h"
-#include "playerman/player.h"
-#include "ship/ship.h"
-#include "render/3d.h"
-#include "io/timer.h"
-#include "globalincs/linklist.h"
-#include "io/mouse.h"
-#include "missionui/missionbrief.h"
-#include "mission/missiongrid.h"
 #include "anim/animplay.h"
-#include "math/fvi.h"
 #include "gamesnd/gamesnd.h"
-#include "sound/audiostr.h"
+#include "globalincs/alphacolors.h"
+#include "globalincs/linklist.h"
+#include "iff_defs/iff_defs.h"
+#include "io/mouse.h"
+#include "io/timer.h"
+#include "localization/localize.h"
+#include "math/fvi.h"
+#include "mission/missionbriefcommon.h"
+#include "mission/missiongrid.h"
+#include "mission/missionparse.h"
+#include "missionui/missionbrief.h"
 #include "missionui/missioncmdbrief.h"
 #include "missionui/missiondebrief.h"
-#include "globalincs/alphacolors.h"
-#include "localization/localize.h"
+#include "mod_table/mod_table.h"
+#include "parse/parselo.h"
+#include "playerman/player.h"
+#include "render/3d.h"
+#include "ship/ship.h"
+#include "sound/audiostr.h"
 #include "sound/fsspeech.h"
 #include "species_defs/species_defs.h"
-#include "iff_defs/iff_defs.h"
-#include "mod_table/mod_table.h"
 
 
 // --------------------------------------------------------------------------------------
@@ -265,7 +265,7 @@ void	brief_render_grid(grid *gridp);
 void	brief_modify_grid(grid *gridp);
 void	brief_rpd_line(vec3d *v0, vec3d *v1);
 void	brief_set_text_color(char color_tag);
-extern void get_camera_limits(matrix *start_camera, matrix *end_camera, float time, vec3d *acc_max, vec3d *w_max);
+extern void get_camera_limits(const matrix *start_camera, const matrix *end_camera, float time, vec3d *acc_max, vec3d *w_max);
 int brief_text_wipe_finished();
 
 // --------------------------------------------------------------------------------------
@@ -274,77 +274,78 @@ int brief_text_wipe_finished();
 //
 void brief_parse_icon_tbl()
 {
-	int rval, icon;
+	int icon;
 	size_t species;
 	char name[MAX_FILENAME_LEN];
 
 	Assert(!Species_info.empty());
 	const size_t max_icons = Species_info.size() * MIN_BRIEF_ICONS;
 
-	if ((rval = setjmp(parse_abort)) != 0) {
-		mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", "icons.tbl", rval));
-
-		return;
-	}
-
-	read_file_text("icons.tbl", CF_TYPE_TABLES);
-	reset_parse();
-
-	required_string("#Start");
-
-	Briefing_icon_info.clear();
-	while (required_string_either("#End","$Name:"))
+	try
 	{
-		if(Briefing_icon_info.size() >= max_icons) {
-			Warning(LOCATION, "Too many icons in icons.tbl; only the first %d will be used", max_icons);
-			skip_to_start_of_string("#End");
-			break;
-		}
+		read_file_text("icons.tbl", CF_TYPE_TABLES);
+		reset_parse();
 
-		briefing_icon_info bii;
+		required_string("#Start");
 
-		// parse regular frames
-		required_string("$Name:");
-		stuff_string(name, F_NAME, MAX_FILENAME_LEN);
-		generic_anim_init(&bii.regular, name);
-	
-		// parse fade frames
-		required_string("$Name:");
-		stuff_string(name, F_NAME, MAX_FILENAME_LEN);
-		hud_anim_init(&bii.fade, 0, 0, name);
-
-		// parse highlighting frames
-		required_string("$Name:");
-		stuff_string(name, F_NAME, MAX_FILENAME_LEN);
-		hud_anim_init(&bii.highlight, 0, 0, name);
-
-		// add it to the collection
-		Briefing_icon_info.push_back(bii);
-	}
-	required_string("#End");
-
-
-	// now assign the icons to their species
-	const size_t num_species_covered = Briefing_icon_info.size() / MIN_BRIEF_ICONS;
-	size_t bii_index = 0;
-	for (icon = 0; icon < MIN_BRIEF_ICONS; icon++)
-	{
-		for (species = 0; species < num_species_covered; species++)
-			Species_info[species].bii_index[icon] = bii_index++;
-	}
-
-	// error check
-	if (num_species_covered < Species_info.size())
-	{
-		SCP_string errormsg = "The following species are missing icon info in icons.tbl:\n";
-
-		for (species = num_species_covered; species < Species_info.size(); species++)
+		Briefing_icon_info.clear();
+		while (required_string_either("#End", "$Name:"))
 		{
-			errormsg += Species_info[species].species_name;
-			errormsg += "\n";
+			if (Briefing_icon_info.size() >= max_icons) {
+				Warning(LOCATION, "Too many icons in icons.tbl; only the first " SIZE_T_ARG " will be used", max_icons);
+				skip_to_start_of_string("#End");
+				break;
+			}
+
+			briefing_icon_info bii;
+
+			// parse regular frames
+			required_string("$Name:");
+			stuff_string(name, F_NAME, MAX_FILENAME_LEN);
+			generic_anim_init(&bii.regular, name);
+
+			// parse fade frames
+			required_string("$Name:");
+			stuff_string(name, F_NAME, MAX_FILENAME_LEN);
+			hud_anim_init(&bii.fade, 0, 0, name);
+
+			// parse highlighting frames
+			required_string("$Name:");
+			stuff_string(name, F_NAME, MAX_FILENAME_LEN);
+			hud_anim_init(&bii.highlight, 0, 0, name);
+
+			// add it to the collection
+			Briefing_icon_info.push_back(bii);
+		}
+		required_string("#End");
+
+
+		// now assign the icons to their species
+		const size_t num_species_covered = Briefing_icon_info.size() / MIN_BRIEF_ICONS;
+		size_t bii_index = 0;
+		for (icon = 0; icon < MIN_BRIEF_ICONS; icon++)
+		{
+			for (species = 0; species < num_species_covered; species++)
+				Species_info[species].bii_index[icon] = bii_index++;
 		}
 
-		Error(LOCATION, errormsg.c_str());
+		// error check
+		if (num_species_covered < Species_info.size())
+		{
+			SCP_string errormsg = "The following species are missing icon info in icons.tbl:\n";
+
+			for (species = num_species_covered; species < Species_info.size(); species++)
+			{
+				errormsg += Species_info[species].species_name;
+				errormsg += "\n";
+			}
+
+			Error(LOCATION, "%s", errormsg.c_str());
+		}
+	}
+	catch (const parse::ParseException& e)
+	{
+		mprintf(("TABLES: Unable to parse '%s'!  Error message = %s.\n", "icons.tbl", e.what()));
 	}
 }
 
@@ -709,8 +710,9 @@ void brief_init_map()
 	Num_fade_icons=0;
 }
 
-
+#ifdef _MSC_VER
 #pragma optimize("", off)
+#endif
 
 void brief_render_fade_outs(float frametime)
 {
@@ -1036,7 +1038,9 @@ void brief_render_icon(int stage_num, int icon_num, float frametime, int selecte
 	}  // end if vertex is projected
 }
 
+#ifdef _MSC_VER
 #pragma optimize("", on)
+#endif
 
 // -------------------------------------------------------------------------------------
 // brief_render_icons()

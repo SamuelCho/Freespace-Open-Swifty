@@ -229,17 +229,17 @@ void bg_bitmap_dlg::create()
 
 	angles skybox_angles;
 	vm_extract_angles_matrix(&skybox_angles, &The_mission.skybox_orientation);
-	m_skybox_pitch = (int) fl_degrees(skybox_angles.p);
-	m_skybox_bank = (int) fl_degrees(skybox_angles.b);
-	m_skybox_heading = (int) fl_degrees(skybox_angles.h);
+	m_skybox_pitch = fl2ir(fl_degrees(skybox_angles.p));
+	m_skybox_bank = fl2ir(fl_degrees(skybox_angles.b));
+	m_skybox_heading = fl2ir(fl_degrees(skybox_angles.h));
 
 	//make sure angle values are in the 0-359 degree range
 	if (m_skybox_pitch < 0)
-		m_skybox_pitch = m_skybox_pitch + 359;
+		m_skybox_pitch = m_skybox_pitch + 360;
 	if (m_skybox_bank < 0)
-		m_skybox_bank = m_skybox_bank + 359;
+		m_skybox_bank = m_skybox_bank + 360;
 	if (m_skybox_heading < 0)
-		m_skybox_heading = m_skybox_heading + 359;
+		m_skybox_heading = m_skybox_heading + 360;
 
 
 	for(i=0; i<MAX_NEB2_BITMAPS; i++){
@@ -730,9 +730,9 @@ void bg_bitmap_dlg::OnSunChange()
 		starfield_list_entry *sle = &background->suns[s_index];
 
 		s_name = CString(sle->filename);
-		s_pitch = (int) (fl_degrees(sle->ang.p) + delta);
-		s_bank = (int) (fl_degrees(sle->ang.b) + delta);
-		s_heading = (int) (fl_degrees(sle->ang.h) + delta);
+		s_pitch = fl2ir(fl_degrees(sle->ang.p) + delta);
+		s_bank = fl2ir(fl_degrees(sle->ang.b) + delta);
+		s_heading = fl2ir(fl_degrees(sle->ang.h) + delta);
 		s_scale = sle->scale_x;
 
 		// stuff back into the controls
@@ -894,9 +894,9 @@ void bg_bitmap_dlg::OnBitmapChange()
 		starfield_list_entry *sle = &background->bitmaps[b_index];
 
 		b_name = CString(sle->filename);
-		b_pitch = (int) (fl_degrees(sle->ang.p) + delta);
-		b_bank = (int) (fl_degrees(sle->ang.b) + delta);
-		b_heading = (int) (fl_degrees(sle->ang.h) + delta);
+		b_pitch = fl2ir(fl_degrees(sle->ang.p) + delta);
+		b_bank = fl2ir(fl_degrees(sle->ang.b) + delta);
+		b_heading = fl2ir(fl_degrees(sle->ang.h) + delta);
 		b_scale_x = sle->scale_x;
 		b_scale_y = sle->scale_y;
 		b_div_x = sle->div_x;
@@ -1267,7 +1267,7 @@ void bg_bitmap_dlg::OnImportBackground()
 {
 	CFileDialog cfd(TRUE, ".fs2", NULL, 0, "FreeSpace2 Missions (*.fs2)|*.fs2||\0");
 	char filename[256], error_str[1024];
-	int rval, temp, count;
+	int temp, count;
 	char *saved_mp;
 
 	//warn on pressing the button
@@ -1280,59 +1280,62 @@ void bg_bitmap_dlg::OnImportBackground()
 
 	strcpy_s(filename, cfd.GetPathName());
 
-	if ((rval = setjmp(parse_abort)) != 0) {
-		mprintf(("BGBITMAPDLG: Unable to parse '%s'!  Error code = %i.\n", filename, rval));
-		sprintf(error_str, "Could not parse file: %s", filename);
-
-		MessageBox((LPCTSTR) error_str, (LPCTSTR) "Unable to import mission background!", MB_ICONERROR | MB_OK);
-		return;
-	}
-
-	// parse in the new file
-	read_file_text(filename);
-	reset_parse();
-
-	if (!skip_to_start_of_string("#Background bitmaps"))
-		return;
-
-	// skip beginning stuff
-	required_string("#Background bitmaps");
-	required_string("$Num stars:");
-	stuff_int(&temp);
-	required_string("$Ambient light level:");
-	stuff_int(&temp);
-
-	saved_mp = Mp;
-
-	// see if we have more than one background in this mission
-	count = 0;
-	while(skip_to_string("$Bitmap List:"))
-		count++;
-
-	Mp = saved_mp;
-
-	// pick one (if count is 0, it's retail with just one background)
-	if (count > 0)
+	try
 	{
-		int i, which = 0;
+		// parse in the new file
+		read_file_text(filename);
+		reset_parse();
 
-		if (count > 1)
+		if (!skip_to_start_of_string("#Background bitmaps"))
+			return;
+
+		// skip beginning stuff
+		required_string("#Background bitmaps");
+		required_string("$Num stars:");
+		stuff_int(&temp);
+		required_string("$Ambient light level:");
+		stuff_int(&temp);
+
+		saved_mp = Mp;
+
+		// see if we have more than one background in this mission
+		count = 0;
+		while (skip_to_string("$Bitmap List:"))
+			count++;
+
+		Mp = saved_mp;
+
+		// pick one (if count is 0, it's retail with just one background)
+		if (count > 0)
 		{
-			BackgroundChooser dlg(count);
-			if (dlg.DoModal() == IDCANCEL)
-				return;
+			int i, which = 0;
 
-			which = dlg.GetChosenBackground();
+			if (count > 1)
+			{
+				BackgroundChooser dlg(count);
+				if (dlg.DoModal() == IDCANCEL)
+					return;
+
+				which = dlg.GetChosenBackground();
+			}
+
+			for (i = 0; i < which + 1; i++)
+				skip_to_string("$Bitmap List:");
 		}
 
-		for (i = 0; i < which + 1; i++)
-			skip_to_string("$Bitmap List:");
+		// now parse the background we've selected
+		parse_one_background(&Backgrounds[get_active_background()]);
+
+		reinitialize_lists();
 	}
+	catch (const parse::ParseException& e)
+	{
+		mprintf(("BGBITMAPDLG: Unable to parse '%s'!  Error message = %s.\n", filename, e.what()));
+		sprintf(error_str, "Could not parse file: %s\n\nError message: %s", filename, e.what());
 
-	// now parse the background we've selected
-	parse_one_background(&Backgrounds[get_active_background()]);
-
-	reinitialize_lists();
+		MessageBox((LPCTSTR)error_str, (LPCTSTR) "Unable to import mission background!", MB_ICONERROR | MB_OK);
+		return;
+	}
 }
 
 void bg_bitmap_dlg::reinitialize_lists()

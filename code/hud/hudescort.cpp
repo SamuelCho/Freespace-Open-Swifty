@@ -11,26 +11,24 @@
 
 
 
-#include "object/object.h"
-#include "ship/ship.h"
-#include "globalincs/linklist.h"
-#include "hud/hud.h"
-#include "hud/hudmessage.h"
-#include "hud/hudtargetbox.h"
-#include "hud/hudescort.h"
-#include "hud/hudshield.h"
 #include "gamesnd/gamesnd.h"
-#include "graphics/font.h"
-#include "io/timer.h"
-#include "weapon/emp.h"
 #include "globalincs/alphacolors.h"
+#include "globalincs/linklist.h"
 #include "globalincs/systemvars.h"
-#include "playerman/player.h"
+#include "hud/hudescort.h"
+#include "hud/hudmessage.h"
 #include "hud/hudparse.h"
+#include "hud/hudshield.h"
+#include "hud/hudtargetbox.h"
+#include "iff_defs/iff_defs.h"
+#include "io/timer.h"
 #include "network/multi.h"
 #include "network/multiutil.h"
-#include "iff_defs/iff_defs.h"
+#include "object/object.h"
 #include "parse/parselo.h"
+#include "playerman/player.h"
+#include "ship/ship.h"
+#include "weapon/emp.h"
 
 
 int Show_escort_view;
@@ -204,6 +202,11 @@ void HudGaugeEscort::initShipNameMaxWidth(int w)
 	ship_name_max_width = w;
 }
 
+void HudGaugeEscort::initRightAlignNames(bool align)
+{
+	right_align_names = align;
+}
+
 void HudGaugeEscort::initBitmaps(char *fname_top, char *fname_middle, char *fname_bottom)
 {
 	Escort_gauges[0].first_frame = bm_load_animation(fname_top, &Escort_gauges[0].num_frames);
@@ -370,10 +373,14 @@ void HudGaugeEscort::renderIcon(int x, int y, int index)
 
 	// print out ship name
 	strcpy_s(buf, sp->ship_name);
-	gr_force_fit_string(buf, 255, ship_name_max_width);	
     end_string_at_first_hash_symbol(buf);
-	
-	renderString( x + ship_name_offsets[0], y + ship_name_offsets[1], EG_ESCORT1 + index, buf);	
+	const int w = gr_force_fit_string(buf, 255, ship_name_max_width);
+
+	if (right_align_names) {
+		renderString( x + ship_name_offsets[0] + ship_name_max_width - w, y + ship_name_offsets[1], EG_ESCORT1 + index, buf);
+	} else {
+		renderString( x + ship_name_offsets[0], y + ship_name_offsets[1], EG_ESCORT1 + index, buf);
+	}
 
 	// show ship integrity
 	hud_get_target_strength(objp, &shields, &integrity);

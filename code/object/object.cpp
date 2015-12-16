@@ -13,6 +13,7 @@
 #include "asteroid/asteroid.h"
 #include "cmeasure/cmeasure.h"
 #include "debris/debris.h"
+#include "debugconsole/console.h"
 #include "fireball/fireballs.h"
 #include "freespace2/freespace.h"
 #include "globalincs/linklist.h"
@@ -23,10 +24,10 @@
 #include "mission/missionparse.h" //For 2D Mode
 #include "network/multi.h"
 #include "network/multiutil.h"
+#include "object/deadobjectdock.h"
 #include "object/objcollide.h"
 #include "object/object.h"
 #include "object/objectdock.h"
-#include "object/deadobjectdock.h"
 #include "object/objectshield.h"
 #include "object/objectsnd.h"
 #include "observer/observer.h"
@@ -41,7 +42,6 @@
 #include "weapon/shockwave.h"
 #include "weapon/swarm.h"
 #include "weapon/weapon.h"
-#include "debugconsole/console.h"
 
 
 
@@ -51,7 +51,7 @@
 
 object obj_free_list;
 object obj_used_list;
-object obj_create_list;
+object obj_create_list;	
 
 object *Player_obj = NULL;
 object *Viewer_obj = NULL;
@@ -148,7 +148,7 @@ void object::clear()
 /**
  * Scan the object list, freeing down to num_used objects
  *
- * @param  Number of used objects to free down to
+ * @param  num_used Number of used objects to free down to
  * @return Returns number of slots freed
  */
 int free_object_slots(int num_used)
@@ -718,7 +718,7 @@ void obj_move_one_docked_object(object *objp, object *parent_objp)
  * Deals with firing player things like lasers, missiles, etc.
  *
  * Separated out because of multiplayer issues.
- */
+*/
 void obj_player_fire_stuff( object *objp, control_info ci )
 {
 	ship *shipp;
@@ -896,7 +896,7 @@ void obj_move_call_physics(object *objp, float frametime)
 				goto obj_maybe_fire;
 			}
 
-			physics_sim(&objp->pos, &objp->orient, &objp->phys_info, frametime );		// simulate the physics
+				physics_sim(&objp->pos, &objp->orient, &objp->phys_info, frametime );		// simulate the physics
 
 			// if the object is the player object, do things that need to be done after the ship
 			// is moved (like firing weapons, etc).  This routine will get called either single
@@ -914,7 +914,7 @@ obj_maybe_fire:
 			// do stream weapon firing for all ships themselves. 
 			if(objp->type == OBJ_SHIP){
 				ship_fire_primary(objp, 1, 0);
-				has_fired = 1;
+					has_fired = 1;
 			}
 		}
 	}
@@ -1132,7 +1132,7 @@ void obj_move_all_pre(object *objp, float frametime)
 		break;
 	case OBJ_ASTEROID:
 		if (!physics_paused){
-			asteroid_process_pre(objp,frametime);
+			asteroid_process_pre(objp);
 		}
 		break;
 /*	case OBJ_CMEASURE:
@@ -1346,7 +1346,7 @@ void obj_move_all_post(object *objp, float frametime)
 		case OBJ_ASTEROID:
 		{
 			if ( !physics_paused )
-				asteroid_process_post(objp, frametime);
+				asteroid_process_post(objp);
 
 			break;
 		}
@@ -1420,7 +1420,7 @@ void obj_move_all(float frametime)
 		vec3d cur_pos = objp->pos;			// Save the current position
 
 #ifdef OBJECT_CHECK 
-		obj_check_object( objp );
+			obj_check_object( objp );
 #endif
 
 		// pre-move
@@ -1459,6 +1459,7 @@ void obj_move_all(float frametime)
 			Script_system.SetHookObjects(2, "User", objp, "Target", target);
 			Script_system.RunCondition(CHA_ONWPEQUIPPED, 0, NULL, objp);
 		}
+		Script_system.RemHookVars(2, "User", "Target");
 	}
 
 	//	After all objects have been moved, move all docked objects.
@@ -1551,7 +1552,7 @@ void obj_render_DEPRECATED(object *obj)
 		switch( obj->type )	{
 		case OBJ_NONE:
 			#ifndef NDEBUG
-			mprintf(( "ERROR!!!! Bogus obj %d is rendering!\n", obj-Objects ));
+			mprintf(( "ERROR!!!! Bogus obj " PTRDIFF_T_ARG " is rendering!\n", obj-Objects ));
 			Int3();
 			#endif
 			break;
@@ -1641,7 +1642,7 @@ void obj_queue_render(object* obj, draw_list* scene)
 	switch ( obj->type ) {
 	case OBJ_NONE:
 #ifndef NDEBUG
-		mprintf(( "ERROR!!!! Bogus obj %d is rendering!\n", obj-Objects ));
+		mprintf(( "ERROR!!!! Bogus obj " PTRDIFF_T_ARG " is rendering!\n", obj-Objects ));
 		Int3();
 #endif
 		break;
@@ -1802,7 +1803,7 @@ void obj_get_average_ship_pos( vec3d *pos )
 
 	vm_vec_zero( pos );
 
-	// average up all ship positions
+   // average up all ship positions
 	count = 0;
 	for ( objp = GET_FIRST(&obj_used_list); objp != END_OF_LIST(&obj_used_list); objp = GET_NEXT(objp) ) {
 		if ( objp->type != OBJ_SHIP )

@@ -8,9 +8,9 @@
 */ 
 
 
+#include "hud/hud.h"
 #include "jumpnode/jumpnode.h"
 #include "model/model.h"
-#include "hud/hud.h"
 #include "model/modelrender.h"
 
 SCP_list<CJumpNode> Jump_nodes;
@@ -56,15 +56,57 @@ CJumpNode::CJumpNode(vec3d *position) : m_radius(0.0f), m_modelnum(-1), m_objnum
     m_objnum = obj_create(OBJ_JUMP_NODE, -1, -1, NULL, &m_pos, m_radius, OF_RENDERS);
 }
 
+CJumpNode::CJumpNode(CJumpNode&& other)
+	: m_radius(other.m_radius), m_modelnum(other.m_modelnum), m_objnum(other.m_objnum), m_flags(other.m_flags)
+{
+	other.m_radius = 0.0f;
+	other.m_modelnum = -1;
+	other.m_objnum = -1;
+	other.m_flags = 0;
+
+	m_display_color = other.m_display_color;
+	m_pos = other.m_pos;
+
+	strcpy_s(m_name, other.m_name);
+}
+
+CJumpNode& CJumpNode::operator=(CJumpNode&& other)
+{
+	if (this != &other)
+	{
+		m_radius = other.m_radius;
+		m_modelnum = other.m_modelnum;
+		m_objnum = other.m_objnum;
+		m_flags = other.m_flags;
+
+		other.m_radius = 0.0f;
+		other.m_modelnum = -1;
+		other.m_objnum = -1;
+		other.m_flags = 0;
+
+		m_display_color = other.m_display_color;
+		m_pos = other.m_pos;
+
+		strcpy_s(m_name, other.m_name);
+	}
+
+	return *this;
+}
+
 /**
  * Destructor for CJumpNode class
  */
 CJumpNode::~CJumpNode()
 {
-	model_unload(m_modelnum);
+	if (m_modelnum >= 0)
+	{
+		model_unload(m_modelnum);
+	}
 
-	if (Objects[m_objnum].type != OBJ_NONE)
+	if (m_objnum >= 0 && Objects[m_objnum].type != OBJ_NONE)
+	{
 		obj_delete(m_objnum);
+	}
 }
 
 // Accessor functions for private variables
@@ -309,6 +351,7 @@ void CJumpNode::Render(vec3d *pos, vec3d *view_pos)
 	Render(&scene, pos, view_pos);
 
 	scene.render_all();
+	scene.render_outlines();
 
 	gr_set_fill_mode(GR_FILL_MODE_SOLID);
 	gr_clear_states();
@@ -339,13 +382,13 @@ void CJumpNode::Render(draw_list* scene, vec3d *pos, vec3d *view_pos)
 	render_info.set_flags(mr_flags);
 
 	if ( Fred_running ) {
-		render_info.set_outline_color(m_display_color);
+		render_info.set_color(m_display_color);
 
 		model_render_queue(&render_info, scene, m_modelnum, &node_orient, pos);
 	} else {
 		if (m_flags & JN_USE_DISPLAY_COLOR) {
 			//gr_set_color_fast(&m_display_color);
-			render_info.set_outline_color(m_display_color);
+			render_info.set_color(m_display_color);
 		}
 		else if ( view_pos != NULL) {
 			int alpha_index = HUD_color_alpha;
@@ -367,9 +410,9 @@ void CJumpNode::Render(draw_list* scene, vec3d *pos, vec3d *view_pos)
 				}
 			}
 
-			render_info.set_outline_color(HUD_color_defaults[alpha_index]);
+			render_info.set_color(HUD_color_defaults[alpha_index]);
 		} else {
-			render_info.set_outline_color(HUD_color_red, HUD_color_green, HUD_color_blue);
+			render_info.set_color(HUD_color_red, HUD_color_green, HUD_color_blue);
 		}
 
 		model_render_queue(&render_info, scene, m_modelnum, &node_orient, pos);

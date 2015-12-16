@@ -17,33 +17,29 @@
 #include <limits.h>
 #include <algorithm>
 
-#include "globalincs/pstypes.h"
-#include "osapi/osapi.h"
-#include "graphics/2d.h"
-#include "graphics/grstub.h"
-#include "render/3d.h"
-#include "bmpman/bmpman.h"
-#include "palman/palman.h"
-#include "graphics/font.h"
-#include "graphics/grinternal.h"
-#include "globalincs/systemvars.h"
 #include "cmdline/cmdline.h"
-#include "graphics/grbatch.h"
-#include "parse/scripting.h"
-#include "gamesequence/gamesequence.h"	//WMC - for scripting hooks in gr_flip()
-#include "io/keycontrol.h" // m!m
-#include "graphics/gropengldraw.h"
 #include "debugconsole/console.h"
+#include "gamesequence/gamesequence.h"	//WMC - for scripting hooks in gr_flip()
+#include "globalincs/systemvars.h"
+#include "graphics/2d.h"
+#include "graphics/font.h"
+#include "graphics/grbatch.h"
+#include "graphics/grinternal.h"
+#include "graphics/gropengl.h" // Includes for different rendering systems
+#include "graphics/gropengldraw.h"
+#include "graphics/grstub.h"
+#include "io/keycontrol.h" // m!m
 #include "io/timer.h"
+#include "osapi/osapi.h"
+#include "palman/palman.h"
+#include "parse/scripting.h"
+#include "render/3d.h"
 
 #if defined(SCP_UNIX) && !defined(__APPLE__)
 #if ( SDL_VERSION_ATLEAST(1, 2, 7) )
 #include "SDL_cpuinfo.h"
 #endif
 #endif // SCP_UNIX && !__APPLE__
-
-// Includes for different rendering systems
-#include "graphics/gropengl.h"
 
 const char *Resolution_prefixes[GR_NUM_RESOLUTIONS] = { "", "2_" };
 
@@ -92,69 +88,70 @@ static int GL_cursor_nframes = 0;
 
 // Pre-computed screen resize vars
 static float Gr_full_resize_X = 1.0f, Gr_full_resize_Y = 1.0f;
+static float Gr_full_center_resize_X = 1.0f, Gr_full_center_resize_Y = 1.0f;
 static float Gr_resize_X = 1.0f, Gr_resize_Y = 1.0f;
 static float Gr_menu_offset_X = 0.0f, Gr_menu_offset_Y = 0.0f;
 static float Gr_menu_zoomed_offset_X = 0.0f, Gr_menu_zoomed_offset_Y = 0.0f;
 
 float Gr_save_full_resize_X = 1.0f, Gr_save_full_resize_Y = 1.0f;
+float Gr_save_full_center_resize_X = 1.0f, Gr_save_full_center_resize_Y = 1.0f;
 float Gr_save_resize_X = 1.0f, Gr_save_resize_Y = 1.0f;
 float Gr_save_menu_offset_X = 0.0f, Gr_save_menu_offset_Y = 0.0f;
 float Gr_save_menu_zoomed_offset_X = 0.0f, Gr_save_menu_zoomed_offset_Y = 0.0f;
 
 bool Save_custom_screen_size;
 
-vertex_layout Point_particle_vertex_layout;
-vertex_layout Effect_vertex_layout;
-vertex_layout Trail_vertex_layout;
-
-void gr_set_screen_scale(int w, int h, int zoom_w, int zoom_h, int max_w, int max_h, bool force_stretch)
+void gr_set_screen_scale(int w, int h, int zoom_w, int zoom_h, int max_w, int max_h, int center_w, int center_h, bool force_stretch)
 {
 	bool do_zoom = zoom_w > 0 && zoom_h > 0 && (zoom_w != w || zoom_h != h);
 
 	Gr_full_resize_X = (float)max_w / (float)w;
 	Gr_full_resize_Y = (float)max_h / (float)h;
 
+	Gr_full_center_resize_X = (float)center_w / (float)w;
+	Gr_full_center_resize_Y = (float)center_h / (float)h;
+
 	if (do_zoom) {
-		float aspect_quotient = ((float)max_w / (float)max_h) / ((float)zoom_w / (float)zoom_h);
+		float aspect_quotient = ((float)center_w / (float)center_h) / ((float)zoom_w / (float)zoom_h);
 
-		Gr_resize_X = (float)max_w / (float)zoom_w / ((aspect_quotient > 1.0f) ? aspect_quotient : 1.0f);
-		Gr_resize_Y = (float)max_h / (float)zoom_h * ((aspect_quotient < 1.0f) ? aspect_quotient : 1.0f);
+		Gr_resize_X = (float)center_w / (float)zoom_w / ((aspect_quotient > 1.0f) ? aspect_quotient : 1.0f);
+		Gr_resize_Y = (float)center_h / (float)zoom_h * ((aspect_quotient < 1.0f) ? aspect_quotient : 1.0f);
 
-		Gr_menu_offset_X = (max_w - w * Gr_resize_X) / 2.0f;
-		Gr_menu_offset_Y = (max_h - h * Gr_resize_Y) / 2.0f;
+		Gr_menu_offset_X = ((center_w - w * Gr_resize_X) / 2.0f) + gr_screen.center_offset_x;
+		Gr_menu_offset_Y = ((center_h - h * Gr_resize_Y) / 2.0f) + gr_screen.center_offset_y;
 
-		Gr_menu_zoomed_offset_X = (Gr_menu_offset_X >= 0.0f) ? Gr_menu_offset_X : 0.0f;
-		Gr_menu_zoomed_offset_Y = (Gr_menu_offset_Y >= 0.0f) ? Gr_menu_offset_Y : 0.0f;
+		Gr_menu_zoomed_offset_X = (Gr_menu_offset_X >= 0.0f) ? Gr_menu_offset_X : gr_screen.center_offset_x;
+		Gr_menu_zoomed_offset_Y = (Gr_menu_offset_Y >= 0.0f) ? Gr_menu_offset_Y : gr_screen.center_offset_y;
 
 		if (force_stretch || Cmdline_stretch_menu) {
-			if (Gr_menu_offset_X > 0.0f) {
-				Gr_resize_X = Gr_full_resize_X;
-				Gr_menu_offset_X = Gr_menu_zoomed_offset_X = 0.0f;
+			if (Gr_menu_offset_X > (float)gr_screen.center_offset_x) {
+				Gr_resize_X = Gr_full_center_resize_X;
+				Gr_menu_offset_X = Gr_menu_zoomed_offset_X = (float)gr_screen.center_offset_x;
 			}
-			if (Gr_menu_offset_Y > 0.0f) {
-				Gr_resize_Y = Gr_full_resize_Y;
-				Gr_menu_offset_Y = Gr_menu_zoomed_offset_Y = 0.0f;
+			if (Gr_menu_offset_Y > (float)gr_screen.center_offset_y) {
+				Gr_resize_Y = Gr_full_center_resize_Y;
+				Gr_menu_offset_Y = Gr_menu_zoomed_offset_Y = (float)gr_screen.center_offset_y;
 			}
 		}
 	} else {
 		if (force_stretch || Cmdline_stretch_menu) {
-			Gr_resize_X = Gr_full_resize_X;
-			Gr_resize_Y = Gr_full_resize_Y;
+			Gr_resize_X = Gr_full_center_resize_X;
+			Gr_resize_Y = Gr_full_center_resize_Y;
 
-			Gr_menu_offset_X = Gr_menu_zoomed_offset_X = 0.0f;
-			Gr_menu_offset_Y = Gr_menu_zoomed_offset_Y = 0.0f;
+			Gr_menu_offset_X = Gr_menu_zoomed_offset_X = (float)gr_screen.center_offset_x;
+			Gr_menu_offset_Y = Gr_menu_zoomed_offset_Y = (float)gr_screen.center_offset_y;
 		} else {
-			float aspect_quotient = ((float)max_w / (float)max_h) / ((float)w / (float)h);
+			float aspect_quotient = ((float)center_w / (float)center_h) / ((float)w / (float)h);
 
-			Gr_resize_X = Gr_full_resize_X / ((aspect_quotient > 1.0f) ? aspect_quotient : 1.0f);
-			Gr_resize_Y = Gr_full_resize_Y * ((aspect_quotient < 1.0f) ? aspect_quotient : 1.0f);
+			Gr_resize_X = Gr_full_center_resize_X / ((aspect_quotient > 1.0f) ? aspect_quotient : 1.0f);
+			Gr_resize_Y = Gr_full_center_resize_Y * ((aspect_quotient < 1.0f) ? aspect_quotient : 1.0f);
 
-			Gr_menu_offset_X = Gr_menu_zoomed_offset_X = (aspect_quotient > 1.0f) ? ((max_w - w * Gr_resize_X) / 2.0f) : 0.0f;
-			Gr_menu_offset_Y = Gr_menu_zoomed_offset_Y = (aspect_quotient < 1.0f) ? ((max_h - h * Gr_resize_Y) / 2.0f) : 0.0f;
+			Gr_menu_offset_X = Gr_menu_zoomed_offset_X = ((aspect_quotient > 1.0f) ? ((center_w - w * Gr_resize_X) / 2.0f) : 0.0f) + gr_screen.center_offset_x;
+			Gr_menu_offset_Y = Gr_menu_zoomed_offset_Y = ((aspect_quotient < 1.0f) ? ((center_h - h * Gr_resize_Y) / 2.0f) : 0.0f) + gr_screen.center_offset_y;
 		}
 	}
 
-	gr_screen.custom_size = (w != max_w || h != max_h);
+	gr_screen.custom_size = (w != max_w || w != center_w || h != max_h || h != center_h);
 
 	if (gr_screen.rendering_to_texture == -1) {
 		gr_screen.max_w_unscaled = w;
@@ -180,6 +177,9 @@ void gr_reset_screen_scale()
 {
 	Gr_full_resize_X = Gr_save_full_resize_X;
 	Gr_full_resize_Y = Gr_save_full_resize_Y;
+
+	Gr_full_center_resize_X = Gr_save_full_center_resize_X;
+	Gr_full_center_resize_Y = Gr_save_full_center_resize_Y;
 
 	Gr_resize_X = Gr_save_resize_X;
 	Gr_resize_Y = Gr_save_resize_Y;
@@ -223,6 +223,10 @@ bool gr_resize_screen_pos(int *x, int *y, int *w, int *h, int resize_mode)
 			xy_tmp = (*x) * Gr_full_resize_X;
 			break;
 
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = (*x) * Gr_full_center_resize_X + (float)gr_screen.center_offset_x;
+			break;
+
 		case GR_RESIZE_MENU:
 			xy_tmp = (*x) * Gr_resize_X + Gr_menu_offset_X;
 			break;
@@ -244,6 +248,10 @@ bool gr_resize_screen_pos(int *x, int *y, int *w, int *h, int resize_mode)
 			xy_tmp = (*y) * Gr_full_resize_Y;
 			break;
 
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = (*y) * Gr_full_center_resize_Y + (float)gr_screen.center_offset_y;
+			break;
+
 		case GR_RESIZE_MENU:
 			xy_tmp = (*y) * Gr_resize_Y + Gr_menu_offset_Y;
 			break;
@@ -260,12 +268,40 @@ bool gr_resize_screen_pos(int *x, int *y, int *w, int *h, int resize_mode)
 	}
 
 	if ( w ) {
-		xy_tmp = (*w) * ((resize_mode == GR_RESIZE_FULL) ? Gr_full_resize_X : Gr_resize_X);
+		switch (resize_mode) {
+		case GR_RESIZE_FULL:
+			xy_tmp = (*w) * Gr_full_resize_X;
+			break;
+
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = (*w) * Gr_full_center_resize_X;
+			break;
+
+		case GR_RESIZE_MENU:
+		case GR_RESIZE_MENU_ZOOMED:
+		case GR_RESIZE_MENU_NO_OFFSET:
+			xy_tmp = (*w) * Gr_resize_X;
+			break;
+		}
 		(*w) = fl2ir(xy_tmp);
 	}
 
 	if ( h ) {
-		xy_tmp = (*h) * ((resize_mode == GR_RESIZE_FULL) ? Gr_full_resize_Y : Gr_resize_Y);
+		switch (resize_mode) {
+		case GR_RESIZE_FULL:
+			xy_tmp = (*h) * Gr_full_resize_Y;
+			break;
+
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = (*h) * Gr_full_center_resize_Y;
+			break;
+
+		case GR_RESIZE_MENU:
+		case GR_RESIZE_MENU_ZOOMED:
+		case GR_RESIZE_MENU_NO_OFFSET:
+			xy_tmp = (*h) * Gr_resize_Y;
+			break;
+		}
 		(*h) = fl2ir(xy_tmp);
 	}
 
@@ -295,6 +331,10 @@ bool gr_unsize_screen_pos(int *x, int *y, int *w, int *h, int resize_mode)
 			xy_tmp = (*x) / Gr_full_resize_X;
 			break;
 
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = ((*x) - (float)gr_screen.center_offset_x) / Gr_full_center_resize_X;
+			break;
+
 		case GR_RESIZE_MENU:
 			xy_tmp = ((*x) - Gr_menu_offset_X) / Gr_resize_X;
 			break;
@@ -316,6 +356,10 @@ bool gr_unsize_screen_pos(int *x, int *y, int *w, int *h, int resize_mode)
 			xy_tmp = (*y) / Gr_full_resize_Y;
 			break;
 
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = ((*y) - (float)gr_screen.center_offset_y) / Gr_full_center_resize_Y;
+			break;
+
 		case GR_RESIZE_MENU:
 			xy_tmp = ((*y) - Gr_menu_offset_Y) / Gr_resize_Y;
 			break;
@@ -332,12 +376,40 @@ bool gr_unsize_screen_pos(int *x, int *y, int *w, int *h, int resize_mode)
 	}
 
 	if ( w ) {
-		xy_tmp = (*w) / ((resize_mode == GR_RESIZE_FULL) ? Gr_full_resize_X : Gr_resize_X);
+		switch (resize_mode) {
+		case GR_RESIZE_FULL:
+			xy_tmp = (*w) / Gr_full_resize_X;
+			break;
+
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = (*w) / Gr_full_center_resize_X;
+			break;
+
+		case GR_RESIZE_MENU:
+		case GR_RESIZE_MENU_ZOOMED:
+		case GR_RESIZE_MENU_NO_OFFSET:
+			xy_tmp = (*w) / Gr_resize_X;
+			break;
+		}
 		(*w) = fl2ir(xy_tmp);
 	}
 
 	if ( h ) {
-		xy_tmp = (*h) / ((resize_mode == GR_RESIZE_FULL) ? Gr_full_resize_Y : Gr_resize_Y);
+		switch (resize_mode) {
+		case GR_RESIZE_FULL:
+			xy_tmp = (*h) / Gr_full_resize_Y;
+			break;
+
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = (*h) / Gr_full_center_resize_Y;
+			break;
+
+		case GR_RESIZE_MENU:
+		case GR_RESIZE_MENU_ZOOMED:
+		case GR_RESIZE_MENU_NO_OFFSET:
+			xy_tmp = (*h) / Gr_resize_Y;
+			break;
+		}
 		(*h) = fl2ir(xy_tmp);
 	}
 
@@ -369,6 +441,10 @@ bool gr_resize_screen_posf(float *x, float *y, float *w, float *h, int resize_mo
 			xy_tmp = (*x) * Gr_full_resize_X;
 			break;
 
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = (*x) * Gr_full_center_resize_X + (float)gr_screen.center_offset_x;
+			break;
+
 		case GR_RESIZE_MENU:
 			xy_tmp = (*x) * Gr_resize_X + Gr_menu_offset_X;
 			break;
@@ -390,6 +466,10 @@ bool gr_resize_screen_posf(float *x, float *y, float *w, float *h, int resize_mo
 			xy_tmp = (*y) * Gr_full_resize_Y;
 			break;
 
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = (*y) * Gr_full_center_resize_Y + (float)gr_screen.center_offset_y;
+			break;
+
 		case GR_RESIZE_MENU:
 			xy_tmp = (*y) * Gr_resize_Y + Gr_menu_offset_Y;
 			break;
@@ -406,12 +486,40 @@ bool gr_resize_screen_posf(float *x, float *y, float *w, float *h, int resize_mo
 	}
 
 	if ( w ) {
-		xy_tmp = (*w) * ((resize_mode == GR_RESIZE_FULL) ? Gr_full_resize_X : Gr_resize_X);
+		switch (resize_mode) {
+		case GR_RESIZE_FULL:
+			xy_tmp = (*w) * Gr_full_resize_X;
+			break;
+
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = (*w) * Gr_full_center_resize_X;
+			break;
+
+		case GR_RESIZE_MENU:
+		case GR_RESIZE_MENU_ZOOMED:
+		case GR_RESIZE_MENU_NO_OFFSET:
+			xy_tmp = (*w) * Gr_resize_X;
+			break;
+		}
 		(*w) = xy_tmp;
 	}
 
 	if ( h ) {
-		xy_tmp = (*h) * ((resize_mode == GR_RESIZE_FULL) ? Gr_full_resize_Y : Gr_resize_Y);
+		switch (resize_mode) {
+		case GR_RESIZE_FULL:
+			xy_tmp = (*h) * Gr_full_resize_Y;
+			break;
+
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = (*h) * Gr_full_center_resize_Y;
+			break;
+
+		case GR_RESIZE_MENU:
+		case GR_RESIZE_MENU_ZOOMED:
+		case GR_RESIZE_MENU_NO_OFFSET:
+			xy_tmp = (*h) * Gr_resize_Y;
+			break;
+		}
 		(*h) = xy_tmp;
 	}
 
@@ -441,6 +549,10 @@ bool gr_unsize_screen_posf(float *x, float *y, float *w, float *h, int resize_mo
 			xy_tmp = (*x) / Gr_full_resize_X;
 			break;
 
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = ((*x) - (float)gr_screen.center_offset_x) / Gr_full_center_resize_X;
+			break;
+
 		case GR_RESIZE_MENU:
 			xy_tmp = ((*x) - Gr_menu_offset_X) / Gr_resize_X;
 			break;
@@ -462,6 +574,10 @@ bool gr_unsize_screen_posf(float *x, float *y, float *w, float *h, int resize_mo
 			xy_tmp = (*y) / Gr_full_resize_Y;
 			break;
 
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = ((*y) - (float)gr_screen.center_offset_y) / Gr_full_center_resize_Y;
+			break;
+
 		case GR_RESIZE_MENU:
 			xy_tmp = ((*y) - Gr_menu_offset_Y) / Gr_resize_Y;
 			break;
@@ -478,12 +594,40 @@ bool gr_unsize_screen_posf(float *x, float *y, float *w, float *h, int resize_mo
 	}
 
 	if ( w ) {
-		xy_tmp = (*w) / ((resize_mode == GR_RESIZE_FULL) ? Gr_full_resize_X : Gr_resize_X);
+		switch (resize_mode) {
+		case GR_RESIZE_FULL:
+			xy_tmp = (*w) / Gr_full_resize_X;
+			break;
+
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = (*w) / Gr_full_center_resize_X;
+			break;
+
+		case GR_RESIZE_MENU:
+		case GR_RESIZE_MENU_ZOOMED:
+		case GR_RESIZE_MENU_NO_OFFSET:
+			xy_tmp = (*w) / Gr_resize_X;
+			break;
+		}
 		(*w) = xy_tmp;
 	}
 
 	if ( h ) {
-		xy_tmp = (*h) / ((resize_mode == GR_RESIZE_FULL) ? Gr_full_resize_Y : Gr_resize_Y);
+		switch (resize_mode) {
+		case GR_RESIZE_FULL:
+			xy_tmp = (*h) / Gr_full_resize_Y;
+			break;
+
+		case GR_RESIZE_FULL_CENTER:
+			xy_tmp = (*h) / Gr_full_center_resize_Y;
+			break;
+
+		case GR_RESIZE_MENU:
+		case GR_RESIZE_MENU_ZOOMED:
+		case GR_RESIZE_MENU_NO_OFFSET:
+			xy_tmp = (*h) / Gr_resize_Y;
+			break;
+		}
 		(*h) = xy_tmp;
 	}
 
@@ -594,8 +738,8 @@ void gr_screen_resize(int width, int height)
 		return;
 	}
 
-	gr_screen.save_max_w = gr_screen.max_w = gr_screen.max_w_unscaled = gr_screen.max_w_unscaled_zoomed = width;
-	gr_screen.save_max_h = gr_screen.max_h = gr_screen.max_h_unscaled = gr_screen.max_h_unscaled_zoomed = height;
+	gr_screen.save_center_w = gr_screen.center_w = gr_screen.save_max_w = gr_screen.max_w = gr_screen.max_w_unscaled = gr_screen.max_w_unscaled_zoomed = width;
+	gr_screen.save_center_h = gr_screen.center_h = gr_screen.save_max_h = gr_screen.max_h = gr_screen.max_h_unscaled = gr_screen.max_h_unscaled_zoomed = height;
 
 	gr_screen.offset_x = gr_screen.offset_x_unscaled = 0;
 	gr_screen.offset_y = gr_screen.offset_y_unscaled = 0;
@@ -626,24 +770,46 @@ void gr_screen_resize(int width, int height)
 	}
 }
 
-static bool gr_init_sub(int mode, int width, int height, int depth)
+int gr_get_resolution_class(int width, int height)
+{
+	if ((width >= GR_1024_THRESHOLD_WIDTH) && (height >= GR_1024_THRESHOLD_HEIGHT)) {
+		return GR_1024;
+	} else {
+		return GR_640;
+	}
+}
+
+static bool gr_init_sub(int mode, int width, int height, int depth, float center_aspect_ratio)
 {
 	int res = GR_1024;
 	bool rc = false;
 
 	memset( &gr_screen, 0, sizeof(screen) );
 
-	if ( ((width == 640) && (height == 480)) || ((width == 1024) && (height == 768)) ) {
+	float aspect_ratio = (float)width / (float)height;
+
+	if ( (((width == 640) && (height == 480)) || ((width == 1024) && (height == 768))) && (aspect_ratio == center_aspect_ratio) ) {
 		gr_screen.custom_size = false;
 	} else {
 		gr_screen.custom_size = true;
 	}
 
-	if ( (width >= GR_1024_THRESHOLD_WIDTH) && (height >= GR_1024_THRESHOLD_HEIGHT) ) {
-		res = GR_1024;
+	gr_screen.save_max_w = gr_screen.max_w = gr_screen.max_w_unscaled = gr_screen.max_w_unscaled_zoomed = width;
+	gr_screen.save_max_h = gr_screen.max_h = gr_screen.max_h_unscaled = gr_screen.max_h_unscaled_zoomed = height;
+	if (aspect_ratio > center_aspect_ratio) {
+		gr_screen.save_center_w = gr_screen.center_w = fl2ir(height * center_aspect_ratio);
+		gr_screen.save_center_h = gr_screen.center_h = height;
+	} else if (aspect_ratio < center_aspect_ratio) {
+		gr_screen.save_center_w = gr_screen.center_w = width;
+		gr_screen.save_center_h = gr_screen.center_h = fl2ir(width / center_aspect_ratio);
 	} else {
-		res = GR_640;
+		gr_screen.save_center_w = gr_screen.center_w = width;
+		gr_screen.save_center_h = gr_screen.center_h = height;
 	}
+	gr_screen.save_center_offset_x = gr_screen.center_offset_x = (width - gr_screen.center_w) / 2;
+	gr_screen.save_center_offset_y = gr_screen.center_offset_y = (height - gr_screen.center_h) / 2;
+
+	res = gr_get_resolution_class(gr_screen.center_w, gr_screen.center_h);
 
 	if (Fred_running) {
 		gr_screen.custom_size = false;
@@ -656,20 +822,23 @@ static bool gr_init_sub(int mode, int width, int height, int depth)
 	Gr_save_full_resize_X = Gr_full_resize_X = (float)width / ((res == GR_1024) ? 1024.0f : 640.0f);
 	Gr_save_full_resize_Y = Gr_full_resize_Y = (float)height / ((res == GR_1024) ?  768.0f : 480.0f);
 
+	Gr_save_full_center_resize_X = Gr_full_center_resize_X = (float)gr_screen.center_w / ((res == GR_1024) ? 1024.0f : 640.0f);
+	Gr_save_full_center_resize_Y = Gr_full_center_resize_Y = (float)gr_screen.center_h / ((res == GR_1024) ?  768.0f : 480.0f);
+
 	if (gr_screen.custom_size && !Cmdline_stretch_menu) {
-		float aspect_quotient = ((float)width / (float)height) / (4.0f / 3.0f);
+		float aspect_quotient = center_aspect_ratio / (4.0f / 3.0f);
 
-		Gr_save_resize_X = Gr_resize_X = Gr_full_resize_X / ((aspect_quotient > 1.0f) ? aspect_quotient : 1.0f);
-		Gr_save_resize_Y = Gr_resize_Y = Gr_full_resize_Y * ((aspect_quotient < 1.0f) ? aspect_quotient : 1.0f);
+		Gr_save_resize_X = Gr_resize_X = Gr_full_center_resize_X / ((aspect_quotient > 1.0f) ? aspect_quotient : 1.0f);
+		Gr_save_resize_Y = Gr_resize_Y = Gr_full_center_resize_Y * ((aspect_quotient < 1.0f) ? aspect_quotient : 1.0f);
 
-		Gr_save_menu_offset_X = Gr_menu_offset_X = (aspect_quotient > 1.0f) ? ((width - width / aspect_quotient) / 2.0f) : 0.0f;
-		Gr_save_menu_offset_Y = Gr_menu_offset_Y = (aspect_quotient < 1.0f) ? ((height - height * aspect_quotient) / 2.0f) : 0.0f;
+		Gr_save_menu_offset_X = Gr_menu_offset_X = ((aspect_quotient > 1.0f) ? ((gr_screen.center_w - gr_screen.center_w / aspect_quotient) / 2.0f) : 0.0f) + gr_screen.center_offset_x;
+		Gr_save_menu_offset_Y = Gr_menu_offset_Y = ((aspect_quotient < 1.0f) ? ((gr_screen.center_h - gr_screen.center_h * aspect_quotient) / 2.0f) : 0.0f) + gr_screen.center_offset_y;
 	} else {
-		Gr_save_resize_X = Gr_resize_X = Gr_full_resize_X;
-		Gr_save_resize_Y = Gr_resize_Y = Gr_full_resize_Y;
+		Gr_save_resize_X = Gr_resize_X = Gr_full_center_resize_X;
+		Gr_save_resize_Y = Gr_resize_Y = Gr_full_center_resize_Y;
 
-		Gr_save_menu_offset_X = Gr_menu_offset_X = 0.0f;
-		Gr_save_menu_offset_Y = Gr_menu_offset_Y = 0.0f;
+		Gr_save_menu_offset_X = Gr_menu_offset_X = (float)gr_screen.center_offset_x;
+		Gr_save_menu_offset_Y = Gr_menu_offset_Y = (float)gr_screen.center_offset_y;
 	}
 
 	Gr_save_menu_zoomed_offset_X = Gr_menu_zoomed_offset_X = Gr_menu_offset_X;
@@ -685,9 +854,6 @@ static bool gr_init_sub(int mode, int width, int height, int depth)
 	gr_screen.mode = mode;
 	gr_screen.res = res;
 	gr_screen.aspect = 1.0f;			// Normal PC screen
-
-	gr_screen.save_max_w = gr_screen.max_w = gr_screen.max_w_unscaled = gr_screen.max_w_unscaled_zoomed = width;
-	gr_screen.save_max_h = gr_screen.max_h = gr_screen.max_h_unscaled = gr_screen.max_h_unscaled_zoomed = height;
 
 	gr_screen.offset_x = gr_screen.offset_x_unscaled = 0;
 	gr_screen.offset_y = gr_screen.offset_y_unscaled = 0;
@@ -744,6 +910,7 @@ static bool gr_init_sub(int mode, int width, int height, int depth)
 bool gr_init(int d_mode, int d_width, int d_height, int d_depth)
 {
 	int width = 1024, height = 768, depth = 32, mode = GR_OPENGL;
+	float center_aspect_ratio = -1.0f;
 	const char *ptr = NULL;
 	const char *Default_video_settings = "OGL -(1024x768)x32 bit";
 
@@ -791,6 +958,14 @@ bool gr_init(int d_mode, int d_width, int d_height, int d_depth)
 			height = tmp_height;
 		}
 	}
+	if (Cmdline_center_res != NULL) {
+		int tmp_center_width = 0;
+		int tmp_center_height = 0;
+
+		if ( (sscanf(Cmdline_center_res, "%dx%d", &tmp_center_width, &tmp_center_height) == 2) && (tmp_center_width > 0) && (tmp_center_height > 0) ) {
+			center_aspect_ratio = (float)tmp_center_width / (float)tmp_center_height;
+		}
+	}
 
 	if (d_mode == GR_DEFAULT) {
 		// OpenGL should be default
@@ -809,17 +984,21 @@ bool gr_init(int d_mode, int d_width, int d_height, int d_depth)
 		depth = d_depth;
 	}
 
-	// check for hi-res interface files so that we can verify our width/height is correct
-	bool has_sparky_hi = (cf_exists_full("2_ChoosePilot-m.pcx", CF_TYPE_ANY) && cf_exists_full("2_TechShipData-m.pcx", CF_TYPE_ANY));
+	if (gr_get_resolution_class(width, height) != GR_640) {
+		// check for hi-res interface files so that we can verify our width/height is correct
+		bool has_sparky_hi = (cf_exists_full("2_ChoosePilot-m.pcx", CF_TYPE_ANY) && cf_exists_full("2_TechShipData-m.pcx", CF_TYPE_ANY));
 
-	// if we don't have it then fall back to 640x480 mode instead
-	if ( !has_sparky_hi ) {
-		if ( (width == 1024) && (height == 768) ) {
-			width = 640;
-			height = 480;
-		} else {
-			width = 800;
-			height = 600;
+		// if we don't have it then fall back to 640x480 mode instead
+		if ( !has_sparky_hi ) {
+			if ( (width == 1024) && (height == 768) ) {
+				width = 640;
+				height = 480;
+				center_aspect_ratio = -1.0f;
+			} else {
+				width = 800;
+				height = 600;
+				center_aspect_ratio = -1.0f;
+			}
 		}
 	}
 
@@ -829,6 +1008,7 @@ bool gr_init(int d_mode, int d_width, int d_height, int d_depth)
 		width = 640;
 		height = 480;
 		depth = 16;
+		center_aspect_ratio = -1.0f;
 	}
 
 // These compiler macros will force windowed mode at the specified resolution if
@@ -840,22 +1020,34 @@ bool gr_init(int d_mode, int d_width, int d_height, int d_depth)
 	width = 1280;
 	height = 800;
 	depth = 32;
+	center_aspect_ratio = -1.0f;
 	Cmdline_window = 1;
 #elif defined(_FORCE_DEBUG_1024)
 	width = 1024;
 	height = 768;
 	depth = 32;
+	center_aspect_ratio = -1.0f;
 	Cmdline_window = 1;
 #elif defined(_FORCE_DEBUG_640)
 	width = 640;
 	height = 480;
 	depth = 32;
+	center_aspect_ratio = -1.0f;
 	Cmdline_window = 1;
 #endif
 #endif
 
+	if (center_aspect_ratio <= 0.0f) {
+		float aspect_ratio = (float)width / (float)height;
+		if (aspect_ratio > 3.5f) {
+			center_aspect_ratio = aspect_ratio * 0.3f;
+		} else {
+			center_aspect_ratio = aspect_ratio;
+		}
+	}
+
 	// now try to actually init everything...
-	if ( gr_init_sub(mode, width, height, depth) == false ) {
+	if ( gr_init_sub(mode, width, height, depth, center_aspect_ratio) == false ) {
 		return false;
 	}
 
@@ -1660,15 +1852,15 @@ void poly_list::calculate_tangent()
 		vm_vec_normalize_safe(t2);
 
 		// compute handedness (for all 3 verts)
-		vm_vec_crossprod(&cross, &norm[i], &tangent);
+		vm_vec_cross(&cross, &norm[i], &tangent);
 		scale = vm_vec_dot(&cross, &binormal);
 		tsb[i].scaler = (scale < 0.0f) ? -1.0f : 1.0f;
 
-		vm_vec_crossprod(&cross, &norm[i+1], &tangent);
+		vm_vec_cross(&cross, &norm[i+1], &tangent);
 		scale = vm_vec_dot(&cross, &binormal);
 		tsb[i+1].scaler = (scale < 0.0f) ? -1.0f : 1.0f;
 
-		vm_vec_crossprod(&cross, &norm[i+2], &tangent);
+		vm_vec_cross(&cross, &norm[i+2], &tangent);
 		scale = vm_vec_dot(&cross, &binormal);
 		tsb[i+2].scaler = (scale < 0.0f) ? -1.0f : 1.0f;
 	}
@@ -1780,7 +1972,7 @@ poly_list& poly_list::operator = (poly_list &other_list)
 
 void poly_list::generate_sorted_index_list()
 {
-	for ( uint j = 0; j < n_verts; ++j) {
+	for ( int j = 0; j < n_verts; ++j) {
 		sorted_indices[j] = j;
 	}
 
@@ -1796,7 +1988,7 @@ bool poly_list::finder::operator()(const uint a, const uint b)
 
 	Assert(search_list != NULL);
 
-	if ( a == search_list->n_verts ) {
+	if ( a == (uint)search_list->n_verts ) {
 		Assert(vert_to_find != NULL);
 		Assert(norm_to_find != NULL);
 		Assert(a != b);
@@ -1808,7 +2000,7 @@ bool poly_list::finder::operator()(const uint a, const uint b)
 		norm_a = &search_list->norm[a];
 	}
 	
-	if ( b == search_list->n_verts ) {
+	if ( b == (uint)search_list->n_verts ) {
 		Assert(vert_to_find != NULL);
 		Assert(norm_to_find != NULL);
 		Assert(a != b);
@@ -1931,12 +2123,14 @@ void gr_flip()
 	// m!m avoid running CHA_ONFRAME when the "Quit mission" popup is shown. See mantis 2446 for reference
 	if (!quit_mission_popup_shown)
 	{
+		profile_begin("LUA On Frame");
 		//WMC - Evaluate global hook if not override.
 		Script_system.RunBytecode(Script_globalhook);
 		//WMC - Do conditional hooks. Yippee!
 		Script_system.RunCondition(CHA_ONFRAME);
 		//WMC - Do scripting reset stuff
 		Script_system.EndFrame();
+		profile_end("LUA On Frame");
 	}
 
 	gr_screen.gf_flip();
@@ -1949,7 +2143,7 @@ uint gr_determine_model_shader_flags(
 	bool in_shadow_map, 
 	bool thruster_scale, 
 	bool transform,
-	bool team_color,
+	bool team_color_set,
 	int tmap_flags, 
 	int spec_map, 
 	int glow_map, 
@@ -2023,7 +2217,7 @@ uint gr_determine_model_shader_flags(
 			shader_flags |= SDR_FLAG_MODEL_MISC_MAP;
 		}
 
-		if ( team_color ) {
+		if ( team_color_set ) {
 			shader_flags |= SDR_FLAG_MODEL_TEAMCOLOR;
 		}
 	}
@@ -2037,59 +2231,4 @@ uint gr_determine_model_shader_flags(
 	}
 
 	return shader_flags;
-}
-
-void gr_build_vertex_layouts()
-{
-	// build vertex definition for geometry shader particles
-	ubyte* ptr = NULL;
-	int offset = 0;
-	int size = 0;
-
-	size = sizeof(particle_pnt);
-	offset = 0;
-
-	Point_particle_vertex_layout.add_vertex_component(vertex_format_data::POSITION3, size, ptr + offset);
-	offset += sizeof(vec3d);
-
-	Point_particle_vertex_layout.add_vertex_component(vertex_format_data::RADIUS, size, ptr + offset);
-	offset += sizeof(float);
-
-	Point_particle_vertex_layout.add_vertex_component(vertex_format_data::UVEC, size, ptr + offset);
-	offset += sizeof(vec3d);
-
-	size = sizeof(effect_vertex);
-	offset = 0;
-
-	// build vertex definition for general shader drawn billboards
-	Effect_vertex_layout.add_vertex_component(vertex_format_data::POSITION3, size, ptr + offset);
-	offset += sizeof(vec3d);
-
-	Effect_vertex_layout.add_vertex_component(vertex_format_data::TEX_COORD, size, ptr + offset);
-	offset += sizeof(uv_pair);
-
-	Effect_vertex_layout.add_vertex_component(vertex_format_data::RADIUS, size, ptr + offset);
-	offset += sizeof(float);
-
-	Effect_vertex_layout.add_vertex_component(vertex_format_data::COLOR4, size, ptr + offset);
-	offset += sizeof(float);
-
-	size = sizeof(trail_shader_info);
-	offset = 0;
-
-	// build vertex definition for geometry shader generated trails
-	Trail_vertex_layout.add_vertex_component(vertex_format_data::POSITION3, size, ptr + offset);
-	offset += sizeof(vec3d);
-
-	Trail_vertex_layout.add_vertex_component(vertex_format_data::FVEC, size, ptr + offset);
-	offset += sizeof(vec3d);
-
-	Trail_vertex_layout.add_vertex_component(vertex_format_data::INTENSITY, size, ptr + offset);
-	offset += sizeof(float);
-
-	Trail_vertex_layout.add_vertex_component(vertex_format_data::RADIUS, size, ptr + offset);
-	offset += sizeof(float);
-
-	Trail_vertex_layout.add_vertex_component(vertex_format_data::TEX_COORD, size, ptr + offset);
-	offset += sizeof(uv_pair);
 }

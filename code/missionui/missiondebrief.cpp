@@ -10,44 +10,44 @@
 
 
 
-#include "missionui/missiondebrief.h"
-#include "missionui/missionscreencommon.h"
-#include "missionui/missionpause.h"
-#include "mission/missionbriefcommon.h"
-#include "mission/missiongoals.h"
-#include "mission/missioncampaign.h"
-#include "gamesequence/gamesequence.h"
-#include "io/key.h"
-#include "ui/uidefs.h"
-#include "gamesnd/gamesnd.h"
-#include "parse/parselo.h"
-#include "sound/audiostr.h"
-#include "io/timer.h"
-#include "gamehelp/contexthelp.h"
-#include "stats/stats.h"
-#include "playerman/player.h"
-#include "gamesnd/eventmusic.h"
-#include "graphics/font.h"
-#include "popup/popup.h"
-#include "stats/medals.h"
-#include "globalincs/alphacolors.h"
-#include "localization/localize.h"
-#include "osapi/osapi.h"
-#include "sound/fsspeech.h"
-#include "globalincs/globals.h"
-#include "ship/ship.h"
 #include "cfile/cfile.h"
+#include "gamehelp/contexthelp.h"
+#include "gamesequence/gamesequence.h"
+#include "gamesnd/eventmusic.h"
+#include "gamesnd/gamesnd.h"
+#include "globalincs/alphacolors.h"
+#include "globalincs/globals.h"
+#include "graphics/font.h"
 #include "iff_defs/iff_defs.h"
+#include "io/key.h"
+#include "io/timer.h"
+#include "localization/localize.h"
+#include "mission/missionbriefcommon.h"
+#include "mission/missioncampaign.h"
+#include "mission/missiongoals.h"
+#include "missionui/chatbox.h"
+#include "missionui/missiondebrief.h"
+#include "missionui/missionpause.h"
+#include "missionui/missionscreencommon.h"
 #include "network/multi.h"
-#include "network/multimsgs.h"
-#include "network/multiutil.h"
-#include "network/multiui.h"
-#include "network/multi_pinfo.h"
-#include "network/multi_kick.h"
 #include "network/multi_campaign.h"
 #include "network/multi_endgame.h"
-#include "missionui/chatbox.h"
+#include "network/multi_kick.h"
+#include "network/multi_pinfo.h"
+#include "network/multimsgs.h"
+#include "network/multiui.h"
+#include "network/multiutil.h"
+#include "osapi/osapi.h"
+#include "parse/parselo.h"
 #include "pilotfile/pilotfile.h"
+#include "playerman/player.h"
+#include "popup/popup.h"
+#include "ship/ship.h"
+#include "sound/audiostr.h"
+#include "sound/fsspeech.h"
+#include "stats/medals.h"
+#include "stats/stats.h"
+#include "ui/uidefs.h"
 
 
 #define MAX_TOTAL_DEBRIEF_LINES	200
@@ -866,13 +866,12 @@ void debrief_ui_init()
 
 		// create the new one
 		chatbox_create();
-		Background_bitmap = bm_load(Debrief_multi_name[gr_screen.res]);
 		List_region.create(&Debrief_ui_window, "", Debrief_list_coords[gr_screen.res][0], Debrief_list_coords[gr_screen.res][1], Debrief_list_coords[gr_screen.res][2], Debrief_list_coords[gr_screen.res][3], 0, 1);
 		List_region.hide();
 
-	} else {
-		Background_bitmap = bm_load(Debrief_single_name[gr_screen.res]);
 	}
+
+	Background_bitmap = mission_ui_background_load(Debriefing->background[gr_screen.res], Debrief_single_name[gr_screen.res], Debrief_multi_name[gr_screen.res]);
 
 	if ( Background_bitmap < 0 ) {
 		Warning(LOCATION, "Could not load the background bitmap for debrief screen");
@@ -887,7 +886,7 @@ int debrief_find_persona_index()
 {
 	int i, j;
 
-	if ((Campaign.current_mission >= 0) && (Campaign.missions[Campaign.current_mission].name) && (Campaign.filename))
+	if ((Campaign.current_mission >= 0) && (Campaign.missions[Campaign.current_mission].name))
 	{
 		// Goober5000 - first see if the campaign supplied a persona index
 		// (0 means use the Volition default)
@@ -1058,49 +1057,51 @@ void debrief_traitor_init()
 	if ( !inited ) {
 		debriefing		*debrief;
 		debrief_stage	*stagep;
-		int rval;
 		int stage_num;
+		
+		try
+		{
+			read_file_text("traitor.tbl", CF_TYPE_TABLES);
+			reset_parse();
 
-		if ((rval = setjmp(parse_abort)) != 0) {
-			mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", "traitor.tbl", rval));
+			// simplied form of the debriefing stuff.
+			debrief = &Traitor_debriefing;
+			required_string("#Debriefing_info");
+
+			required_string("$Num stages:");
+			stuff_int(&debrief->num_stages);
+			Assert(debrief->num_stages == 1);
+
+			stage_num = 0;
+			stagep = &debrief->stages[stage_num++];
+			required_string("$Formula:");
+			stagep->formula = get_sexp_main();
+			required_string("$multi text");
+			stuff_string(stagep->text, F_MULTITEXT, NULL);
+			required_string("$Voice:");
+			char traitor_voice_file[MAX_FILENAME_LEN];
+			stuff_string(traitor_voice_file, F_FILESPEC, MAX_FILENAME_LEN);
+
+			// DKA 9/13/99	Only 1 traitor msg for FS2
+			//		if ( Player->main_hall ) {
+			//			strcpy_s(stagep->voice, NOX("3_"));
+			//		} else {
+			//			strcpy_s(stagep->voice, NOX("1_"));
+			//		}
+
+			// Goober5000
+			debrief_choose_voice(stagep->voice, traitor_voice_file, debrief_find_persona_index(), 1);
+
+			required_string("$Recommendation text:");
+			stuff_string(stagep->recommendation_text, F_MULTITEXT, NULL);
+
+			inited = 1;
+		}
+		catch (const parse::ParseException& e)
+		{
+			mprintf(("TABLES: Unable to parse '%s'!  Error message = %s.\n", "traitor.tbl", e.what()));
 			return;
 		}
-
-		read_file_text("traitor.tbl", CF_TYPE_TABLES);
-		reset_parse();		
-
-		// simplied form of the debriefing stuff.
-		debrief = &Traitor_debriefing;
-		required_string("#Debriefing_info");
-
-		required_string("$Num stages:");
-		stuff_int(&debrief->num_stages);
-		Assert(debrief->num_stages == 1);
-
-		stage_num = 0;
-		stagep = &debrief->stages[stage_num++];
-		required_string("$Formula:");
-		stagep->formula = get_sexp_main();
-		required_string("$multi text");
-		stuff_string( stagep->text, F_MULTITEXT, NULL);
-		required_string("$Voice:");
-		char traitor_voice_file[MAX_FILENAME_LEN];
-		stuff_string(traitor_voice_file, F_FILESPEC, MAX_FILENAME_LEN);
-
-// DKA 9/13/99	Only 1 traitor msg for FS2
-//		if ( Player->main_hall ) {
-//			strcpy_s(stagep->voice, NOX("3_"));
-//		} else {
-//			strcpy_s(stagep->voice, NOX("1_"));
-//		}
-
-		// Goober5000
-		debrief_choose_voice(stagep->voice, traitor_voice_file, debrief_find_persona_index(), 1);
-
-		required_string("$Recommendation text:");
-		stuff_string( stagep->recommendation_text, F_MULTITEXT, NULL);
-
-		inited = 1;
 	}
 
 	// disable the accept button if in single player and I am a traitor
@@ -1746,7 +1747,7 @@ void debrief_setup_ship_kill_stats(int stage_num)
 
 	if(Debrief_stats_kills == NULL)
 	{
-		Debrief_stats_kills = new debrief_stats_kill_info[Num_ship_classes];
+		Debrief_stats_kills = new debrief_stats_kill_info[Ship_info.size()];
 	}
 
 	Assert(Debrief_player != NULL);
@@ -1759,7 +1760,8 @@ void debrief_setup_ship_kill_stats(int stage_num)
 	}
 
 	Num_text_lines = 0;
-	for ( i=0; i<MAX_SHIP_CLASSES; i++ ) {
+	i = 0;
+	for ( auto it = Ship_info.begin(); it != Ship_info.end(); i++, ++it ) {
 
 		// code used to add in mission kills, but the new system assumes that the player will accept, so
 		// all time stats already have mission stats added in.
@@ -1772,7 +1774,7 @@ void debrief_setup_ship_kill_stats(int stage_num)
 
 		kill_info->num = kill_arr[i];
 
-		strcpy_s(kill_info->text, Ship_info[i].name);
+		strcpy_s(kill_info->text, it->name);
 		strcat_s(kill_info->text, NOX(":"));
 	}
 
@@ -2317,7 +2319,7 @@ void debrief_do_frame(float frametime)
 		gr_set_color_fast(&Color_normal);
 		gr_set_font(FONT2);
 		gr_get_string_size(&str_w, &str_h, please_wait_str);
-		gr_string((gr_screen.max_w - str_w) / 2, (gr_screen.max_h - str_h) / 2, please_wait_str, GR_RESIZE_MENU);
+		gr_string((gr_screen.max_w_unscaled - str_w) / 2, (gr_screen.max_h_unscaled - str_h) / 2, please_wait_str, GR_RESIZE_MENU);
 		gr_set_font(FONT1);
 
 		gr_flip();

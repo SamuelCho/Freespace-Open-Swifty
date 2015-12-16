@@ -9,15 +9,12 @@
 
 
 #include "debugconsole/console.h"
-#include "debugconsole/consoleparse.h"
 #include "globalincs/alphacolors.h"
-#include "globalincs/pstypes.h"
 #include "globalincs/version.h"
-#include "globalincs/vmallocator.h"
 #include "graphics/2d.h"
 #include "graphics/font.h"
-#include "io/timer.h"
 #include "io/key.h"
+#include "io/timer.h"
 #include "osapi/osapi.h"
 
 #include <algorithm>
@@ -104,7 +101,8 @@ void dc_draw(bool show_prompt);
 /**
  * Draws the cursor
  * @param [in] cmd_string	The formatted command string displayed by dc_draw_window
- * @param [in] x y			The x and y screen position of the command string
+ * @param [in] x		The x screen position of the command string
+ * @param [in] y		The y screen position of the command string
  */
 void dc_draw_cursor( SCP_string &cmd_string, int x, int y );
 
@@ -189,7 +187,7 @@ void dc_draw(bool show_prompt = FALSE)
 	gr_clear();
 	gr_set_font(dc_font);
 	gr_set_color_fast( &Color_bright );
-	gr_string( 0x8000, 3, dc_title.c_str(), GR_RESIZE_NONE );
+	gr_string( 0x8000, gr_screen.center_offset_y + 3, dc_title.c_str(), GR_RESIZE_NONE );
 
 	gr_set_color_fast( &Color_normal );
 
@@ -209,7 +207,7 @@ void dc_draw_cursor( SCP_string &cmd_string, int x, int y )
 
 		w %= (DCOLS * Current_font->w);
 		//gr_string( w, debug_y*16, "_" );
-		gr_rect((x + (w + 1)), (y + (h + 1)), 2, Current_font->h, GR_RESIZE_NONE);
+		gr_rect(gr_screen.center_offset_x + (x + (w + 1)), gr_screen.center_offset_y + (y + (h + 1)), 2, Current_font->h, GR_RESIZE_NONE);
 	}
 }
 
@@ -245,7 +243,7 @@ void dc_draw_window(bool show_prompt)
 	// Draw the buffer strings
 	for (i = 0; i < buffer_lines; ++i) {
 		if ((i + dc_scroll_y) < dc_buffer.size()) {
-			gr_string(0, ((i * row_height) + row_height), dc_buffer[i + dc_scroll_y].substr(dc_scroll_x).c_str(), GR_RESIZE_NONE);
+			gr_string(gr_screen.center_offset_x, gr_screen.center_offset_y + ((i * row_height) + row_height), dc_buffer[i + dc_scroll_y].substr(dc_scroll_x).c_str(), GR_RESIZE_NONE);
 		}
 	}
 
@@ -263,7 +261,7 @@ void dc_draw_window(bool show_prompt)
 				++j;
 			}
 		}
-		gr_string(0, ((i * row_height) + row_height), out_str.c_str(), GR_RESIZE_NONE);
+		gr_string(gr_screen.center_offset_x, gr_screen.center_offset_y + ((i * row_height) + row_height), out_str.c_str(), GR_RESIZE_NONE);
 
 		dc_draw_cursor(out_str, 0, ((i * row_height)));
 		gr_set_color_fast(&Color_normal);
@@ -284,8 +282,8 @@ void dc_init(void)
 	col_width = Current_font->w;			// Col/Character width, in pixels
 	dc_scroll_x = 0;
 	dc_scroll_y = 0;
-	DCOLS = (gr_screen.max_w / col_width) - 1;	// Subtract as needed. Windowed mode has some quirks with the resolution
-	DROWS = (gr_screen.max_h / row_height) - 2;
+	DCOLS = (gr_screen.center_w / col_width) - 1;	// Subtract as needed. Windowed mode has some quirks with the resolution
+	DROWS = (gr_screen.center_h / row_height) - 2;
 	DBCOLS = DCOLS;
 	DBROWS = 2 * DROWS;
 
@@ -391,7 +389,7 @@ void dc_putc(char c)
 		temp_str.push_back(c);
 		gr_get_string_size(&w, NULL, temp_str.c_str());
 
-		if ((temp_str.size() >= DBCOLS) || (w > gr_screen.max_w)) {
+		if ((temp_str.size() >= DBCOLS) || (w > gr_screen.center_w)) {
 			c = '\n';
 		
 		} else {
@@ -415,7 +413,7 @@ void dc_putc(char c)
 		temp_str.append(i, ' ');
 		gr_get_string_size(&w, NULL, temp_str.c_str());
 
-		if ((temp_str.size() >= DBCOLS) || (w > gr_screen.max_w)) {
+		if ((temp_str.size() >= DBCOLS) || (w > gr_screen.center_w)) {
 			c = '\n';
 
 		} else {
@@ -458,7 +456,7 @@ void dc_putc(char c)
 	temp_str.push_back(c);
 	gr_get_string_size(&w, NULL, temp_str.c_str());
 
-	if ((temp_str.size() >= DBCOLS) || (w > gr_screen.max_w)) {
+	if ((temp_str.size() >= DBCOLS) || (w > gr_screen.center_w)) {
 		/**
 		 * Word wrapping
 		 * Save the word, clear the line of the word, push new line with the word on it

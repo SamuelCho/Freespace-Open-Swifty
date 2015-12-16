@@ -1,20 +1,19 @@
 
+#include "cmdline/cmdline.h"
+#include "freespace2/freespace.h"
+#include "globalincs/def_files.h"
 #include "graphics/gropengl.h"
+#include "graphics/gropengldraw.h"
 #include "graphics/gropenglextension.h"
 #include "graphics/gropenglpostprocessing.h"
 #include "graphics/gropenglshader.h"
 #include "graphics/gropenglstate.h"
-#include "graphics/gropengldraw.h"
-
 #include "io/timer.h"
+#include "lighting/lighting.h"
+#include "mod_table/mod_table.h"
 #include "nebula/neb.h"
 #include "parse/parselo.h"
-#include "cmdline/cmdline.h"
-#include "mod_table/mod_table.h"
-#include "globalincs/def_files.h"
 #include "ship/ship.h"
-#include "freespace2/freespace.h"
-#include "lighting/lighting.h"
 
 
 extern bool PostProcessing_override;
@@ -259,7 +258,7 @@ void gr_opengl_post_process_end()
 	// state switch just the once (for bloom pass and final render-to-screen)
 	GLboolean depth = GL_state.DepthTest(GL_FALSE);
 	GLboolean depth_mask = GL_state.DepthMask(GL_FALSE);
-	GLboolean light = GL_state.Lighting(GL_FALSE);
+	GLboolean lighting = GL_state.Lighting(GL_FALSE);
 	GLboolean blend = GL_state.Blend(GL_FALSE);
 	GLboolean cull = GL_state.CullFace(GL_FALSE);
 
@@ -463,7 +462,7 @@ void gr_opengl_post_process_end()
 	// reset state
 	GL_state.DepthTest(depth);
 	GL_state.DepthMask(depth_mask);
-	GL_state.Lighting(light);
+	GL_state.Lighting(lighting);
 	GL_state.Blend(blend);
 	GL_state.CullFace(cull);
 
@@ -502,7 +501,6 @@ void gr_opengl_post_process_set_effect(const char *name, int value)
 
 	size_t idx;
 	int sflags = 0;
-	bool need_change = true;
 
 	if(!stricmp("lightshafts",name))
 	{
@@ -532,7 +530,7 @@ void gr_opengl_post_process_set_effect(const char *name, int value)
 
 void gr_opengl_post_process_set_defaults()
 {
-	size_t idx, list_size;
+	size_t idx;
 
 	if ( !Post_initialized ) {
 		return;
@@ -566,120 +564,123 @@ void gr_opengl_post_process_save_zbuffer()
 
 static bool opengl_post_init_table()
 {
-	int rval;
 	bool warned = false;
 
-	if ( (rval = setjmp(parse_abort)) != 0 ) {
-		mprintf(("Unable to parse 'post_processing.tbl'!  Error code = %d.\n", rval));
-		return false;
-	}
+	try
+	{
+		if (cf_exists_full("post_processing.tbl", CF_TYPE_TABLES))
+			read_file_text("post_processing.tbl", CF_TYPE_TABLES);
+		else
+			read_file_text_from_array(defaults_get_file("post_processing.tbl"));
 
-	if (cf_exists_full("post_processing.tbl", CF_TYPE_TABLES))
-		read_file_text("post_processing.tbl", CF_TYPE_TABLES);
-	else
-		read_file_text_from_array(defaults_get_file("post_processing.tbl"));
-
-	reset_parse();
+		reset_parse();
 
 
-	if (optional_string("#Effects")) {
-		while ( !required_string_3("$Name:", "#Ship Effects", "#End") ) {
-			char tbuf[NAME_LENGTH+1] = { 0 };
-			post_effect_t eff;
+		if (optional_string("#Effects")) {
+			while (!required_string_one_of(3, "$Name:", "#Ship Effects", "#End")) {
+				char tbuf[NAME_LENGTH + 1] = { 0 };
+				post_effect_t eff;
 
-			required_string("$Name:");
-			stuff_string(tbuf, F_NAME, NAME_LENGTH);
-			eff.name = tbuf;
+				required_string("$Name:");
+				stuff_string(tbuf, F_NAME, NAME_LENGTH);
+				eff.name = tbuf;
 
-			required_string("$Uniform:");
-			stuff_string(tbuf, F_NAME, NAME_LENGTH);
-			eff.uniform_name = tbuf;
+				required_string("$Uniform:");
+				stuff_string(tbuf, F_NAME, NAME_LENGTH);
+				eff.uniform_name = tbuf;
 
-			required_string("$Define:");
-			stuff_string(tbuf, F_NAME, NAME_LENGTH);
-			eff.define_name = tbuf;
+				required_string("$Define:");
+				stuff_string(tbuf, F_NAME, NAME_LENGTH);
+				eff.define_name = tbuf;
 
-			required_string("$AlwaysOn:");
-			stuff_boolean(&eff.always_on);
+				required_string("$AlwaysOn:");
+				stuff_boolean(&eff.always_on);
 
-			required_string("$Default:");
-			stuff_float(&eff.default_intensity);
-			eff.intensity = eff.default_intensity;
+				required_string("$Default:");
+				stuff_float(&eff.default_intensity);
+				eff.intensity = eff.default_intensity;
 
-			required_string("$Div:");
-			stuff_float(&eff.div);
+				required_string("$Div:");
+				stuff_float(&eff.div);
 
-			required_string("$Add:");
-			stuff_float(&eff.add);
+				required_string("$Add:");
+				stuff_float(&eff.add);
 
-			// Post_effects index is used for flag checks, so we can't have more than 32
-			if (Post_effects.size() < 32) {
-				Post_effects.push_back( eff );
-			} else if ( !warned ) {
-				mprintf(("WARNING: post_processing.tbl can only have a max of 32 effects! Ignoring extra...\n"));
-				warned = true;
+				// Post_effects index is used for flag checks, so we can't have more than 32
+				if (Post_effects.size() < 32) {
+					Post_effects.push_back(eff);
+				}
+				else if (!warned) {
+					mprintf(("WARNING: post_processing.tbl can only have a max of 32 effects! Ignoring extra...\n"));
+					warned = true;
+				}
 			}
 		}
-	}
 
-	//Built-in per-ship effects
-	ship_effect se1;
-	strcpy_s(se1.name, "FS1 Ship select");
-	se1.shader_effect = 0;
-	se1.disables_rendering = false;
-	se1.invert_timer = false;
-	Ship_effects.push_back(se1);
+		//Built-in per-ship effects
+		ship_effect se1;
+		strcpy_s(se1.name, "FS1 Ship select");
+		se1.shader_effect = 0;
+		se1.disables_rendering = false;
+		se1.invert_timer = false;
+		Ship_effects.push_back(se1);
 
-	if (optional_string("#Ship Effects")) {
-		while ( !required_string_3("$Name:", "#Light Shafts", "#End") ) {
-			ship_effect se;
-			char tbuf[NAME_LENGTH] = { 0 };
+		if (optional_string("#Ship Effects")) {
+			while (!required_string_one_of(3, "$Name:", "#Light Shafts", "#End")) {
+				ship_effect se;
+				char tbuf[NAME_LENGTH] = { 0 };
 
-			required_string("$Name:");
-			stuff_string(tbuf, F_NAME, NAME_LENGTH);
-			strcpy_s(se.name, tbuf);
+				required_string("$Name:");
+				stuff_string(tbuf, F_NAME, NAME_LENGTH);
+				strcpy_s(se.name, tbuf);
 
-			required_string("$Shader Effect:");
-			stuff_int(&se.shader_effect);
+				required_string("$Shader Effect:");
+				stuff_int(&se.shader_effect);
 
-			required_string("$Disables Rendering:");
-			stuff_boolean(&se.disables_rendering);
+				required_string("$Disables Rendering:");
+				stuff_boolean(&se.disables_rendering);
 
-			required_string("$Invert timer:");
-			stuff_boolean(&se.invert_timer);
+				required_string("$Invert timer:");
+				stuff_boolean(&se.invert_timer);
 
-			Ship_effects.push_back(se);
+				Ship_effects.push_back(se);
+			}
 		}
+
+		if (optional_string("#Light Shafts")) {
+			required_string("$AlwaysOn:");
+			stuff_boolean(&ls_on);
+			required_string("$Density:");
+			stuff_float(&ls_density);
+			required_string("$Falloff:");
+			stuff_float(&ls_falloff);
+			required_string("$Weight:");
+			stuff_float(&ls_weight);
+			required_string("$Intensity:");
+			stuff_float(&ls_intensity);
+			required_string("$Sample Number:");
+			stuff_int(&ls_samplenum);
+
+			ls_cpintensity = ls_weight;
+			for (int i = 1; i < ls_samplenum; i++)
+				ls_cpintensity += ls_weight * pow(ls_falloff, i);
+			ls_cpintensity *= ls_intensity;
+		}
+
+		required_string("#End");
+
+		return true;
 	}
-
-	if (optional_string("#Light Shafts")) {
-		required_string("$AlwaysOn:");
-		stuff_boolean(&ls_on);
-		required_string("$Density:");
-		stuff_float(&ls_density);
-		required_string("$Falloff:");
-		stuff_float(&ls_falloff);
-		required_string("$Weight:");
-		stuff_float(&ls_weight);
-		required_string("$Intensity:");
-		stuff_float(&ls_intensity);
-		required_string("$Sample Number:");
-		stuff_int(&ls_samplenum);
-
-		ls_cpintensity = ls_weight;
-		for(int i = 1; i < ls_samplenum; i++)
-			ls_cpintensity += ls_weight * pow(ls_falloff, i);
-		ls_cpintensity *= ls_intensity;
+	catch (const parse::ParseException& e)
+	{
+		mprintf(("Unable to parse 'post_processing.tbl'!  Error message = %s.\n", e.what()));
+		return false;
 	}
-	
-	required_string("#End");
-
-	return true;
 }
 
-void opengl_post_load_shader(SCP_string &sflags, shader_type shader, int flags)
+void opengl_post_load_shader(SCP_string &sflags, shader_type shader_t, int flags)
 {
-	if ( shader == SDR_TYPE_POST_PROCESS_MAIN ) {
+	if ( shader_t == SDR_TYPE_POST_PROCESS_MAIN ) {
 		for (size_t idx = 0; idx < Post_effects.size(); idx++) {
 			if (flags & (1 << idx)) {
 				sflags += "#define ";
@@ -687,11 +688,11 @@ void opengl_post_load_shader(SCP_string &sflags, shader_type shader, int flags)
 				sflags += "\n";
 			}
 		}
-	} else if ( shader == SDR_TYPE_POST_PROCESS_LIGHTSHAFTS ) {
+	} else if ( shader_t == SDR_TYPE_POST_PROCESS_LIGHTSHAFTS ) {
 		char temp[64];
 		sprintf(temp, "#define SAMPLE_NUM %d\n", ls_samplenum);
 		sflags += temp;
-	} else if ( shader == SDR_TYPE_POST_PROCESS_FXAA ) {
+	} else if ( shader_t == SDR_TYPE_POST_PROCESS_FXAA ) {
 		switch (Cmdline_fxaa_preset) {
 		case 0:
 			sflags += "#define FXAA_QUALITY_PRESET 10\n";

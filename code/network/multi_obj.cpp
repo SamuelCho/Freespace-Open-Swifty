@@ -8,6 +8,8 @@
 */
 
 
+#include <algorithm>
+
 #include "network/multi_obj.h"
 #include "globalincs/globals.h"
 #include "freespace2/freespace.h"
@@ -157,22 +159,17 @@ int OO_update_index = -1;							// index into OO_update_records for displaying u
 object *OO_player_obj;
 int OO_sort = 1;
 
-int multi_oo_sort_func(const void *ship1, const void *ship2)
+bool multi_oo_sort_func(const short &index1, const short &index2)
 {
 	object *obj1, *obj2;
-	short index1, index2;
 	float dist1, dist2;
 	float dot1, dot2;
 	vec3d v1, v2;
 	vec3d vn1, vn2;
 
-	// get the 2 indices
-	memcpy(&index1, ship1, sizeof(short));
-	memcpy(&index2, ship2, sizeof(short));
-
 	// if the indices are bogus, or the objnums are bogus, return ">"
 	if((index1 < 0) || (index2 < 0) || (Ships[index1].objnum < 0) || (Ships[index2].objnum < 0)){
-		return 1;
+		return false;
 	}
 
 	// get the 2 objects
@@ -184,18 +181,18 @@ int multi_oo_sort_func(const void *ship1, const void *ship2)
 	dist1 = vm_vec_copy_normalize(&vn1, &v1);
 	vm_vec_sub(&v2, &OO_player_obj->pos, &obj2->pos);
 	dist2 = vm_vec_copy_normalize(&vn2, &v2);
-	dot1 = vm_vec_dotprod(&OO_player_obj->orient.vec.fvec, &vn1);
-	dot2 = vm_vec_dotprod(&OO_player_obj->orient.vec.fvec, &vn2);
+	dot1 = vm_vec_dot(&OO_player_obj->orient.vec.fvec, &vn1);
+	dot2 = vm_vec_dot(&OO_player_obj->orient.vec.fvec, &vn2);
 
 	// objects in front take precedence
 	if((dot1 < 0.0f) && (dot2 >= 0.0f)){
-		return 1;
+		return false;
 	} else if((dot2 < 0.0f) && (dot1 >= 0.0f)){
-		return -1;
+		return true;
 	}
 
 	// otherwise go by distance
-	return (dist1 <= dist2) ? -1 : 1;
+	return (dist1 < dist2);
 }
 
 // build the list of ship indices to use when updating for this player
@@ -241,7 +238,7 @@ void multi_oo_build_ship_list(net_player *pl)
 		}		
 
 		// never update the knossos device
-		if ((Ships[Objects[moveup->objnum].instance].ship_info_index >= 0) && (Ships[Objects[moveup->objnum].instance].ship_info_index < Num_ship_classes) && (Ship_info[Ships[Objects[moveup->objnum].instance].ship_info_index].flags & SIF_KNOSSOS_DEVICE)){
+		if ((Ships[Objects[moveup->objnum].instance].ship_info_index >= 0) && (Ships[Objects[moveup->objnum].instance].ship_info_index < static_cast<int>(Ship_info.size())) && (Ship_info[Ships[Objects[moveup->objnum].instance].ship_info_index].flags & SIF_KNOSSOS_DEVICE)){
 			continue;
 		}
 				
@@ -261,10 +258,10 @@ void multi_oo_build_ship_list(net_player *pl)
 		}
 	}
 
-	// maybe qsort the thing here
+	// maybe sort the thing here
 	OO_player_obj = player_obj;
-	if(OO_sort){
-		qsort(OO_ship_index, ship_index, sizeof(short), multi_oo_sort_func);
+	if (OO_sort) {
+		std::sort(OO_ship_index, OO_ship_index + ship_index, multi_oo_sort_func);
 	}
 }
 
@@ -735,7 +732,7 @@ int multi_oo_unpack_data(net_player *pl, ubyte *data)
 	
 	// if we can't find the object, set pointer to bogus object to continue reading the data
 	// ignore out of sequence packets here as well
-	if ( (pobjp == NULL) || (pobjp->type != OBJ_SHIP) || (pobjp->instance < 0) || (pobjp->instance >= MAX_SHIPS) || (Ships[pobjp->instance].ship_info_index < 0) || (Ships[pobjp->instance].ship_info_index >= Num_ship_classes)){		
+	if ( (pobjp == NULL) || (pobjp->type != OBJ_SHIP) || (pobjp->instance < 0) || (pobjp->instance >= MAX_SHIPS) || (Ships[pobjp->instance].ship_info_index < 0) || (Ships[pobjp->instance].ship_info_index >= static_cast<int>(Ship_info.size()))) {
 		offset += data_size;
 		return offset;
 	}
@@ -1987,7 +1984,7 @@ void multi_oo_calc_interp_splines(int ship_index, vec3d *cur_pos, matrix *cur_or
 	if(!IS_VEC_NULL_SQ_SAFE(&v_norm) && !IS_VEC_NULL_SQ_SAFE(&v_dir)){
 		vm_vec_normalize(&v_dir);
 		vm_vec_normalize(&v_norm);	
-		if(vm_vec_dotprod(&v_dir, &v_norm) < 0.0f){
+		if(vm_vec_dot(&v_dir, &v_norm) < 0.0f){
 			*new_pos = *cur_pos;
 		}
 	}

@@ -1,17 +1,17 @@
 
 
-#include "graphics/2d.h"
-#include "graphics/grinternal.h"
-#include "bmpman/bmpman.h"
-#include "ddsutils/ddsutils.h"
-#include "tgautils/tgautils.h"
-#include "pngutils/pngutils.h"
-#include "jpgutils/jpgutils.h"
-#include "pcxutils/pcxutils.h"
-#include "globalincs/systemvars.h"
 #include "anim/animplay.h"
 #include "anim/packunpack.h"
+#include "bmpman/bmpman.h"
+#include "ddsutils/ddsutils.h"
+#include "globalincs/systemvars.h"
+#include "graphics/2d.h"
+#include "graphics/grinternal.h"
+#include "jpgutils/jpgutils.h"
 #include "model/model.h"
+#include "pcxutils/pcxutils.h"
+#include "pngutils/pngutils.h"
+#include "tgautils/tgautils.h"
 
 #define BMPMAN_INTERNAL
 #include "bmpman/bm_internal.h"
@@ -196,7 +196,6 @@ void gr_stub_free_screen(int id)
 
 void gr_stub_get_region(int front, int w, int h, ubyte *data)
 {
-	data = NULL;
 }
 
 void gr_stub_gradient(int x1,int y1,int x2,int y2, int resize_mode)
@@ -231,7 +230,7 @@ void gr_stub_print_screen(const char *filename)
 {
 }
 
-void gr_stub_push_scale_matrix(vec3d *scale_factor)
+void gr_stub_push_scale_matrix(const vec3d *scale_factor)
 {
 }
 
@@ -333,7 +332,7 @@ void gr_stub_set_light(light *light)
 {
 }
 
-void gr_stub_set_palette(ubyte *new_palette, int is_alphacolor)
+void gr_stub_set_palette(const ubyte *new_palette, int is_alphacolor)
 {
 }
 
@@ -349,7 +348,7 @@ void gr_stub_set_texture_addressing(int mode)
 {
 }
 
-void gr_stub_set_view_matrix(vec3d *pos, matrix* orient)
+void gr_stub_set_view_matrix(const vec3d *pos, const matrix* orient)
 {
 }
 
@@ -357,15 +356,15 @@ void gr_stub_start_clip_plane()
 {
 }
 
-void gr_stub_start_instance_angles(vec3d *pos, angles* rotation)
+void gr_stub_start_instance_angles(const vec3d *pos, const angles *rotation)
 {
 }
 
-void gr_stub_start_instance_matrix(vec3d *offset, matrix* rotation)
+void gr_stub_start_instance_matrix(const vec3d *offset, const matrix *rotation)
 {
 }
 
-void gr_stub_string( int sx, int sy, const char *s, int resize_mode = GR_RESIZE_NONE)
+void gr_stub_string(int sx, int sy, const char *s, int resize_mode = GR_RESIZE_NONE)
 {
 }
 
@@ -389,7 +388,7 @@ void gr_stub_render_effect( int nverts, vertex *verts, float *radius_list, uint 
 {
 }
 
-void gr_stub_translate_texture_matrix(int unit, vec3d *shift)
+void gr_stub_translate_texture_matrix(int unit, const vec3d *shift)
 {
 }
 
@@ -497,7 +496,7 @@ void gr_stub_set_line_width(float width)
 {
 }
 
-void gr_stub_draw_htl_line(vec3d *start, vec3d* end)
+void gr_stub_draw_htl_line(const vec3d *start, const vec3d *end)
 {
 }
 
@@ -505,7 +504,7 @@ void gr_stub_draw_htl_sphere(float rad)
 {
 }
 
-void gr_stub_draw_line_list(colored_vector *lines, int num)
+void gr_stub_draw_line_list(const colored_vector *lines, int num)
 {
 }
 
@@ -513,7 +512,7 @@ void gr_stub_clear_states()
 {
 }
 
-void gr_stub_update_texture(int bitmap_handle, int bpp, ubyte* data, int width, int height)
+void gr_stub_update_texture(int bitmap_handle, int bpp, const ubyte *data, int width, int height)
 {
 }
 
@@ -523,7 +522,7 @@ void gr_stub_get_bitmap_from_texture(void* data_out, int bitmap_num)
 }
 
 // bitmap functions
-int gr_stub_bm_load(ubyte type, int n, const char *filename, CFILE *img_cfp, int *w, int *h, int *bpp, ubyte *c_type, int *mm_lvl, int *size)
+int gr_stub_bm_load(BM_TYPE type, int n, const char *filename, CFILE *img_cfp, int *w, int *h, int *bpp, BM_TYPE *c_type, int *mm_lvl, int *size)
 {
 	int dds_ct;
 
@@ -614,7 +613,7 @@ int gr_stub_bm_load(ubyte type, int n, const char *filename, CFILE *img_cfp, int
 
 int gr_stub_bm_lock(const char *filename, int handle, int bitmapnum, ubyte bpp, ubyte flags, bool nodebug)
 {
-	ubyte c_type = BM_TYPE_NONE;
+	BM_TYPE c_type = BM_TYPE_NONE;
 	ubyte true_bpp;
 
 	bitmap_entry *be = &bm_bitmaps[bitmapnum];
@@ -733,7 +732,7 @@ void gr_stub_bm_page_in_start()
 {
 }
 
-int gr_stub_maybe_create_shader(shader_type shader, unsigned int flags) {
+int gr_stub_maybe_create_shader(shader_type shader_t, unsigned int flags) {
 	return -1;
 }
 
@@ -742,10 +741,10 @@ void gr_stub_set_animated_effect(int effect, float timer)
 
 }
 
-void gr_stub_set_team_color(team_color *colors) {
+void gr_stub_set_team_color(const team_color *colors) {
 }
 
-void gr_stub_shadow_map_start(matrix4 *shadow_view_matrix, matrix* light_matrix)
+void gr_stub_shadow_map_start(const matrix4 *shadow_view_matrix, const matrix* light_matrix)
 {
 }
 

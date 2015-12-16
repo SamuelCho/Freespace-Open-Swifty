@@ -11,14 +11,15 @@
 #define _PARSE_H
 
 #include <setjmp.h>
+
 #include "ai/ai.h"
 #include "ai/ai_profiles.h"
+#include "graphics/2d.h"
+#include "io/keycontrol.h"
 #include "model/model.h"
 #include "object/object.h"
-#include "graphics/2d.h"
-#include "sound/sound.h"
 #include "parse/sexp.h"
-#include "io/keycontrol.h"
+#include "sound/sound.h"
 
 //WMC - This should be here
 #define FS_MISSION_FILE_EXT				NOX(".fs2")
@@ -423,6 +424,8 @@ public:
 
 	float ship_max_hull_strength;			// Needed to deal with special hitpoints
 	float ship_max_shield_strength;
+
+	float max_shield_recharge;
 
 	// Goober5000
 	SCP_vector<texture_replace> replacement_textures;

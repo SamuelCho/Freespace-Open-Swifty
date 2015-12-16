@@ -6,22 +6,21 @@
 #include <sys/time.h>
 #endif
 
+#include "bmpman/bmpman.h"
+#include "cutscene/movie.h"
+#include "cutscene/mvelib.h"
+#include "globalincs/pstypes.h"
+#include "graphics/2d.h"
 #include "graphics/gropengl.h"
-#include "graphics/gropengltexture.h"
+#include "graphics/gropengldraw.h"
 #include "graphics/gropenglextension.h"
 #include "graphics/gropenglstate.h"
-#include "graphics/gropengldraw.h"
-
-#include "globalincs/pstypes.h"
-#include "cutscene/mvelib.h"
-#include "cutscene/movie.h"
-#include "graphics/2d.h"
+#include "graphics/gropengltexture.h"
 #include "io/key.h"
-#include "osapi/osapi.h"
 #include "io/timer.h"
-#include "sound/sound.h"
+#include "osapi/osapi.h"
 #include "sound/openal.h"
-#include "bmpman/bmpman.h"
+#include "sound/sound.h"
 
 
 extern int Cmdline_noscalevid;
@@ -229,7 +228,7 @@ void mve_audio_createbuf(ubyte minor, ubyte *data)
 		return;
 	}
 
-	int flags, desired_buffer, sample_rate;
+	int flags, sample_rate;
 
 	mas = (mve_audio_t *) vm_malloc ( sizeof(mve_audio_t) );
 	memset(mas, 0, sizeof(mve_audio_t));
@@ -238,7 +237,6 @@ void mve_audio_createbuf(ubyte minor, ubyte *data)
 
 	flags = mve_get_ushort(data + 2);
 	sample_rate = mve_get_ushort(data + 4);
-	desired_buffer = mve_get_int(data + 6);
 
 	mas->channels = (flags & 0x0001) ? 2 : 1;
 	mas->bitsize = (flags & 0x0002) ? 16 : 8;
@@ -420,15 +418,9 @@ int mve_video_createbuf(ubyte minor, ubyte *data)
 	}
 
 	short w, h;
-	short count, truecolor;
+	short truecolor;
 	w = mve_get_short(data);
 	h = mve_get_short(data+2);
-
-	if (minor > 0) {
-		count = mve_get_short(data+4);
-	} else {
-		count = 1;
-	}
 
 	if (minor > 1) {
 		truecolor = mve_get_short(data+6);
@@ -460,13 +452,13 @@ int mve_video_createbuf(ubyte minor, ubyte *data)
 	if (gr_screen.mode == GR_OPENGL) {
 		GLfloat scale_by = 1.0f;
 
-		float screen_ratio = (float)gr_screen.max_w / (float)gr_screen.max_h;
+		float screen_ratio = (float)gr_screen.center_w / (float)gr_screen.center_h;
 		float movie_ratio = (float)g_width / (float)g_height;
 
 		if (screen_ratio > movie_ratio) {
-			scale_by = (float)gr_screen.max_h / (float)g_height;
+			scale_by = (float)gr_screen.center_h / (float)g_height;
 		} else {
-			scale_by = (float)gr_screen.max_w / (float)g_width;
+			scale_by = (float)gr_screen.center_w / (float)g_width;
 		}
 
 		// don't bother setting anything if we aren't going to need it
@@ -480,12 +472,12 @@ int mve_video_createbuf(ubyte minor, ubyte *data)
 		}
 
 		if (mve_scale_video) {
-			g_screenX = ((ceil((gr_screen.max_w / scale_by) - 0.5f) - g_width) / 2);
-			g_screenY = ((ceil((gr_screen.max_h / scale_by) - 0.5f) - g_height) / 2);
+			g_screenX = ((ceil((gr_screen.center_w / scale_by) - 0.5f) - g_width) / 2) + ceil((gr_screen.center_offset_x / scale_by) - 0.5f);
+			g_screenY = ((ceil((gr_screen.center_h / scale_by) - 0.5f) - g_height) / 2) + ceil((gr_screen.center_offset_y / scale_by) - 0.5f);
 		} else {
 			// centers on 1024x768, fills on 640x480
-			g_screenX = ((float)(gr_screen.max_w - g_width) / 2.0f);
-			g_screenY = ((float)(gr_screen.max_h - g_height) / 2.0f);
+			g_screenX = ((float)(gr_screen.center_w - g_width) / 2.0f) + gr_screen.center_offset_x;
+			g_screenY = ((float)(gr_screen.center_h - g_height) / 2.0f) + gr_screen.center_offset_y;
 		}
 
 		// set additional values for screen width/height and UV coords
@@ -726,18 +718,9 @@ void mve_video_codemap(ubyte *data, int len)
 
 void mve_video_data(ubyte *data, int len)
 {
-	short nFrameHot, nFrameCold;
-	short nXoffset, nYoffset;
-	short nXsize, nYsize;
 	ushort nFlags;
 	ubyte *temp;
 
-	nFrameHot = mve_get_short(data);
-	nFrameCold = mve_get_short(data+2);
-	nXoffset = mve_get_short(data+4);
-	nYoffset = mve_get_short(data+6);
-	nXsize = mve_get_short(data+8);
-	nYsize = mve_get_short(data+10);
 	nFlags = mve_get_ushort(data+12);
 
 	if (nFlags & 1) {

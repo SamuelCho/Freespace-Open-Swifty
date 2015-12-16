@@ -6,13 +6,13 @@
  *    place of these major numbers for /any/ reason, *ever*!
  */
 
+#include "cfile/cfilesystem.h"
+#include "cutscene/cutscenes.h"
+#include "menuui/techmenu.h"
 #include "pilotfile/pilotfile_convert.h"
 #include "ship/ship.h"
-#include "weapon/weapon.h"
 #include "stats/medals.h"
-#include "cfile/cfilesystem.h"
-#include "menuui/techmenu.h"
-#include "cutscene/cutscenes.h"
+#include "weapon/weapon.h"
 
 #include <iostream>
 #include <sstream>
@@ -1173,7 +1173,7 @@ bool pilotfile_convert::csg_convert(const char *fname, bool inferno)
 
 	filename.reserve(200);
 
-	cf_create_default_path_string(filename, CF_TYPE_SINGLE_PLAYERS, (inferno) ? const_cast<char*>("inferno") : NULL);
+	cf_create_default_path_string(filename, CF_TYPE_SINGLE_PLAYERS, (inferno) ? "inferno" : NULL);
 
 	if (inferno) {
 		filename.append(DIR_SEPARATOR_STR);
@@ -1184,10 +1184,10 @@ bool pilotfile_convert::csg_convert(const char *fname, bool inferno)
 
 	mprintf(("    CS2 => Converting '%s'...\n", filename.c_str()));
 
-	cfp = cfopen(const_cast<char*>(filename.c_str()), "rb", CFILE_NORMAL);
+	cfp = cfopen(filename.c_str(), "rb", CFILE_NORMAL);
 
 	if ( !cfp ) {
-		mprintf(("    CS2 => Unable to open for import!\n", fname));
+		mprintf(("    CS2 => Unable to open '%s' for import!\n", fname));
 		delete csg;
 		csg = NULL;
 
@@ -1214,10 +1214,10 @@ bool pilotfile_convert::csg_convert(const char *fname, bool inferno)
 	filename.assign(fname);
 	filename.append(".csg");
 
-	cfp = cfopen(const_cast<char*>(filename.c_str()), "wb", CFILE_NORMAL, CF_TYPE_PLAYERS);
+	cfp = cfopen(filename.c_str(), "wb", CFILE_NORMAL, CF_TYPE_PLAYERS);
 
 	if ( !cfp ) {
-		mprintf(("    CSG => Unable to open for export!\n", fname));
+		mprintf(("    CSG => Unable to open '%s' for export!\n", fname));
 		return false;
 	}
 

@@ -1,39 +1,35 @@
 /*
  * Copyright (C) Volition, Inc. 1999.  All rights reserved.
  *
- * All source code herein is the property of Volition, Inc. You may not sell 
- * or otherwise commercially exploit the source or things you created based on the 
+ * All source code herein is the property of Volition, Inc. You may not sell
+ * or otherwise commercially exploit the source or things you created based on the
  * source.
  *
 */
 
 #include <algorithm>
-#include "globalincs/pstypes.h"
-#include "cmdline/cmdline.h"
-#include "osapi/osapi.h"
-#include "graphics/2d.h"
-#include "render/3d.h"
 #include "bmpman/bmpman.h"
-#include "math/floating.h"
-#include "palman/palman.h"
+#include "cmdline/cmdline.h"
+#include "freespace2/freespace.h"
+#include "globalincs/pstypes.h"
 #include "globalincs/systemvars.h"
 #include "graphics/grinternal.h"
 #include "graphics/gropengl.h"
-#include "graphics/line.h"
-#include "graphics/gropenglbmpman.h"
-#include "graphics/gropengllight.h"
-#include "graphics/gropengltexture.h"
-#include "graphics/gropenglextension.h"
-#include "graphics/gropenglstate.h"
-#include "graphics/gropengltnl.h"
 #include "graphics/gropenglbmpman.h"
 #include "graphics/gropengldraw.h"
-#include "debugconsole/timerbar.h"
-#include "nebula/neb.h"
-#include "graphics/gropenglshader.h"
+#include "graphics/gropenglextension.h"
+#include "graphics/gropengllight.h"
 #include "graphics/gropenglpostprocessing.h"
-#include "freespace2/freespace.h"
+#include "graphics/gropenglshader.h"
+#include "graphics/gropengltexture.h"
+#include "graphics/gropengltnl.h"
+#include "graphics/line.h"
 #include "lighting/lighting.h"
+#include "math/floating.h"
+#include "nebula/neb.h"
+#include "osapi/osapi.h"
+#include "palman/palman.h"
+#include "render/3d.h"
 
 GLuint Scene_framebuffer;
 GLuint Scene_color_texture;
@@ -287,7 +283,7 @@ void gr_opengl_aabitmap_ex(int x, int y, int w, int h, int sx, int sy, int resiz
 
 		count++;
 #endif
-	
+
 		if ( (dx1 > clip_right) || (dx2 < clip_left) ) {
 			return;
 		}
@@ -604,7 +600,7 @@ void gr_opengl_string(float sx, float sy, const char *s, int resize_mode)
 
 		u1 = u_scale * (i2fl((u+xd)+wc) / bw);
 		v1 = v_scale * (i2fl((v+yd)+hc) / bh);
-		
+
 		if ( buffer_offset == MAX_VERTS_PER_DRAW ) {
 			glDrawArrays(GL_TRIANGLES, 0, buffer_offset);
 			buffer_offset = 0;
@@ -700,7 +696,7 @@ void gr_opengl_line(int x1,int y1,int x2,int y2, int resize_mode)
 
 	if ( (x1 == x2) && (y1 == y2) ) {
 		gr_opengl_set_2d_matrix();
-		
+
 		GLfloat vert[3]= {sx1, sy1, -0.99f};
 		GL_state.Color(gr_screen.current_color.red, gr_screen.current_color.green, gr_screen.current_color.blue, gr_screen.current_color.alpha);
 
@@ -713,7 +709,7 @@ void gr_opengl_line(int x1,int y1,int x2,int y2, int resize_mode)
 		glDrawArrays(GL_POINTS, 0, 1);
 
 		GL_CHECK_FOR_ERRORS("end of opengl_line()");
-		
+
 		gr_opengl_end_2d_matrix();
 
 		return;
@@ -755,7 +751,7 @@ void gr_opengl_line(int x1,int y1,int x2,int y2, int resize_mode)
 	gr_opengl_end_2d_matrix();
 }
 
-void gr_opengl_line_htl(vec3d *start, vec3d *end)
+void gr_opengl_line_htl(const vec3d *start, const vec3d *end)
 {
 	if (Cmdline_nohtl) {
 		return;
@@ -901,9 +897,9 @@ void gr_opengl_gradient(int x1, int y1, int x2, int y2, int resize_mode)
 
 	ubyte aa = swapped ? 0 : gr_screen.current_color.alpha;
 	ubyte ba = swapped ? gr_screen.current_color.alpha : 0;
-	
+
 	float sx1, sy1, sx2, sy2;
-	
+
 	sx1 = i2fl(x1 + gr_screen.offset_x);
 	sy1 = i2fl(y1 + gr_screen.offset_y);
 	sx2 = i2fl(x2 + gr_screen.offset_x);
@@ -952,13 +948,13 @@ void gr_opengl_unfilled_circle(int xc, int yc, int d, int resize_mode)
 {
 	int r = d / 2;
 	int segments = 4 + (int)(r); // seems like a good approximation
-	float theta = 2 * PI / float(segments - 1); 
+	float theta = 2 * PI / float(segments - 1);
 	float c = cosf(theta);
 	float s = sinf(theta);
 	float t;
 
 	float x1 = 1.0f;
-	float y1 = 0.0f; 
+	float y1 = 0.0f;
 	float x2 = x1;
 	float y2 = y1;
 
@@ -1049,7 +1045,7 @@ void gr_opengl_arc(int xc, int yc, float r, float angle_start, float angle_end, 
 	arc_length_ratio = MIN(angle_end - angle_start, 360.0f) / 360.0f;
 
 	int segments = 4 + (int)(r * arc_length_ratio); // seems like a good approximation
-	float theta = 2 * PI / float(segments - 1) * arc_length_ratio; 
+	float theta = 2 * PI / float(segments - 1) * arc_length_ratio;
 	float c = cosf(theta);
 	float s = sinf(theta);
 	float t;
@@ -1438,11 +1434,11 @@ void opengl_tmapper_internal(int nv, vertex **verts, uint flags, int is_scaler =
 		int nr, ng, nb;
 		int ra, ga, ba;
 		ra = ga = ba = 0;
-	
+
 		for (i = (nv - 1); i >= 0; i--) {
 			vertex *va = verts[i];
 			float sx, sy;
-                
+
 			if (gr_screen.offset_x || gr_screen.offset_y) {
 				sx = ((va->screen.xyw.x * 16.0f) + ((float)gr_screen.offset_x * 16.0f)) / 16.0f;
 				sy = ((va->screen.xyw.y * 16.0f) + ((float)gr_screen.offset_y * 16.0f)) / 16.0f;
@@ -1457,7 +1453,7 @@ void opengl_tmapper_internal(int nv, vertex **verts, uint flags, int is_scaler =
 			ga += ng;
 			ba += nb;
 		}
-		
+
 		ra /= nv;
 		ga /= nv;
 		ba /= nv;
@@ -1523,13 +1519,13 @@ void opengl_tmapper_internal3d(int nv, vertex **verts, uint flags)
 
 	if (isRGB)
 		colour.reserve(nv * 4);
-	
+
 	vertvec.reserve(nv * 3);
 	uvcoords.reserve(nv * 2);
 
 	for (int i = 0; i < nv; i++) {
 		vertex *va = verts[i];
-		
+
 		if (isRGB) {
 			colour.push_back(va->r);
 			colour.push_back(va->g);
@@ -1725,7 +1721,6 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 	int alpha, tmap_type, r, g, b;
 	float u_scale = 1.0f, v_scale = 1.0f;
 	GLenum gl_mode = GL_TRIANGLE_FAN;
-	int attrib_index = -1;
 	int zbuff = ZBUFFER_TYPE_DEFAULT;
 	GL_CHECK_FOR_ERRORS("start of render3d()");
 
@@ -1739,7 +1734,6 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 
 	if ( flags & TMAP_FLAG_TEXTURED ) {
 		if ( flags & TMAP_FLAG_SOFT_QUAD ) {
-			int sdr_index;
 			if( (flags & TMAP_FLAG_DISTORTION) || (flags & TMAP_FLAG_DISTORTION_THRUSTER) )
 			{
 				glDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
@@ -1753,10 +1747,10 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 				opengl_tnl_set_material_soft_particle(flags);
 				zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
 			}
-			
+
 			vert_def.add_vertex_component(vertex_format_data::RADIUS, 0, radius_list);
 		}
-		
+
 		if ( !gr_opengl_tcache_set(gr_screen.current_bitmap, tmap_type, &u_scale, &v_scale) ) {
 			return;
 		}
@@ -1882,7 +1876,7 @@ void gr_opengl_scaler(vertex *va, vertex *vb, bool bw_bitmap = false)
 		clipped_v1 = FIND_SCALED_NUM(ymax, y0, y1, v0, v1);
 		clipped_y1 = ymax;
 	}
-	
+
 	dx0 = fl2i(clipped_x0);
 	dx1 = fl2i(clipped_x1);
 	dy0 = fl2i(clipped_y0);
@@ -1896,7 +1890,7 @@ void gr_opengl_scaler(vertex *va, vertex *vb, bool bw_bitmap = false)
 	vertex v[4];
 	vertex *vl[4];
 
-	vl[0] = &v[0];	
+	vl[0] = &v[0];
 	v[0].screen.xyw.x = clipped_x0;
 	v[0].screen.xyw.y = clipped_y0;
 	v[0].screen.xyw.w = va->screen.xyw.w;
@@ -1907,7 +1901,7 @@ void gr_opengl_scaler(vertex *va, vertex *vb, bool bw_bitmap = false)
 	v[0].spec_g = 0;
 	v[0].spec_b = 0;
 
-	vl[1] = &v[1];	
+	vl[1] = &v[1];
 	v[1].screen.xyw.x = clipped_x1;
 	v[1].screen.xyw.y = clipped_y0;
 	v[1].screen.xyw.w = va->screen.xyw.w;
@@ -1918,7 +1912,7 @@ void gr_opengl_scaler(vertex *va, vertex *vb, bool bw_bitmap = false)
 	v[1].spec_g = 0;
 	v[1].spec_b = 0;
 
-	vl[2] = &v[2];	
+	vl[2] = &v[2];
 	v[2].screen.xyw.x = clipped_x1;
 	v[2].screen.xyw.y = clipped_y1;
 	v[2].screen.xyw.w = va->screen.xyw.w;
@@ -1929,7 +1923,7 @@ void gr_opengl_scaler(vertex *va, vertex *vb, bool bw_bitmap = false)
 	v[2].spec_g = 0;
 	v[2].spec_b = 0;
 
-	vl[3] = &v[3];	
+	vl[3] = &v[3];
 	v[3].screen.xyw.x = clipped_x0;
 	v[3].screen.xyw.y = clipped_y1;
 	v[3].screen.xyw.w = va->screen.xyw.w;
@@ -2140,7 +2134,7 @@ void gr_opengl_bitmap_ex(int x, int y, int w, int h, int sx, int sy, int resize_
 
 		count++;
 #endif
-	
+
 		if ( (dx1 > clip_right) || (dx2 < clip_left) ) {
 			return;
 		}
@@ -2257,38 +2251,6 @@ void gr_opengl_bitmap_ex(int x, int y, int w, int h, int sx, int sy, int resize_
 	gr_opengl_bitmap_ex(dx1, dy1, dx2-dx1+1, dy2-dy1+1, sx, sy, resize_mode);
 }*/
 
-void opengl_render_timer_bar(int colour, float x, float y, float w, float h)
-{
-	static float pre_set_colours[MAX_NUM_TIMERBARS][3] = {
-		{ 1.0f, 0.0f, 0.0f },
-		{ 0.0f, 0.0f, 1.0f },
-		{ 0.0f, 0.0f, 1.0f },
-		{ 0.2f, 1.0f, 0.8f }, 
-		{ 1.0f, 0.0f, 8.0f }, 
-		{ 1.0f, 0.0f, 1.0f },
-		{ 1.0f, 0.2f, 0.2f },
-		{ 1.0f, 1.0f, 1.0f }
-	};
-
-	static float max_fw = (float)gr_screen.max_w; 
-	static float max_fh = (float)gr_screen.max_h; 
-
-	x *= max_fw;
-	y *= max_fh;
-	w *= max_fw;
-	h *= max_fh;
-
-	y += 5;
-
-	GL_state.SetTextureSource(TEXTURE_SOURCE_NONE);
-	GL_state.SetAlphaBlendMode(ALPHA_BLEND_NONE);
-	GL_state.SetZbufferType(ZBUFFER_TYPE_NONE);
-
-	GL_state.Color((GLubyte)(pre_set_colours[colour][0] * 255) , (GLubyte)(pre_set_colours[colour][1] * 255), (GLubyte)(pre_set_colours[colour][2] * 255));
-
-	opengl_draw_coloured_quad(x, y, x+w, y+h);
-}
-
 void gr_opengl_sphere_htl(float rad)
 {
 	if (Cmdline_nohtl) {
@@ -2297,7 +2259,7 @@ void gr_opengl_sphere_htl(float rad)
 
 	GLUquadricObj *quad = NULL;
 
-	// FIXME: before this is used in anything other than FRED2 we need to make this creation/deletion 
+	// FIXME: before this is used in anything other than FRED2 we need to make this creation/deletion
 	// stuff global so that it's not so slow (it can be reused for multiple quadratic objects)
 	quad = gluNewQuadric();
 
@@ -2342,26 +2304,26 @@ void gr_opengl_deferred_light_sphere_init(int rings, int segments) // Generate a
 	float fDeltaRingAngle = (PI / rings);
 	float fDeltaSegAngle = (2.0f * PI / segments);
 	unsigned short wVerticeIndex = 0 ;
-	
+
 	// Generate the group of rings for the sphere
 	for( int ring = 0; ring <= rings; ring++ ) {
 		float r0 = sinf (ring * fDeltaRingAngle);
 		float y0 = cosf (ring * fDeltaRingAngle);
-		
+
 		// Generate the group of segments for the current ring
 		for(int seg = 0; seg <= segments; seg++) {
 			float x0 = r0 * sinf(seg * fDeltaSegAngle);
 			float z0 = r0 * cosf(seg * fDeltaSegAngle);
-			
+
 			// Add one vertex to the strip which makes up the sphere
 			*pVertex++ = x0;
 			*pVertex++ = y0;
 			*pVertex++ = z0;
-			
+
 			if (ring != rings) {
 				// each vertex (except the last) has six indices pointing to it
 				*pIndex++ = wVerticeIndex + (ushort)segments + 1;
-				*pIndex++ = wVerticeIndex;               
+				*pIndex++ = wVerticeIndex;
 				*pIndex++ = wVerticeIndex + (ushort)segments;
 				*pIndex++ = wVerticeIndex + (ushort)segments + 1;
 				*pIndex++ = wVerticeIndex + 1;
@@ -2424,7 +2386,7 @@ void gr_opengl_draw_deferred_light_sphere(vec3d *position, float rad, bool clear
 	}
 
 	g3_start_instance_matrix(position, &vmd_identity_matrix, true);
-	
+
 	GL_state.Uniform.setUniform3f("scale", rad, rad, rad);
 
 	GL_state.Array.BindArrayBuffer(deferred_light_sphere_vbo);
@@ -2437,7 +2399,7 @@ void gr_opengl_draw_deferred_light_sphere(vec3d *position, float rad, bool clear
 	opengl_bind_vertex_layout(vertex_declare);
 
 	vglDrawRangeElements(GL_TRIANGLES, 0, deferred_light_sphere_vcount, deferred_light_sphere_icount, GL_UNSIGNED_SHORT, 0);
-	
+
 	g3_done_instance(true);
 }
 
@@ -2452,7 +2414,7 @@ void gr_opengl_deferred_light_cylinder_init(int segments) // Generate a VBO of a
 
 	float fDeltaSegAngle = (2.0f * PI / segments);
 	unsigned short wVerticeIndex = 0 ;
-	
+
 	*pVertex++ = 0.0f;
 	*pVertex++ = 0.0f;
 	*pVertex++ = 0.0f;
@@ -2464,20 +2426,20 @@ void gr_opengl_deferred_light_cylinder_init(int segments) // Generate a VBO of a
 
 	for( int ring = 0; ring <= 1; ring++ ) {
 		float z0 = (float)ring;
-		
+
 		// Generate the group of segments for the current ring
 		for(int seg = 0; seg <= segments; seg++) {
 			float x0 = sinf(seg * fDeltaSegAngle);
 			float y0 = cosf(seg * fDeltaSegAngle);
-			
+
 			// Add one vertex to the strip which makes up the cylinder
 			*pVertex++ = x0;
 			*pVertex++ = y0;
 			*pVertex++ = z0;
-			
+
 			if (!ring) {
 				*pIndex++ = wVerticeIndex + (ushort)segments + 1;
-				*pIndex++ = wVerticeIndex;               
+				*pIndex++ = wVerticeIndex;
 				*pIndex++ = wVerticeIndex + (ushort)segments;
 				*pIndex++ = wVerticeIndex + (ushort)segments + 1;
 				*pIndex++ = wVerticeIndex + 1;
@@ -2485,7 +2447,7 @@ void gr_opengl_deferred_light_cylinder_init(int segments) // Generate a VBO of a
 				if(seg != segments)
 				{
 					*pIndex++ = wVerticeIndex + 1;
-					*pIndex++ = wVerticeIndex;               
+					*pIndex++ = wVerticeIndex;
 					*pIndex++ = 0;
 				}
 				wVerticeIndex ++;
@@ -2495,7 +2457,7 @@ void gr_opengl_deferred_light_cylinder_init(int segments) // Generate a VBO of a
 				if(seg != segments)
 				{
 					*pIndex++ = wVerticeIndex + 1;
-					*pIndex++ = wVerticeIndex;               
+					*pIndex++ = wVerticeIndex;
 					*pIndex++ = 1;
 					wVerticeIndex ++;
 				}
@@ -2569,11 +2531,11 @@ void gr_opengl_draw_deferred_light_cylinder(vec3d *position,matrix *orient, floa
 	opengl_bind_vertex_layout(vertex_declare);
 
 	vglDrawRangeElements(GL_TRIANGLES, 0, deferred_light_cylinder_vcount, deferred_light_cylinder_icount, GL_UNSIGNED_SHORT, 0);
-	
+
 	g3_done_instance(true);
 }
 
-void gr_opengl_draw_line_list(colored_vector *lines, int num)
+void gr_opengl_draw_line_list(const colored_vector *lines, int num)
 {
 	if (Cmdline_nohtl) {
 		return;
@@ -2725,7 +2687,7 @@ void opengl_setup_scene_textures()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Scene_texture_width, Scene_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT4_EXT, GL_TEXTURE_2D, Scene_effect_texture, 0);
-	
+
 	// setup cockpit depth texture
 	glGenTextures(1, &Cockpit_depth_texture);
 
@@ -2762,7 +2724,7 @@ void opengl_setup_scene_textures()
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, Scene_texture_width, Scene_texture_height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, Scene_depth_texture, 0);
-    
+
 	//setup main stencil buffer
 	vglGenRenderbuffersEXT(1, &Scene_stencil_buffer);
     vglBindRenderbufferEXT(GL_RENDERBUFFER, Scene_stencil_buffer);
@@ -2836,9 +2798,9 @@ void opengl_setup_scene_textures()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 32, 32, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 
 	vglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Distortion_texture[0], 0);
-	
-	
-	
+
+
+
 	if ( opengl_check_framebuffer() ) {
 		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 		vglDeleteFramebuffersEXT(1, &Distortion_framebuffer);
@@ -2886,7 +2848,6 @@ void opengl_scene_texture_shutdown()
 	if ( Scene_normal_texture ) {
 		glDeleteTextures(1, &Scene_normal_texture);
 		Scene_normal_texture = 0;
-	
 	}
 
 	if ( Scene_specular_texture ) {
@@ -2950,7 +2911,7 @@ void gr_opengl_scene_texture_begin()
 
 	if ( Cmdline_no_deferred_lighting ) {
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	} else {
 		GLenum buffers[] = { GL_COLOR_ATTACHMENT0_EXT, GL_COLOR_ATTACHMENT1_EXT, GL_COLOR_ATTACHMENT2_EXT, GL_COLOR_ATTACHMENT3_EXT };
 		vglDrawBuffers(4, buffers);
@@ -2972,7 +2933,7 @@ void gr_opengl_scene_texture_end()
 	if ( !Scene_framebuffer_in_frame ) {
 		return;
 	}
-	
+
 	time_buffer+=flFrametime;
 	if(time_buffer>0.03f)
 	{
@@ -2985,7 +2946,7 @@ void gr_opengl_scene_texture_end()
 	} else {
 		GLboolean depth = GL_state.DepthTest(GL_FALSE);
 		GLboolean depth_mask = GL_state.DepthMask(GL_FALSE);
-		GLboolean light = GL_state.Lighting(GL_FALSE);
+		GLboolean lighting = GL_state.Lighting(GL_FALSE);
 		GLboolean blend = GL_state.Blend(GL_FALSE);
 		GLboolean cull = GL_state.CullFace(GL_FALSE);
 
@@ -3021,7 +2982,7 @@ void gr_opengl_scene_texture_end()
 
 			vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, vertices);
 			vert_def.add_vertex_component(vertex_format_data::TEX_COORD, 0, uvcoords);
-		
+
 			opengl_bind_vertex_layout(vert_def);
 
 			glDrawArrays(GL_QUADS, 0, 4);
@@ -3048,7 +3009,7 @@ void gr_opengl_scene_texture_end()
 			vert_def.add_vertex_component(vertex_format_data::TEX_COORD, 0, uvcoords);
 
 			opengl_bind_vertex_layout(vert_def);
-		
+
 			glDrawArrays(GL_QUADS, 0, 4);
 		}
 
@@ -3058,13 +3019,13 @@ void gr_opengl_scene_texture_end()
 		// reset state
 		GL_state.DepthTest(depth);
 		GL_state.DepthMask(depth_mask);
-		GL_state.Lighting(light);
+		GL_state.Lighting(lighting);
 		GL_state.Blend(blend);
 		GL_state.CullFace(cull);
 	}
 
 	// Reset the UV scale values
-	
+
 	Scene_texture_u_scale = 1.0f;
 	Scene_texture_v_scale = 1.0f;
 
@@ -3086,7 +3047,7 @@ void opengl_clear_deferred_buffers()
 {
 	GLboolean depth = GL_state.DepthTest(GL_FALSE);
 	GLboolean depth_mask = GL_state.DepthMask(GL_FALSE);
-	GLboolean light = GL_state.Lighting(GL_FALSE);
+	GLboolean lighting = GL_state.Lighting(GL_FALSE);
 	GLboolean blend = GL_state.Blend(GL_FALSE);
 	GLboolean cull = GL_state.CullFace(GL_FALSE);
 
@@ -3098,7 +3059,7 @@ void opengl_clear_deferred_buffers()
 
 	GL_state.DepthTest(depth);
 	GL_state.DepthMask(depth_mask);
-	GL_state.Lighting(light);
+	GL_state.Lighting(lighting);
 	GL_state.Blend(blend);
 	GL_state.CullFace(cull);
 }
@@ -3136,13 +3097,13 @@ void gr_opengl_deferred_lighting_finish()
 	}
 
 	GL_state.SetAlphaBlendMode( ALPHA_BLEND_ADDITIVE);
-	int zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
+	gr_zbuffer_set(GR_ZBUFF_NONE);
 
 	//GL_state.DepthFunc(GL_GREATER);
 	//GL_state.DepthMask(GL_FALSE);
 
 	opengl_shader_set_current( gr_opengl_maybe_create_shader(SDR_TYPE_DEFERRED_LIGHTING, 0) );
-	
+
 	GL_state.Texture.SetActiveUnit(0);
 	GL_state.Texture.SetTarget(GL_TEXTURE_2D);
 	GL_state.Texture.Enable(Scene_color_texture);
@@ -3187,7 +3148,7 @@ void gr_opengl_deferred_lighting_finish()
 				GL_state.Uniform.setUniformi( "dualCone", l->dual_cone );
 				GL_state.Uniform.setUniformf( "coneAngle", l->cone_angle );
 				GL_state.Uniform.setUniformf( "coneInnerAngle", l->cone_inner_angle );
-				GL_state.Uniform.setUniform3f( "coneDir", l->vec2.xyz.x, l->vec2.xyz.y, l->vec2.xyz.z); 
+				GL_state.Uniform.setUniform3f( "coneDir", l->vec2.xyz.x, l->vec2.xyz.y, l->vec2.xyz.z);
 			case LT_POINT:
 				GL_state.Uniform.setUniform3f( "diffuseLightColor", l->r * l->intensity * static_point_factor, l->g * l->intensity * static_point_factor, l->b * l->intensity * static_point_factor );
 				GL_state.Uniform.setUniform3f( "specLightColor", l->spec_r * l->intensity * static_point_factor, l->spec_g * l->intensity * static_point_factor, l->spec_b * l->intensity * static_point_factor );
@@ -3195,10 +3156,10 @@ void gr_opengl_deferred_lighting_finish()
 
 				/*float dist;
 				vec3d a;
-			
+
 				vm_vec_sub(&a, &Eye_position, &l->vec);
 				dist = vm_vec_mag(&a);*/
-			
+
 				gr_opengl_draw_deferred_light_sphere(&l->vec, MAX(l->rada, l->radb) * 1.28f);
 				break;
 			case LT_TUBE:
@@ -3206,7 +3167,7 @@ void gr_opengl_deferred_lighting_finish()
 				GL_state.Uniform.setUniform3f( "specLightColor", l->spec_r * l->intensity * static_tube_factor, l->spec_g * l->intensity * static_tube_factor, l->spec_b * l->intensity * static_tube_factor );
 				GL_state.Uniform.setUniformf( "lightRadius", l->radb * 1.5f );
 				GL_state.Uniform.setUniformi( "lightType", 1 );
-			
+
 				vec3d a, b;
 				matrix orient;
 				float length, dist;
@@ -3249,7 +3210,7 @@ void gr_opengl_deferred_lighting_finish()
 
 	GLboolean depth = GL_state.DepthTest(GL_FALSE);
 	GLboolean depth_mask = GL_state.DepthMask(GL_FALSE);
-	GLboolean light = GL_state.Lighting(GL_FALSE);
+	GLboolean lighting = GL_state.Lighting(GL_FALSE);
 	GLboolean blend = GL_state.Blend(GL_FALSE);
 	GLboolean cull = GL_state.CullFace(GL_FALSE);
 
@@ -3297,7 +3258,7 @@ void gr_opengl_deferred_lighting_finish()
 	// reset state
 	GL_state.DepthTest(depth);
 	GL_state.DepthMask(depth_mask);
-	GL_state.Lighting(light);
+	GL_state.Lighting(lighting);
 	GL_state.Blend(blend);
 	GL_state.CullFace(cull);
 
@@ -3310,7 +3271,7 @@ void gr_opengl_update_distortion()
 {
 	GLboolean depth = GL_state.DepthTest(GL_FALSE);
 	GLboolean depth_mask = GL_state.DepthMask(GL_FALSE);
-	GLboolean light = GL_state.Lighting(GL_FALSE);
+	GLboolean lighting = GL_state.Lighting(GL_FALSE);
 	GLboolean blend = GL_state.Blend(GL_FALSE);
 	GLboolean cull = GL_state.CullFace(GL_FALSE);
 
@@ -3347,7 +3308,7 @@ void gr_opengl_update_distortion()
 
 	vert_def.add_vertex_component(vertex_format_data::POSITION2, 0, vertices);
 	vert_def.add_vertex_component(vertex_format_data::TEX_COORD, 0, texcoord);
-	
+
 	opengl_bind_vertex_layout(vert_def);
 
 	glDrawArrays(GL_QUADS, 0, 4);
@@ -3387,7 +3348,7 @@ void gr_opengl_update_distortion()
 
 	GL_state.DepthTest(depth);
 	GL_state.DepthMask(depth_mask);
-	GL_state.Lighting(light);
+	GL_state.Lighting(lighting);
 	GL_state.Blend(blend);
 	GL_state.CullFace(cull);
 }

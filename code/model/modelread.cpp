@@ -19,24 +19,21 @@
 
 #define MODEL_LIB
 
+#include "bmpman/bmpman.h"
+#include "cfile/cfile.h"
+#include "cmdline/cmdline.h"
+#include "freespace2/freespace.h"		// For flFrameTime
+#include "gamesnd/gamesnd.h"
+#include "globalincs/linklist.h"
+#include "io/key.h"
+#include "io/timer.h"
+#include "math/fvi.h"
+#include "math/vecmat.h"
 #include "model/model.h"
 #include "model/modelsinc.h"
-#include "math/vecmat.h"
-#include "object/object.h"
-#include "bmpman/bmpman.h"
-#include "io/key.h"
-#include "render/3dinternal.h"
-#include "globalincs/linklist.h"
-#include "io/timer.h"
-#include "freespace2/freespace.h"		// For flFrameTime
-#include "math/fvi.h"
-#include "ship/ship.h"
-#include "cfile/cfile.h"
 #include "parse/parselo.h"
-#include "cmdline/cmdline.h"
-
-
-#include "gamesnd/gamesnd.h"
+#include "render/3dinternal.h"
+#include "ship/ship.h"
 
 flag_def_list model_render_flags[] =
 {
@@ -267,22 +264,22 @@ void model_unload(int modelnum, int force)
 		vm_free(pm->shield_collision_tree);
 	}
 
-	for ( int i = 0; i < MAX_MODEL_DETAIL_LEVELS; ++i ) {
+	for (i = 0; i < MAX_MODEL_DETAIL_LEVELS; ++i) {
 		pm->detail_buffers[i].clear();
 	}
 
-	// run through Ship_info[] and if the model has been loaded we'll need to reset the modelnum to -1.
-	for (i = 0; i < Num_ship_classes; i++) {
-		if ( pm->id == Ship_info[i].model_num ) {
-			Ship_info[i].model_num = -1;
+	// run through Ship_info and if the model has been loaded we'll need to reset the modelnum to -1.
+	for (auto it = Ship_info.begin(); it != Ship_info.end(); ++it) {
+		if ( pm->id == it->model_num ) {
+			it->model_num = -1;
 		}
 
-		if ( pm->id == Ship_info[i].cockpit_model_num ) {
-			Ship_info[i].cockpit_model_num = -1;
+		if ( pm->id == it->cockpit_model_num ) {
+			it->cockpit_model_num = -1;
 		}
 
-		if ( pm->id == Ship_info[i].model_num_hud ) {
-			Ship_info[i].model_num_hud = -1;
+		if ( pm->id == it->model_num_hud ) {
+			it->model_num_hud = -1;
 		}
 	}
 
@@ -653,12 +650,11 @@ void do_new_subsystem( int n_subsystems, model_subsystem *slist, int subobj_num,
 		_splitpath(model_filename, NULL, NULL, bname, NULL);
 		// Lets still give a comment about it and not just erase it
 		Warning(LOCATION,"Not all subsystems in model \"%s\" have a record in ships.tbl.\nThis can cause game to crash.\n\nList of subsystems not found from table is in log file.\n", model_get(model_num)->filename );
-		mprintf(("Subsystem %s in model was not found in ships.tbl!\n", subobj_name));
-//		Warning(LOCATION, "A subsystem was found in model %s that does not have a record in ships.tbl.\nA list of subsystems for this ship will be dumped to:\n\ndata%stables%s%s.subsystems for inclusion\ninto ships.tbl.", model_filename, DIR_SEPARATOR_STR, DIR_SEPARATOR_STR, bname);
+		mprintf(("Subsystem %s in model %s was not found in ships.tbl!\n", subobj_name, model_get(model_num)->filename));
 		ss_warning_shown = 1;
 	} else
 #endif
-		mprintf(("Subsystem %s in model was not found in ships.tbl!\n", subobj_name));
+		mprintf(("Subsystem %s in model %s was not found in ships.tbl!\n", subobj_name, model_get(model_num)->filename));
 
 #ifndef NDEBUG
 	if ( ss_fp )	{
@@ -729,8 +725,6 @@ void create_family_tree(polymodel *obj)
 	}
 }
 
-IBX ibuffer_info;
-
 void create_vertex_buffer(polymodel *pm)
 {
 	if (Cmdline_nohtl || Is_standalone) {
@@ -746,105 +740,10 @@ void create_vertex_buffer(polymodel *pm)
 		Error(LOCATION, "Could not generate vertex buffer for '%s'!", pm->filename);
 	}
 
-	// clear struct and prepare for IBX usage
-	memset( &ibuffer_info, 0, sizeof(IBX) );
-
-	// Begin IBX code
-	if ( !Cmdline_noibx ) {
-		// use the same filename as the POF but with an .bx extension
-		strcpy_s( ibuffer_info.name, pm->filename );
-		char *pb = strchr( ibuffer_info.name, '.' );
-		if ( pb ) *pb = 0;
-		strcat_s( ibuffer_info.name, NOX(".bx") );
-
-		ibuffer_info.read = cfopen( ibuffer_info.name, "rb", CFILE_NORMAL, CF_TYPE_CACHE );
-
-		// check if it's a zero size file and if so bail out to create a new one
-		if ( (ibuffer_info.read != NULL) && !cfilelength(ibuffer_info.read) ) {
-			cfclose( ibuffer_info.read );
-			ibuffer_info.read = NULL;
-		}
-
-		if (ibuffer_info.read != NULL) {
-			bool ibx_valid = false;
-
-			// grab a checksum of the IBX, for debugging purposes
-			uint ibx_checksum = 0;
-			cfseek(ibuffer_info.read, 0, SEEK_SET);
-			cf_chksum_long(ibuffer_info.read, &ibx_checksum);
-			cfseek(ibuffer_info.read, 0, SEEK_SET);
-
-			// get the file size that we use to safety check with.
-			// be sure to subtract from this when we read something out
-			ibuffer_info.size = cfilelength( ibuffer_info.read );
-
-			// file id
-			int ibx = cfread_int( ibuffer_info.read );
-			ibuffer_info.size -= sizeof(int); // subtract
-
-			// make sure the file is valid
-			switch (ibx) {
-				// "XB  " - ("  BX" in file)
-				case 0x58422020:
-					ibx_valid = true;
-					break;
-			}
-
-			if (ibx_valid) {
-				// file is valid so grab the checksum out of the .bx and verify it matches the POF
-				uint ibx_sum = cfread_uint( ibuffer_info.read );
-				ibuffer_info.size -= sizeof(uint); // subtract
-
-				if (ibx_sum != Global_checksum) {
-					// bah, it's invalid for this POF
-					ibx_valid = false;
-
-					mprintf(("IBX:  Warning!  Found invalid IBX file: '%s'\n", ibuffer_info.name));
-				}
-			}
-
-
-			if ( !ibx_valid ) {
-				cfclose( ibuffer_info.read );
-				ibuffer_info.read = NULL;
-				ibuffer_info.size = 0;
-			} else {
-				mprintf(("IBX: Found a good IBX to read for '%s'.\n", pm->filename));
-				mprintf(("IBX-DEBUG => POF checksum: 0x%08x, IBX checksum: 0x%08x -- \"%s\"\n", Global_checksum, ibx_checksum, pm->filename));
-			}
-		}
-
-		// if the read file is absent or invalid then write out the new info
-		if (ibuffer_info.read == NULL) {
-			ibuffer_info.write = cfopen( ibuffer_info.name, "wb", CFILE_NORMAL, CF_TYPE_CACHE );
-
-			if (ibuffer_info.write != NULL) {
-				mprintf(("IBX: Starting a new IBX for '%s'.\n", pm->filename));
-
-				// file id, default to version 1
-				cfwrite_int( 0x58422020, ibuffer_info.write ); // "XB  " - ("  BX" in file)
-
-				// POF checksum
-				cfwrite_uint( Global_checksum, ibuffer_info.write );
-			}
-		}
-	} // End IBX code
-
 	// determine the size and configuration of each buffer segment
 	for (i = 0; i < pm->n_models; i++) {
 		interp_configure_vertex_buffers(pm, i);
 	}
-	
-	// these must be reset to NULL for the tests to work correctly later
-	if (ibuffer_info.read != NULL) {
-		cfclose( ibuffer_info.read );
-	}
-
-	if (ibuffer_info.write != NULL) {
-		cfclose( ibuffer_info.write );
-	}
-
-	memset( &ibuffer_info, 0, sizeof(IBX) );
 
 	// figure out which vertices are transparent
 	for ( i = 0; i < pm->n_models; i++ ) {
@@ -856,7 +755,6 @@ void create_vertex_buffer(polymodel *pm)
 	bool use_batched_rendering = true;
 
 	if ( Use_GLSL >= 3 && !Cmdline_no_batching ) {
-		bool unequal_stride = false;
 		uint stride = 0;
 
 		// figure out if the vertex stride of this entire model matches. if not, turn off batched rendering for this model
@@ -1413,6 +1311,18 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 					while (*p == ' ') p++;
 					pm->submodel[n].use_render_box = atoi(p);
 
+					if ( (p = strstr(props, "$box_offset:")) != NULL ) {
+						p += 12;
+						while (*p == ' ') p++;
+						pm->submodel[n].render_box_offset.xyz.x = (float)strtod(p, (char **)NULL);
+						while (*p != ',') p++;
+						pm->submodel[n].render_box_offset.xyz.y = (float)strtod(++p, (char **)NULL);
+						while (*p != ',') p++;
+						pm->submodel[n].render_box_offset.xyz.z = (float)strtod(++p, (char **)NULL);
+
+						pm->submodel[n].use_render_box_offset = true;
+					}
+
 					if ( (p = strstr(props, "$box_min:")) != NULL ) {
 						p += 9;
 						while (*p == ' ') p++;
@@ -1459,6 +1369,8 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 						pm->submodel[n].render_sphere_offset.xyz.y = (float)strtod(++p, (char **)NULL);
 						while (*p != ',') p++;
 						pm->submodel[n].render_sphere_offset.xyz.z = (float)strtod(++p, (char **)NULL);
+
+						pm->submodel[n].use_render_sphere_offset = true;
 					} else {
 						pm->submodel[n].render_sphere_offset = vmd_zero_vector;
 					}
@@ -1560,8 +1472,8 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 						vm_vec_normalize(&orient->vec.uvec);
 						vm_vec_normalize(&orient->vec.fvec);
 
-						vm_vec_crossprod(&orient->vec.rvec, &orient->vec.uvec, &orient->vec.fvec);
-						vm_vec_crossprod(&orient->vec.fvec, &orient->vec.rvec, &orient->vec.uvec);
+						vm_vec_cross(&orient->vec.rvec, &orient->vec.uvec, &orient->vec.fvec);
+						vm_vec_cross(&orient->vec.fvec, &orient->vec.rvec, &orient->vec.uvec);
 
 						vm_vec_normalize(&orient->vec.fvec);
 						vm_vec_normalize(&orient->vec.rvec);
@@ -1813,7 +1725,7 @@ int read_model_file(polymodel * pm, char *filename, int n_subsystems, model_subs
 
 						vec3d diff;
 						vm_vec_normalized_dir(&diff, &bay->pnt[0], &bay->pnt[1]);
-						float dot = vm_vec_dotprod(&diff, &bay->norm[0]);
+						float dot = vm_vec_dot(&diff, &bay->norm[0]);
 						if(fl_abs(dot) > 0.99f) {
 							Warning(LOCATION, "Model '%s', docking port '%s' has docking slot positions that lie on the same axis as the docking normal.  This will cause a NULL VEC crash when docked to another ship.  A new docking normal will be generated.", filename, bay->name);
 
@@ -2557,10 +2469,11 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 	pm->n_paths = 0;
 	pm->paths = NULL;
 
-	int org_sig = Model_signature;
-	Model_signature+=MAX_POLYGON_MODELS;
-	if ( Model_signature < org_sig )	{
-		Model_signature = 0;
+	uint org_sig = static_cast<uint>(Model_signature);
+	if ( org_sig + MAX_POLYGON_MODELS > INT_MAX || org_sig + MAX_POLYGON_MODELS < org_sig )	{
+		Model_signature = 0; // Overflow
+	} else {
+		Model_signature+=MAX_POLYGON_MODELS; // No overflow
 	}
 	Assert( (Model_signature % MAX_POLYGON_MODELS) == 0 );
 	pm->id = Model_signature + num;
@@ -2726,6 +2639,12 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 				}
 				dl2 = tolower(sm2->name[first_diff]) - 'a';
 
+				// Handle LODs named "detail0/1/2/etc" too (as opposed to "detaila/b/c/etc")
+				if (sm1->parent == -1 && sm2->parent == -1 && !sm1->is_damaged && !sm2->is_damaged && !sm1->is_live_debris && !sm2->is_live_debris) {
+					dl2 = dl2 - dl1;
+					dl1 = 0;
+				}
+
 				if ( (dl1<0) || (dl2<0) || (dl1>=MAX_MODEL_DETAIL_LEVELS) || (dl2>=MAX_MODEL_DETAIL_LEVELS) ) continue;	// invalid detail levels
 
 				if ( dl1 == 0 )	{
@@ -2791,7 +2710,7 @@ int model_load(char *filename, int n_subsystems, model_subsystem *subsystems, in
 	return pm->id;
 }
 
-int model_create_instance(int model_num, int submodel_num)
+int model_create_instance(int model_num)
 {
 	int i = 0;
 	int open_slot = -1;
@@ -2820,18 +2739,10 @@ int model_create_instance(int model_num, int submodel_num)
 	pmi->submodel_render = (submodel_instance*)vm_malloc( sizeof(submodel_instance)*pm->n_models );
 
 	for ( i = 0; i < pm->n_models; i++ ) {
-		model_clear_submodel_instance( &pmi->submodel[i] );
-		model_clear_submodel_instance( &pmi->submodel_render[i] );
+		model_clear_submodel_instance( &pmi->submodel[i], &pm->submodel[i] );
 	}
 
 	pmi->model_num = model_num;
-
-	if ( submodel_num < 0 ) {
-		// if using default arguments, use detail0 as the root submodel
-		pmi->root_submodel_num = pm->detail[0];
-	} else {
-		pmi->root_submodel_num = submodel_num;
-	}
 
 	return open_slot;
 }
@@ -2871,7 +2782,9 @@ void model_maybe_fixup_subsys_path(polymodel *pm, int path_num)
 	mp = &pm->paths[path_num];
 
 	Assert(mp != NULL);
-	Assert(mp->nverts > 1);
+	if (mp->nverts <= 1 ) {
+		Error(LOCATION, "Subsystem Path (%s) Parent (%s) in model (%s) has less than 2 vertices/points!", mp->name, mp->parent_name, pm->filename);
+	}
 	
 	index_1 = 1;
 	index_2 = 0;
@@ -3216,21 +3129,25 @@ int submodel_find_2d_bound_min(int model_num,int submodel, matrix *orient, vec3d
 }
 
 
-// Returns zero is x1,y1,x2,y2 are valid
-// returns 1 for invalid model, 2 for point offscreen.
-// note that x1,y1,x2,y2 aren't clipped to 2d screen coordinates!
+/**
+ * Find 2D bound for model
+ *
+ * Note that x1,y1,x2,y2 aren't clipped to 2D screen coordinates.
+ *
+ * @return zero if x1,y1,x2,y2 are valid
+ * @return 2 for point offscreen
+ */
 int model_find_2d_bound(int model_num,matrix *orient, vec3d * pos,int *x1, int *y1, int *x2, int *y2 )
 {
 	float t,w,h;
 	vertex pnt;
-	ubyte flags;
 	polymodel * po;
 
 	po = model_get(model_num);
 	float width = po->rad;
 	float height = po->rad;
 
-	flags = g3_rotate_vertex(&pnt,pos);
+	g3_rotate_vertex(&pnt,pos);
 
 	if ( pnt.flags & CC_BEHIND ) 
 		return 2;
@@ -3256,19 +3173,23 @@ int model_find_2d_bound(int model_num,matrix *orient, vec3d * pos,int *x1, int *
 	return 0;
 }
 
-// Returns zero is x1,y1,x2,y2 are valid
-// returns 2 for point offscreen.
-// note that x1,y1,x2,y2 aren't clipped to 2d screen coordinates!
+/**
+ * Find 2D bound for sub object
+ *
+ * Note that x1,y1,x2,y2 aren't clipped to 2D screen coordinates.
+ *
+ * @return zero if x1,y1,x2,y2 are valid
+ * @return 2 for point offscreen
+ */
 int subobj_find_2d_bound(float radius ,matrix *orient, vec3d * pos,int *x1, int *y1, int *x2, int *y2 )
 {
 	float t,w,h;
 	vertex pnt;
-	ubyte flags;
 
 	float width = radius;
 	float height = radius;
 
-	flags = g3_rotate_vertex(&pnt,pos);
+	g3_rotate_vertex(&pnt,pos);
 
 	if ( pnt.flags & CC_BEHIND ) 
 		return 2;
@@ -3298,15 +3219,15 @@ int subobj_find_2d_bound(float radius ,matrix *orient, vec3d * pos,int *x1, int 
 // Given a vector that is in sub_model_num's frame of
 // reference, and given the object's orient and position,
 // return the vector in the model's frame of reference.
-void model_find_obj_dir(vec3d *w_vec, vec3d *m_vec, object *ship_obj, int sub_model_num)
+void model_find_obj_dir(vec3d *w_vec, vec3d *m_vec, object *pship_obj, int sub_model_num)
 {
 	vec3d tvec, vec;
 	matrix m;
 	int mn;
 
-	Assert(ship_obj->type == OBJ_SHIP);
+	Assert(pship_obj->type == OBJ_SHIP);
 
-	polymodel *pm = model_get(Ship_info[Ships[ship_obj->instance].ship_info_index].model_num);
+	polymodel *pm = model_get(Ship_info[Ships[pship_obj->instance].ship_info_index].model_num);
 	vec = *m_vec;
 	mn = sub_model_num;
 
@@ -3319,7 +3240,7 @@ void model_find_obj_dir(vec3d *w_vec, vec3d *m_vec, object *ship_obj, int sub_mo
 		vm_rotate_matrix_by_angles(&rotation_matrix, &pm->submodel[mn].angs);
 
 		matrix inv_orientation;
-		vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[mn].orientation);
+		vm_copy_transpose(&inv_orientation, &pm->submodel[mn].orientation);
 
 		vm_matrix_x_matrix(&m, &rotation_matrix, &inv_orientation);
 
@@ -3330,19 +3251,19 @@ void model_find_obj_dir(vec3d *w_vec, vec3d *m_vec, object *ship_obj, int sub_mo
 	}
 
 	// now instance for the entire object
-	vm_vec_unrotate(w_vec, &vec, &ship_obj->orient);
+	vm_vec_unrotate(w_vec, &vec, &pship_obj->orient);
 }
 
-void model_instance_find_obj_dir(vec3d *w_vec, vec3d *m_vec, object *ship_obj, int sub_model_num)
+void model_instance_find_obj_dir(vec3d *w_vec, vec3d *m_vec, object *pship_obj, int sub_model_num)
 {
 	vec3d tvec, vec;
 	matrix m;
 	int mn;
 
-	Assert(ship_obj->type == OBJ_SHIP);
+	Assert(pship_obj->type == OBJ_SHIP);
 
-	polymodel_instance *pmi = model_get_instance(Ships[ship_obj->instance].model_instance_num);
-	polymodel *pm = model_get(Ship_info[Ships[ship_obj->instance].ship_info_index].model_num);
+	polymodel_instance *pmi = model_get_instance(Ships[pship_obj->instance].model_instance_num);
+	polymodel *pm = model_get(Ship_info[Ships[pship_obj->instance].ship_info_index].model_num);
 	vec = *m_vec;
 	mn = sub_model_num;
 
@@ -3355,7 +3276,7 @@ void model_instance_find_obj_dir(vec3d *w_vec, vec3d *m_vec, object *ship_obj, i
 		vm_rotate_matrix_by_angles(&rotation_matrix, &pmi->submodel[mn].angs);
 
 		matrix inv_orientation;
-		vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[mn].orientation);
+		vm_copy_transpose(&inv_orientation, &pm->submodel[mn].orientation);
 
 		vm_matrix_x_matrix(&m, &rotation_matrix, &inv_orientation);
 
@@ -3366,7 +3287,7 @@ void model_instance_find_obj_dir(vec3d *w_vec, vec3d *m_vec, object *ship_obj, i
 	}
 
 	// now instance for the entire object
-	vm_vec_unrotate(w_vec, &vec, &ship_obj->orient);
+	vm_vec_unrotate(w_vec, &vec, &pship_obj->orient);
 }
 
 
@@ -3391,7 +3312,7 @@ void model_rot_sub_into_obj(vec3d * outpnt, vec3d *mpnt,polymodel *pm, int sub_m
 		vm_rotate_matrix_by_angles(&rotation_matrix, &pm->submodel[mn].angs);
  
 		matrix inv_orientation;
-		vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[mn].orientation);
+		vm_copy_transpose(&inv_orientation, &pm->submodel[mn].orientation);
 
 		vm_matrix_x_matrix(&m, &rotation_matrix, &inv_orientation);
 
@@ -3621,8 +3542,8 @@ void submodel_look_at(polymodel *pm, int mn)
 	vm_vec_normalize(&l);
 
 	vec3d c;
-	vm_vec_crossprod(&c, &l, &mp);
-	float dot=vm_vec_dotprod(&l,&mp);
+	vm_vec_cross(&c, &l, &mp);
+	float dot=vm_vec_dot(&l,&mp);
 	if (dot>=0.0f) {
 		*a = asin(c.a1d[axis]);
 	} else {
@@ -4017,7 +3938,7 @@ void make_submodel_world_matrix(polymodel *pm, int sn, vec3d*v){
 	vm_angles_2_matrix(&a, &pm->submodel[sn].angs);
 	if (!IS_MAT_NULL(&pm->submodel[sn].orientation)) {
 		matrix inv, f;
-		vm_copy_transpose_matrix(&inv, &pm->submodel[sn].orientation);
+		vm_copy_transpose(&inv, &pm->submodel[sn].orientation);
 		vm_matrix_x_matrix(&f, &a, &inv);
 		vm_matrix_x_matrix(&a, &pm->submodel[sn].orientation, &f);
 	}
@@ -4067,7 +3988,7 @@ void model_find_world_point(vec3d * outpnt, vec3d *mpnt,int model_num,int sub_mo
 		vm_rotate_matrix_by_angles(&rotation_matrix, &pm->submodel[mn].angs);
 
 		matrix inv_orientation;
-		vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[mn].orientation);
+		vm_copy_transpose(&inv_orientation, &pm->submodel[mn].orientation);
 
 		vm_matrix_x_matrix(&m, &rotation_matrix, &inv_orientation);
 
@@ -4104,7 +4025,7 @@ void model_instance_find_world_point(vec3d * outpnt, vec3d *mpnt, int model_num,
 		vm_rotate_matrix_by_angles(&rotation_matrix, &pmi->submodel[mn].angs);
 
 		matrix inv_orientation;
-		vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[mn].orientation);
+		vm_copy_transpose(&inv_orientation, &pm->submodel[mn].orientation);
 
 		vm_matrix_x_matrix(&m, &rotation_matrix, &inv_orientation);
 
@@ -4156,7 +4077,7 @@ void world_find_model_point(vec3d *out, vec3d *world_pt, polymodel *pm, int subm
 	vm_rotate_matrix_by_angles(&rotation_matrix, &pm->submodel[submodel_num].angs);
 
 	matrix inv_orientation;
-	vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[submodel_num].orientation);
+	vm_copy_transpose(&inv_orientation, &pm->submodel[submodel_num].orientation);
 
 	vm_matrix_x_matrix(&m, &rotation_matrix, &inv_orientation);
 
@@ -4189,7 +4110,7 @@ void world_find_model_instance_point(vec3d *out, vec3d *world_pt, polymodel *pm,
 	vm_rotate_matrix_by_angles(&rotation_matrix, &pmi->submodel[submodel_num].angs);
 
 	matrix inv_orientation;
-	vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[submodel_num].orientation);
+	vm_copy_transpose(&inv_orientation, &pm->submodel[submodel_num].orientation);
 
 	vm_matrix_x_matrix(&m, &rotation_matrix, &inv_orientation);
 
@@ -4201,18 +4122,18 @@ void world_find_model_instance_point(vec3d *out, vec3d *world_pt, polymodel *pm,
  * taking into account the rotations of any parent submodels it might have.
  *  
  * @param *outpnt Output point
- * @param *ship_obj Ship object
+ * @param *pship_obj Ship object
  * @param submodel_num The number of the submodel we're interested in
  */
-void find_submodel_instance_point(vec3d *outpnt, object *ship_obj, int submodel_num)
+void find_submodel_instance_point(vec3d *outpnt, object *pship_obj, int submodel_num)
 {
-	Assert(ship_obj->type == OBJ_SHIP);
+	Assert(pship_obj->type == OBJ_SHIP);
 
 	vm_vec_zero(outpnt);
 	matrix submodel_instance_matrix, rotation_matrix, inv_orientation;
 
-	polymodel_instance *pmi = model_get_instance(Ships[ship_obj->instance].model_instance_num);
-	polymodel *pm = model_get(Ship_info[Ships[ship_obj->instance].ship_info_index].model_num);
+	polymodel_instance *pmi = model_get_instance(Ships[pship_obj->instance].model_instance_num);
+	polymodel *pm = model_get(Ship_info[Ships[pship_obj->instance].ship_info_index].model_num);
 
 	int mn = submodel_num;
 	while ( (mn >= 0) && (pm->submodel[mn].parent >= 0) ) {
@@ -4224,7 +4145,7 @@ void find_submodel_instance_point(vec3d *outpnt, object *ship_obj, int submodel_
 			rotation_matrix = pm->submodel[parent_mn].orientation;
 			vm_rotate_matrix_by_angles(&rotation_matrix, &pmi->submodel[parent_mn].angs);
 
-			vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[parent_mn].orientation);
+			vm_copy_transpose(&inv_orientation, &pm->submodel[parent_mn].orientation);
 
 			vm_matrix_x_matrix(&submodel_instance_matrix, &rotation_matrix, &inv_orientation);
 
@@ -4245,21 +4166,21 @@ void find_submodel_instance_point(vec3d *outpnt, object *ship_obj, int submodel_
  *  
  * @param *outpnt Output point
  * @param *outnorm Output normal
- * @param *ship_obj Ship object
+ * @param *pship_obj Ship object
  * @param submodel_num The number of the submodel we're interested in
  * @param *submodel_pnt The point which's current position we want, in the submodel's frame of reference
  * @param *submodel_norm The normal which's current direction we want, in the ship's frame of reference
  */
-void find_submodel_instance_point_normal(vec3d *outpnt, vec3d *outnorm, object *ship_obj, int submodel_num, vec3d *submodel_pnt, vec3d *submodel_norm)
+void find_submodel_instance_point_normal(vec3d *outpnt, vec3d *outnorm, object *pship_obj, int submodel_num, vec3d *submodel_pnt, vec3d *submodel_norm)
 {
-	Assert(ship_obj->type == OBJ_SHIP);
+	Assert(pship_obj->type == OBJ_SHIP);
 
 	*outnorm = *submodel_norm;
 	vm_vec_zero(outpnt);
 	matrix submodel_instance_matrix, rotation_matrix, inv_orientation;
 
-	polymodel_instance *pmi = model_get_instance(Ships[ship_obj->instance].model_instance_num);
-	polymodel *pm = model_get(Ship_info[Ships[ship_obj->instance].ship_info_index].model_num);
+	polymodel_instance *pmi = model_get_instance(Ships[pship_obj->instance].model_instance_num);
+	polymodel *pm = model_get(Ship_info[Ships[pship_obj->instance].ship_info_index].model_num);
 
 	int mn = submodel_num;
 	while ( (mn >= 0) && (pm->submodel[mn].parent >= 0) ) {
@@ -4271,7 +4192,7 @@ void find_submodel_instance_point_normal(vec3d *outpnt, vec3d *outnorm, object *
 			rotation_matrix = pm->submodel[submodel_num].orientation;
 			vm_rotate_matrix_by_angles(&rotation_matrix, &pmi->submodel[submodel_num].angs);
 
-			vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[submodel_num].orientation);
+			vm_copy_transpose(&inv_orientation, &pm->submodel[submodel_num].orientation);
 
 			vm_matrix_x_matrix(&submodel_instance_matrix, &rotation_matrix, &inv_orientation);
 
@@ -4289,7 +4210,7 @@ void find_submodel_instance_point_normal(vec3d *outpnt, vec3d *outnorm, object *
 		rotation_matrix = pm->submodel[parent_model_num].orientation;
 		vm_rotate_matrix_by_angles(&rotation_matrix, &pmi->submodel[parent_model_num].angs);
 
-		vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[parent_model_num].orientation);
+		vm_copy_transpose(&inv_orientation, &pm->submodel[parent_model_num].orientation);
 
 		vm_matrix_x_matrix(&submodel_instance_matrix, &rotation_matrix, &inv_orientation);
 
@@ -4315,21 +4236,21 @@ void find_submodel_instance_point_normal(vec3d *outpnt, vec3d *outnorm, object *
  *
  * @param *outpnt Output point
  * @param *outorient Output matrix
- * @param *ship_obj Ship object
+ * @param *pship_obj Ship object
  * @param submodel_num The number of the submodel we're interested in
  * @param *submodel_pnt The point which's current position we want, in the submodel's frame of reference
  * @param *submodel_orient The local matrix which's current orientation in the ship's frame of reference we want
  */
-void find_submodel_instance_point_orient(vec3d *outpnt, matrix *outorient, object *ship_obj, int submodel_num, vec3d *submodel_pnt, matrix *submodel_orient)
+void find_submodel_instance_point_orient(vec3d *outpnt, matrix *outorient, object *pship_obj, int submodel_num, vec3d *submodel_pnt, matrix *submodel_orient)
 {
-	Assert(ship_obj->type == OBJ_SHIP);
+	Assert(pship_obj->type == OBJ_SHIP);
 
 	*outorient = *submodel_orient;
 	vm_vec_zero(outpnt);
 	matrix submodel_instance_matrix, rotation_matrix, inv_orientation;
 
-	polymodel_instance *pmi = model_get_instance(Ships[ship_obj->instance].model_instance_num);
-	polymodel *pm = model_get(Ship_info[Ships[ship_obj->instance].ship_info_index].model_num);
+	polymodel_instance *pmi = model_get_instance(Ships[pship_obj->instance].model_instance_num);
+	polymodel *pm = model_get(Ship_info[Ships[pship_obj->instance].ship_info_index].model_num);
 
 	int mn = submodel_num;
 	while ( (mn >= 0) && (pm->submodel[mn].parent >= 0) ) {
@@ -4341,7 +4262,7 @@ void find_submodel_instance_point_orient(vec3d *outpnt, matrix *outorient, objec
 			rotation_matrix = pm->submodel[submodel_num].orientation;
 			vm_rotate_matrix_by_angles(&rotation_matrix, &pmi->submodel[submodel_num].angs);
 
-			vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[submodel_num].orientation);
+			vm_copy_transpose(&inv_orientation, &pm->submodel[submodel_num].orientation);
 
 			vm_matrix_x_matrix(&submodel_instance_matrix, &rotation_matrix, &inv_orientation);
 
@@ -4359,7 +4280,7 @@ void find_submodel_instance_point_orient(vec3d *outpnt, matrix *outorient, objec
 		rotation_matrix = pm->submodel[parent_model_num].orientation;
 		vm_rotate_matrix_by_angles(&rotation_matrix, &pmi->submodel[parent_model_num].angs);
 
-		vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[parent_model_num].orientation);
+		vm_copy_transpose(&inv_orientation, &pm->submodel[parent_model_num].orientation);
 
 		vm_matrix_x_matrix(&submodel_instance_matrix, &rotation_matrix, &inv_orientation);
 
@@ -4380,17 +4301,17 @@ void find_submodel_instance_point_orient(vec3d *outpnt, matrix *outorient, objec
  * rotations of any parent submodels it might have.
  *  
  * @param *outpnt Output point
- * @param *ship_obj Ship object
+ * @param *pship_obj Ship object
  * @param submodel_num The number of the submodel we're interested in
  */
-void find_submodel_instance_world_point(vec3d *outpnt, object *ship_obj, int submodel_num)
+void find_submodel_instance_world_point(vec3d *outpnt, object *pship_obj, int submodel_num)
 {
 	vec3d loc_pnt;
 
-	find_submodel_instance_point(&loc_pnt, ship_obj, submodel_num);
+	find_submodel_instance_point(&loc_pnt, pship_obj, submodel_num);
 
-	vm_vec_unrotate(outpnt, &loc_pnt, &ship_obj->orient);
-	vm_vec_add2(outpnt, &ship_obj->pos);
+	vm_vec_unrotate(outpnt, &loc_pnt, &pship_obj->orient);
+	vm_vec_add2(outpnt, &pship_obj->pos);
 }
 
 // Verify rotating submodel has corresponding ship subsystem -- info in which to store rotation angle
@@ -4515,7 +4436,7 @@ void model_find_world_dir(vec3d * out_dir, vec3d *in_dir,int model_num, int sub_
 		vm_rotate_matrix_by_angles(&rotation_matrix, &pm->submodel[mn].angs);
 
 		matrix inv_orientation;
-		vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[mn].orientation);
+		vm_copy_transpose(&inv_orientation, &pm->submodel[mn].orientation);
 
 		vm_matrix_x_matrix(&m, &rotation_matrix, &inv_orientation);
 
@@ -4552,7 +4473,7 @@ void model_instance_find_world_dir(vec3d * out_dir, vec3d *in_dir,int model_num,
 		vm_rotate_matrix_by_angles(&rotation_matrix, &pmi->submodel[mn].angs);
 
 		matrix inv_orientation;
-		vm_copy_transpose_matrix(&inv_orientation, &pm->submodel[mn].orientation);
+		vm_copy_transpose(&inv_orientation, &pm->submodel[mn].orientation);
 
 		vm_matrix_x_matrix(&m, &rotation_matrix, &inv_orientation);
 
@@ -4631,12 +4552,14 @@ void model_clear_instance_info( submodel_instance_info * sii )
 	sii->turn_accel = 0.0f;
 }
 
-void model_clear_submodel_instance( submodel_instance *sm_instance )
+void model_clear_submodel_instance( submodel_instance *sm_instance, bsp_info *sm )
 {
 	sm_instance->angs.p = 0.0f;
 	sm_instance->angs.b = 0.0f;
 	sm_instance->angs.h = 0.0f;
-	sm_instance->blown_off = false;
+
+	sm_instance->blown_off = sm->is_damaged ? true : false;
+
 	sm_instance->collision_checked = false;
 	sm_instance->moved_this_frame = false;
 }
@@ -4648,7 +4571,7 @@ void model_clear_submodel_instances( int model_instance_num )
 	polymodel *pm = model_get(pmi->model_num);
 
 	for ( i = 0; i < pm->n_models; i++ ) {
-		model_clear_submodel_instance(&pmi->submodel[i]);
+		model_clear_submodel_instance(&pmi->submodel[i], &pm->submodel[i]);
 	}
 }
 
@@ -4747,7 +4670,7 @@ void model_set_instance_techroom(int model_num, int sub_model_num, float angle_1
 	sm->angs.h = angle_2;
 }
 
-void model_update_instance(int model_instance_num, int sub_model_num, submodel_instance_info *sii)
+void model_update_instance(int model_instance_num, int sub_model_num, submodel_instance_info *sii, int flags)
 {
 	int i;
 	polymodel *pm;
@@ -4755,9 +4678,10 @@ void model_update_instance(int model_instance_num, int sub_model_num, submodel_i
 
 	pmi = model_get_instance(model_instance_num);
 	pm = model_get(pmi->model_num);
-
-	Assert( sub_model_num >= 0 );
-	Assert( sub_model_num < pm->n_models );
+	
+	Assertion(sub_model_num >= 0 && sub_model_num < pm->n_models,
+		"Sub model number (%d) which should be updated is out of range! Must be between 0 and %d. This happend on model %s.",
+		sub_model_num, pm->n_models - 1, pm->filename);
 
 	if ( sub_model_num < 0 ) return;
 	if ( sub_model_num >= pm->n_models ) return;
@@ -4765,11 +4689,15 @@ void model_update_instance(int model_instance_num, int sub_model_num, submodel_i
 	submodel_instance *smi = &pmi->submodel[sub_model_num];
 	submodel_instance *smi_r = &pmi->submodel_render[sub_model_num];
 	bsp_info *sm = &pm->submodel[sub_model_num];
+	
+	// Set the "blown out" flags
+	if ( flags & SSF_NO_DISAPPEAR ) {
+		smi->blown_off = false;
+	} else {
+		smi->blown_off = sii->blown_off ? true : false;
+	}
 
-	// Set the "blown out" flags	
-	smi->blown_off = sii->blown_off ? true : false;
-
-	if ( smi->blown_off )	{
+	if ( smi->blown_off && !(flags & SSF_NO_REPLACE) )	{
 		if ( sm->my_replacement > -1 )	{
 			pmi->submodel[sm->my_replacement].blown_off = false;
 			pmi->submodel[sm->my_replacement].angs = sii->angs;
@@ -4799,7 +4727,7 @@ void model_update_instance(int model_instance_num, int sub_model_num, submodel_i
 
 	// For all the detail levels of this submodel, set them also.
 	for (i=0; i<sm->num_details; i++ )	{
-		model_update_instance(model_instance_num, sm->details[i], sii );
+		model_update_instance(model_instance_num, sm->details[i], sii, flags );
 	}
 }
 
@@ -5545,23 +5473,19 @@ SCP_vector<glow_point_bank_override>::iterator get_glowpoint_bank_override_by_na
 
 void parse_glowpoint_table(const char *filename)
 {
-	int rval;
-	
+	try {
+		if (cf_exists_full(filename, CF_TYPE_TABLES))
+			read_file_text(filename, CF_TYPE_TABLES);
+		else
+			return;
 
-	if ( (rval = setjmp(parse_abort)) != 0 ) {
-		mprintf(("Unable to parse '%s'!  Error code = %d.\n", filename, rval));
-		return;
-	}
+		reset_parse();
 
-	if (cf_exists_full(filename, CF_TYPE_TABLES))
-		read_file_text(filename, CF_TYPE_TABLES);
-	else
-		return;
+		if (!optional_string("#Glowpoint overrides")) {
+			return;
+		}
 
-	reset_parse();
-
-	if (optional_string("#Glowpoint overrides")) {
-		while ( !required_string_either("$Name:", "#End") ) {
+		while (!required_string_either("$Name:", "#End")) {
 			glow_point_bank_override gpo;
 			glowpoint_override_defaults(&gpo);
 
@@ -5571,49 +5495,50 @@ void parse_glowpoint_table(const char *filename)
 			required_string("$Name:");
 			stuff_string(gpo.name, F_NAME, NAME_LENGTH);
 
-			if(optional_string("+nocreate")) {
-				if(Parsing_modular_table) {
+			if (optional_string("+nocreate")) {
+				if (Parsing_modular_table) {
 					replace = true;
-				} else {
+				}
+				else {
 					mprintf(("+nocreate specified in non-modular glowpoint table.\n"));
 				}
 			}
 
-			if(optional_string("$On:")) {
+			if (optional_string("$On:")) {
 				stuff_boolean(&gpo.is_on);
 			}
 
-			if(optional_string("$Displacement time:")) {
+			if (optional_string("$Displacement time:")) {
 				stuff_int(&gpo.disp_time);
 				gpo.disp_time_override = true;
 			}
 
-			if(optional_string("$On time:")) {
+			if (optional_string("$On time:")) {
 				stuff_int(&gpo.on_time);
 				gpo.on_time_override = true;
 			}
 
-			if(optional_string("$Off time:")) {
+			if (optional_string("$Off time:")) {
 				stuff_int(&gpo.off_time);
 				gpo.off_time_override = true;
 			}
 
-			if(optional_string("$Texture:")) {
+			if (optional_string("$Texture:")) {
 				char glow_texture_name[32];
 				stuff_string(glow_texture_name, F_NAME, NAME_LENGTH);
-				
+
 				gpo.glow_bitmap_override = true;
 
-				if(stricmp(glow_texture_name, "none")) {
+				if (stricmp(glow_texture_name, "none")) {
 					gpo.glow_bitmap = bm_load(glow_texture_name);
 
 					if (gpo.glow_bitmap < 0)
 					{
-						Warning( LOCATION, "Couldn't open texture '%s'\nreferenced by glowpoint present '%s'\n", glow_texture_name, gpo.name);
+						Warning(LOCATION, "Couldn't open texture '%s'\nreferenced by glowpoint present '%s'\n", glow_texture_name, gpo.name);
 					}
 					else
 					{
-						nprintf(( "Model", "Glowpoint preset %s texture num is %d\n", gpo.name, gpo.glow_bitmap));
+						nprintf(("Model", "Glowpoint preset %s texture num is %d\n", gpo.name, gpo.glow_bitmap));
 					}
 
 					char glow_texture_neb_name[256];
@@ -5624,57 +5549,61 @@ void parse_glowpoint_table(const char *filename)
 					if (gpo.glow_neb_bitmap < 0)
 					{
 						gpo.glow_neb_bitmap = gpo.glow_bitmap;
-						nprintf(( "Model", "Glowpoint preset nebula texture not found for '%s', using normal glowpoint texture instead\n", gpo.name));
+						nprintf(("Model", "Glowpoint preset nebula texture not found for '%s', using normal glowpoint texture instead\n", gpo.name));
 					}
 					else
 					{
-						nprintf(( "Model", "Glowpoint preset %s nebula texture num is %d\n", gpo, gpo.glow_neb_bitmap));
+						nprintf(("Model", "Glowpoint preset %s nebula texture num is %d\n", gpo.name, gpo.glow_neb_bitmap));
 					}
-				} else {
+				}
+				else {
 					gpo.glow_bitmap_override = true;
 				}
 			}
 
-			if(optional_string("$Type:")) {
+			if (optional_string("$Type:")) {
 				stuff_int(&gpo.type);
 				gpo.type_override = true;
 			}
 
-			if(optional_string("$Pulse type:")) {
+			if (optional_string("$Pulse type:")) {
 				char pulsetype[33];
 				stuff_string(pulsetype, F_NAME, NAME_LENGTH);
-				if(!stricmp(pulsetype, "sine")) {
+				if (!stricmp(pulsetype, "sine")) {
 					gpo.pulse_type = PULSE_SIN;
-				} else if(!stricmp(pulsetype, "cosine")) {
+				}
+				else if (!stricmp(pulsetype, "cosine")) {
 					gpo.pulse_type = PULSE_COS;
-				} else if(!stricmp(pulsetype, "triangle")) {
+				}
+				else if (!stricmp(pulsetype, "triangle")) {
 					gpo.pulse_type = PULSE_TRI;
-				} else if(!stricmp(pulsetype, "shiftedtriangle")) {
+				}
+				else if (!stricmp(pulsetype, "shiftedtriangle")) {
 					gpo.pulse_type = PULSE_SHIFTTRI;
 				}
 			}
 
-			if(optional_string("$Pulse period:")) {
+			if (optional_string("$Pulse period:")) {
 				stuff_int(&gpo.pulse_period);
 				gpo.pulse_period_override = true;
 			}
 
-			if(optional_string("$Pulse amplitude:")) {
+			if (optional_string("$Pulse amplitude:")) {
 				stuff_float(&gpo.pulse_amplitude);
 			}
 
-			if(optional_string("$Pulse bias:")) {
+			if (optional_string("$Pulse bias:")) {
 				stuff_float(&gpo.pulse_bias);
 			}
 
-			if(optional_string("$Pulse exponent:")) {
+			if (optional_string("$Pulse exponent:")) {
 				stuff_float(&gpo.pulse_exponent);
 			}
 
-			if(optional_string("+light")) {
+			if (optional_string("+light")) {
 				gpo.is_lightsource = true;
-				
-				if(optional_string("$Light radius multiplier:")) {
+
+				if (optional_string("$Light radius multiplier:")) {
 					stuff_float(&gpo.radius_multi);
 				}
 
@@ -5687,7 +5616,7 @@ void parse_glowpoint_table(const char *filename)
 				stuff_int(&temp);
 				gpo.light_color.xyz.z = temp / 255.0f;
 
-				if(optional_string("$Light mix color:")) {
+				if (optional_string("$Light mix color:")) {
 					stuff_int(&temp);
 					gpo.light_mix_color.xyz.x = temp / 255.0f;
 					stuff_int(&temp);
@@ -5696,34 +5625,36 @@ void parse_glowpoint_table(const char *filename)
 					gpo.light_mix_color.xyz.z = temp / 255.0f;
 				}
 
-				if(optional_string("+lightcone")) {
+				if (optional_string("+lightcone")) {
 					gpo.lightcone = true;
 
-					if(optional_string("$Cone angle:")) {
+					if (optional_string("$Cone angle:")) {
 						stuff_float(&gpo.cone_angle);
-						gpo.cone_inner_angle = cos((gpo.cone_angle - (gpo.cone_angle<20.0f)?gpo.cone_angle*0.5f:20.0f) / 180.0f * PI);
+						gpo.cone_inner_angle = cos((gpo.cone_angle - ((gpo.cone_angle < 20.0f) ? gpo.cone_angle*0.5f : 20.0f)) / 180.0f * PI);
 						gpo.cone_angle = cos(gpo.cone_angle / 180.0f * PI);
 					}
 
 					required_string("$Cone direction:");
 					stuff_float_list(gpo.cone_direction.a1d, 3);
-					if(vm_vec_mag_quick(&gpo.cone_direction) != 0.0f) {
+					if (vm_vec_mag_quick(&gpo.cone_direction) != 0.0f) {
 						vm_vec_normalize(&gpo.cone_direction);
-					} else {
+					}
+					else {
 						Warning(LOCATION, "Null vector specified in cone direction for glowpoint override %s. Discarding preset.", gpo.name);
 						skip = true;
 					}
-					if(optional_string("+dualcone")) {
+					if (optional_string("+dualcone")) {
 						gpo.dualcone = true;
 					}
 
-					if(optional_string("+rotating")) {
+					if (optional_string("+rotating")) {
 						gpo.rotating = true;
 						required_string("$Rotation axis:");
 						stuff_float_list(gpo.rotation_axis.a1d, 3);
-						if(vm_vec_mag_quick(&gpo.rotation_axis) != 0.0f) {
+						if (vm_vec_mag_quick(&gpo.rotation_axis) != 0.0f) {
 							vm_vec_normalize(&gpo.rotation_axis);
-						} else {
+						}
+						else {
 							Warning(LOCATION, "Null vector specified in rotation axis for glowpoint override %s. Discarding preset.", gpo.name);
 							skip = true;
 						}
@@ -5732,16 +5663,18 @@ void parse_glowpoint_table(const char *filename)
 					}
 				}
 			}
-			if(!skip) {
+			if (!skip) {
 				SCP_vector<glow_point_bank_override>::iterator gpoi = get_glowpoint_bank_override_by_name(gpo.name);
-				if(gpoi == glowpoint_bank_overrides.end()) {
-					if(!replace) {
+				if (gpoi == glowpoint_bank_overrides.end()) {
+					if (!replace) {
 						glowpoint_bank_overrides.push_back(gpo);
 					}
-				} else {
-					if(!replace) {
+				}
+				else {
+					if (!replace) {
 						Warning(LOCATION, "+nocreate not specified for glowpoint override that already exists. Discarding duplicate entry: %s", gpo.name);
-					} else {
+					}
+					else {
 						glowpoint_bank_overrides.erase(gpoi);
 						glowpoint_bank_overrides.push_back(gpo);
 					}
@@ -5750,7 +5683,10 @@ void parse_glowpoint_table(const char *filename)
 
 		}
 		required_string("#End");
-	}	
+	} catch (const parse::ParseException& e) {
+		mprintf(("Unable to parse '%s'!  Error message = %s.\n", filename, e.what()));
+		return;
+	}
 }
 
 void glowpoint_init()

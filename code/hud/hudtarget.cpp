@@ -10,42 +10,40 @@
 
 
 
-#include "hud/hud.h"
-#include "hud/hudparse.h"
+#include "asteroid/asteroid.h"
+#include "cmdline/cmdline.h"
+#include "debris/debris.h"
+#include "freespace2/freespace.h"	// for flFrametime
+#include "gamesnd/gamesnd.h"
+#include "globalincs/alphacolors.h"
+#include "globalincs/linklist.h"
 #include "hud/hudartillery.h"
+#include "hud/hudbrackets.h"
 #include "hud/hudlock.h"
 #include "hud/hudmessage.h"
-#include "hud/hudtarget.h"
+#include "hud/hudparse.h"
 #include "hud/hudreticle.h"
-#include "hud/hudbrackets.h"
-#include "object/object.h"
-#include "ship/ship.h"
-#include "render/3dinternal.h"
-#include "globalincs/linklist.h"
-#include "weapon/weapon.h"
-#include "playerman/player.h"
-#include "freespace2/freespace.h"	// for flFrametime
-#include "io/timer.h"
-#include "gamesnd/gamesnd.h"
-#include "debris/debris.h"
-#include "mission/missionmessage.h"
-#include "hud/hudtargetbox.h"
-#include "ship/subsysdamage.h"
 #include "hud/hudshield.h"
-#include "mission/missionhotkey.h"
-#include "asteroid/asteroid.h"
-#include "jumpnode/jumpnode.h"
-#include "weapon/emp.h"
-#include "globalincs/alphacolors.h"
-#include "localization/localize.h"
-#include "ship/awacs.h"
-#include "parse/parselo.h"
-#include "cmdline/cmdline.h"
+#include "hud/hudtarget.h"
+#include "hud/hudtargetbox.h"
 #include "iff_defs/iff_defs.h"
-#include "network/multi.h"
-#include "graphics/font.h"
-#include "network/multiutil.h"
+#include "io/timer.h"
+#include "jumpnode/jumpnode.h"
+#include "localization/localize.h"
+#include "mission/missionhotkey.h"
+#include "mission/missionmessage.h"
 #include "model/model.h"
+#include "network/multi.h"
+#include "network/multiutil.h"
+#include "object/object.h"
+#include "parse/parselo.h"
+#include "playerman/player.h"
+#include "render/3dinternal.h"
+#include "ship/awacs.h"
+#include "ship/ship.h"
+#include "ship/subsysdamage.h"
+#include "weapon/emp.h"
+#include "weapon/weapon.h"
 
 // If any of these bits in the ship->flags are set, ignore this ship when targeting
 int TARGET_SHIP_IGNORE_FLAGS = (SF_EXPLODED|SF_DEPART_WARP|SF_DYING|SF_ARRIVING_STAGE_1|SF_HIDDEN_FROM_SENSORS);
@@ -1095,7 +1093,7 @@ void hud_target_subobject_common(int next_flag)
 	target_shipp = &Ships[Objects[Player_ai->target_objnum].instance];
 
 	if (!Player_ai->targeted_subsys) {
-		start = GET_FIRST(&target_shipp->subsys_list);
+		start = END_OF_LIST(&target_shipp->subsys_list);
 	} else {
 		start = Player_ai->targeted_subsys;
 	}
@@ -1392,7 +1390,7 @@ static object* select_next_target_by_distance( const bool targeting_from_closest
 			if ( diff > 0.0f ) {
 				if ( diff < ( current_distance - nearest_distance ) ) {
 					nearest_distance = new_distance;
-					nearest_object_ptr = const_cast<object *>(prospective_victim_ptr);
+					nearest_object_ptr = prospective_victim_ptr;
 				}
 			}
 		}
@@ -1794,7 +1792,7 @@ void hud_target_live_turret(int next_flag, int auto_advance, int only_player_tar
 					
 					if (!auto_advance && get_closest_turret && !only_player_target) {
 						// if within 3 degrees and not previous subsys, use subsys in front
-						dot = vm_vec_dotprod(&vec_to_subsys, &Player_obj->orient.vec.fvec);
+						dot = vm_vec_dot(&vec_to_subsys, &Player_obj->orient.vec.fvec);
 						if ((dot > 0.9986) && facing) {
 							use_straight_ahead_turret = TRUE;
 							break;
@@ -2762,9 +2760,9 @@ void HudGaugeOrientationTee::renderOrientation(object *from_objp, object *to_obj
 	// 0 - vectors are perpendicular
 	// 1 - vectors are collinear and in the same direction (target is facing player)
 	// -1 - vectors are collinear and in the opposite direction (target is facing away from player)
-	dot_product = vm_vec_dotprod(&from_orientp->vec.fvec, &target_to_obj);
+	dot_product = vm_vec_dot(&from_orientp->vec.fvec, &target_to_obj);
 
-	if (vm_vec_dotprod(&from_orientp->vec.rvec, &target_to_obj) >= 0) {
+	if (vm_vec_dot(&from_orientp->vec.rvec, &target_to_obj) >= 0) {
 		if (dot_product >= 0){
 			dot_product = -PI_2*dot_product + PI;
 		} else {
@@ -7144,7 +7142,7 @@ void HudGaugeHardpoints::render(float frametime)
 	int zbuffer = gr_zbuffer_set(GR_ZBUFF_NONE);
 	gr_set_color_buffer(0);
 
-	render_info.set_outline_color(gauge_color.red, gauge_color.green, gauge_color.blue);
+	render_info.set_color(gauge_color);
 	render_info.set_detail_level_lock(detail_level_lock);
 	render_info.set_flags(MR_NO_LIGHTING | MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_TEXTURING | MR_NO_CULL);
 
@@ -7202,7 +7200,6 @@ void HudGaugeHardpoints::render(float frametime)
 
 					weapon_render_info.set_detail_level_lock(detail_level_lock);
 					weapon_render_info.set_flags(render_flags);
-					weapon_render_info.set_alpha(alpha);
 
 					model_render_immediate(&weapon_render_info, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &bank->pnt[k]);
 				}
@@ -7215,26 +7212,24 @@ void HudGaugeHardpoints::render(float frametime)
 
 					if (num_secondaries_rendered >= sp->weapons.secondary_bank_ammo[i])
 						break;
-
+					 
 					if(sp->secondary_point_reload_pct[i][k] <= 0.0)
 						continue;
 
+					model_render_params weapon_render_info;
+
 					if ( swp->current_secondary_bank == i && ( swp->secondary_next_slot[i] == k || ( swp->secondary_next_slot[i]+1 == k && sp->flags & SF_SECONDARY_DUAL_FIRE ) ) ) {
-						gr_set_color_fast(&Color_bright_blue);
+						weapon_render_info.set_color(Color_bright_blue);
 					} else {
-						gr_set_color_fast(&Color_bright_white);
-						
+						weapon_render_info.set_color(Color_bright_white);
 					}
 
 					num_secondaries_rendered++;
 
 					vm_vec_scale_add2(&secondary_weapon_pos, &vmd_z_vector, -(1.0f-sp->secondary_point_reload_pct[i][k]) * model_get(Weapon_info[swp->secondary_bank_weapons[i]].external_model_num)->rad);
 
-					model_render_params weapon_render_info;
-
 					weapon_render_info.set_detail_level_lock(detail_level_lock);
 					weapon_render_info.set_flags(render_flags);
-					weapon_render_info.set_alpha(alpha);
 
 					model_render_immediate(&weapon_render_info, Weapon_info[swp->secondary_bank_weapons[i]].external_model_num, &vmd_identity_matrix, &secondary_weapon_pos);
 				}

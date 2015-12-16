@@ -26,7 +26,6 @@
 #include "asteroid/asteroid.h"
 #include "autopilot/autopilot.h"
 #include "bmpman/bmpman.h"
-#include "camera/camera.h"
 #include "cfile/cfile.h"
 #include "cmdline/cmdline.h"
 #include "cmeasure/cmeasure.h"
@@ -40,14 +39,15 @@
 #include "freespace2/freespace.h"
 #include "freespace2/freespaceresource.h"
 #include "freespace2/levelpaging.h"
+#include "fs2netd/fs2netd_client.h"
 #include "gamehelp/contexthelp.h"
 #include "gamehelp/gameplayhelp.h"
 #include "gamesequence/gamesequence.h"
 #include "gamesnd/eventmusic.h"
 #include "gamesnd/gamesnd.h"
 #include "globalincs/alphacolors.h"
-#include "globalincs/version.h"
 #include "globalincs/mspdb_callstack.h"
+#include "globalincs/version.h"
 #include "graphics/font.h"
 #include "graphics/shadows.h"
 #include "hud/hud.h"
@@ -55,10 +55,10 @@
 #include "hud/hudescort.h"
 #include "hud/hudlock.h"
 #include "hud/hudmessage.h"
-#include "hud/hudshield.h"
-#include "hud/hudtargetbox.h"
 #include "hud/hudparse.h"
+#include "hud/hudshield.h"
 #include "hud/hudsquadmsg.h"
+#include "hud/hudtargetbox.h"
 #include "iff_defs/iff_defs.h"
 #include "io/joy.h"
 #include "io/joy_ff.h"
@@ -130,6 +130,7 @@
 #include "parse/scripting.h"
 #include "parse/sexp.h"
 #include "particle/particle.h"
+#include "pilotfile/pilotfile.h"
 #include "playerman/managepilot.h"
 #include "playerman/player.h"
 #include "popup/popup.h"
@@ -158,16 +159,18 @@
 #include "weapon/muzzleflash.h"
 #include "weapon/shockwave.h"
 #include "weapon/weapon.h"
-#include "fs2netd/fs2netd_client.h"
-#include "pilotfile/pilotfile.h"
-
-#include "globalincs/pstypes.h"
 
 #include <stdexcept>
 
 extern int Om_tracker_flag; // needed for FS2OpenPXO config
 
-
+#ifdef WIN32
+// According to AMD and NV, these _should_ force their drivers into high-performance mode
+extern "C" {
+	__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
+#endif
 
 #ifdef NDEBUG
 #ifdef FRED
@@ -459,7 +462,7 @@ fs_builtin_mission Game_builtin_mission_list[MAX_BUILTIN_MISSIONS] = {
 // Internal function prototypes
 void game_maybe_draw_mouse(float frametime);
 void init_animating_pointer();
-void load_animating_pointer(char *filename, int dx, int dy);
+void load_animating_pointer(char *filename);
 void unload_animating_pointer();
 void game_do_training_checks();
 void game_shutdown(void);
@@ -575,7 +578,7 @@ void game_framerate_check_init()
 extern float Framerate;
 void game_framerate_check()
 {
-	int y_start = 100;
+	int y_start = gr_screen.center_offset_y + 100;
 	
 	// if the current framerate is above the critical level, add frametime
 	if(Framerate >= Gf_critical){
@@ -589,7 +592,7 @@ void game_framerate_check()
 	// display if we're above the critical framerate
 	if(Framerate < Gf_critical){
 		gr_set_color_fast(&Color_bright_red);
-		gr_string(200, y_start, "Framerate warning", GR_RESIZE_NONE);
+		gr_string(gr_screen.center_offset_x + 200, y_start, "Framerate warning", GR_RESIZE_NONE);
 
 		y_start += 10;
 	}
@@ -604,7 +607,7 @@ void game_framerate_check()
 			gr_set_color_fast(&Color_bright_red);
 		}
 
-		gr_printf_no_resize(200, y_start, "%d%%", (int)pct);
+		gr_printf_no_resize(gr_screen.center_offset_x + 200, y_start, "%d%%", (int)pct);
 
 		y_start += 10;
 	}
@@ -749,7 +752,9 @@ void game_sunspot_process(float frametime)
 
 			// check
 			for(idx=0; idx<n_lights; idx++)	{
-				if ( (ls_on && !ls_force_off) || !shipfx_eye_in_shadow( &Eye_position, Viewer_obj, idx ) )	{
+				bool in_shadow = shipfx_eye_in_shadow(&Eye_position, Viewer_obj, idx);
+
+				if ( (ls_on && !ls_force_off) || !in_shadow )	{
 					vec3d light_dir;				
 					light_get_global_dir(&light_dir, idx);
 
@@ -759,10 +764,10 @@ void game_sunspot_process(float frametime)
 						Sun_spot_goal += (float)pow(dot,85.0f);
 					}
 				}
-			if (!shipfx_eye_in_shadow( &Eye_position, Viewer_obj, idx ) )	{
-			// draw the glow for this sun
-			stars_draw_sun_glow(idx);				
-			}
+				if ( !in_shadow )	{
+					// draw the glow for this sun
+					stars_draw_sun_glow(idx);				
+				}
 			}
 
 			Sun_drew = 0;
@@ -984,7 +989,7 @@ void game_level_init(int seed)
 	batch_reset();
 
 	// Initialize the game subsystems
-	game_reset_time();			// resets time, and resets saved time too
+		game_reset_time();			// resets time, and resets saved time too
 
 	Multi_ping_timestamp = -1;
 
@@ -1260,7 +1265,7 @@ void game_loading_callback_close()
 	// Make sure bar shows all the way over.
 	game_loading_callback(COUNT_ESTIMATE);
 	
-	int real_count = game_busy_callback( NULL );
+	int real_count __UNUSED = game_busy_callback( NULL );
  	Mouse_hidden = 0;
 
 	Game_loading_callback_inited = 0;
@@ -1424,7 +1429,7 @@ int game_start_mission()
 {
 	mprintf(( "=================== STARTING LEVEL LOAD ==================\n" ));
 
-	int s1 = timer_get_milliseconds();
+	int s1 __UNUSED = timer_get_milliseconds();
 
 	// clear post processing settings
 	gr_post_process_set_defaults();
@@ -1481,9 +1486,9 @@ int game_start_mission()
 
 	bm_print_bitmaps();
 
-	int e1 = timer_get_milliseconds();
+	int e1 __UNUSED = timer_get_milliseconds();
 
-	printf("Level load took %f seconds.\n", (e1 - s1) / 1000.0f );
+	mprintf(("Level load took %f seconds.\n", (e1 - s1) / 1000.0f ));
 
 	return 1;
 }
@@ -1740,7 +1745,7 @@ char full_path[1024];
  */
 void game_init()
 {
-	int s1, e1;
+	int s1 __UNUSED, e1 __UNUSED;
 	const char *ptr;
 	char whee[MAX_PATH_LEN];
 
@@ -2050,7 +2055,7 @@ void game_init()
 	pilot_load_pic_list();	
 	pilot_load_squad_pic_list();
 
-	load_animating_pointer(NOX("cursor"), 0, 0);	
+	load_animating_pointer(NOX("cursor"));
 
 	if(!Cmdline_reparse_mainhall)
 	{
@@ -2160,11 +2165,11 @@ void game_show_framerate()
 		for ( pss = GET_FIRST(&shipp->subsys_list); pss !=END_OF_LIST(&shipp->subsys_list); pss = GET_NEXT(pss) ) {
 			if (pss->system_info->type == SUBSYSTEM_TURRET) {
 				if(pss->turret_enemy_objnum == -1)
-					gr_printf_no_resize(10, t*line_height, "Turret %d: <None>", t);
+					gr_printf_no_resize(gr_screen.center_offset_x + 10, gr_screen.center_offset_y + (t*line_height), "Turret %d: <None>", t);
 				else if (Objects[pss->turret_enemy_objnum].type == OBJ_SHIP)
-					gr_printf_no_resize(10, t*line_height, "Turret %d: %s", t, Ships[Objects[pss->turret_enemy_objnum].instance].ship_name);
+					gr_printf_no_resize(gr_screen.center_offset_x + 10, gr_screen.center_offset_y + (t*line_height), "Turret %d: %s", t, Ships[Objects[pss->turret_enemy_objnum].instance].ship_name);
 				else
-					gr_printf_no_resize(10, t*line_height, "Turret %d: <Object %d>", t, pss->turret_enemy_objnum);
+					gr_printf_no_resize(gr_screen.center_offset_x + 10, gr_screen.center_offset_y + (t*line_height), "Turret %d: <Object %d>", t, pss->turret_enemy_objnum);
 
 				t++;
 			}
@@ -2177,14 +2182,14 @@ void game_show_framerate()
 		gr_set_color_fast(&HUD_color_debug);
 
 		if (Cmdline_frame_profile) {
-			gr_string(20, 100 + line_height, profile_output.c_str(), GR_RESIZE_NONE);
+			gr_string(gr_screen.center_offset_x + 20, gr_screen.center_offset_y + 100 + line_height, profile_output.c_str(), GR_RESIZE_NONE);
 		}
 
 		if (Show_framerate) {
 			if (frametotal != 0.0f)
-				gr_printf_no_resize( 20, 100, "FPS: %0.1f", Framerate );
+				gr_printf_no_resize( gr_screen.center_offset_x + 20, gr_screen.center_offset_y + 100, "FPS: %0.1f", Framerate );
 			else
-				gr_string( 20, 100, "FPS: ?", GR_RESIZE_NONE );
+				gr_string( gr_screen.center_offset_x + 20, gr_screen.center_offset_y + 100, "FPS: ?", GR_RESIZE_NONE );
 		}
 	}
 
@@ -2198,6 +2203,10 @@ void game_show_framerate()
 
 #ifdef _WIN32
 	if (Cmdline_show_stats && HUD_draw) {
+		int sx,sy;
+		sx = gr_screen.center_offset_x + 20;
+		sy = gr_screen.center_offset_y + 100 + (line_height * 2);
+
 		char mem_buffer[50];
 
 		MEMORYSTATUS mem_stats;
@@ -2209,22 +2218,27 @@ void game_show_framerate()
 		else
 			sprintf(mem_buffer,"Using Physical: %d Meg",(Mem_starttime_phys - mem_stats.dwAvailPhys)/1024/1024);
 
-		gr_string( 20, 100 + (line_height * 2), mem_buffer, GR_RESIZE_NONE);
+		gr_string( sx, sy, mem_buffer, GR_RESIZE_NONE);
+		sy += line_height;
 		sprintf(mem_buffer,"Using Pagefile: %d Meg",(Mem_starttime_pagefile - mem_stats.dwAvailPageFile)/1024/1024);
-		gr_string( 20, 100 + (line_height * 3), mem_buffer, GR_RESIZE_NONE);
+		gr_string( sx, sy, mem_buffer, GR_RESIZE_NONE);
+		sy += line_height;
 		sprintf(mem_buffer,"Using Virtual:  %d Meg",(Mem_starttime_virtual - mem_stats.dwAvailVirtual)/1024/1024);
-		gr_string( 20, 100 + (line_height * 4), mem_buffer, GR_RESIZE_NONE);
+		gr_string( sx, sy, mem_buffer, GR_RESIZE_NONE);
+		sy += line_height * 2;
 
 		if ( ((int)mem_stats.dwAvailPhys == -1) || ((int)mem_stats.dwTotalPhys == -1) )
 			sprintf(mem_buffer, "Physical Free: *** / *** (>4G)");
 		else
 			sprintf(mem_buffer,"Physical Free: %d / %d Meg",mem_stats.dwAvailPhys/1024/1024, mem_stats.dwTotalPhys/1024/1024);
 
-		gr_string( 20, 100 + (line_height * 6), mem_buffer, GR_RESIZE_NONE);
+		gr_string( sx, sy, mem_buffer, GR_RESIZE_NONE);
+		sy += line_height;
 		sprintf(mem_buffer,"Pagefile Free: %d / %d Meg",mem_stats.dwAvailPageFile/1024/1024, mem_stats.dwTotalPageFile/1024/1024);
-		gr_string( 20, 100 + (line_height * 7), mem_buffer, GR_RESIZE_NONE);
+		gr_string( sx, sy, mem_buffer, GR_RESIZE_NONE);
+		sy += line_height;
 		sprintf(mem_buffer,"Virtual Free:  %d / %d Meg",mem_stats.dwAvailVirtual/1024/1024, mem_stats.dwTotalVirtual/1024/1024);
-		gr_string( 20, 100 + (line_height * 8), mem_buffer, GR_RESIZE_NONE);
+		gr_string( sx, sy, mem_buffer, GR_RESIZE_NONE);
 	}
 #endif
 
@@ -2232,8 +2246,8 @@ void game_show_framerate()
 	if ( Show_cpu == 1 ) {
 		
 		int sx,sy;
-		sx = gr_screen.max_w - 154;
-		sy = 15;
+		sx = gr_screen.center_offset_x + gr_screen.center_w - 154;
+		sy = gr_screen.center_offset_y + 15;
 
 		gr_set_color_fast(&HUD_color_debug);
 
@@ -2279,8 +2293,8 @@ void game_show_framerate()
 	if ( Show_mem  ) {
 
 		int sx,sy;
-		sx = gr_screen.max_w - 154;
-		sy = 15;
+		sx = gr_screen.center_offset_x + gr_screen.center_w - 154;
+		sy = gr_screen.center_offset_y + 15;
 
 		gr_set_color_fast(&HUD_color_debug);
 
@@ -2313,8 +2327,8 @@ void game_show_framerate()
 
 	if ( Show_player_pos ) {
 		int sx, sy;
-		sx = 320;
-		sy = 100;
+		sx = gr_screen.center_offset_x + 320;
+		sy = gr_screen.center_offset_y + 100;
 		gr_printf_no_resize(sx, sy, NOX("Player Pos: (%d,%d,%d)"), fl2i(Player_obj->pos.xyz.x), fl2i(Player_obj->pos.xyz.y), fl2i(Player_obj->pos.xyz.z));
 	}
 
@@ -2346,11 +2360,11 @@ void game_show_framerate()
 				short_name++;
 
 			sprintf(mem_buffer,"%s:\t%d K", short_name, size);
-			gr_string( 20, 100 + (line_height * 12) + (mi*line_height), mem_buffer, GR_RESIZE_NONE);
+			gr_string( gr_screen.center_offset_x + 20, gr_screen.center_offset_y + 100 + (line_height * 12) + (mi*line_height), mem_buffer, GR_RESIZE_NONE);
 		}
 
 		sprintf(mem_buffer,"Total RAM:\t%d K", TotalRam / 1024);
-		gr_string( 20, 100 + (line_height * 13) + (mi*line_height), mem_buffer, GR_RESIZE_NONE);
+		gr_string( gr_screen.center_offset_x + 20, gr_screen.center_offset_y + 100 + (line_height * 13) + (mi*line_height), mem_buffer, GR_RESIZE_NONE);
 	}
 #endif
 
@@ -2385,7 +2399,7 @@ void game_show_eye_pos(camid cid)
 	gr_set_color_fast(&HUD_color_debug);
 
 	//Position
-	gr_printf_no_resize(20, 100 - font_height, "X:%f Y:%f Z:%f", cam_pos.xyz.x, cam_pos.xyz.y, cam_pos.xyz.z);
+	gr_printf_no_resize(gr_screen.center_offset_x + 20, gr_screen.center_offset_y + 100 - font_height, "X:%f Y:%f Z:%f", cam_pos.xyz.x, cam_pos.xyz.y, cam_pos.xyz.z);
 	font_height -= font_height/2;
 
 	//Orientation
@@ -2393,7 +2407,7 @@ void game_show_eye_pos(camid cid)
 	rot_angles.p *= (180/PI);
 	rot_angles.b *= (180/PI);
 	rot_angles.h *= (180/PI);
-	gr_printf_no_resize(20, 100 - font_height, "Xr:%f Yr:%f Zr:%f", rot_angles.p, rot_angles.b, rot_angles.h);
+	gr_printf_no_resize(gr_screen.center_offset_x + 20, gr_screen.center_offset_y + 100 - font_height, "Xr:%f Yr:%f Zr:%f", rot_angles.p, rot_angles.b, rot_angles.h);
 }
 
 void game_show_standalone_framerate()
@@ -2443,7 +2457,7 @@ void game_show_time_left()
 		diff = 0;
 
 	hud_set_default_color();
-	gr_printf_no_resize( 5, 40, XSTR( "Mission time remaining: %d seconds", 179), diff );
+	gr_printf_no_resize( gr_screen.center_offset_x + 5, gr_screen.center_offset_y + 40, XSTR( "Mission time remaining: %d seconds", 179), diff );
 }
 
 //========================================================================================
@@ -2811,7 +2825,7 @@ void game_tst_mark(object *objp, ship *shipp)
 	}
 
 	// bogus
-	if((objp == NULL) || (shipp == NULL) || (shipp->ship_info_index < 0) || (shipp->ship_info_index >= Num_ship_classes)){
+	if((objp == NULL) || (shipp == NULL) || (shipp->ship_info_index < 0) || (shipp->ship_info_index >= static_cast<int>(Ship_info.size()))){
 		return;
 	}
 	sip = &Ship_info[shipp->ship_info_index];
@@ -3263,16 +3277,16 @@ void setup_environment_mapping(camid cid)
 
 	// face 3 (py / up)
 	memset( &new_orient, 0, sizeof(matrix) );
-	new_orient.vec.fvec.xyz.y =  (gr_screen.mode == GR_OPENGL) ? -1.0f :  1.0f;
-	new_orient.vec.uvec.xyz.z =  (gr_screen.mode == GR_OPENGL) ?  1.0f : -1.0f;
+	new_orient.vec.fvec.xyz.y =  (gr_screen.mode == GR_OPENGL) ?  1.0f : -1.0f;
+	new_orient.vec.uvec.xyz.z =  (gr_screen.mode == GR_OPENGL) ? -1.0f :  1.0f;
 	new_orient.vec.rvec.xyz.x =  1.0f;
 	render_environment(i, &cam_pos, &new_orient, new_zoom);
 	i++; // bump!
 
 	// face 4 (ny / down)
 	memset( &new_orient, 0, sizeof(matrix) );
-	new_orient.vec.fvec.xyz.y =  (gr_screen.mode == GR_OPENGL) ?  1.0f : -1.0f;
-	new_orient.vec.uvec.xyz.z =  (gr_screen.mode == GR_OPENGL) ? -1.0f :  1.0f;
+	new_orient.vec.fvec.xyz.y =  (gr_screen.mode == GR_OPENGL) ? -1.0f :  1.0f;
+	new_orient.vec.uvec.xyz.z =  (gr_screen.mode == GR_OPENGL) ?  1.0f : -1.0f;
 	new_orient.vec.rvec.xyz.x =  1.0f;
 	render_environment(i, &cam_pos, &new_orient, new_zoom);
 	i++; // bump!
@@ -3840,7 +3854,7 @@ void game_render_frame( camid cid )
 	do_timing_test(flFrametime);
 
 	extern int OO_update_index;	
-	multi_rate_display(OO_update_index, 375, 0);
+	multi_rate_display(OO_update_index, gr_screen.center_offset_x + 375, gr_screen.center_offset_y);
 
 	// test
 	extern void oo_display();
@@ -4014,7 +4028,7 @@ void game_simulation_frame()
 		ship_info *sip;
 		while((moveup != END_OF_LIST(&Ship_obj_list)) && (moveup != NULL)){
 			// bogus
-			if((moveup->objnum < 0) || (moveup->objnum >= MAX_OBJECTS) || (Objects[moveup->objnum].type != OBJ_SHIP) || (Objects[moveup->objnum].instance < 0) || (Objects[moveup->objnum].instance >= MAX_SHIPS) || (Ships[Objects[moveup->objnum].instance].ship_info_index < 0) || (Ships[Objects[moveup->objnum].instance].ship_info_index >= Num_ship_classes)){
+			if((moveup->objnum < 0) || (moveup->objnum >= MAX_OBJECTS) || (Objects[moveup->objnum].type != OBJ_SHIP) || (Objects[moveup->objnum].instance < 0) || (Objects[moveup->objnum].instance >= MAX_SHIPS) || (Ships[Objects[moveup->objnum].instance].ship_info_index < 0) || (Ships[Objects[moveup->objnum].instance].ship_info_index >= static_cast<int>(Ship_info.size()))){
 				moveup = GET_NEXT(moveup);
 				continue;
 			}
@@ -4783,7 +4797,7 @@ void game_set_frametime(int state)
 		fix frame_speed = F1_0 / Debug_dump_frames;
 
 		if (Frametime > frame_speed ){
-			nprintf(("warning","slow frame: %x\n",Frametime));
+			nprintf(("warning","slow frame: %x\n",(int)Frametime));
 		} else {			
 			do {
 				thistime = timer_get_fixed_seconds();
@@ -5652,7 +5666,7 @@ void game_leave_state( int old_state, int new_state )
 
 			} else {
 				cmd_brief_close();
-				common_select_close();
+					common_select_close();
 				if (new_state == GS_STATE_MAIN_MENU) {
 					freespace_stop_mission();	
 				}
@@ -5750,6 +5764,10 @@ void game_leave_state( int old_state, int new_state )
 				snd_aav_init();
 
 				freespace_stop_mission();
+				
+				if (Cmdline_benchmark_mode) {
+					gameseq_post_event( GS_EVENT_QUIT_GAME );
+				}
 			}
 			break;
 
@@ -5952,6 +5970,10 @@ void game_leave_state( int old_state, int new_state )
 
 		case GS_STATE_FICTION_VIEWER:
 			fiction_viewer_close();
+			common_select_close();
+			if (new_state == GS_STATE_MAIN_MENU) {
+				freespace_stop_mission();
+			}
 			break;
 
 		case GS_STATE_LAB:
@@ -7035,7 +7057,7 @@ int game_main(char *cmdline)
 
 	// check if networking should be disabled, this could probably be done later but the sooner the better
 	// TODO: remove this when multi is fixed to handle more than MAX_SHIP_CLASSES_MULTI
-	if ( Num_ship_classes > MAX_SHIP_CLASSES_MULTI ) {
+	if ( Ship_info.size() > MAX_SHIP_CLASSES_MULTI ) {
 		Networking_disabled = 1;
 	}
 
@@ -7423,6 +7445,7 @@ void game_shutdown(void)
 	// free left over memory from table parsing
 	player_tips_close();
 
+	control_config_common_close();
 	joy_close();
 
 	audiostream_close();
@@ -7515,16 +7538,14 @@ void init_animating_pointer()
 //
 // input:	filename	=>	filename of animation file that holds the animation
 // 
-void load_animating_pointer(char *filename, int dx, int dy)
+void load_animating_pointer(char *filename)
 {
 	int				fps;
 	animating_obj *am;
 
 	init_animating_pointer();
 
-//TEMP
 	mprintf(("loading animated cursor \"%s\"\n", filename));
-
 
 	am = &Animating_mouse;
 	am->first_frame = bm_load_animation(filename, &am->num_frames, &fps);
@@ -7764,13 +7785,13 @@ void game_show_event_debug(float frametime)
 	gr_clear();
 	gr_set_color_fast(&Color_bright);
 	gr_set_font(FONT1);
-	gr_printf_no_resize(0x8000, 15, NOX("EVENT DEBUG VIEW"));
+	gr_printf_no_resize(0x8000, gr_screen.center_offset_y + 15, NOX("EVENT DEBUG VIEW"));
 
 	gr_set_color_fast(&Color_normal);
 	gr_set_font(FONT1);
 	gr_get_string_size(&font_width, &font_height, NOX("test"));
-	y_max = gr_screen.max_h - font_height - 5;
-	y_index = 45;
+	y_max = gr_screen.center_offset_y + gr_screen.center_h - font_height - 5;
+	y_index = gr_screen.center_offset_y + 45;
 
 	k = scroll_offset;
 	while (k < ED_count) {
@@ -7820,7 +7841,7 @@ void game_show_event_debug(float frametime)
 			}
 		}
 
-		gr_printf_no_resize(10, y_index, buf);
+		gr_printf_no_resize(gr_screen.center_offset_x + 10, y_index, buf);
 		y_index += font_height;
 		k++;
 	}
@@ -7981,9 +8002,7 @@ void Do_model_timings_test()
 	}
 	
 	// Load them all
-	for (i=0; i<Num_ship_classes; i++ )	{
-		ship_info *sip = &Ship_info[i];
-
+	for (auto sip = Ship_info.begin(); sip != Ship_info.end(); ++sip ) {
 		sip->model_num = model_load(sip->pof_file, 0, NULL);
 
 		model_used[sip->model_num % MAX_POLYGON_MODELS]++;
@@ -8549,8 +8568,8 @@ int detect_lang()
 	detect = NULL;
 
 	// now compare the checksum/filesize against known #'s
-	for (idx=0; idx < (int)Lcl_languages.size(); idx++) {
-		if (Lcl_languages[idx].checksum == (int)file_checksum) {
+	for (idx=0; idx < NUM_BUILTIN_LANGUAGES; idx++) {
+		if (Lcl_builtin_languages[idx].checksum == (int)file_checksum) {
 			mprintf(( "AutoLang: Language auto-detection successful...\n" ));
 			return idx;
 		}
@@ -8780,8 +8799,6 @@ void game_title_screen_display()
 	}
 	*/
 
-	//Script_system.SetHookVar("SplashScreenImage", 's', Game_title_screen_fname[gr_screen.res]);
-	//Script_system.SetHookVar("SplashScreenLogo", 's', Game_logo_screen_fname[gr_screen.res]);
 	bool globalhook_override = Script_system.IsOverride(Script_splashhook);
 	bool condhook_override = Script_system.IsConditionOverride(CHA_SPLASHSCREEN);
 	mprintf(("SCRIPTING: Splash screen overrides checked\n"));
@@ -8826,8 +8843,6 @@ void game_title_screen_display()
 		Script_system.RunCondition(CHA_SPLASHSCREEN);
 		
 	mprintf(("SCRIPTING: Splash screen conditional hook has been run\n"));
-		
-	Script_system.RemHookVars(2, "SplashScreenImage", "SplashScreenLogo");
 
 	// flip
 	gr_flip();

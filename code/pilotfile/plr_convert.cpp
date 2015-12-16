@@ -6,10 +6,10 @@
  *    place of these major numbers for /any/ reason, *ever*!
  */
 
-#include "pilotfile/pilotfile_convert.h"
-#include "network/psnet2.h"
 #include "cfile/cfilesystem.h"
 #include "mission/missionbriefcommon.h"
+#include "network/psnet2.h"
+#include "pilotfile/pilotfile_convert.h"
 
 
 // this struct isn't well packed, and is written whole to the pilot file, so
@@ -861,7 +861,7 @@ bool pilotfile_convert::plr_convert(const char *fname, bool inferno)
 
 	filename.reserve(200);
 
-	cf_create_default_path_string(filename, CF_TYPE_SINGLE_PLAYERS, (inferno) ? const_cast<char*>("inferno") : NULL);
+	cf_create_default_path_string(filename, CF_TYPE_SINGLE_PLAYERS, (inferno) ? "inferno" : NULL);
 
 	if (inferno) {
 		filename.append(DIR_SEPARATOR_STR);
@@ -872,10 +872,10 @@ bool pilotfile_convert::plr_convert(const char *fname, bool inferno)
 
 	mprintf(("  PL2 => Converting '%s'...\n", filename.c_str()));
 
-	cfp = cfopen(const_cast<char*>(filename.c_str()), "rb", CFILE_NORMAL);
+	cfp = cfopen(filename.c_str(), "rb", CFILE_NORMAL);
 
 	if ( !cfp ) {
-		mprintf(("  PL2 => Unable to open for import!\n", fname));
+		mprintf(("  PL2 => Unable to open '%s' for import!\n", fname));
 		return false;
 	}
 
@@ -896,10 +896,10 @@ bool pilotfile_convert::plr_convert(const char *fname, bool inferno)
 	filename.assign(fname);
 	filename.append(".plr");
 
-	cfp = cfopen(const_cast<char*>(filename.c_str()), "wb", CFILE_NORMAL, CF_TYPE_PLAYERS);
+	cfp = cfopen(filename.c_str(), "wb", CFILE_NORMAL, CF_TYPE_PLAYERS);
 
 	if ( !cfp ) {
-		mprintf(("  PLR => Unable to open for export!\n", fname));
+		mprintf(("  PLR => Unable to open '%s' for export!\n", fname));
 		return false;
 	}
 

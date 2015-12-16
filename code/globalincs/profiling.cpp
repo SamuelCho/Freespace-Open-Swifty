@@ -7,10 +7,10 @@
  *
 */ 
 
+#include "cmdline/cmdline.h"
 #include "globalincs/pstypes.h"
 #include "globalincs/systemvars.h"
 #include "io/timer.h"
-#include "cmdline/cmdline.h"
 
 #include <fstream>
 
@@ -47,7 +47,7 @@ std::ofstream profiling_file;
  */
 void profile_init()
 {
-	start_profile_time = timer_get_high_res_microseconds(); //f2fl(timer_get_fixed_seconds());
+	start_profile_time = timer_get_high_res_microseconds();
 
 	if (Cmdline_profile_write_file)
 	{
@@ -100,7 +100,7 @@ void profile_begin(const char* name)
 				// found the profile sample
 				samples[i].open_profiles++;
 				samples[i].profile_instances++;
-				samples[i].start_time = timer_get_high_res_microseconds(); //f2fl(timer_get_fixed_seconds());
+				samples[i].start_time = timer_get_high_res_microseconds();
 				Assert(samples[i].open_profiles == 1); // max 1 open at once
 				return;
 			}
@@ -113,7 +113,7 @@ void profile_begin(const char* name)
 		new_sample.open_profiles = 1;
 		new_sample.profile_instances = 1;
 		new_sample.accumulator = 0;
-		new_sample.start_time = timer_get_high_res_microseconds(); //f2fl(timer_get_fixed_seconds());
+		new_sample.start_time = timer_get_high_res_microseconds();
 		new_sample.children_sample_time = 0;
 		new_sample.num_children = 0;
 		new_sample.parent = parent;
@@ -145,7 +145,7 @@ void profile_end(const char* name)
 			if ( !strcmp(samples[i].name.c_str(), name) && samples[i].parent == child_of ) {
 				int inner = 0;
 				int parent = -1;
-				uint end_time = timer_get_high_res_microseconds(); //f2fl(timer_get_fixed_seconds());
+				uint end_time = timer_get_high_res_microseconds();
 				samples[i].open_profiles--;
 
 				// count all parents and find the immediate parent
@@ -196,7 +196,7 @@ void profile_end(const char* name)
 void profile_dump_output()
 {
 	if (Cmdline_frame_profile) {
-		end_profile_time = timer_get_high_res_microseconds(); //f2fl(timer_get_fixed_seconds());
+		end_profile_time = timer_get_high_res_microseconds();
 
 		if (Cmdline_profile_write_file)
 		{
@@ -250,7 +250,7 @@ void profile_dump_output()
 		}
 
 		samples.clear();
-		start_profile_time = timer_get_high_res_microseconds(); //f2fl(timer_get_fixed_seconds());
+		start_profile_time = timer_get_high_res_microseconds();
 	}
 }
 
@@ -275,7 +275,7 @@ void store_profile_in_history(SCP_string &name, float percent, uint time)
 		if( history[i].valid && history[i].name == name ) {
 			// found the sample
 			history[i].avg = (history[i].avg * old_ratio) + (percent * new_ratio);
-			history[i].avg_micro_sec = (history[i].avg_micro_sec * old_ratio) + (time * new_ratio);
+			history[i].avg_micro_sec = fl2i((history[i].avg_micro_sec * old_ratio) + (time * new_ratio));
 
 			if( percent < history[i].min ) {
 				history[i].min = percent;
@@ -286,7 +286,7 @@ void store_profile_in_history(SCP_string &name, float percent, uint time)
 			if( time < history[i].min_micro_sec ) {
 				history[i].min_micro_sec = time;
 			} else {
-				history[i].min_micro_sec = (history[i].min_micro_sec*old_ratio) + (time*new_ratio);
+				history[i].min_micro_sec = fl2i((history[i].min_micro_sec*old_ratio) + (time*new_ratio));
 			}
 
 			if( percent > history[i].max) {
@@ -298,7 +298,7 @@ void store_profile_in_history(SCP_string &name, float percent, uint time)
 			if( time > history[i].max_micro_sec) {
 				history[i].max_micro_sec = time;
 			} else {
-				history[i].max_micro_sec = (history[i].max_micro_sec * old_ratio) + (time * new_ratio);
+				history[i].max_micro_sec = fl2i((history[i].max_micro_sec * old_ratio) + (time * new_ratio));
 			}
 
 			return;

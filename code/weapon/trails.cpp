@@ -9,13 +9,13 @@
 
 
 
-#include "weapon/trails.h"
-#include "globalincs/systemvars.h"
-#include "render/3d.h" 
-#include "io/timer.h"
-#include "ship/ship.h"
-#include "graphics/gropenglextension.h"
 #include "cmdline/cmdline.h"
+#include "globalincs/systemvars.h"
+#include "graphics/gropenglextension.h"
+#include "io/timer.h"
+#include "render/3d.h" 
+#include "ship/ship.h"
+#include "weapon/trails.h"
 
 int Num_trails;
 trail Trails;
@@ -89,7 +89,7 @@ void trail_calc_facing_pts( vec3d *top, vec3d *bot, vec3d *fvec, vec3d *pos, flo
 	if (!IS_VEC_NULL(&rvec))
 		vm_vec_normalize( &rvec );
 
-	vm_vec_crossprod(&uvec,fvec,&rvec);
+	vm_vec_cross(&uvec,fvec,&rvec);
 	if (!IS_VEC_NULL(&uvec))
 		vm_vec_normalize(&uvec);
 
@@ -163,7 +163,6 @@ void trail_add_batch(trail * trailp)
 	int i;
 	vec3d topv, botv, *fvec, last_pos, tmp_fvec;
 	vertex  top, bot, top_prev, bot_prev;
-	int nv = 0;
 	float w;
 	ubyte l;
 	vec3d centerv;
@@ -271,7 +270,7 @@ void trail_add_batch(trail * trailp)
 				// Last one...
 				vm_vec_avg(&centerv, &topv, &botv);
 
-				vertex center_vert;
+				vertex center_vert = vertex();
 
 				if (!Cmdline_nohtl)
 					g3_transfer_vertex(&center_vert, &centerv);

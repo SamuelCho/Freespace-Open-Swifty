@@ -7,19 +7,17 @@
  *
 */ 
 
-#include "graphics/shadows.h"
-#include "globalincs/pstypes.h"
-#include "math/vecmat.h"
-#include "object/object.h"
-#include "lighting/lighting.h"
-#include "graphics/gropengltnl.h"
+#include "asteroid/asteroid.h"
 #include "cmdline/cmdline.h"
-#include "render/3d.h"
+#include "debris/debris.h"
+#include "graphics/gropengldraw.h"
+#include "graphics/gropengltnl.h"
+#include "graphics/shadows.h"
+#include "lighting/lighting.h"
+#include "math/vecmat.h"
 #include "model/model.h"
 #include "model/modelrender.h"
-#include "debris/debris.h"
-#include "asteroid/asteroid.h"
-#include "graphics/gropengldraw.h"
+#include "render/3d.h"
 
 extern vec3d check_offsets[8];
 
@@ -31,11 +29,6 @@ light_frustum_info Shadow_frustums[MAX_SHADOW_CASCADES];
 
 bool shadows_obj_in_frustum(object *objp, matrix *light_orient, vec3d *min, vec3d *max)
 {
-	int i;
-	vec3d pts[8], tmp, pt, pos_lightspace, pos_viewspace;
-	vec3d obj_min = ZERO_VECTOR;
-	vec3d obj_max = ZERO_VECTOR;
-
 	vec3d pos, pos_rot;
 
 	vm_vec_sub(&pos, &objp->pos, &Eye_position);

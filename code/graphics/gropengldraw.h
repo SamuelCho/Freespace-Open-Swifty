@@ -11,9 +11,9 @@
 #ifndef GR_OPENGLDRAW_H
 #define GR_OPENGLDRAW_H
 
+#include "graphics/2d.h"
 #include "graphics/gropenglstate.h"
 #include "graphics/shadows.h"
-#include "graphics/2d.h"
 
 void gr_opengl_aabitmap_ex(int x, int y, int w, int h, int sx, int sy, int resize_mode, bool mirror);
 void gr_opengl_aabitmap(int x, int y, int resize_mode, bool mirror);
@@ -39,18 +39,20 @@ void gr_opengl_render_effect(int nverts, vertex *verts, float *radius_list, uint
 void gr_opengl_bitmap_ex(int x, int y, int w, int h, int sx, int sy, int resize_mode);
 void gr_opengl_update_distortion();
 
-void opengl_render_timer_bar(int colour, float x, float y, float w, float h);
 void opengl_set_spec_mapping(int tmap_type, float *u_scale, float *v_scale, int stage = 0);
 void opengl_reset_spec_mapping();
 
-void gr_opengl_line_htl(vec3d *start, vec3d *end);
+void gr_opengl_line_htl(const vec3d *start, const vec3d *end);
 void gr_opengl_sphere_htl(float rad);
 void gr_opengl_deferred_light_sphere_init(int rings, int segments);
-void gr_opengl_draw_deferred_light_sphere(vec3d *position, float rad, bool clearStencil);
+void gr_opengl_draw_deferred_light_sphere(const vec3d *position, float rad, bool clearStencil);
 void gr_opengl_deferred_light_cylinder_init(int segments);
-void gr_opengl_draw_deferred_light_cylinder(vec3d *position,matrix *orient, float rad, float length, bool clearStencil);
+void gr_opengl_draw_deferred_light_cylinder(const vec3d *position, const matrix *orient, float rad, float length, bool clearStencil);
 
-void gr_opengl_draw_line_list(colored_vector *lines, int num);
+void gr_opengl_draw_line_list(const colored_vector *lines, int num);
+
+void gr_opengl_shadow_map_start(const matrix4 *shadow_view_matrix, const matrix *light_orient);
+void gr_opengl_shadow_map_end();
 
 void gr_opengl_shadow_map_start(matrix4 *shadow_view_matrix, matrix *light_orient);
 void gr_opengl_shadow_map_end();

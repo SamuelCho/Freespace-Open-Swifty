@@ -9,36 +9,36 @@
 
 
 
-#include "missionui/missionscreencommon.h"
-#include "missionui/missionweaponchoice.h"
-#include "ship/ship.h"
-#include "weapon/weapon.h"
-#include "missionui/missionshipchoice.h"
-#include "io/mouse.h"
-#include "menuui/snazzyui.h"
 #include "anim/animplay.h"
 #include "anim/packunpack.h"
-#include "missionui/missionbrief.h"
-#include "gamesnd/gamesnd.h"
-#include "gamehelp/contexthelp.h"
-#include "popup/popup.h"
-#include "globalincs/alphacolors.h"
-#include "localization/localize.h"
 #include "cfile/cfile.h"
 #include "cmdline/cmdline.h"
-#include "render/3d.h"
-#include "lighting/lighting.h"
+#include "gamehelp/contexthelp.h"
+#include "gamesnd/gamesnd.h"
+#include "globalincs/alphacolors.h"
 #include "hud/hudbrackets.h"
+#include "io/mouse.h"
+#include "io/timer.h"
+#include "lighting/lighting.h"
+#include "localization/localize.h"
+#include "menuui/snazzyui.h"
+#include "missionui/chatbox.h"
+#include "missionui/missionbrief.h"
+#include "missionui/missionscreencommon.h"
+#include "missionui/missionshipchoice.h"
+#include "missionui/missionweaponchoice.h"
 #include "model/model.h"
 #include "network/multi.h"
+#include "network/multi_pmsg.h"
 #include "network/multimsgs.h"
 #include "network/multiteamselect.h"
 #include "network/multiui.h"
 #include "network/multiutil.h"
-#include "missionui/chatbox.h"
-#include "network/multi_pmsg.h"
 #include "parse/parselo.h"
-#include "io/timer.h"
+#include "popup/popup.h"
+#include "render/3d.h"
+#include "ship/ship.h"
+#include "weapon/weapon.h"
 
 
 #define IS_BANK_PRIMARY(x)			(x < MAX_SHIP_PRIMARY_BANKS)
@@ -727,7 +727,7 @@ void wl_render_overhead_view(float frametime)
 	Assert( Wss_slots != NULL );
 
 	ship_class = Wss_slots[Selected_wl_slot].ship_class;
-	if (ship_class < 0 || ship_class > Num_ship_classes)
+	if (ship_class < 0 || ship_class >= static_cast<int>(Ship_info.size()))
 	{
 		Warning(LOCATION, "Invalid ship class (%d) passed for render_overhead_view", ship_class);
 		return;
@@ -1114,7 +1114,7 @@ void wl_set_disabled_weapons(int ship_class)
 	if ( ship_class == - 1 )
 		return;
 
-	Assert(ship_class >= 0 && ship_class < MAX_SHIP_CLASSES);
+	Assert(ship_class >= 0 && ship_class < static_cast<int>(Ship_info.size()));
 	Assert( Wl_icons != NULL );
 
 	sip = &Ship_info[ship_class];
@@ -1353,7 +1353,7 @@ void wl_init_ship_class_data()
 	int i;
 	wl_ship_class_info	*wl_ship;
 
-	for ( i=0; i<MAX_SHIP_CLASSES; i++ ) {
+	for ( i = 0; i < static_cast<int>(Ship_info.size()); i++ ) {
 		wl_ship = &Wl_ships[i];
 		wl_ship->overhead_bitmap = -1;
 		wl_ship->model_num = -1;
@@ -1369,7 +1369,7 @@ void wl_free_ship_class_data()
 	int i;
 	wl_ship_class_info	*wl_ship;
 
-	for ( i=0; i<Num_ship_classes; i++ ) {
+	for ( i = 0; i < static_cast<int>(Ship_info.size()); i++ ) {
 		wl_ship = &Wl_ships[i];
 
 		if ( wl_ship->overhead_bitmap != -1 ) {
@@ -1533,7 +1533,7 @@ void wl_get_ship_class_weapons(int ship_class, int *wep, int *wep_count)
 	ship_info	*sip;
 	int i;
 
-	Assert(ship_class >= 0 && ship_class < Num_ship_classes);
+	Assert(ship_class >= 0 && ship_class < static_cast<int>(Ship_info.size()));
 	sip = &Ship_info[ship_class];
 
 	// reset weapons arrays
@@ -1999,11 +1999,11 @@ void weapon_select_init()
 	// Goober5000
 	// first determine which layout to use
 	Uses_apply_all_button = 1;	// assume true
-	Weapon_select_background_bitmap = bm_load((Game_mode & GM_MULTIPLAYER) ? Weapon_select_multi_background_fname[Uses_apply_all_button][gr_screen.res] : Weapon_select_background_fname[Uses_apply_all_button][gr_screen.res]);
+	Weapon_select_background_bitmap = mission_ui_background_load(Briefing->weapon_select_background[gr_screen.res], Weapon_select_background_fname[Uses_apply_all_button][gr_screen.res], Weapon_select_multi_background_fname[Uses_apply_all_button][gr_screen.res]);
 	if (Weapon_select_background_bitmap < 0)	// failed to load
 	{
 		Uses_apply_all_button = 0;	// nope, sorry
-		Weapon_select_background_bitmap = bm_load((Game_mode & GM_MULTIPLAYER) ? Weapon_select_multi_background_fname[Uses_apply_all_button][gr_screen.res] : Weapon_select_background_fname[Uses_apply_all_button][gr_screen.res]);
+		Weapon_select_background_bitmap = mission_ui_background_load(NULL, Weapon_select_background_fname[Uses_apply_all_button][gr_screen.res], Weapon_select_multi_background_fname[Uses_apply_all_button][gr_screen.res]);
 	}
 
 
@@ -2692,15 +2692,13 @@ void weapon_select_do(float frametime)
 			gr_screen.res == 0 ? 202 : 332,
 			gr_screen.res == 0 ? 185 : 260,
 			&WeapSelectScreenWeapRot,
-			&Weapon_info->closeup_pos,
-			Weapon_info->closeup_zoom * 0.65f,
+			&wip->closeup_pos,
+			wip->closeup_zoom * 0.65f,
 			REVOLUTION_RATE,
 			MR_IS_MISSILE | MR_AUTOCENTER | MR_NO_FOGGING,
 			GR_RESIZE_MENU,
 			wip->selection_effect);
-	}
-
-	else if ( Weapon_anim_class != -1 && ( Selected_wl_class == Weapon_anim_class )) {
+	} else if ( Weapon_anim_class != -1 && ( Selected_wl_class == Weapon_anim_class )) {
 		Assert(Selected_wl_class >= 0 && Selected_wl_class < MAX_WEAPON_TYPES );
 		if ( Weapon_anim_class != Selected_wl_class )
 			start_weapon_animation(Selected_wl_class);
@@ -2736,14 +2734,13 @@ void weapon_select_do(float frametime)
 		if ( Wl_icons[Carried_wl_icon.weapon_class].can_use > 0)
 		{
 			wl_icon_info *icon = &Wl_icons[Carried_wl_icon.weapon_class];
+			weapon_info *wip = &Weapon_info[Carried_wl_icon.weapon_class];
 			if(icon->icon_bmaps[WEAPON_ICON_FRAME_SELECTED] != -1)
 			{
 				gr_set_color_fast(&Color_blue);
 				gr_set_bitmap(icon->icon_bmaps[WEAPON_ICON_FRAME_SELECTED]);
 				gr_bitmap(sx, sy, GR_RESIZE_MENU);
-			}
-			else
-			{
+			} else {
 				gr_set_color_fast(&Icon_colors[ICON_FRAME_SELECTED]);
 				int w = 56;
 				int h = 24;
@@ -2751,7 +2748,7 @@ void weapon_select_do(float frametime)
 				if(icon->model_index != -1)
 				{
 					//Draw the model
-					draw_model_icon(icon->model_index, MR_NO_FOGGING | MR_NO_LIGHTING, Weapon_info->closeup_zoom / 2.5f, sx, sy, w, h, NULL, GR_RESIZE_MENU);
+					draw_model_icon(icon->model_index, MR_NO_FOGGING | MR_NO_LIGHTING, wip->closeup_zoom / 2.5f, sx, sy, w, h, NULL, GR_RESIZE_MENU, &wip->closeup_pos);
 				}
 				else if(icon->laser_bmap != -1)
 				{
@@ -2760,9 +2757,7 @@ void weapon_select_do(float frametime)
 					gr_set_bitmap(icon->laser_bmap);
 					gr_bitmap(0, 0, GR_RESIZE_MENU);
 					gr_reset_clip();
-				}
-				else
-				{
+				} else {
 					//Draw the weapon name, crappy last-ditch effort to not crash.
 					int half_x, half_y;
 					char *print_name = (Weapon_info[Carried_wl_icon.weapon_class].alt_name[0]) ? Weapon_info[Carried_wl_icon.weapon_class].alt_name : Weapon_info[Carried_wl_icon.weapon_class].name;

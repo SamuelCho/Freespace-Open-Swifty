@@ -5,28 +5,28 @@
 
 
 
-#include "autopilot/autopilot.h"
 #include "ai/ai.h"
 #include "ai/aigoals.h"
-#include "ship/ship.h"
-#include "object/object.h"
-#include "object/objcollide.h"
-#include "object/waypoint.h"
-#include "parse/sexp.h"
+#include "asteroid/asteroid.h"
+#include "autopilot/autopilot.h"
+#include "camera/camera.h"
+#include "cfile/cfile.h"
 #include "freespace2/freespace.h"
+#include "gamesnd/eventmusic.h"
+#include "globalincs/def_files.h"
 #include "globalincs/linklist.h"
 #include "iff_defs/iff_defs.h"
-#include "sound/audiostr.h"
-#include "mission/missiontraining.h"
-#include "mission/missionmessage.h"
 #include "io/timer.h"
-#include "gamesnd/eventmusic.h"
-#include "cfile/cfile.h"
-#include "parse/parselo.h"
-#include "globalincs/def_files.h"
 #include "localization/localize.h"
-#include "camera/camera.h"
-#include "asteroid/asteroid.h"
+#include "mission/missionmessage.h"
+#include "mission/missiontraining.h"
+#include "object/objcollide.h"
+#include "object/waypoint.h"
+#include "parse/parselo.h"
+#include "parse/sexp.h"
+#include "ship/ship.h"
+#include "sound/audiostr.h"
+
 #include <map>
 
 // Extern functions/variables
@@ -243,9 +243,9 @@ bool StartAutopilot()
 			if (shipp->team != Player_ship->team)
 				continue;
 
-			Assertion((shipp->ship_info_index >= 0) && (shipp->ship_info_index < MAX_SHIP_CLASSES),
+			Assertion((shipp->ship_info_index >= 0) && (shipp->ship_info_index < static_cast<int>(Ship_info.size())),
 				"Ship '%s' does not have a valid pointer to a ship class. Pointer is %d, which is smaller than 0 or bigger than %d",
-				shipp->ship_name, shipp->ship_info_index, MAX_SHIP_CLASSES);
+				shipp->ship_name, shipp->ship_info_index, static_cast<int>(Ship_info.size()));
 			ship_info *sip = &Ship_info[shipp->ship_info_index];
 
 			if ( !(sip->flags & SIF_SUPPORT) )
@@ -1271,68 +1271,69 @@ void NavSystem_Init()
 
 void parse_autopilot_table(char *filename)
 {
-	int rval;
 	SCP_vector<SCP_string> lines;
 
-	if ((rval = setjmp(parse_abort)) != 0)
+	try
 	{
-		mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", (filename) ? filename : "<default autopilot.tbl>", rval));
+		if (filename == NULL)
+			read_file_text_from_array(defaults_get_file("autopilot.tbl"));
+		else
+			read_file_text(filename, CF_TYPE_TABLES);
+
+		reset_parse();
+
+
+		required_string("#Autopilot");
+
+		// autopilot link distance
+		required_string("$Link Distance:");
+		stuff_int(&NavLinkDistance);
+
+		if (optional_string("$Interrupt autopilot if enemy within distance:"))
+			stuff_int(&AutopilotMinEnemyDistance);
+		else
+			AutopilotMinEnemyDistance = 5000;
+
+		if (optional_string("$Interrupt autopilot if asteroid within distance:"))
+			stuff_int(&AutopilotMinAsteroidDistance);
+		else
+			AutopilotMinAsteroidDistance = 1000;
+
+		if (optional_string("$Lock Weapons During Autopilot:"))
+			stuff_boolean(&LockWeaponsDuringAutopilot);
+		else
+			LockWeaponsDuringAutopilot = false;
+
+		// optional no cutscene bars
+		if (optional_string("+No_Cutscene_Bars"))
+			UseCutsceneBars = false;
+		// optional no cutscene bars
+		if (optional_string("+No_Autopilot_Interrupt"))
+			Cmdline_autopilot_interruptable = 0;
+
+		// No Nav selected message
+		char *msg_tags[] = { "$No Nav Selected:", "$Gliding:",
+			"$Too Close:", "$Hostiles:", "$Linked:", "$Hazard:",
+			"$Support Present:", "$Support Working:" };
+		for (int i = 0; i < NP_NUM_MESSAGES; i++)
+		{
+			required_string(msg_tags[i]);
+
+			required_string("+Msg:");
+			stuff_string(NavMsgs[i].message, F_MESSAGE, 256);
+
+			required_string("+Snd File:");
+			stuff_string(NavMsgs[i].filename, F_NAME, 256);
+		}
+
+
+		required_string("#END");
+	}
+	catch (const parse::ParseException& e)
+	{
+		mprintf(("TABLES: Unable to parse '%s'!  Error message = %s.\n", (filename) ? filename : "<default autopilot.tbl>", e.what()));
 		return;
 	}
-
-	if (filename == NULL)
-		read_file_text_from_array(defaults_get_file("autopilot.tbl"));
-	else
-		read_file_text(filename, CF_TYPE_TABLES);
-
-	reset_parse();		
-
-	
-	required_string("#Autopilot");
-
-	// autopilot link distance
-	required_string("$Link Distance:");
-	stuff_int(&NavLinkDistance);
-
-	if (optional_string("$Interrupt autopilot if enemy within distance:"))
-		stuff_int(&AutopilotMinEnemyDistance);
-	else
-		AutopilotMinEnemyDistance = 5000;
-
-	if (optional_string("$Interrupt autopilot if asteroid within distance:"))
-		stuff_int(&AutopilotMinAsteroidDistance);
-	else
-		AutopilotMinAsteroidDistance = 1000;
-
-	if (optional_string("$Lock Weapons During Autopilot:"))
-		stuff_boolean(&LockWeaponsDuringAutopilot);
-	else
-		LockWeaponsDuringAutopilot = false;
-
-	// optional no cutscene bars
-	if (optional_string("+No_Cutscene_Bars"))
-		UseCutsceneBars = false;
-	// optional no cutscene bars
-	if (optional_string("+No_Autopilot_Interrupt"))
-		Cmdline_autopilot_interruptable = 0;
-
-	// No Nav selected message
-	char *msg_tags[] = { "$No Nav Selected:", "$Gliding:",
-		"$Too Close:", "$Hostiles:", "$Linked:", "$Hazard:",
-		"$Support Present:", "$Support Working:" };
-	for (int i = 0; i < NP_NUM_MESSAGES; i++)
-	{
-		required_string(msg_tags[i]);
-		
-		required_string("+Msg:");
-		stuff_string(NavMsgs[i].message, F_MESSAGE, 256);
-
-		required_string("+Snd File:");
-		stuff_string(NavMsgs[i].filename, F_NAME, 256);
-	}
-
-
-	required_string("#END");
 }
 
 

@@ -9,29 +9,28 @@
 
 
 
-#include "lab/wmcgui.h"
+#include "cmdline/cmdline.h"
+#include "freespace2/freespace.h"
 #include "gamesequence/gamesequence.h"
+#include "graphics/gropengldraw.h"
+#include "graphics/gropengllight.h"
+#include "graphics/gropenglshader.h"
+#include "graphics/shadows.h"
+#include "hud/hudshield.h"
 #include "io/key.h"
 #include "io/timer.h"
-#include "freespace2/freespace.h"
-#include "cmdline/cmdline.h"
-#include "ship/ship.h"
-#include "weapon/weapon.h"
-#include "render/3d.h"
+#include "lab/wmcgui.h"
 #include "lighting/lighting.h"
-#include "model/model.h"
-#include "missionui/missionscreencommon.h"
-#include "weapon/beam.h"
 #include "mission/missionparse.h"
-#include "species_defs/species_defs.h"
-#include "playerman/managepilot.h"
+#include "missionui/missionscreencommon.h"
+#include "model/model.h"
 #include "object/objectsnd.h"
-#include "globalincs/pstypes.h"
-#include "graphics/gropenglshader.h"
-#include "graphics/gropengldraw.h"
-#include "hud/hudshield.h"
-#include "graphics/gropengllight.h"
-#include "graphics/shadows.h"
+#include "playerman/managepilot.h"
+#include "render/3d.h"
+#include "ship/ship.h"
+#include "species_defs/species_defs.h"
+#include "weapon/beam.h"
+#include "weapon/weapon.h"
 
 // flags
 #define LAB_FLAG_NORMAL				(0)		// default
@@ -43,6 +42,7 @@
 #define LAB_FLAG_UNUSED				(1<<5)	// feel free to change that to something you need - Valathil
 #define LAB_FLAG_SHOW_WEAPONS		(1<<6)	// determines if external weapons models are displayed
 #define LAB_FLAG_INITIAL_ROTATION	(1<<7)	// initial rotation setting
+#define LAB_FLAG_DESTROYED_SUBSYSTEMS	(1<<8)	// render model as if all subsystems are destroyed
 
 // modes
 #define LAB_MODE_NONE		0	// not showing anything
@@ -145,7 +145,7 @@ void labviewer_setup_subsys_rotation()
 		return;
 	}
 
-	if (Lab_selected_index >= Num_ship_classes) {
+	if (Lab_selected_index >= static_cast<int>(Ship_info.size())) {
 		Int3();
 		return;
 	}
@@ -688,7 +688,7 @@ void labviewer_add_model_thrusters(model_render_params *render_info, ship_info *
 	mst.distortion_bitmap = thruster_distortion_bitmap;
 
 	mst.use_ab = Lab_thrust_afterburn;
-	mst.glow_noise = thruster_glow_noise;
+	mst.glow_noise = thruster_glow_noise * sip->thruster_glow_noise_mult;
 	mst.rotvel = vmd_zero_vector;
 
 	if (Lab_mode == LAB_MODE_SHIP) {
@@ -844,7 +844,7 @@ void labviewer_render_model(float frametime)
 	light_rotate_all();
 	// lighting for techroom
 
-	render_info.set_outline_color(255, 255, 255);
+	render_info.set_color(255, 255, 255);
 	render_info.set_detail_level_lock(Lab_model_LOD);
 
 	int flagggs = Lab_model_flags;
@@ -939,7 +939,7 @@ void labviewer_render_model(float frametime)
 
 			//render weapon models if selected
 			if ( Lab_mode == LAB_MODE_SHIP && ( Lab_viewer_flags & LAB_FLAG_SHOW_WEAPONS ) ) {
-				int j,k,l;
+				int k,l;
 				g3_start_instance_matrix(&vmd_zero_vector, &Lab_viewer_orient, true);
 				l = 0;
 
@@ -1003,6 +1003,12 @@ void labviewer_render_model(float frametime)
 // 			MIN((timer_get_milliseconds()-anim_timer_start)/1500.0f, 2.0f)
 // 		);
 
+		if (sip != NULL) {
+			if (Lab_viewer_flags & LAB_FLAG_DESTROYED_SUBSYSTEMS) {
+				model_show_damaged(Lab_model_num, 1);
+			}
+		}
+
 		//render weapon models if selected
 		if (Lab_mode == LAB_MODE_SHIP && (Lab_viewer_flags & LAB_FLAG_SHOW_WEAPONS)) {
 			int k,l;
@@ -1054,6 +1060,7 @@ void labviewer_render_model(float frametime)
 			g3_done_instance(true);
 		}
 
+		render_info.set_debug_flags(Lab_model_debug_flags);
 		render_info.set_flags(flagggs);
 		render_info.set_object_number(Lab_selected_object);
 
@@ -1261,7 +1268,7 @@ void labviewer_do_render(float frametime)
 	if ( (Lab_model_num < 0) && (Lab_bitmap_id < 0) ) {
 		gr_get_string_size(&w, &h, "Viewer off");
 		gr_set_color_fast(&Color_white);
-		gr_string(gr_screen.clip_right - w, gr_screen.clip_bottom - h, "Viewer off", GR_RESIZE_NONE);
+		gr_string(gr_screen.center_offset_x + gr_screen.center_w - w, gr_screen.center_offset_y + gr_screen.center_h - h, "Viewer off", GR_RESIZE_NONE);
 
 		return;
 	}
@@ -1279,7 +1286,7 @@ void labviewer_do_render(float frametime)
 		if ( strlen(Lab_model_filename) ) {
 			gr_get_string_size(&w, &h, Lab_model_filename);
 			gr_set_color_fast(&Color_white);
-			gr_string(gr_screen.clip_right - w, gr_screen.clip_bottom - h, Lab_model_filename, GR_RESIZE_NONE);
+			gr_string(gr_screen.center_offset_x + gr_screen.center_w - w, gr_screen.center_offset_y + gr_screen.center_h - h, Lab_model_filename, GR_RESIZE_NONE);
 		}
 	} else if (Lab_bitmap_id >= 0) {
 		gr_scene_texture_begin();
@@ -1292,7 +1299,7 @@ void labviewer_do_render(float frametime)
 		if ( strlen(Lab_bitmap_filename) ) {
 			gr_get_string_size(&w, &h, Lab_bitmap_filename);
 			gr_set_color_fast(&Color_white);
-			gr_string(gr_screen.clip_right - w, gr_screen.clip_bottom - h, Lab_bitmap_filename, GR_RESIZE_NONE);
+			gr_string(gr_screen.center_offset_x + gr_screen.center_w - w, gr_screen.center_offset_y + gr_screen.center_h - h, Lab_bitmap_filename, GR_RESIZE_NONE);
 		}
 	}
 
@@ -1306,26 +1313,26 @@ void labviewer_do_render(float frametime)
 	gr_set_color_fast(&Color_white);
 
 	if (frametotal != 0.0f) {
-		gr_printf_no_resize(gr_screen.clip_left + 2, gr_screen.clip_bottom - gr_get_font_height(), "FPS: %i", fl2i(Framerate + 0.5f));
+		gr_printf_no_resize(gr_screen.center_offset_x + 2, gr_screen.center_offset_y + gr_screen.center_h - gr_get_font_height(), "FPS: %i", fl2i(Framerate + 0.5f));
 	} else {
-		gr_string(gr_screen.clip_left + 10, gr_screen.clip_bottom - gr_get_font_height(), "FPS: ?", GR_RESIZE_NONE);
+		gr_string(gr_screen.center_offset_x + 10, gr_screen.center_offset_y + gr_screen.center_h - gr_get_font_height(), "FPS: ?", GR_RESIZE_NONE);
 	}
 
 	//Print FXAA preset
 	if (Cmdline_fxaa && !PostProcessing_override)
-		gr_printf_no_resize(gr_screen.clip_left + 2, gr_screen.clip_bottom - (gr_get_font_height() * 2) - 3, "FXAA Preset: %i", Cmdline_fxaa_preset);
+		gr_printf_no_resize(gr_screen.center_offset_x + 2, gr_screen.center_offset_y + gr_screen.center_h - (gr_get_font_height() * 2) - 3, "FXAA Preset: %i", Cmdline_fxaa_preset);
 
 	//Print bloom intensity
 	if (Cmdline_bloom_intensity && !PostProcessing_override)
-		gr_printf_no_resize(gr_screen.clip_left + 2, gr_screen.clip_bottom - (gr_get_font_height() * 3) - 3, "Bloom intensity: %i", Cmdline_bloom_intensity);
+		gr_printf_no_resize(gr_screen.center_offset_x + 2, gr_screen.center_offset_y + gr_screen.center_h - (gr_get_font_height() * 3) - 3, "Bloom intensity: %i", Cmdline_bloom_intensity);
 
 	//Print current Team Color setting, if any
 	if (Lab_team_color != "<none>")
-		gr_printf_no_resize(gr_screen.clip_left + 2, gr_screen.clip_bottom - (gr_get_font_height() * 4) - 3, "Use T and Y to cycle through available Team Color settings. Current: %s", Lab_team_color.c_str());
+		gr_printf_no_resize(gr_screen.center_offset_x + 2, gr_screen.center_offset_y + gr_screen.center_h - (gr_get_font_height() * 4) - 3, "Use T and Y to cycle through available Team Color settings. Current: %s", Lab_team_color.c_str());
 
 	//Display helpful text
 	if (!PostProcessing_override)
-		gr_printf_no_resize(gr_screen.clip_left + 70, gr_screen.clip_bottom - gr_get_font_height(), "Use number keys to switch between FXAA presets. B and N can be used to adjust bloom.");
+		gr_printf_no_resize(gr_screen.center_offset_x + 70, gr_screen.center_offset_y + gr_screen.center_h - gr_get_font_height(), "Use number keys to switch between FXAA presets. B and N can be used to adjust bloom.");
 }
 
 void labviewer_exit(Button *caller)
@@ -1355,12 +1362,12 @@ void labviewer_close_class_window(GUIObject *caller)
 void labviewer_set_class_window(int mode)
 {
 	if (Lab_class_window == NULL) {
-		Lab_class_window = (Window*)Lab_screen->Add(new Window("Class Window", 50, 50));
+		Lab_class_window = (Window*)Lab_screen->Add(new Window("Class Window", gr_screen.center_offset_x + 50, gr_screen.center_offset_y + 50));
 		Lab_class_window->SetCloseFunction(labviewer_close_class_window);
 	}
 
 	if (Lab_class_toolbar == NULL) {
-		Lab_class_toolbar = (Window*)Lab_screen->Add(new Window("Class Toolbar", 0, Lab_toolbar->GetHeight(), -1, -1, WS_NOTITLEBAR | WS_NONMOVEABLE));
+		Lab_class_toolbar = (Window*)Lab_screen->Add(new Window("Class Toolbar", gr_screen.center_offset_x + 0, gr_screen.center_offset_y + Lab_toolbar->GetHeight(), -1, -1, WS_NOTITLEBAR | WS_NONMOVEABLE));
 	}
 
 	// clear out all existing children
@@ -1551,7 +1558,7 @@ void labviewer_close_flags_window(GUIObject *caller)
 void labviewer_make_flags_window(Button *caller)
 {
 	if (Lab_flags_window == NULL) {
-		Lab_flags_window = (Window*) Lab_screen->Add(new Window("Flags Window", gr_screen.max_w - 205, 200));
+		Lab_flags_window = (Window*) Lab_screen->Add(new Window("Flags Window", gr_screen.center_offset_x + gr_screen.center_w - 205, gr_screen.center_offset_y + 200));
 		Lab_flags_window->SetCloseFunction(labviewer_close_flags_window);
 	}
 
@@ -1768,7 +1775,7 @@ void labviewer_update_variables_window()
 	// IMPORTANT NOTE: If you add something here, make sure you add it to labviewer_populate_variables_window() as well!
 	// ship variables ...
 	if (Lab_mode == LAB_MODE_SHIP) {
-		Assert( Lab_selected_index < Num_ship_classes );
+		Assert( Lab_selected_index < static_cast<int>(Ship_info.size()) );
 		ship_info *sip = &Ship_info[Lab_selected_index];
 
 		VAR_SET_VALUE(sip->name);
@@ -1856,7 +1863,7 @@ void labviewer_make_variables_window(Button *caller)
 		return;
 	}
 
-	Lab_variables_window = (Window*)Lab_screen->Add(new Window("Class Variables", gr_screen.max_w - (VAR_POS_RIGHTX + VAR_POS_RIGHTWIDTH + 25), 200));
+	Lab_variables_window = (Window*)Lab_screen->Add(new Window("Class Variables", gr_screen.center_offset_x + gr_screen.center_w - (VAR_POS_RIGHTX + VAR_POS_RIGHTWIDTH + 25), gr_screen.center_offset_y + 200));
 
 	// set our new title
 	if (Lab_mode == LAB_MODE_SHIP) {
@@ -1913,7 +1920,7 @@ void labviewer_make_render_options_window(Button *caller)
 		return;
 	}
 
-	Lab_render_options_window = (Window*)Lab_screen->Add(new Window("Render Options", gr_screen.max_w - 300, 200));
+	Lab_render_options_window = (Window*)Lab_screen->Add(new Window("Render Options", gr_screen.center_offset_x + gr_screen.center_w - 300, gr_screen.center_offset_y + 200));
 	Assert( Lab_render_options_window != NULL );
 
 	// add all of the flags that we want/need...
@@ -1965,6 +1972,7 @@ void labviewer_make_render_options_window(Button *caller)
 	ADD_RENDER_FLAG("Show Thrusters", Lab_model_flags, MR_SHOW_THRUSTERS);
 	ADD_RENDER_FLAG("Show Ship Weapons", Lab_viewer_flags, LAB_FLAG_SHOW_WEAPONS);
 	ADD_RENDER_FLAG("Initial Rotation", Lab_viewer_flags, LAB_FLAG_INITIAL_ROTATION);
+	ADD_RENDER_FLAG("Show Destroyed Subsystems", Lab_viewer_flags, LAB_FLAG_DESTROYED_SUBSYSTEMS);
 
 	// start tree
 	cmp = (Tree*)Lab_render_options_window->AddChild(new Tree("Detail Options Tree", 0, y + 2, NULL, Lab_render_options_window->GetWidth()));
@@ -2022,9 +2030,9 @@ void labviewer_make_desc_window(Button *caller)
 		return;
 	}
 
-	Lab_description_window = (Window*)Lab_screen->Add(new Window("Description", gr_screen.max_w - gr_screen.max_w/3 - 50,
-														gr_screen.max_h - gr_screen.max_h/6 - 50, gr_screen.max_w/3,
-														gr_screen.max_h/6));
+	Lab_description_window = (Window*)Lab_screen->Add(new Window("Description", gr_screen.center_offset_x + gr_screen.center_w - gr_screen.center_w/3 - 50,
+														gr_screen.center_offset_y + gr_screen.center_h - gr_screen.center_h/6 - 50, gr_screen.center_w/3,
+														gr_screen.center_h/6));
 	Lab_description_text = (Text*)Lab_description_window->AddChild(new Text("Description Text", "No ship selected.", 0, 0));
 
 	labviewer_update_desc_window();
@@ -2091,17 +2099,17 @@ void labviewer_make_ship_window(Button *caller)
 	SCP_string lod_name;
 	char buf[33];
 
-	for (idx = 0; idx < Num_ship_classes; idx++) {
-		if ( (Ship_info[idx].species >= 0) && (Ship_info[idx].species < (int)Species_info.size()) ) {
-			stip = Lab_species_nodes[Ship_info[idx].species];
+	for (auto it = Ship_info.cbegin(); it != Ship_info.cend(); ++it) {
+		if ( (it->species >= 0) && (it->species < (int)Species_info.size()) ) {
+			stip = Lab_species_nodes[it->species];
 		} else {
 			stip = Lab_species_nodes[Species_info.size()];
 		}
 
-		ctip = cmp->AddItem(stip, Ship_info[idx].name, idx, false, labviewer_change_ship);
+		ctip = cmp->AddItem(stip, it->name, std::distance(Ship_info.cbegin(), it), false, labviewer_change_ship);
 
 		if ( !Lab_in_mission ) {
-			for (int j = 0; j < Ship_info[idx].num_detail_levels; j++) {
+			for (int j = 0; j < it->num_detail_levels; j++) {
 				sprintf(buf, "%d", j);
 				lod_name = "LOD ";
 				lod_name += buf;
@@ -2343,6 +2351,7 @@ void labviewer_make_weap_window(Button* caller)
 			delete type_nodes[i];
 		}
 	}
+	delete[] type_nodes;
 
 	Lab_mode = LAB_MODE_WEAPON;
 
@@ -2395,7 +2404,7 @@ void lab_init()
 	//We start by creating the screen/toolbar
 	Lab_screen = GUI_system.PushScreen(new GUIScreen("Lab"));
 
-	Lab_toolbar = (Window*)Lab_screen->Add(new Window("Toolbar", 0, 0, -1, -1, WS_NOTITLEBAR | WS_NONMOVEABLE));
+	Lab_toolbar = (Window*)Lab_screen->Add(new Window("Toolbar", gr_screen.center_offset_x, gr_screen.center_offset_y, -1, -1, WS_NOTITLEBAR | WS_NONMOVEABLE));
 
 	// start filling the main toolbar
 	x = 0;
@@ -2484,7 +2493,7 @@ void lab_do_frame(float frametime)
 		}
 
 		//Due to switch scoping rules, this has to be declared here
-		SCP_map<SCP_string, team_color>::iterator color = Team_Colors.find(Lab_team_color);
+		SCP_map<SCP_string, team_color>::iterator color_itr = Team_Colors.find(Lab_team_color);
 		// handle any key presses
 		switch (key) {
 			// switch between the current insignia bitmap to render with
@@ -2571,20 +2580,20 @@ void lab_do_frame(float frametime)
 				break;
 
 			case KEY_T:
-				if (color == Team_Colors.begin()) {
-					color = --Team_Colors.end();
-					Lab_team_color = color->first;
+				if (color_itr == Team_Colors.begin()) {
+					color_itr = --Team_Colors.end();
+					Lab_team_color = color_itr->first;
 				} else {
-					--color;
-					Lab_team_color = color->first;
+					--color_itr;
+					Lab_team_color = color_itr->first;
 				}
 				break;
 
 			case KEY_Y:
-				++color;
-				if (color == Team_Colors.end())
-					color = Team_Colors.begin();
-				Lab_team_color = color->first;
+				++color_itr;
+				if (color_itr == Team_Colors.end())
+					color_itr = Team_Colors.begin();
+				Lab_team_color = color_itr->first;
 				break;
 
 			// bail...

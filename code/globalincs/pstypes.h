@@ -1,11 +1,11 @@
 /*
  * Copyright (C) Volition, Inc. 1999.  All rights reserved.
  *
- * All source code herein is the property of Volition, Inc. You may not sell 
- * or otherwise commercially exploit the source or things you created based on the 
+ * All source code herein is the property of Volition, Inc. You may not sell
+ * or otherwise commercially exploit the source or things you created based on the
  * source.
  *
-*/ 
+*/
 
 
 
@@ -17,10 +17,12 @@
 #include <stdlib.h>
 #include <memory.h>
 #include <string.h>
+#include "globalincs/toolchain.h"
 
 #if defined( __x86_64__ ) || defined( _WIN64 )
 #define IAM_64BIT 1
 #endif
+
 
 #include "windows_stub/config.h"
 
@@ -61,7 +63,6 @@ typedef unsigned char ubyte;
 typedef unsigned short ushort;
 typedef unsigned int uint;
 typedef unsigned long ulong;
-
 
 #define HARDWARE_ONLY
 
@@ -185,14 +186,6 @@ typedef struct effect_vertex {
 	ubyte r, g, b, a;
 } effect_vertex;
 
-struct fx_vertex {
-	vec3d position;
-	vec3d normal;
-	uv_pair tex_coord;
-	float size;
-	ubyte r, g, b, a;
-};
-
 struct particle_pnt {
 	vec3d position;
 	float size;
@@ -227,21 +220,17 @@ typedef struct coord2d {
 
 //This are defined in MainWin.c
 extern void _cdecl WinAssert(char * text,char *filename, int line);
-void _cdecl WinAssert(char * text, char * filename, int linenum, const char * format, ... );
-extern void LuaError(struct lua_State *L, char *format=NULL, ...);
-extern void _cdecl Error( const char * filename, int line, const char * format, ... );
-extern void _cdecl Warning( char * filename, int line, const char * format, ... );
-extern void _cdecl WarningEx( char *filename, int line, const char *format, ... );
+void _cdecl WinAssert(char * text, char * filename, int linenum, SCP_FORMAT_STRING const char * format, ... ) SCP_FORMAT_STRING_ARGS(4, 5);
+extern void LuaError(struct lua_State *L, SCP_FORMAT_STRING const char *format=NULL, ...) SCP_FORMAT_STRING_ARGS(2, 3);
+extern void _cdecl Error( const char * filename, int line, SCP_FORMAT_STRING const char * format, ... ) SCP_FORMAT_STRING_ARGS(3, 4);
+extern void _cdecl Warning( char * filename, int line, SCP_FORMAT_STRING const char * format, ... ) SCP_FORMAT_STRING_ARGS(3, 4);
+extern void _cdecl WarningEx( char *filename, int line, SCP_FORMAT_STRING const char *format, ... ) SCP_FORMAT_STRING_ARGS(3, 4);
+extern void _cdecl ReleaseWarning(char *filename, int line, SCP_FORMAT_STRING const char *format, ...) SCP_FORMAT_STRING_ARGS(3, 4);
 
 extern int Global_warning_count;
 extern int Global_error_count;
 
 #include "osapi/outwnd.h"
-
-// remove __attribute__ on non-GCC compilers
-#ifndef __GNUC__
-#	define  __attribute__(x)  /*NOTHING*/
-#endif
 
 // To debug printf do this:
 // mprintf(( "Error opening %s\n", filename ));
@@ -249,37 +238,25 @@ extern int Global_error_count;
 #define mprintf(args) outwnd_printf2 args
 #define nprintf(args) outwnd_printf args
 #else
-#define mprintf(args) 
-#define nprintf(args) 
+#define mprintf(args)
+#define nprintf(args)
 #endif
 
 #define LOCATION __FILE__,__LINE__
 
 // To flag an error, you can do this:
 // Error( __FILE__, __LINE__, "Error opening %s", filename );
-// or, 
+// or,
 // Error( LOCATION, "Error opening %s", filename );
 
 /*******************NEVER UNCOMMENT Assert ************************************************/
 // Please never uncomment the functionality of Assert in debug
 // The code, as with all development like this is littered with Asserts which are designed to throw
 // up an error message if variables are out of range.
-
-#define ASSUME(x)
-
 // Disabling this functionality is dangerous, crazy values can run rampent unchecked and the longer its disabled
 // the more likely you are to have problems getting it working again.
 #if defined(NDEBUG)
 #	define Assert(expr) do { ASSUME(expr); } while (0)
-#	ifndef _MSC_VER   // non MS compilers
-#		define Assertion(expr, msg, ...) do {} while (0)
-#	else
-#		if _MSC_VER >= 1400	// VC 2005 or greater
-#			define Assertion(expr, msg, ...) do { ASSUME(expr); } while (0)
-#		else
-#			define Assertion(expr, msg) do {} while (0)
-#		endif
-#	endif
 #else
 	void gr_activate(int);
 #	define Assert(expr) do {\
@@ -288,30 +265,6 @@ extern int Global_error_count;
 		}\
 		ASSUME( expr );\
 	} while (0)
-
-	// Assertion can only use its proper fuctionality in compilers that support variadic macro
-#	ifndef _MSC_VER   // non MS compilers
-#		define Assertion(expr, msg, ...) do {\
-			if (!(expr)) {\
-				WinAssert(#expr,__FILE__,__LINE__, msg , ##__VA_ARGS__ );\
-			}\
-		} while (0)
-#	else
-#		if _MSC_VER >= 1400	// VC 2005 or greater
-#			define Assertion(expr, msg, ...) do {\
-				if (!(expr)) {\
-					WinAssert(#expr,__FILE__,__LINE__, msg, __VA_ARGS__ );\
-				}\
-				ASSUME(expr);\
-			} while (0)
-#		else // older MSVC compilers
-#			define Assertion(expr, msg) do {\
-				if (!(expr)) {\
-					WinAssert(#expr,__FILE__,__LINE__);\
-				}\
-			} while (0)
-#		endif
-#	endif
 #endif
 /*******************NEVER COMMENT Assert ************************************************/
 
@@ -321,7 +274,7 @@ extern int Global_error_count;
 // VerifyEx
 #ifndef _MSC_VER   // non MS compilers
 #	define VerifyEx(x, y, ...) do { if (!(x)) { Error(LOCATION, "Verify failure: %s with help text " #y "\n", #x, ##__VA_ARGS__); } ASSUME(x); } while(0)
-#else 
+#else
 #	if _MSC_VER >= 1400	// VC 2005 or greater
 #		define VerifyEx(x, y, ...) do { if (!(x)) { Error(LOCATION, "Verify failure: %s with help text " #y "\n", #x, __VA_ARGS__); } ASSUME(x); } while(0)
 #	else // everything else
@@ -331,7 +284,7 @@ extern int Global_error_count;
 
 #if defined(NDEBUG)
 	// No debug version of Int3
-	#define Int3() do { } while (0) 
+	#define Int3() do { } while (0)
 #else
 	void debug_int3(char *file, int line);
 
@@ -379,7 +332,7 @@ extern int Fred_running;  // Is Fred running, or FreeSpace?
 						((ubyte)x << 8) |			\
 						(((ushort)x) >> 8)			\
 						)
-						
+
 #define SWAPINT(x)		(							\
 						(x << 24) |					\
 						(((ulong)x) >> 24) |		\
@@ -467,7 +420,7 @@ typedef struct lod_checker {
 #define VALID_FNAME(x) ( strlen((x)) && stricmp((x), "none") && stricmp((x), "<none>") )
 
 
-// Callback Loading function. 
+// Callback Loading function.
 // If you pass a function to this, that function will get called
 // around 10x per second, so you can update the screen.
 // Pass NULL to turn it off.
@@ -479,7 +432,7 @@ typedef struct lod_checker {
 // by calling game_busy_callback(NULL).   Game_busy_callback
 // returns the current count, so you can tell how many times
 // game_busy got called.
-// If delta_step is above 0, then it will also make sure it 
+// If delta_step is above 0, then it will also make sure it
 // calls the callback each time count steps 'delta_step' even
 // if 1/10th of a second hasn't elapsed.
 extern int game_busy_callback( void (*callback)(int count), int delta_step = -1 );
@@ -495,7 +448,7 @@ class monitor {
 	public:
 	char	*name;
 	int	value;					// Value that gets cleared to 0 each frame.
-	int	min, max, sum, cnt;		// Min & Max of value.  Sum is used to calculate average 
+	int	min, max, sum, cnt;		// Min & Max of value.  Sum is used to calculate average
 	monitor(char *name);		// constructor
 };
 
@@ -541,7 +494,7 @@ template <class T> void CAP( T& v, T mn, T mx )
 // ========================================================
 
 // here is the define for the stamp for this set of code
-#define STAMP_STRING "\001\001\001\001\002\002\002\002Read the Foundation Novels from Asimov.  I liked them." 
+#define STAMP_STRING "\001\001\001\001\002\002\002\002Read the Foundation Novels from Asimov.  I liked them."
 #define STAMP_STRING_LENGTH			80
 #define DEFAULT_CHECKSUM_STRING		"\001\001\001\001"
 #define DEFAULT_TIME_STRING			"\002\002\002\002"
@@ -586,7 +539,7 @@ void vm_free_all();
 	// allocates some RAM for a string of a certain length
 	char *_vm_strndup( const char *ptr, int size, char *filename, int line );
 
-	// Frees some RAM. 
+	// Frees some RAM.
 	void _vm_free( void *ptr, char *filename = NULL, int line= -1 );
 
 	// reallocates some RAM
@@ -614,7 +567,7 @@ void vm_free_all();
 	// allocates some RAM for a strings of a certain length
 	char *_vm_strndup( const char *ptr, int size );
 
-	// Frees some RAM. 
+	// Frees some RAM.
 	void _vm_free( void *ptr );
 
 	// reallocates some RAM
@@ -667,24 +620,96 @@ public:
 	bool isValid();
 };
 
-/* Restrict keyword semantics are different under VC and GCC */
-
-#ifndef NO_RESTRICT_USE
-#	ifdef _MSC_VER
-#		if _MSC_VER >= 1400
-#			define RESTRICT __restrict
-#		else
-#			define RESTRICT
-#		endif
-#	else
-#		define RESTRICT restrict
-#	endif
-#else
-#	define RESTRICT
-#endif
-
 #include "globalincs/vmallocator.h"
 #include "globalincs/safe_strings.h"
 
+// DEBUG compile time catch for dangerous uses of memset/memcpy/memmove
+// would prefer std::is_trivially_copyable but it's not supported by gcc yet
+// ref: http://gcc.gnu.org/onlinedocs/libstdc++/manual/status.html
+#ifndef NDEBUG
+	#if defined(HAVE_CXX11)
+	// feature support seems to be: gcc   clang   msvc
+	// auto                         4.4   2.9     2010
+	// std::is_trivial              4.5   ?       2012 (2010 only duplicates std::is_pod)
+	// static_assert                4.3   2.9     2010
+	#include <type_traits>
+	#include <cstring>
+
+	// MEMSET!
+	const auto ptr_memset = std::memset;
+	#define memset memset_if_trivial_else_error
+
+	template<typename T>
+	void *memset_if_trivial_else_error(T *memset_data, int ch, size_t count)
+	{
+		static_assert(std::is_trivial<T>::value, "memset on non-trivial object");
+		return ptr_memset(memset_data, ch, count);
+	}
+
+	// assume memset on a void* is "safe"
+	// only used in cutscene/mveplayer.cpp:mve_video_createbuf()
+	inline void *memset_if_trivial_else_error(void *memset_data, int ch, size_t count)
+	{
+		return ptr_memset(memset_data, ch, count);
+	}
+
+	// MEMCPY!
+	const auto ptr_memcpy = std::memcpy;
+	#define memcpy memcpy_if_trivial_else_error
+
+	template<typename T, typename U>
+	void *memcpy_if_trivial_else_error(T *memcpy_dest, U *src, size_t count)
+	{
+		static_assert(std::is_trivial<T>::value, "memcpy on non-trivial object T");
+		static_assert(std::is_trivial<U>::value, "memcpy on non-trivial object U");
+		return ptr_memcpy(memcpy_dest, src, count);
+	}
+
+	// assume memcpy with void* is "safe"
+	// used in:
+	//   globalincs/systemvars.cpp:insertion_sort()
+	//   network/chat_api.cpp:AddChatCommandToQueue()
+	//   network/multi_obj.cpp:multi_oo_sort_func()
+	//   parse/lua.cpp:ade_get_args() && ade_set_args()
+	//
+	// probably should setup a static_assert on insertion_sort as well
+	template<typename U>
+	void *memcpy_if_trivial_else_error(void *memcpy_dest, U *memcpy_src, size_t count)
+	{
+		static_assert(std::is_trivial<U>::value, "memcpy on non-trivial object U");
+		return ptr_memcpy(memcpy_dest, memcpy_src, count);
+	}
+
+	template<typename T>
+	void *memcpy_if_trivial_else_error(T *memcpy_dest, void *memcpy_src, size_t count)
+	{
+		static_assert(std::is_trivial<T>::value, "memcpy on non-trivial object T");
+		return ptr_memcpy(memcpy_dest, memcpy_src, count);
+	}
+	template<typename T>
+	void *memcpy_if_trivial_else_error(T *memcpy_dest, const void *memcpy_src, size_t count)
+	{
+		static_assert(std::is_trivial<T>::value, "memcpy on non-trivial object T");
+		return ptr_memcpy(memcpy_dest, memcpy_src, count);
+	}
+
+	inline void *memcpy_if_trivial_else_error(void *memcpy_dest, void *memcpy_src, size_t count)
+	{
+		return ptr_memcpy(memcpy_dest, memcpy_src, count);
+	}
+
+	// MEMMOVE!
+	const auto ptr_memmove = std::memmove;
+	#define memmove memmove_if_trivial_else_error
+
+	template<typename T, typename U>
+	void *memmove_if_trivial_else_error(T *memmove_dest, U *memmove_src, size_t count)
+	{
+		static_assert(std::is_trivial<T>::value, "memmove on non-trivial object T");
+		static_assert(std::is_trivial<U>::value, "memmove on non-trivial object U");
+		return ptr_memmove(memmove_dest, memmove_src, count);
+	}
+	#endif // HAVE_CXX11
+#endif // NDEBUG
 
 #endif		// PS_TYPES_H

@@ -27,7 +27,6 @@
 #include "math/fvi.h"	//	For find_plane_line_intersection
 #include "math/vecmat.h"
 #include "io/key.h"
-#include "ai/ailocal.h"
 #include "ai/ai.h"
 #include "ai/aigoals.h"
 #include "ship/ship.h"	// for ship names
@@ -774,7 +773,7 @@ int drag_rotate_objects()
 
 	leader = &Objects[cur_object_index];
 	leader_orient = leader->orient;			// save original orientation
-	vm_copy_transpose_matrix(&leader_transpose, &leader_orient);
+	vm_copy_transpose(&leader_transpose, &leader_orient);
 
 	vm_angles_2_matrix(&rotmat, &a);
 	vm_matrix_x_matrix(&newmat, &leader->orient, &rotmat);
@@ -790,7 +789,7 @@ int drag_rotate_objects()
 
 				// change rotation matrix to rotate in opposite direction.  This rotation
 				// matrix is what the leader ship has rotated by.
-				vm_copy_transpose_matrix(&rot_trans, &rotmat);
+				vm_copy_transpose(&rot_trans, &rotmat);
 
 				// get point relative to our point of rotation (make POR the origin).
 				vm_vec_sub(&tmpv1, &objp->pos, &leader->pos);
@@ -1468,9 +1467,9 @@ void CFREDView::OnContextMenu(CWnd* /*pWnd*/, CPoint point)
 					(UINT) species_submenu[i].m_hMenu, Species_info[i].species_name);
 			}
 
-			for (i=0; i<Num_ship_classes; i++)
-				species_submenu[Ship_info[i].species].AppendMenu(MF_STRING |
-					MF_ENABLED, SHIP_TYPES + i, Ship_info[i].name);
+			for (auto it = Ship_info.cbegin(); it != Ship_info.cend(); ++it)
+				species_submenu[it->species].AppendMenu(MF_STRING |
+					MF_ENABLED, SHIP_TYPES + i, it->name);
 
 			pPopup->AppendMenu(MF_STRING | MF_POPUP | MF_ENABLED,
 				(UINT) shipPopup.m_hMenu, "New Object Type");
@@ -1620,7 +1619,7 @@ BOOL CFREDView::OnCmdMsg(UINT nID, int nCode, void* pExtra, AFX_CMDHANDLERINFO* 
 	int id = (int) nID;
 
 	if (!pHandlerInfo) {
-		if ((id >= SHIP_TYPES) && (id < SHIP_TYPES + Num_ship_classes + 3)) {
+		if ((id >= SHIP_TYPES) && (id < SHIP_TYPES + static_cast<int>(Ship_info.size()) + 3)) {
 			if (nCode == CN_COMMAND) {
 				cur_model_index = id - SHIP_TYPES;
 				m_new_ship_type_combo_box.SetCurSelNEW(cur_model_index);
@@ -2454,7 +2453,7 @@ int CFREDView::global_error_check()
 			}
 
 			z = Ships[i].ship_info_index;
-			if ((z < 0) || (z >= Num_ship_classes)){
+			if ((z < 0) || (z >= static_cast<int>(Ship_info.size()))){
 				return internal_error("A ship has an illegal class");
 			}
 

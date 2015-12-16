@@ -8,20 +8,22 @@
 */ 
 
 
-#include "hud/hud.h"
+#include "ai/aigoals.h"
 #include "asteroid/asteroid.h"
+#include "bmpman/bmpman.h"
 #include "cmdline/cmdline.h"
 #include "freespace2/freespace.h"
 #include "gamesnd/eventmusic.h"
 #include "gamesnd/gamesnd.h"
 #include "globalincs/alphacolors.h"
 #include "globalincs/linklist.h"
-#include "graphics/font.h"
+#include "hud/hud.h"
 #include "hud/hudconfig.h"
 #include "hud/hudescort.h"
 #include "hud/hudets.h"
 #include "hud/hudlock.h"
 #include "hud/hudmessage.h"
+#include "hud/hudnavigation.h"	//kazan
 #include "hud/hudobserver.h"
 #include "hud/hudreticle.h"
 #include "hud/hudshield.h"
@@ -29,9 +31,7 @@
 #include "hud/hudtarget.h"
 #include "hud/hudtargetbox.h"
 #include "hud/hudwingmanstatus.h"
-#include "hud/hudparse.h"
-#include "object/objectdock.h"
-#include "hud/hudnavigation.h"	//kazan
+#include "iff_defs/iff_defs.h"
 #include "io/timer.h"
 #include "localization/localize.h"
 #include "mission/missiongoals.h"
@@ -40,21 +40,19 @@
 #include "mission/missiontraining.h"
 #include "missionui/redalert.h"
 #include "model/model.h"
+#include "network/multi_pmsg.h"
+#include "network/multi_voice.h"
+#include "network/multiutil.h"
 #include "object/object.h"
+#include "object/objectdock.h"
 #include "playerman/player.h"
 #include "radar/radar.h"
+#include "radar/radarsetup.h"
 #include "render/3d.h"
-#include "ai/aigoals.h"
 #include "ship/ship.h"
 #include "starfield/supernova.h"
 #include "weapon/emp.h"
 #include "weapon/weapon.h"
-#include "radar/radarsetup.h"
-#include "iff_defs/iff_defs.h"
-#include "network/multiutil.h"
-#include "network/multi_voice.h"
-#include "network/multi_pmsg.h"
-#include "bmpman/bmpman.h"
 
 SCP_vector<HudGauge*> default_hud_gauges;
 
@@ -151,49 +149,6 @@ int Supernova_coords[GR_NUM_RESOLUTIONS][2] = {
 	}
 };
 
-// used to draw the kills gauge
-hud_frames Kills_gauge;
-int Kills_gauge_loaded = 0;
-int Kills_gauge_coords[GR_NUM_RESOLUTIONS][2] = {
-	{ // GR_640
-		497, 361
-	},
-	{ // GR_1024
-		880, 624
-	}
-};
-int Kills_text_coords[GR_NUM_RESOLUTIONS][2] = {
-	{ // GR_640
-		503, 365
-	},
-	{ // GR_1024
-		886, 628
-	}
-};
-
-int Kills_text_val_coords_gr[GR_NUM_RESOLUTIONS][2] = {
-	{ // GR_640
-		615, 365
-	},
-	{ // GR_1024
-		984, 628
-	}
-};
-
-int Kills_text_val_coords[GR_NUM_RESOLUTIONS][2] = {
-	{ // GR_640
-		571, 365
-	},
-	{ // GR_1024
-		954, 628
-	}
-};
-
-char Kills_fname[GR_NUM_RESOLUTIONS][MAX_FILENAME_LEN] = {
-	"kills1",
-	"kills1"
-};
-
 // used to draw the hud support view
 static int Hud_support_view_active;
 static int Hud_support_view_abort;		// active when we need to display abort message
@@ -237,7 +192,6 @@ int hud_subspace_notify_active();
 int hud_objective_notify_active();
 void hud_subspace_notify_abort();
 void hud_maybe_display_subspace_notify();
-void hud_init_kills_gauge();
 int hud_maybe_render_emp_icon();
 void hud_init_emp_icon();
 
@@ -713,7 +667,7 @@ void HudGauge::renderString(int x, int y, const char *str)
 	int nx = 0, ny = 0;
 
 	if ( gr_screen.rendering_to_texture != -1 ) {
-		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, true);
+		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, target_w, target_h, true);
 	} else {
 		if ( reticle_follow ) {
 			nx = HUD_nose_x;
@@ -736,7 +690,7 @@ void HudGauge::renderString(int x, int y, int gauge_id, const char *str)
 	int nx = 0, ny = 0;
 
 	if ( gr_screen.rendering_to_texture != -1 ) {
-		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, true);
+		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, target_w, target_h, true);
 	} else {
 		if ( reticle_follow ) {
 			nx = HUD_nose_x;
@@ -751,7 +705,7 @@ void HudGauge::renderString(int x, int y, int gauge_id, const char *str)
 	}
 
 	if ( gauge_id > -2 ) {
-		emp_hud_string(x + nx, y + ny, gauge_id, str, true);
+		emp_hud_string(x + nx, y + ny, gauge_id, str, GR_RESIZE_FULL);
 	} else {
 		gr_string(x + nx, y + ny, str);
 	}
@@ -806,7 +760,7 @@ void HudGauge::renderBitmapColor(int frame, int x, int y)
 	emp_hud_jitter(&x, &y);
 
 	if ( gr_screen.rendering_to_texture != -1 ) {
-		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, true);
+		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, target_w, target_h, true);
 	} else {
 		if ( reticle_follow ) {
 			nx = HUD_nose_x;
@@ -836,7 +790,7 @@ void HudGauge::renderBitmap(int x, int y)
 	emp_hud_jitter(&x, &y);
 
 	if ( gr_screen.rendering_to_texture != -1 ) {
-		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, true);
+		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, target_w, target_h, true);
 	} else {
 		if ( reticle_follow ) {
 			nx = HUD_nose_x;
@@ -874,7 +828,7 @@ void HudGauge::renderBitmapEx(int frame, int x, int y, int w, int h, int sx, int
 	gr_set_bitmap(frame);
 
 	if( gr_screen.rendering_to_texture != -1 ) {
-		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, true);
+		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, target_w, target_h, true);
 	} else {
 		if ( reticle_follow ) {
 			nx = HUD_nose_x;
@@ -898,7 +852,7 @@ void HudGauge::renderLine(int x1, int y1, int x2, int y2)
 	int nx = 0, ny = 0;
 
 	if ( gr_screen.rendering_to_texture != -1 ) {
-		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, true);
+		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, target_w, target_h, true);
 	} else {
 		if ( reticle_follow ) {
 			nx = HUD_nose_x;
@@ -921,7 +875,7 @@ void HudGauge::renderGradientLine(int x1, int y1, int x2, int y2)
 	int nx = 0, ny = 0;
 
 	if ( gr_screen.rendering_to_texture != -1 ) {
-		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, true);
+		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, target_w, target_h, true);
 	} else {
 		if(reticle_follow) {
 			nx = HUD_nose_x;
@@ -944,7 +898,7 @@ void HudGauge::renderRect(int x, int y, int w, int h)
 	int nx = 0, ny = 0;
 
 	if ( gr_screen.rendering_to_texture != -1 ) {
-		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, true);
+		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, target_w, target_h, true);
 	} else {
 		if ( reticle_follow ) {
 			nx = HUD_nose_x;
@@ -967,7 +921,7 @@ void HudGauge::renderCircle(int x, int y, int diameter)
 	int nx = 0, ny = 0;
 
 	if ( gr_screen.rendering_to_texture != -1 ) {
-		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, true);
+		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, target_w, target_h, true);
 	} else {
 		if ( reticle_follow ) {
 			nx = HUD_nose_x;
@@ -991,7 +945,7 @@ void HudGauge::setClip(int x, int y, int w, int h)
 	int hy = fl2i(HUD_offset_y);
 
 	if ( gr_screen.rendering_to_texture != -1 ) {
-		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, true);
+		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, target_w, target_h, true);
 
 		hx = display_offset_x;
 		hy = display_offset_y;
@@ -1027,7 +981,7 @@ void HudGauge::resetClip()
 	int w, h;
 
 	if ( gr_screen.rendering_to_texture != -1 ) {
-		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, true);
+		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, target_w, target_h, true);
 		
 		hx = display_offset_x;
 		hy = display_offset_y;
@@ -1223,7 +1177,6 @@ void HUD_init()
 	hud_init_wingman_status_gauge();
 	hud_init_target_static();
 	hud_init_text_flash_gauge();
-	hud_init_kills_gauge();
 	hud_stop_subspace_notify();
 	hud_stop_objective_notify();
 	hud_target_last_transmit_level_init();
@@ -1246,18 +1199,17 @@ void HUD_init()
 	// reset to infinite
 	Hud_max_targeting_range = 0;
 
-	int i;
 	size_t j, num_gauges;
 
 	// go through all HUD gauges and call their initialization functions
-	for (i = 0; i < Num_ship_classes; i++) {
-		if(Ship_info[i].hud_enabled) {
-			num_gauges = Ship_info[i].hud_gauges.size();
+	for (auto it = Ship_info.cbegin(); it != Ship_info.cend(); ++it) {
+		if(it->hud_enabled) {
+			num_gauges = it->hud_gauges.size();
 
 			for(j = 0; j < num_gauges; j++) {
-				Ship_info[i].hud_gauges[j]->initialize();
-				Ship_info[i].hud_gauges[j]->resetTimers();
-				Ship_info[i].hud_gauges[j]->updateSexpOverride(false);
+				it->hud_gauges[j]->initialize();
+				it->hud_gauges[j]->resetTimers();
+				it->hud_gauges[j]->updateSexpOverride(false);
 			}
 		}
 	}
@@ -1276,15 +1228,14 @@ void HUD_init()
  */
 void hud_level_close()
 {
-	int i;
 	size_t j, num_gauges;
 
-	for ( i = 0; i < Num_ship_classes; i++ ) {
-		if(Ship_info[i].hud_enabled) {
-			num_gauges = Ship_info[i].hud_gauges.size();
+	for ( auto it = Ship_info.cbegin(); it != Ship_info.cend(); ++it ) {
+		if(it->hud_enabled) {
+			num_gauges = it->hud_gauges.size();
 
 			for(j = 0; j < num_gauges; j++) {
-				Ship_info[i].hud_gauges[j]->resetCockpitTarget();
+				it->hud_gauges[j]->resetCockpitTarget();
 			}
 		}
 	}
@@ -1295,17 +1246,16 @@ void hud_level_close()
  */
 void hud_close()
 {
-	int i;
 	size_t j, num_gauges = 0;
 
-	for (i = 0; i < Num_ship_classes; i++) {
-		num_gauges = Ship_info[i].hud_gauges.size();
+	for (auto it = Ship_info.begin(); it != Ship_info.end(); ++it) {
+		num_gauges = it->hud_gauges.size();
 
 		for(j = 0; j < num_gauges; j++) {
-			vm_free(Ship_info[i].hud_gauges[j]);
-			Ship_info[i].hud_gauges[j] = NULL;
+			vm_free(it->hud_gauges[j]);
+			it->hud_gauges[j] = NULL;
 		}
-		Ship_info[i].hud_gauges.clear();
+		it->hud_gauges.clear();
 	}
 
 	num_gauges = default_hud_gauges.size();
@@ -2272,7 +2222,7 @@ int hud_anim_load(hud_anim *ha)
  * @param loop			Anim should loop (default 1)
  * @param hold_last		Should last frame be held (default 0)
  * @param reverse		Play animation in reverse (default 0)
- * @param resize		Resize for non-standard resolutions
+ * @param resize_mode		Resize for non-standard resolutions
  * @param mirror		Mirror along y-axis so icon points left instead of right
  */
 int hud_anim_render(hud_anim *ha, float frametime, int draw_alpha, int loop, int hold_last, int reverse, int resize_mode, bool mirror)
@@ -2569,14 +2519,6 @@ void HudGaugeLag::render(float frametime)
 		// Nothing to draw
 		return;
 	}
-}
-
-/**
- * @brief Obsolete initializer for the kills gauge. Now superseded by the new HUD code.
- */
-void hud_init_kills_gauge()
-{
-	Kills_gauge_loaded = 1;
 }
 
 /**
@@ -3756,15 +3698,14 @@ extern void hudtarget_page_in();
 void hud_page_in()
 {
 	// Go through all hud gauges to page them in 
-	int i;
 	size_t j, num_gauges = 0;
-	for (i = 0; i < Num_ship_classes; i++) {
-		if(Ship_info[i].hud_enabled) {
-			if(Ship_info[i].hud_gauges.size() > 0) {
-				num_gauges = Ship_info[i].hud_gauges.size();
+	for (auto it = Ship_info.cbegin(); it != Ship_info.cend(); ++it) {
+		if(it->hud_enabled) {
+			if(it->hud_gauges.size() > 0) {
+				num_gauges = it->hud_gauges.size();
 
 				for(j = 0; j < num_gauges; j++) {
-					Ship_info[i].hud_gauges[j]->pageIn();
+					it->hud_gauges[j]->pageIn();
 				}
 			}
 		}

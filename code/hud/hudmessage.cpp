@@ -13,32 +13,29 @@
 #include <stdarg.h>
 
 
-#include "hud/hud.h"
-#include "hud/hudmessage.h"
-#include "hud/hudconfig.h"
+#include "anim/animplay.h"
 #include "freespace2/freespace.h"
 #include "gamesequence/gamesequence.h"
+#include "gamesnd/gamesnd.h"
+#include "globalincs/alphacolors.h"
+#include "globalincs/linklist.h"
+#include "hud/hudconfig.h"
+#include "hud/hudmessage.h"
+#include "iff_defs/iff_defs.h"
 #include "io/key.h"
 #include "io/timer.h"
-#include "playerman/player.h"
-#include "globalincs/linklist.h"
-#include "mission/missionlog.h"
-#include "ui/ui.h"
-#include "missionui/missionscreencommon.h"
-#include "graphics/font.h"
-#include "gamesnd/gamesnd.h"
 #include "mission/missiongoals.h"
-#include "globalincs/alphacolors.h"
-#include "weapon/weapon.h"
-#include "sound/audiostr.h"
-#include "ship/ship.h"
-#include "parse/parselo.h"
+#include "mission/missionlog.h"
 #include "mission/missionmessage.h"		// for MAX_MISSION_MESSAGES
-#include "iff_defs/iff_defs.h"
+#include "missionui/missionscreencommon.h"
 #include "network/multi.h"
-#include "anim/packunpack.h" // for talking heads
-#include "anim/animplay.h"
+#include "parse/parselo.h"
 #include "parse/scripting.h"
+#include "playerman/player.h"
+#include "ship/ship.h"
+#include "sound/audiostr.h"
+#include "ui/ui.h"
+#include "weapon/weapon.h"
 
 
 /* replaced with those static ints that follow
@@ -407,18 +404,18 @@ void HudGaugeMessages::scrollMessages()
 				}
 			}
 		} else {
+			bool at_end = m == (active_messages.end() - 1);
+
+			if (at_end) {
+				// Iterator will be invalid
+				active_messages.pop_back();
+				break;
+			}
+
 			*m = active_messages.back();
 			active_messages.pop_back();
 
-			if (active_messages.empty())
-			{
-				// We may not use the iterator any longer
-				break;
-			}
-			else
-			{
-				continue;
-			}
+			continue;
 		}
 
 		++m;
@@ -1236,7 +1233,9 @@ anim_instance* HudGaugeTalkingHead::createAnim(int anim_start_frame, anim* anim_
 {
 	anim_play_struct aps;
 
-	anim_play_init(&aps, anim_data, position[0] + Anim_offsets[0] + fl2i(HUD_offset_x), position[1] + Anim_offsets[1] + fl2i(HUD_offset_y), base_w, base_h);
+	float scale_x = i2fl(Anim_size[0]) / i2fl(anim_data->width);
+	float scale_y = i2fl(Anim_size[1]) / i2fl(anim_data->height);
+	anim_play_init(&aps, anim_data, fl2ir((position[0] + Anim_offsets[0] + HUD_offset_x) / scale_x), fl2ir((position[1] + Anim_offsets[1] + HUD_offset_y) / scale_y), base_w, base_h);
 	aps.start_at = anim_start_frame;
 
 	// aps.color = &HUD_color_defaults[HUD_color_alpha];
@@ -1248,8 +1247,7 @@ anim_instance* HudGaugeTalkingHead::createAnim(int anim_start_frame, anim* anim_
 }
 
 /**
- * Renders everything for a head animation except the actual head animation
- * ANI (see anim_render_all), i.e. the background, border & title
+ * Renders everything for a head animation
  * Also checks for when new head ani's need to start playing
  */
 void HudGaugeTalkingHead::render(float frametime)
@@ -1270,10 +1268,13 @@ void HudGaugeTalkingHead::render(float frametime)
 			resetClip();
 
 			renderBitmap(Head_frame.first_frame, position[0], position[1]);		// head ani border
-			gr_set_screen_scale(base_w, base_h);
+			float scale_x = i2fl(Anim_size[0]) / i2fl(head_anim->width);
+			float scale_y = i2fl(Anim_size[1]) / i2fl(head_anim->height);
+			gr_set_screen_scale(fl2ir(base_w / scale_x), fl2ir(base_h / scale_y));
 			setGaugeColor();
-			generic_anim_render(head_anim,frametime, position[0] + Anim_offsets[0] + fl2i(HUD_offset_x), position[1] + Anim_offsets[1] + fl2i(HUD_offset_y));
+			generic_anim_render(head_anim,frametime, fl2ir((position[0] + Anim_offsets[0] + HUD_offset_x) / scale_x), fl2ir((position[1] + Anim_offsets[1] + HUD_offset_y) / scale_y));
 			// draw title
+			gr_set_screen_scale(base_w, base_h);
 			renderString(position[0] + Header_offsets[0], position[1] + Header_offsets[1], XSTR("message", 217));
 		} else {
 			for (int j = 0; j < Num_messages_playing; ++j) {

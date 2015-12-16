@@ -10,44 +10,44 @@
 
 
 
-#include "missionui/missionscreencommon.h"
-#include "missionui/missionshipchoice.h"
-#include "mission/missionparse.h"
-#include "parse/parselo.h"
-#include "missionui/missionbrief.h"
-#include "freespace2/freespace.h"
-#include "gamesequence/gamesequence.h"
-#include "ship/ship.h"
-#include "io/key.h"
-#include "render/3d.h"
-#include "globalincs/linklist.h"
-#include "io/mouse.h"
-#include "playerman/player.h"
-#include "pilotfile/pilotfile.h"
-#include "menuui/snazzyui.h"
+#include "ai/aigoals.h"
 #include "anim/animplay.h"
 #include "anim/packunpack.h"
-#include "missionui/missionweaponchoice.h"
-#include "gamehelp/contexthelp.h"
-#include "gamesnd/gamesnd.h"
-#include "mission/missionhotkey.h"
-#include "popup/popup.h"
-#include "hud/hudwingmanstatus.h"
-#include "hud/hudparse.h"
-#include "globalincs/alphacolors.h"
-#include "localization/localize.h"
-#include "lighting/lighting.h"
-#include "cmdline/cmdline.h"
 #include "cfile/cfile.h"
+#include "cmdline/cmdline.h"
+#include "freespace2/freespace.h"
+#include "gamehelp/contexthelp.h"
+#include "gamesequence/gamesequence.h"
+#include "gamesnd/gamesnd.h"
+#include "globalincs/alphacolors.h"
+#include "globalincs/linklist.h"
 #include "hud/hudbrackets.h"
-#include "species_defs/species_defs.h"
+#include "hud/hudparse.h"
+#include "hud/hudwingmanstatus.h"
+#include "io/key.h"
+#include "io/mouse.h"
+#include "io/timer.h"
+#include "lighting/lighting.h"
+#include "localization/localize.h"
+#include "menuui/snazzyui.h"
+#include "mission/missionhotkey.h"
+#include "mission/missionparse.h"
+#include "missionui/missionbrief.h"
+#include "missionui/missionscreencommon.h"
+#include "missionui/missionshipchoice.h"
+#include "missionui/missionweaponchoice.h"
 #include "network/multi.h"
 #include "network/multimsgs.h"
-#include "network/multiui.h"
 #include "network/multiteamselect.h"
+#include "network/multiui.h"
 #include "network/multiutil.h"
-#include "ai/aigoals.h"
-#include "io/timer.h"
+#include "parse/parselo.h"
+#include "pilotfile/pilotfile.h"
+#include "playerman/player.h"
+#include "popup/popup.h"
+#include "render/3d.h"
+#include "ship/ship.h"
+#include "species_defs/species_defs.h"
 #include "weapon/weapon.h"
 
 
@@ -436,7 +436,7 @@ void ss_set_carried_icon(int from_slot, int ship_class)
 void clear_active_list()
 {
 	int i;
-	for ( i = 0; i < Num_ship_classes; i++ ) { //DTP singleplayer ship choice fix 
+	for ( i = 0; i < static_cast<int>(Ship_info.size()); i++ ) { //DTP singleplayer ship choice fix 
 	//for ( i = 0; i < MAX_WSS_SLOTS; i++ ) { 
 		SS_active_items[i].flags = 0;
 		SS_active_items[i].ship_class = -1;
@@ -452,7 +452,7 @@ void clear_active_list()
 ss_active_item *get_free_active_list_node()
 {
 	int i;
-	for ( i = 0; i < Num_ship_classes; i++ ) { 
+	for ( i = 0; i < static_cast<int>(Ship_info.size()); i++ ) { 
 	//for ( i = 0; i < MAX_WSS_SLOTS; i++ ) { //DTP, ONLY MAX_WSS_SLOTS SHIPS ???
 	if ( SS_active_items[i].flags == 0 ) {
 			SS_active_items[i].flags |= SS_ACTIVE_ITEM_USED;
@@ -504,7 +504,7 @@ void init_active_list()
 	clear_active_list();
 
 	// build the active list
-	for ( i = 0; i < MAX_SHIP_CLASSES; i++ ) {
+	for ( i = 0; i < static_cast<int>(Ship_info.size()); i++ ) {
 		if ( Ss_pool[i] > 0 ) {
 			sai = get_free_active_list_node();
 			if ( sai != NULL ) {
@@ -739,7 +739,7 @@ void ship_select_init()
 	ship_select_buttons_init();
 
 	// init ship selection background bitmap
-	Ship_select_background_bitmap = bm_load(Ship_select_background_fname[gr_screen.res]);
+	Ship_select_background_bitmap = mission_ui_background_load(Briefing->ship_select_background[gr_screen.res], Ship_select_background_fname[gr_screen.res]);
 
 	// init ship selection ship model rendering window
 	start_ship_animation( Selected_ss_class );
@@ -920,7 +920,7 @@ void ship_select_blit_ship_info()
 	int y_start, line_height;
 	ship_info *sip;
 	char str[100];
-	color *header = &Color_white;
+	color *header_clr = &Color_white;
 	color *text = &Color_green;
 
 
@@ -940,7 +940,7 @@ void ship_select_blit_ship_info()
 	memset(str,0,100);
 
 	// blit the ship class (name)
-	gr_set_color_fast(header);
+	gr_set_color_fast(header_clr);
 	gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Class",739), GR_RESIZE_MENU);
 	y_start += line_height;
 	if(strlen((sip->alt_name[0]) ? sip->alt_name : sip->name)){
@@ -956,7 +956,7 @@ void ship_select_blit_ship_info()
 	y_start += line_height;
 
 	// blit the ship type
-	gr_set_color_fast(header);
+	gr_set_color_fast(header_clr);
 	gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Type",740), GR_RESIZE_MENU);
 	y_start += line_height;
 	gr_set_color_fast(text);
@@ -971,7 +971,7 @@ void ship_select_blit_ship_info()
 	y_start+=line_height;
 
 	// blit the ship length
-	gr_set_color_fast(header);
+	gr_set_color_fast(header_clr);
 	gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Length",741), GR_RESIZE_MENU);
 	y_start += line_height;
 	gr_set_color_fast(text);
@@ -999,7 +999,7 @@ void ship_select_blit_ship_info()
 	y_start += line_height;
 
 	// blit the max velocity
-	gr_set_color_fast(header);
+	gr_set_color_fast(header_clr);
 	gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Max Velocity",742), GR_RESIZE_MENU);	
 	y_start += line_height;
 	sprintf(str, XSTR("%d m/s",743),fl2i((float)sip->max_vel.xyz.z * Hud_speed_multiplier));
@@ -1008,7 +1008,7 @@ void ship_select_blit_ship_info()
 	y_start += line_height;
 
 	// blit the maneuverability
-	gr_set_color_fast(header);
+	gr_set_color_fast(header_clr);
 	gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Maneuverability",744), GR_RESIZE_MENU);
 	y_start += line_height;
 	gr_set_color_fast(text);
@@ -1042,7 +1042,7 @@ void ship_select_blit_ship_info()
 	y_start += line_height;
 
 	// blit the armor
-	gr_set_color_fast(header);
+	gr_set_color_fast(header_clr);
 	gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Armor",745), GR_RESIZE_MENU);
 	y_start += line_height;
 	gr_set_color_fast(text);
@@ -1081,7 +1081,7 @@ void ship_select_blit_ship_info()
 	y_start += line_height;
 
 	// blit the gun mounts 
-	gr_set_color_fast(header);
+	gr_set_color_fast(header_clr);
 	if((sip->gun_mounts != NULL) && strlen(sip->gun_mounts))
 	{
 		gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Gun Mounts",746), GR_RESIZE_MENU);
@@ -1126,7 +1126,7 @@ void ship_select_blit_ship_info()
 	y_start += line_height;
 
 	// blit the missile banks
-	gr_set_color_fast(header);
+	gr_set_color_fast(header_clr);
 	gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Missile Banks",747), GR_RESIZE_MENU);
 	y_start += line_height;
 	gr_set_color_fast(text);
@@ -1180,7 +1180,7 @@ void ship_select_blit_ship_info()
 		}
 		if(num_turrets)
 		{
-			gr_set_color_fast(header);
+			gr_set_color_fast(header_clr);
 			gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Turrets",1627), GR_RESIZE_MENU);
 			y_start += line_height;
 			gr_set_color_fast(text);
@@ -1191,7 +1191,7 @@ void ship_select_blit_ship_info()
 	}
 
 	// blit the manufacturer
-	gr_set_color_fast(header);
+	gr_set_color_fast(header_clr);
 	gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Manufacturer",748), GR_RESIZE_MENU);
 	y_start += line_height;
 	gr_set_color_fast(text);
@@ -1210,7 +1210,7 @@ void ship_select_blit_ship_info()
 	if (sip->desc == NULL)
 		return;
 
-	gr_set_color_fast(header);
+	gr_set_color_fast(header_clr);
 	gr_string(Ship_info_coords[gr_screen.res][SHIP_SELECT_X_COORD], y_start, XSTR("Description",1571), GR_RESIZE_MENU);
 	y_start += line_height;
 
@@ -1218,32 +1218,17 @@ void ship_select_blit_ship_info()
 
 	int n_lines;
 	int n_chars[MAX_BRIEF_LINES];
-	char ship_desc[1000];
 	const char *p_str[MAX_BRIEF_LINES];
-	char *token;
 	char Ship_select_ship_info_text[1500];
 	char Ship_select_ship_info_lines[MAX_NUM_SHIP_DESC_LINES][SHIP_SELECT_SHIP_INFO_MAX_LINE_LEN];
 	int Ship_select_ship_info_line_count;
 
-	// strip out newlines
-	memset(ship_desc,0,1000);
-	memset(Ship_select_ship_info_text,0,1500);
-	strcpy_s(ship_desc, sip->desc);
-	token = strtok(ship_desc,"\n");
-	if(token != NULL){
-		strcpy_s(Ship_select_ship_info_text, token);
-		while(token != NULL){
-			token = strtok(NULL,"\n");
-			if(token != NULL){
-				strcat_s(Ship_select_ship_info_text," ");
-				strcat_s(Ship_select_ship_info_text,token);
-			}
-		}
-	}
+	strcpy_s(Ship_select_ship_info_text, sip->desc);
 	
 	if(Ship_select_ship_info_text[0] != '\0'){
 		// split the string into multiple lines
-		n_lines = split_str(Ship_select_ship_info_text, gr_screen.res == GR_640 ? 128 : 350, n_chars, p_str, MAX_NUM_SHIP_DESC_LINES, 0);
+		// MageKing17: Changed to use the widths determined by Yarn here: http://scp.indiegames.us/mantis/view.php?id=3144#c16516
+		n_lines = split_str(Ship_select_ship_info_text, gr_screen.res == GR_640 ? 204 : 328, n_chars, p_str, MAX_NUM_SHIP_DESC_LINES, 0);
 
 		// copy the split up lines into the text lines array
 		for (int idx = 0;idx<n_lines;idx++ ) {
@@ -1523,17 +1508,16 @@ void ship_select_do(float frametime)
 				mprintf(("SL WARNING: Had to attempt to page in model for %s paged in manually! Result: %d\n", sip->name, Ss_icons[Carried_ss_icon.ship_class].model_index));
 			}
 			gr_set_color_fast(&Icon_colors[ICON_FRAME_SELECTED]);
-			//gr_set_shader(&Icon_shaders[ICON_FRAME_SELECTED]);
 
 			int w = 32;
 			int h = 28;
+
+			draw_brackets_square(sx, sy, sx + w, sy + h, GR_RESIZE_MENU);
 
 			if(Ss_icons[Carried_ss_icon.ship_class].model_index != -1)
 			{
 				draw_model_icon(Ss_icons[Carried_ss_icon.ship_class].model_index, MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_LIGHTING, sip->closeup_zoom / 1.25f, sx, sy, w, h, sip, GR_RESIZE_MENU);
 			}
-			draw_brackets_square(sx, sy, sx + w, sy + h, GR_RESIZE_MENU);
-			//gr_shade(mouse_x + Ss_delta_x, mouse_y + Ss_delta_y, 32, 28, GR_RESIZE_MENU);
 		}
 	}
 
@@ -1713,13 +1697,11 @@ void draw_ship_icon_with_number(int screen_offset, int ship_class)
 			mprintf(("SL WARNING: Had to attempt to page in model for %s paged in manually! Result: %d\n", sip->name, ss_icon->model_index));
 		}
 		gr_set_color_fast(color_to_draw);
-		//gr_set_shader(shader_to_use);
+		draw_brackets_square(Ship_list_coords[gr_screen.res][screen_offset][0], Ship_list_coords[gr_screen.res][screen_offset][1], Ship_list_coords[gr_screen.res][screen_offset][0] + 32, Ship_list_coords[gr_screen.res][screen_offset][1] + 28, GR_RESIZE_MENU);
 		if(ss_icon->model_index != -1)
 		{
 			draw_model_icon(ss_icon->model_index, MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_LIGHTING, sip->closeup_zoom / 1.25f, Ship_list_coords[gr_screen.res][screen_offset][0],Ship_list_coords[gr_screen.res][screen_offset][1], 32, 28, sip, GR_RESIZE_MENU);
 		}
-		draw_brackets_square(Ship_list_coords[gr_screen.res][screen_offset][0], Ship_list_coords[gr_screen.res][screen_offset][1], Ship_list_coords[gr_screen.res][screen_offset][0] + 32, Ship_list_coords[gr_screen.res][screen_offset][1] + 28, GR_RESIZE_MENU);
-		//gr_shade(Ship_list_coords[gr_screen.res][screen_offset][0],Ship_list_coords[gr_screen.res][screen_offset][1], 32, 28, GR_RESIZE_MENU);
 	}
 
 	// blit the number
@@ -2221,10 +2203,8 @@ void draw_wing_block(int wb_num, int hot_slot, int selected_slot, int class_sele
 		{
 			ship_info *sip = &Ship_info[Wss_slots[slot_index].ship_class];
 			gr_set_color_fast(color_to_draw);
-			//gr_set_shader(shader_to_use);
-			draw_model_icon(icon->model_index, MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_LIGHTING, sip->closeup_zoom / 1.25f, Wing_icon_coords[gr_screen.res][slot_index][0], Wing_icon_coords[gr_screen.res][slot_index][1], 32, 28, sip, GR_RESIZE_MENU);
 			draw_brackets_square(Wing_icon_coords[gr_screen.res][slot_index][0], Wing_icon_coords[gr_screen.res][slot_index][1], Wing_icon_coords[gr_screen.res][slot_index][0] + 32, Wing_icon_coords[gr_screen.res][slot_index][1] + 28, GR_RESIZE_MENU);
-			//gr_shade(Wing_icon_coords[gr_screen.res][slot_index][0], Wing_icon_coords[gr_screen.res][slot_index][1], 32, 28, GR_RESIZE_MENU);
+			draw_model_icon(icon->model_index, MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_LIGHTING, sip->closeup_zoom / 1.25f, Wing_icon_coords[gr_screen.res][slot_index][0], Wing_icon_coords[gr_screen.res][slot_index][1], 32, 28, sip, GR_RESIZE_MENU);
 		}
 	}
 }
@@ -2302,10 +2282,8 @@ void ss_blit_ship_icon(int x,int y,int ship_class,int bmap_num)
 			if(icon->model_index != -1)
 			{
 				gr_set_color_fast(&Icon_colors[bmap_num]);
-				//gr_set_shader(&Icon_shaders[bmap_num]);
-				draw_model_icon(icon->model_index, MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_LIGHTING, sip->closeup_zoom / 1.25f, x, y, 32, 28, sip, GR_RESIZE_MENU);
 				draw_brackets_square(x, y, x + 32, y + 28, GR_RESIZE_MENU);
-				//gr_shade(x, y, 32, 28, GR_RESIZE_MENU);
+				draw_model_icon(icon->model_index, MR_AUTOCENTER | MR_NO_FOGGING | MR_NO_LIGHTING, sip->closeup_zoom / 1.25f, x, y, 32, 28, sip, GR_RESIZE_MENU);
 			}
 		}
 	}
@@ -2500,7 +2478,7 @@ void update_player_ship(int si_index)
  */
 int create_default_player_ship(int use_last_flown)
 {
-	int	player_ship_class=-1, i;
+	int	player_ship_class=-1;
 
 	// find the ship that matches the string stored in default_player_ship
 
@@ -2508,15 +2486,15 @@ int create_default_player_ship(int use_last_flown)
 		player_ship_class = Players[Player_num].last_ship_flown_si_index;
 	}
 	else {
-		for (i = 0; i < Num_ship_classes; i++) {
-			if ( !stricmp(Ship_info[i].name, default_player_ship) ) {
-				player_ship_class = i;
+		for (auto it = Ship_info.cbegin(); it != Ship_info.cend(); ++it) {
+			if ( !stricmp(it->name, default_player_ship) ) {
+				player_ship_class = std::distance(Ship_info.cbegin(), it);
 				Players[Player_num].last_ship_flown_si_index = player_ship_class;
 				break;
 			}
 		}
 
-		if (i == Num_ship_classes)
+		if (player_ship_class == -1)
 			return 1;
 	}
 
@@ -2688,7 +2666,7 @@ void ss_reset_selected_ship()
 
 	if ( Selected_ss_class == -1 ) {
 		Int3();
-		for ( i = 0; i < MAX_SHIP_CLASSES; i++ ) {
+		for ( i = 0; i < static_cast<int>(Ship_info.size()); i++ ) {
 			if ( Ss_pool[i] > 0 ) {
 				Selected_ss_class = i;
 			}

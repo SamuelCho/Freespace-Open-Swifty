@@ -11,26 +11,26 @@
 
 #include <ctype.h>
 
-#include "menuui/readyroom.h"
+#include "cfile/cfile.h"
+#include "freespace2/freespace.h"
+#include "gamehelp/contexthelp.h"
+#include "gamesequence/gamesequence.h"
+#include "gamesnd/gamesnd.h"
+#include "globalincs/alphacolors.h"
 #include "graphics/font.h"
+#include "io/key.h"
+#include "menuui/mainhallmenu.h"
+#include "menuui/readyroom.h"
+#include "menuui/techmenu.h"	// for tech menu reset stuff
+#include "mission/missioncampaign.h"
+#include "missionui/missionscreencommon.h"
+#include "parse/parselo.h"
+#include "pilotfile/pilotfile.h"
+#include "playerman/managepilot.h"
+#include "playerman/player.h"
+#include "popup/popup.h"
 #include "ui/ui.h"
 #include "ui/uidefs.h"
-#include "io/key.h"
-#include "gamesequence/gamesequence.h"
-#include "mission/missioncampaign.h"
-#include "gamesnd/gamesnd.h"
-#include "missionui/missionscreencommon.h"
-#include "freespace2/freespace.h"
-#include "playerman/player.h"
-#include "playerman/managepilot.h"
-#include "pilotfile/pilotfile.h"
-#include "popup/popup.h"
-#include "gamehelp/contexthelp.h"
-#include "globalincs/alphacolors.h"
-#include "menuui/techmenu.h"	// for tech menu reset stuff
-#include "cfile/cfile.h"
-#include "parse/parselo.h"
-#include "menuui/mainhallmenu.h"
 
 
 
@@ -1172,16 +1172,9 @@ void sim_room_close()
 void sim_room_do_frame(float frametime)
 {
 	char buf[256];
-	int i, k, y, z, line;
+	int i, k, y, line;
 	int font_height = gr_get_font_height();
 	int select_tease_line = -1;  // line mouse is down on, but won't be selected until button released	
-
-	z = -1;
-	for (i=0; i<Num_campaigns; i++)
-		if (!stricmp(Campaign_file_names[i], Campaign.filename)) {
-			z = i;
-			break;
-		}
 
 	if ( help_overlay_active(Sim_room_overlay_id) ) {
 		Buttons[gr_screen.res][HELP_BUTTON].button.reset_status();

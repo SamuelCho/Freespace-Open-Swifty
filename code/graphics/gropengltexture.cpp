@@ -11,18 +11,15 @@
 #include <windows.h>
 #endif
 
-#include "globalincs/pstypes.h"
-#include "globalincs/systemvars.h"
-#include "osapi/osregistry.h"
 #include "bmpman/bmpman.h"
 #include "cmdline/cmdline.h"
-#include "graphics/gropengl.h"
-#include "graphics/gropengltexture.h"
-#include "graphics/gropenglextension.h"
-#include "graphics/gropenglstate.h"
-#include "graphics/grinternal.h"
 #include "ddsutils/ddsutils.h"
+#include "globalincs/systemvars.h"
+#include "graphics/grinternal.h"
+#include "graphics/gropenglstate.h"
+#include "graphics/gropengltexture.h"
 #include "math/vecmat.h"
+#include "osapi/osregistry.h"
 
 
 static tcache_slot_opengl *Textures = NULL;
@@ -1357,10 +1354,16 @@ int opengl_get_texture( GLenum target, GLenum pixel_format, GLenum data_format, 
 	return m_offset;
 }
 
-// sends a texture object out to "image_data", which should be memory which is already allocated
-// this should only be used for uncompressed 24-bit or 32-bit (distiguished by "alpha" var) images
-// returns 0 on failure, size of data on success
-int opengl_export_render_target( int slot, int width, int height, int alpha, int num_mipmaps, ubyte *image_data )
+/**
+ * Sends a texture object out to "image_data"
+ *
+ * Image_data should be memory which is already allocated. Function should only
+ * be used for uncompressed 24-bit or 32-bit (distiguished by "alpha" var) images
+ *
+ * @return 0 on failure
+ * @return size of data on success
+ */
+size_t opengl_export_render_target( int slot, int width, int height, int alpha, int num_mipmaps, ubyte *image_data )
 {
 	tcache_slot_opengl *ts = &Textures[slot];
 
@@ -1423,10 +1426,10 @@ int opengl_export_render_target( int slot, int width, int height, int alpha, int
 
 	GL_CHECK_FOR_ERRORS("end of export_image()");
 
-	return m_offset;
+	return (size_t)m_offset;
 }
 
-void gr_opengl_update_texture(int bitmap_handle, int bpp, ubyte* data, int width, int height)
+void gr_opengl_update_texture(int bitmap_handle, int bpp, const ubyte* data, int width, int height)
 {
 	GLenum texFormat, glFormat;
 	int n = bm_get_cache_slot (bitmap_handle, 1);

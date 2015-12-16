@@ -12,29 +12,23 @@
 #include <windows.h>
 #endif
 
-#include "globalincs/pstypes.h"
-#include "globalincs/def_files.h"
+#include "cmdline/cmdline.h"
 #include "globalincs/alphacolors.h"
+#include "globalincs/def_files.h"
 #include "globalincs/systemvars.h"
-
 #include "graphics/2d.h"
-#include "lighting/lighting.h"
 #include "graphics/grinternal.h"
-#include "graphics/gropengl.h"
-#include "graphics/gropenglextension.h"
-#include "graphics/gropengltexture.h"
-#include "graphics/gropengllight.h"
-#include "graphics/gropengltnl.h"
 #include "graphics/gropengldraw.h"
+#include "graphics/gropenglextension.h"
+#include "graphics/gropengllight.h"
 #include "graphics/gropenglshader.h"
 #include "graphics/gropenglstate.h"
-
+#include "graphics/gropengltexture.h"
+#include "graphics/gropengltnl.h"
+#include "lighting/lighting.h"
 #include "math/vecmat.h"
 #include "render/3d.h"
-#include "cmdline/cmdline.h"
-#include "model/model.h"
 #include "weapon/trails.h"
-#include "graphics/shadows.h"
 
 extern int GLOWMAP;
 extern int CLOAKMAP;
@@ -116,7 +110,7 @@ struct opengl_vertex_buffer {
 
 	opengl_vertex_buffer() :
 		array_list(NULL), index_list(NULL), 
-		vbo_size(0), ibo_size(0), vb_handle(-1), ib_handle(-1)
+		vb_handle(-1), ib_handle(-1), vbo_size(0), ibo_size(0)
 	{
 	}
 
@@ -181,6 +175,7 @@ void opengl_bind_buffer_object(int handle)
 		break;
 	case GL_UNIFORM_BUFFER:
 		GL_state.Array.BindUniformBuffer(buffer_obj.buffer_id);
+		break;
 	default:
 		Int3();
 		return;
@@ -222,6 +217,10 @@ void opengl_delete_buffer_object(int handle)
 
 int gr_opengl_create_stream_buffer_object()
 {
+	if (!Use_VBOs) {
+		return -1;
+	}
+
 	return opengl_create_buffer_object(GL_ARRAY_BUFFER_ARB, GL_STREAM_DRAW_ARB);
 }
 
@@ -688,11 +687,7 @@ void opengl_tnl_init()
 
 		vglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 
-		bool rval = true;
-
-		if ( opengl_check_for_errors("post_init_framebuffer()") ) {
-			rval = false;
-		}
+		opengl_check_for_errors("post_init_framebuffer()");
 	}
 }
 
@@ -721,7 +716,7 @@ void mix_two_team_colors(team_color* dest, team_color* a, team_color* b, float m
 	dest->stripe.b = a->stripe.b * (1.0f - mix_factor) + b->stripe.b * mix_factor;
 }
 
-void gr_opengl_set_team_color(team_color *colors)
+void gr_opengl_set_team_color(const team_color *colors)
 {
 	if ( colors == NULL ) {
 		Using_Team_Color = false;
@@ -804,7 +799,6 @@ extern int Interp_thrust_scale_subobj;
 extern float Interp_thrust_scale;
 static void opengl_render_pipeline_program(int start, const vertex_buffer *bufferp, const buffer_data *datap, int flags)
 {
-	int render_pass = 0;
 	unsigned int shader_flags = 0;
 	int sdr_index = -1;
 	int r, g, b, a, tmap_type;
@@ -823,8 +817,8 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	// setup shader flags for the things that we want/need
 	shader_flags = gr_determine_model_shader_flags(
 		lighting_is_enabled, 
-		GL_state.Fog(), 
-		textured, 
+		GL_state.Fog() ? true : false, 
+		textured ? true : false, 
 		Rendering_to_shadow_map,
 		GL_thrust_scale > 0.0f,
 		(flags & TMAP_FLAG_BATCH_TRANSFORMS) && (GL_transform_buffer_offset >= 0) && (bufferp->flags & VB_FLAG_MODEL_ID),
@@ -863,11 +857,7 @@ static void opengl_render_pipeline_program(int start, const vertex_buffer *buffe
 	opengl_setup_render_states(r, g, b, a, tmap_type, flags);
 	GL_state.Color( (ubyte)r, (ubyte)g, (ubyte)b, (ubyte)a );
 
-
-	render_pass = 0;
-
 	GL_state.Texture.SetShaderMode(GL_TRUE);
-
 
 	// basic setup of all data
 	opengl_init_arrays(vbp, bufferp);
@@ -1370,7 +1360,6 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 	int alpha, tmap_type, r, g, b;
 	float u_scale = 1.0f, v_scale = 1.0f;
 	GLenum gl_mode = GL_TRIANGLE_FAN;
-	int zbuff = ZBUFFER_TYPE_DEFAULT;
 	GL_CHECK_FOR_ERRORS("start of render3d()");
 
 	int stride = 0;
@@ -1428,11 +1417,11 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 				if ( radius_offset >= 0 ) {
 					vert_def.add_vertex_component(vertex_format_data::RADIUS, stride, ptr + radius_offset);
 				}
-				zbuff = gr_zbuffer_set(GR_ZBUFF_READ);
+				gr_zbuffer_set(GR_ZBUFF_READ);
 			} else if ( Cmdline_softparticles ) {
 				opengl_tnl_set_material_soft_particle(flags);
 
-				zbuff = gr_zbuffer_set(GR_ZBUFF_NONE);
+				gr_zbuffer_set(GR_ZBUFF_NONE);
 
 				if ( radius_offset >= 0 ) {
 					vert_def.add_vertex_component(vertex_format_data::RADIUS, stride, ptr + radius_offset);
@@ -1490,7 +1479,7 @@ void gr_opengl_render_stream_buffer(int buffer_handle, int offset, int n_verts, 
 	GL_CHECK_FOR_ERRORS("end of render3d()");
 }
 
-void gr_opengl_start_instance_matrix(vec3d *offset, matrix *rotation)
+void gr_opengl_start_instance_matrix(const vec3d *offset, const matrix *rotation)
 {
 	if (Cmdline_nohtl) {
 		return;
@@ -1525,7 +1514,7 @@ void gr_opengl_start_instance_matrix(vec3d *offset, matrix *rotation)
 	GL_modelview_matrix_depth++;
 }
 
-void gr_opengl_start_instance_angles(vec3d *pos, angles *rotation)
+void gr_opengl_start_instance_angles(const vec3d *pos, const angles *rotation)
 {
 	if (Cmdline_nohtl)
 		return;
@@ -1616,7 +1605,7 @@ void gr_opengl_end_projection_matrix()
 	GL_htl_projection_matrix_set = 0;
 }
 
-void gr_opengl_set_view_matrix(vec3d *pos, matrix *orient)
+void gr_opengl_set_view_matrix(const vec3d *pos, const matrix *orient)
 {
 	if (Cmdline_nohtl)
 		return;
@@ -1708,15 +1697,15 @@ void gr_opengl_set_view_matrix(vec3d *pos, matrix *orient)
 
 			// r.xyz  <--  r.x, u.x, f.x
 			GL_env_texture_matrix[0]  =  mview[0];
-			GL_env_texture_matrix[1]  = -mview[4];
+			GL_env_texture_matrix[1]  =  mview[4];
 			GL_env_texture_matrix[2]  =  mview[8];
 			// u.xyz  <--  r.y, u.y, f.y
 			GL_env_texture_matrix[4]  =  mview[1];
-			GL_env_texture_matrix[5]  = -mview[5];
+			GL_env_texture_matrix[5]  =  mview[5];
 			GL_env_texture_matrix[6]  =  mview[9];
 			// f.xyz  <--  r.z, u.z, f.z
 			GL_env_texture_matrix[8]  =  mview[2];
-			GL_env_texture_matrix[9]  = -mview[6];
+			GL_env_texture_matrix[9]  =  mview[6];
 			GL_env_texture_matrix[10] =  mview[10];
 
 			GL_env_texture_matrix[15] = 1.0f;
@@ -1818,7 +1807,7 @@ void gr_opengl_end_2d_matrix()
 
 static bool GL_scale_matrix_set = false;
 
-void gr_opengl_push_scale_matrix(vec3d *scale_factor)
+void gr_opengl_push_scale_matrix(const vec3d *scale_factor)
 {
 	if ( (scale_factor->xyz.x == 1) && (scale_factor->xyz.y == 1) && (scale_factor->xyz.z == 1) )
 		return;
@@ -1949,7 +1938,7 @@ void gr_opengl_set_state_block(int handle)
 extern bool Glowpoint_override;
 bool Glowpoint_override_save;
 
-void gr_opengl_shadow_map_start(matrix4 *shadow_view_matrix, matrix *light_orient)
+void gr_opengl_shadow_map_start(const matrix4 *shadow_view_matrix, const matrix *light_orient)
 {
 	if(!Cmdline_shadow_quality)
 		return;
@@ -2030,13 +2019,6 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 			vm_vec_unrotate(&pos, &G3_user_clip_point, &Eye_matrix);
 			vm_vec_add2(&pos, &Eye_position);
 
-			vec4 clip_plane_equation;
-
-			clip_plane_equation.a1d[0] = normal.a1d[0];
-			clip_plane_equation.a1d[1] = normal.a1d[1];
-			clip_plane_equation.a1d[2] = normal.a1d[2];
-			clip_plane_equation.a1d[3] = vm_vec_mag(&pos);
-
 			matrix4 model_matrix;
 			memset( &model_matrix, 0, sizeof(model_matrix) );
 
@@ -2097,16 +2079,20 @@ void opengl_tnl_set_material(int flags, uint shader_flags, int tmap_type)
 
 		if ( shader_flags & SDR_FLAG_MODEL_ENV_MAP) {
 			// 0 == env with non-alpha specmap, 1 == env with alpha specmap
-			int alpha_spec = bm_has_alpha_channel(SPECMAP);
+			int alpha_spec = bm_has_alpha_channel(SPECMAP) ? 1 : 0;
 
-			matrix4 texture_mat;
+			matrix4 texture_mat, envMatrix;
 
 			for ( int i = 0; i < 16; ++i ) {
 				texture_mat.a1d[i] = GL_env_texture_matrix[i];
 			}
 
+			if (!vm_inverse_matrix4(&texture_mat, &envMatrix)) {
+				Error(LOCATION, "Unable to invert environment mapping matrix.\n");
+			}
+
 			GL_state.Uniform.setUniformi("alpha_spec", alpha_spec);
-			GL_state.Uniform.setUniformMatrix4fv("envMatrix", 1, &texture_mat);
+			GL_state.Uniform.setUniformMatrix4fv("envMatrix", 1, &envMatrix);
 			GL_state.Uniform.setUniformi("sEnvmap", render_pass);
 
 			gr_opengl_tcache_set(ENVMAP, TCACHE_TYPE_CUBEMAP, &u_scale, &v_scale, render_pass);
