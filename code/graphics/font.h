@@ -69,11 +69,11 @@ extern font *Current_font;
 // extern definitions for basic font functions
 extern void gr_stuff_first_font(char *first_font, size_t first_font_size);
 extern int gr_get_current_fontnum();
-extern int gr_get_fontnum(char *filename);
+extern int gr_get_fontnum(const char *filename);
 extern void gr_set_font(int fontnum);
 
 void gr_print_timestamp(int x, int y, fix timestamp, int resize_mode);
-char *gr_force_fit_string(char *str, int max_str, int max_width);
+int gr_force_fit_string(char *str, int max_str, int max_width);
 void gr_font_init();
 void gr_font_close();
 

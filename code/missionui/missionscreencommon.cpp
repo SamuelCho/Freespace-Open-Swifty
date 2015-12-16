@@ -12,39 +12,39 @@
 
 #include <limits.h>		// this is need even when not building debug!!
 
+#include "anim/animplay.h"
+#include "cmdline/cmdline.h"
+#include "cutscene/cutscenes.h"
+#include "cutscene/movie.h"
+#include "gamehelp/contexthelp.h"
+#include "gamesequence/gamesequence.h"
 #include "gamesnd/eventmusic.h"
+#include "gamesnd/gamesnd.h"
+#include "globalincs/linklist.h"
+#include "graphics/2d.h"
+#include "graphics/gropenglshader.h"
+#include "hud/hudwingmanstatus.h"
 #include "io/key.h"
+#include "io/mouse.h"
+#include "io/timer.h"
+#include "lighting/lighting.h"
+#include "missionui/chatbox.h"
+#include "missionui/missionbrief.h"
 #include "missionui/missionscreencommon.h"
 #include "missionui/missionshipchoice.h"
 #include "missionui/missionweaponchoice.h"
-#include "missionui/missionbrief.h"
-#include "io/timer.h"
-#include "gamesequence/gamesequence.h"
-#include "gamesnd/gamesnd.h"
-#include "palman/palman.h"
-#include "io/mouse.h"
-#include "gamehelp/contexthelp.h"
-#include "cmdline/cmdline.h"
-#include "globalincs/linklist.h"
-#include "popup/popup.h"
-#include "hud/hudwingmanstatus.h"
-#include "ui/uidefs.h"
-#include "anim/animplay.h"
-#include "ship/ship.h"
-#include "weapon/weapon.h"
-#include "render/3d.h"
-#include "lighting/lighting.h"
 #include "network/multi.h"
-#include "network/multimsgs.h"
-#include "network/multiutil.h"
-#include "network/multiteamselect.h"
 #include "network/multi_endgame.h"
-#include "missionui/chatbox.h"
-#include "cutscene/movie.h"
-#include "cutscene/cutscenes.h"
+#include "network/multimsgs.h"
+#include "network/multiteamselect.h"
+#include "network/multiutil.h"
+#include "palman/palman.h"
 #include "parse/sexp.h"
-#include "graphics/2d.h"
-#include "graphics/gropenglshader.h"
+#include "popup/popup.h"
+#include "render/3d.h"
+#include "ship/ship.h"
+#include "ui/uidefs.h"
+#include "weapon/weapon.h"
 
 //////////////////////////////////////////////////////////////////
 // Game Globals
@@ -278,6 +278,31 @@ void common_buttons_init(UI_WINDOW *ui_window)
 		Common_buttons[Current_screen-1][gr_screen.res][COMMON_SS_REGION].button.disable();
 		Common_buttons[Current_screen-1][gr_screen.res][COMMON_WEAPON_REGION].button.disable();
 	}
+}
+
+// Try to load background bitmaps as appropriate
+int mission_ui_background_load(const char *custom_background, const char *single_background, const char *multi_background)
+{
+	int background_bitmap = -1;
+
+	if (custom_background && (*custom_background != '\0'))
+	{
+		background_bitmap = bm_load(custom_background);
+		if (background_bitmap < 0)
+			mprintf(("Failed to load custom background bitmap %s!\n", custom_background));
+	}
+
+	// if special background failed to load, or if no special background was supplied, load the standard bitmap
+	if (background_bitmap < 0)
+	{
+		if (multi_background && (Game_mode & GM_MULTIPLAYER))
+			background_bitmap = bm_load(multi_background);
+		else
+			background_bitmap = bm_load(single_background);
+	}
+
+	// return what we've got
+	return background_bitmap;
 }
 
 void set_active_ui(UI_WINDOW *ui_window)
@@ -1081,11 +1106,11 @@ void wss_maybe_restore_loadout()
 	// record the ship classes / weapons used last time
 	for ( i = 0; i < MAX_WSS_SLOTS; i++ ) {
 		slot = &Player_loadout.unit_data[i];
-		if ((slot->ship_class >= 0) && (slot->ship_class < MAX_SHIP_CLASSES)) {
+		if ((slot->ship_class >= 0) && (slot->ship_class < static_cast<int>(Ship_info.size()))) {
 			++last_loadout_ships[slot->ship_class];
 
 			for ( j = 0; j < MAX_SHIP_WEAPONS; j++ ) {
-				if ((slot->wep[j] >= 0) && (slot->wep[j] < MAX_WEAPON_TYPES)) {
+				if ((slot->wep[j] >= 0) && (slot->wep[j] < Num_weapon_types)) {
 					last_loadout_weapons[slot->wep[j]] += slot->wep_count[j]; 
 				}
 			}
@@ -1094,11 +1119,11 @@ void wss_maybe_restore_loadout()
 
 	// record the ships classes / weapons used by the player and wingmen. We don't include the amount in the pools yet
 	for ( i = 0; i < MAX_WSS_SLOTS; i++ ) {
-		if ((Wss_slots[i].ship_class >= 0) && (Wss_slots[i].ship_class < MAX_SHIP_CLASSES)) {
+		if ((Wss_slots[i].ship_class >= 0) && (Wss_slots[i].ship_class < static_cast<int>(Ship_info.size()))) {
 			++this_loadout_ships[Wss_slots[i].ship_class];
 
 			for ( j = 0; j < MAX_SHIP_WEAPONS; j++ ) {
-				if ((Wss_slots[i].wep[j] >= 0) && (Wss_slots[i].wep[j] < MAX_WEAPON_TYPES)) {
+				if ((Wss_slots[i].wep[j] >= 0) && (Wss_slots[i].wep[j] < Num_weapon_types)) {
 					this_loadout_weapons[Wss_slots[i].wep[j]] += Wss_slots[i].wep_count[j];
 				}
 			}
@@ -1107,7 +1132,7 @@ void wss_maybe_restore_loadout()
 
 	// now compare the two, adding in what was left in the pools. If there are less of a ship or weapon class in the mission now
 	// than there were last time, we can't restore and must abort.
-	for (i = 0; i < MAX_SHIP_CLASSES; i++) {
+	for (i = 0; i < static_cast<int>(Ship_info.size()); i++) {
 		if (Ss_pool[i] >= 1) {
 			this_loadout_ships[i] += Ss_pool[i];
 		}
@@ -1116,7 +1141,7 @@ void wss_maybe_restore_loadout()
 		}
 	}
 	
-	for (i = 0; i < MAX_WEAPON_TYPES; i++) {
+	for (i = 0; i < Num_weapon_types; i++) {
 		if (Wl_pool[i] >= 1) {
 			this_loadout_weapons[i] += Wl_pool[i];
 		}
@@ -1129,7 +1154,7 @@ void wss_maybe_restore_loadout()
 	for ( i = 0; i < MAX_WSS_SLOTS; i++ ) {
 		slot = &Player_loadout.unit_data[i];
 
-		if ((slot->ship_class >= 0) && (slot->ship_class < MAX_SHIP_CLASSES)) {
+		if ((slot->ship_class >= 0) && (slot->ship_class < static_cast<int>(Ship_info.size()))) {
 			--this_loadout_ships[slot->ship_class];
 			Assertion((this_loadout_ships[slot->ship_class] >= 0), "Attempting to restore the previous missions loadout has resulted in an invalid number of ships available");
 
@@ -1138,7 +1163,7 @@ void wss_maybe_restore_loadout()
 		Wss_slots[i].ship_class = slot->ship_class;
 
 		for ( j = 0; j < MAX_SHIP_WEAPONS; j++ ) {
-			if ((slot->ship_class >= 0) && (slot->wep[j] >= 0) && (slot->wep[j] < MAX_WEAPON_TYPES)) {
+			if ((slot->ship_class >= 0) && (slot->wep[j] >= 0) && (slot->wep[j] < Num_weapon_types)) {
 				this_loadout_weapons[slot->wep[j]] -= slot->wep_count[j];
 				Assertion((this_loadout_weapons[slot->wep[j]] >= 0), "Attempting to restore the previous missions loadout has resulted in an invalid number of weapons available");
 			}
@@ -1149,12 +1174,12 @@ void wss_maybe_restore_loadout()
 	}	
 
 	// restore the ship pool
-	for ( i = 0; i < MAX_SHIP_CLASSES; i++ ) {
+	for ( i = 0; i < static_cast<int>(Ship_info.size()); i++ ) {
 		Ss_pool[i] = this_loadout_ships[i]; 
 	}
 
 	// restore the weapons pool
-	for ( i = 0; i < MAX_WEAPON_TYPES; i++ ) {
+	for ( i = 0; i < Num_weapon_types; i++ ) {
 		Wl_pool[i] = this_loadout_weapons[i]; 
 	}
 }
@@ -1315,7 +1340,7 @@ int store_wss_data(ubyte *block, int max_size, int sound,int player_index)
 
 
 	// write the ship pool 
-	for ( i = 0; i < MAX_SHIP_CLASSES; i++ ) {
+	for ( i = 0; i < static_cast<int>(Ship_info.size()); i++ ) {
 		if ( Ss_pool[i] > 0 ) {	
 			block[offset++] = (ubyte)i;
 			Assert( Ss_pool[i] < UCHAR_MAX );
@@ -1332,7 +1357,7 @@ int store_wss_data(ubyte *block, int max_size, int sound,int player_index)
 	block[offset++] = 0xff;	// signals start of weapons pool
 
 	// write the weapon pool
-	for ( i = 0; i < MAX_WEAPON_TYPES; i++ ) {
+	for ( i = 0; i < Num_weapon_types; i++ ) {
 		if ( Wl_pool[i] > 0 ) {
 			block[offset++] = (ubyte)i;
 			ishort = INTEL_SHORT( (short)Wl_pool[i] );
@@ -1502,7 +1527,7 @@ int restore_wss_data(ubyte *block)
 	return offset;
 }
 
-void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, int w, int h, ship_info *sip, int resize_mode)
+void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, int w, int h, const ship_info *sip, int resize_mode, const vec3d *closeup_pos)
 {
 	matrix	object_orient	= IDENTITY_MATRIX;
 	angles rot_angles = {0.0f,0.0f,0.0f};
@@ -1512,6 +1537,11 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 	{
 		//Assume it's a weapon
 		rot_angles.h = -(PI_2);
+	}
+	else if(sip->model_icon_angles.p != 0.0f || sip->model_icon_angles.b != 0.0f || sip->model_icon_angles.h != 0.0f)
+	{
+		// If non-zero model_icon_angles exists, always use that
+		rot_angles = sip->model_icon_angles;
 	}
 	else if(sip->flags & SIF_SMALL_SHIP)
 	{
@@ -1557,9 +1587,9 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 			bs = &pm->submodel[0];
 		}
 
-		vec3d weap_closeup = Weapon_info->closeup_pos;
+		vec3d weap_closeup = *closeup_pos;
 		float y_closeup;
-		float tm_zoom = Weapon_info->closeup_zoom;
+		float tm_zoom = closeup_zoom;
 
 		//Find the center of teh submodel
 		weap_closeup.xyz.x = -(bs->min.xyz.z + (bs->max.xyz.z - bs->min.xyz.z)/2.0f);
@@ -1583,7 +1613,8 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 		}
 	}
 
-	model_set_detail_level(0);
+	model_render_params render_info;
+	render_info.set_detail_level_lock(0);
 
 	if (!Cmdline_nohtl)	{
 		gr_set_view_matrix(&Eye_position, &Eye_matrix);
@@ -1602,7 +1633,9 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 
 	Glowpoint_override = true;
 	model_clear_instance(model_id);
-	model_render(model_id, &object_orient, &vmd_zero_vector, flags, -1, -1);
+
+	render_info.set_flags(flags);
+	model_render_immediate(&render_info, model_id, &object_orient, &vmd_zero_vector);
 	Glowpoint_override = false;
 
 	if (!Cmdline_nohtl) 
@@ -1616,7 +1649,8 @@ void draw_model_icon(int model_id, int flags, float closeup_zoom, int x, int y, 
 	gr_reset_clip();
 }
 
-void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *rotation_buffer, vec3d *closeup_pos, float closeup_zoom, float rev_rate, int flags, int resize_mode, int effect)
+void light_set_all_relevent();
+void draw_model_rotating(model_render_params *render_info, int model_id, int x1, int y1, int x2, int y2, float *rotation_buffer, vec3d *closeup_pos, float closeup_zoom, float rev_rate, int flags, int resize_mode, int effect)
 {
 	//WMC - Can't draw a non-model
 	if (model_id < 0)
@@ -1693,7 +1727,7 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		float start_scale = MIN(time,0.5f)*2.5f;
 		float offset = size*0.5f*MIN(MAX(time-3.0f,0.0f),0.6f)*1.66667f;
 		if ( (time < 1.5f) && (time >= 0.5f) )  // Clip the grid if were in phase 1
-			g3_start_user_clip_plane(&plane_point,&wire_normal);
+			render_info->set_clip_plane(plane_point,wire_normal);
 
 		g3_start_instance_angles(&vmd_zero_vector,&view_angles);
 
@@ -1739,29 +1773,62 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 			light_reset();
 			vec3d light_dir = vmd_zero_vector;
 			light_dir.xyz.y = 1.0f;
+			light_dir.xyz.x = 0.0000001f;
 			light_add_directional(&light_dir, 0.65f, 1.0f, 1.0f, 1.0f);
 			light_rotate_all();
 			// lighting for techroom
 
 			// render the ships
 			model_clear_instance(model_id);
-			model_set_detail_level(0);
-			model_set_outline_color(80,49,160);
-			opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS2);
-			opengl_shader_set_animated_timer(-clip);
+			render_info->set_detail_level_lock(0);
+
+			gr_zbuffer_set(true);
+			if(Cmdline_shadow_quality)
+            {
+				gr_end_view_matrix();
+				gr_end_proj_matrix();
+
+				gr_reset_clip();
+
+				model_render_params shadow_render_info;
+
+				shadow_render_info.set_detail_level_lock(0);
+				shadow_render_info.set_flags(flags | MR_NO_TEXTURING | MR_NO_LIGHTING);
+
+				if ( flags & MR_IS_MISSILE )  {
+					shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 20.0f, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 1000.0f);
+				} else {
+					shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 2000.0f, -closeup_pos->xyz.z + pm->rad + 10000.0f);
+				}
+
+				model_render_immediate(&shadow_render_info, model_id, &model_orient, &vmd_zero_vector);
+				shadows_end_render();
+
+				gr_set_clip(x1, y1, x2, y2, resize_mode);
+
+				gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+				gr_set_view_matrix(&Eye_position, &Eye_matrix);
+            }
+			gr_zbuffer_set(false);
+			gr_set_color(80,49,160);
+			render_info->set_color(80, 49, 160);
+
+			render_info->set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS2, -clip);
 
 			if ( (time < 2.5f) && (time >= 0.5f) ) { // Phase 1 and 2 render the wireframe
 				if (time >= 1.5f) // Just clip the wireframe after Phase 1
-					g3_start_user_clip_plane(&plane_point,&wire_normal);
+					render_info->set_clip_plane(plane_point,wire_normal);
 				
-				model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_ANIMATED_SHADER);
-				g3_stop_user_clip_plane();
+				render_info->set_flags(flags | MR_SHOW_OUTLINE_HTL | MR_NO_POLYS | MR_NO_TEXTURING | MR_NO_LIGHTING);
+
+				model_render_immediate(render_info, model_id, &model_orient, &vmd_zero_vector);
 			}
 
 			if (time >= 1.5f) { // Render the ship in Phase 2 onwards
-				g3_start_user_clip_plane(&plane_point,&ship_normal);
-				model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
-				g3_stop_user_clip_plane();
+				render_info->set_clip_plane(plane_point,ship_normal);
+				render_info->set_flags(flags);
+
+				model_render_immediate(render_info, model_id, &model_orient, &vmd_zero_vector);
 			}
 
 			if (time < 2.5f) { // Render the scanline in Phase 1 and 2
@@ -1805,20 +1872,17 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		rot_angles.h = *rotation_buffer;
 		vm_rotate_matrix_by_angles(&model_orient, &rot_angles);
 
-		gr_set_clip(x1, y1, x2, y2, resize_mode);
 		g3_start_frame(1);
+
+		polymodel *pm = model_get(model_id);
 
 		// render the wodel
 		if ( (closeup_pos != NULL) && (vm_vec_mag(closeup_pos) > 0.0f) ) {
 			g3_set_view_matrix(closeup_pos, &vmd_identity_matrix, closeup_zoom);
 		} else {
-			polymodel *pm = model_get(model_id);
 			vec3d pos = { { { 0.0f, 0.0f, -(pm->rad * 1.5f) } } };
 			g3_set_view_matrix(&pos, &vmd_identity_matrix, closeup_zoom);
 		}
-
-		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
-		gr_set_view_matrix(&Eye_position, &Eye_matrix);
 
 		// lighting for techroom
 		light_reset();
@@ -1829,16 +1893,41 @@ void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *ro
 		// lighting for techroom
 
 		model_clear_instance(model_id);
-		model_set_detail_level(0);
+
+		render_info->set_detail_level_lock(0);
+
+		if(Cmdline_shadow_quality)
+		{
+			if ( flags & MR_IS_MISSILE )  {
+				shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 20.0f, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 1000.0f);
+			} else {
+				shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -closeup_pos->xyz.z + pm->rad, -closeup_pos->xyz.z + pm->rad + 200.0f, -closeup_pos->xyz.z + pm->rad + 2000.0f, -closeup_pos->xyz.z + pm->rad + 10000.0f);
+			}
+
+			model_render_params shadow_render_info;
+
+			shadow_render_info.set_flags(flags | MR_NO_TEXTURING | MR_NO_LIGHTING);
+			shadow_render_info.set_detail_level_lock(0);
+
+			model_render_immediate(&shadow_render_info, model_id, &model_orient, &vmd_zero_vector);
+			shadows_end_render();
+		}
+
+		gr_set_clip(x1, y1, x2, y2, resize_mode);
+
+		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+		gr_set_view_matrix(&Eye_position, &Eye_matrix);
+
 		gr_set_color(0,128,0);
 
 		if (effect == 1) { // FS1 effect
-			opengl_shader_set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS1);
-			opengl_shader_set_animated_timer(MIN(time*0.5f,2.0f));
-			model_render(model_id, &model_orient, &vmd_zero_vector, flags | MR_ANIMATED_SHADER);
+			render_info->set_animated_effect(ANIMATED_SHADER_LOADOUTSELECT_FS1, MIN(time*0.5f,2.0f));
+			render_info->set_flags(flags);
 		} else {
-			model_render(model_id, &model_orient, &vmd_zero_vector, flags);
+			render_info->set_flags(flags);
 		}
+
+		model_render_immediate(render_info, model_id, &model_orient, &vmd_zero_vector);
 
 		batch_render_all();
 

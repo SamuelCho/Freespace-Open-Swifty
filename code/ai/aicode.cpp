@@ -18,61 +18,63 @@
 
 
 #include "ai/ai.h"
-#include "debugconsole/console.h"
-#include "globalincs/linklist.h"
-#include "object/object.h"
-#include "physics/physics.h"
-#include "ship/ship.h"
-#include "model/model.h"
-#include "render/3d.h"
-#include "playerman/player.h"
-#include "freespace2/freespace.h"
-#include "mission/missiongoals.h"
-#include "mission/missionlog.h"
-#include "io/timer.h"
-#include "ai/aigoals.h"
-#include "gamesnd/gamesnd.h"
-#include "mission/missionmessage.h"
-#include "mission/missionparse.h"
-#include "cmeasure/cmeasure.h"
-#include "math/staticrand.h"
-#include "ship/afterburner.h"
-#include "ship/shipfx.h"
-#include "ship/shiphit.h"
+#include "ai/ai_profiles.h"
 #include "ai/aibig.h"
+#include "ai/aigoals.h"
+#include "ai/aiinternal.h"
+#include "asteroid/asteroid.h"
+#include "autopilot/autopilot.h"
+#include "cmeasure/cmeasure.h"
+#include "debugconsole/console.h"
+#include "freespace2/freespace.h"
+#include "gamesequence/gamesequence.h"
+#include "gamesnd/gamesnd.h"
+#include "globalincs/linklist.h"
 #include "hud/hud.h"
 #include "hud/hudets.h"
-#include "object/objcollide.h"
-#include "object/objectshield.h"
-#include "asteroid/asteroid.h"
 #include "hud/hudlock.h"
-#include "mission/missiontraining.h"
-#include "gamesequence/gamesequence.h"
-#include "io/joy_ff.h"
-#include "localization/localize.h"
-#include "weapon/weapon.h"
-#include "weapon/flak.h"
-#include "weapon/beam.h"
-#include "weapon/swarm.h"
-#include "ship/awacs.h"
-#include "math/fvi.h"
-#include "parse/parselo.h"
-#include "object/objectdock.h"
-#include "object/deadobjectdock.h"
-#include "object/waypoint.h"
-#include "ai/aiinternal.h"
 #include "iff_defs/iff_defs.h"
+#include "io/joy_ff.h"
+#include "io/timer.h"
+#include "localization/localize.h"
+#include "math/fvi.h"
+#include "math/staticrand.h"
+#include "mission/missiongoals.h"
+#include "mission/missionlog.h"
+#include "mission/missionmessage.h"
+#include "mission/missionparse.h"
+#include "mission/missiontraining.h"
+#include "model/model.h"
+#include "network/multi.h"
 #include "network/multimsgs.h"
 #include "network/multiutil.h"
-#include "network/multi.h"
-#include "ai/ai_profiles.h"
-#include "autopilot/autopilot.h"
+#include "object/deadobjectdock.h"
+#include "object/objcollide.h"
+#include "object/object.h"
+#include "object/objectdock.h"
+#include "object/objectshield.h"
+#include "object/waypoint.h"
+#include "parse/parselo.h"
+#include "physics/physics.h"
+#include "playerman/player.h"
+#include "render/3d.h"
+#include "ship/afterburner.h"
+#include "ship/awacs.h"
+#include "ship/ship.h"
+#include "ship/shipfx.h"
+#include "ship/shiphit.h"
+#include "weapon/beam.h"
+#include "weapon/flak.h"
+#include "weapon/swarm.h"
+#include "weapon/weapon.h"
 #include <map>
 #include <limits.h>
 
 
+#ifdef _MSC_VER
 #pragma optimize("", off)
 #pragma auto_inline(off)
+#endif
 
 #define	UNINITIALIZED_VALUE	-99999.9f
 
@@ -826,13 +828,14 @@ LOCAL int ai_inited = 0;
 void ai_init()
 {
 	if ( !ai_inited )	{
-		// Do the first time initialization stuff here
-		int	rval;
-
-		if ((rval = setjmp(parse_abort)) != 0) {
-			mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", "ai.tbl", rval));
-		} else {			
-			parse_aitbl();			
+		// Do the first time initialization stuff here		
+		try
+		{
+			parse_aitbl();
+		}
+		catch (const parse::ParseException& e)
+		{
+			mprintf(("TABLES: Unable to parse '%s'!  Error message = %s.\n", "ai.tbl", e.what()));
 		}
 
 		ai_inited = 1;
@@ -977,7 +980,7 @@ int ai_is_stealth_visible(object *viewer_objp, object *stealth_objp)
 	if ( !ship_is_visible_by_team(stealth_objp, &Ships[viewer_objp->instance]) ) {
 		vm_vec_sub(&vec_to_stealth, &stealth_objp->pos, &viewer_objp->pos);
 		dist_to_stealth = vm_vec_mag_quick(&vec_to_stealth);
-		dot_to_stealth = vm_vec_dotprod(&viewer_objp->orient.vec.fvec, &vec_to_stealth) / dist_to_stealth;
+		dot_to_stealth = vm_vec_dot(&viewer_objp->orient.vec.fvec, &vec_to_stealth) / dist_to_stealth;
 
 		// get max dist at which stealth is visible
 		max_stealth_dist = get_skill_stealth_dist_scaler() * STEALTH_MAX_VIEW_DIST;
@@ -1536,8 +1539,8 @@ float turn_towards_tangent(object *objp, vec3d *point, float radius)
 	vec3d	v2g;
 
 	vm_vec_normalized_dir(&vec_to_point, point, &objp->pos);
-	vm_vec_crossprod(&up_vec, &vec_to_point, &objp->orient.vec.fvec);
-	vm_vec_crossprod(&perp_vec, &vec_to_point, &up_vec);
+	vm_vec_cross(&up_vec, &vec_to_point, &objp->orient.vec.fvec);
+	vm_vec_cross(&perp_vec, &vec_to_point, &up_vec);
 
 	vm_vec_scale_add(&perp_point, point, &vec_to_point, -radius);
 	if (vm_vec_dot(&objp->orient.vec.fvec, &perp_vec) > 0.0f) {
@@ -1560,7 +1563,7 @@ float turn_toward_tangent_with_axis(object *objp, object *center_objp, float rad
 
 	// find closest z of center objp
 	vm_vec_sub(&sph_r_vec, &objp->pos, &center_objp->pos);
-	center_obj_z = vm_vec_dotprod(&sph_r_vec, &center_objp->orient.vec.fvec);
+	center_obj_z = vm_vec_dot(&sph_r_vec, &center_objp->orient.vec.fvec);
 
 	// find pt on axis with closest z
 	vm_vec_scale_add(&center_vec, &center_objp->pos, &center_objp->orient.vec.fvec, center_obj_z);
@@ -1568,10 +1571,10 @@ float turn_toward_tangent_with_axis(object *objp, object *center_objp, float rad
 	// get r_vec
 	vm_vec_sub(&r_vec, &objp->pos, &center_vec);
 
-	Assert( (vm_vec_dotprod(&r_vec, &center_objp->orient.vec.fvec) < 0.0001));
+	Assert( (vm_vec_dot(&r_vec, &center_objp->orient.vec.fvec) < 0.0001));
 
 	// get theta vec - perp to r_vec and z_vec
-	vm_vec_crossprod(&theta_vec, &center_objp->orient.vec.fvec, &r_vec);
+	vm_vec_cross(&theta_vec, &center_objp->orient.vec.fvec, &r_vec);
 
 #ifndef NDEBUG
 	float mag;
@@ -1580,11 +1583,11 @@ float turn_toward_tangent_with_axis(object *objp, object *center_objp, float rad
 #endif
 
 	vec3d temp;
-	vm_vec_crossprod(&temp, &r_vec, &theta_vec);
+	vm_vec_cross(&temp, &r_vec, &theta_vec);
 
 #ifndef NDEBUG
 	float dot;
-	dot = vm_vec_dotprod(&temp, &center_objp->orient.vec.fvec);
+	dot = vm_vec_dot(&temp, &center_objp->orient.vec.fvec);
 	Assert( dot >0.9999 && dot < 1.0001);
 #endif
 
@@ -1610,17 +1613,17 @@ void get_tangent_point(vec3d *goal_point, object *objp, vec3d *point, float radi
 	vec3d	up_vec, perp_vec;
 
 	vm_vec_normalized_dir(&vec_to_point, point, &objp->pos);
-	vm_vec_crossprod(&up_vec, &vec_to_point, &objp->orient.vec.fvec);
+	vm_vec_cross(&up_vec, &vec_to_point, &objp->orient.vec.fvec);
 	
 	while (IS_VEC_NULL(&up_vec)) {
 		vec3d	rnd_vec;
 
 		vm_vec_rand_vec_quick(&rnd_vec);
 		vm_vec_add2(&rnd_vec, &objp->orient.vec.fvec);
-		vm_vec_crossprod(&up_vec, &vec_to_point, &rnd_vec);
+		vm_vec_cross(&up_vec, &vec_to_point, &rnd_vec);
 	}
 
-	vm_vec_crossprod(&perp_vec, &vec_to_point, &up_vec);
+	vm_vec_cross(&perp_vec, &vec_to_point, &up_vec);
 	vm_vec_normalize(&perp_vec);
 
 	vm_vec_scale_add(&perp_point, point, &vec_to_point, -radius);
@@ -1998,11 +2001,6 @@ void evaluate_object_as_nearest_objnum(eval_nearest_objnum *eno)
 					}
 
 					if (eno->trial_objp->flags & OF_PLAYER_SHIP){
-						// Goober5000: oh dear, it looks like this was originally meant to scale
-						// the distance according to skill, but as it is, the effect appears negligible.
-						// I could fix it with parentheses, but we all know how quickly AI pilots
-						// die usually, so the overall effect would probably be worse.  So I left
-						// this unchanged.
 						dist *= 1.0f + (NUM_SKILL_LEVELS - Game_skill_level - 1)/NUM_SKILL_LEVELS;	//	Favor attacking non-players based on skill level.
 					}
 
@@ -2484,7 +2482,7 @@ void ai_ignore_object(object *ignorer, object *ignored, int ignore_new)
 /**
  * Ignore some object without changing mode.
  */
-void ai_ignore_wing(object *ignorer, int wingnum, int priority)
+void ai_ignore_wing(object *ignorer, int wingnum)
 {
 	ai_info	*aip;
 
@@ -2968,8 +2966,8 @@ int maybe_avoid_player(object *objp, vec3d *goal_pos)
 		} else {
 			vec3d	tvec1;
 			vm_vec_normalize(&avoid_vec);
-			vm_vec_crossprod(&tvec1, &n_vec_to_goal, &avoid_vec);
-			vm_vec_crossprod(&avoid_vec, &tvec1, &n_vec_to_player);
+			vm_vec_cross(&tvec1, &n_vec_to_goal, &avoid_vec);
+			vm_vec_cross(&avoid_vec, &tvec1, &n_vec_to_player);
 		}
 
 		//	Now, avoid_vec is a vector perpendicular to the vector to the player and the direction *objp
@@ -3410,7 +3408,7 @@ float compute_collision_time(vec3d *targpos, vec3d *targvel, vec3d *attackpos, f
 // This function doesn't account for the fact that by the time the player
 // (or his laser) gets to the current enemy position, the enemy will have moved.
 // This is dealt with in polish_predicted_enemy_pos.
-float compute_time_to_enemy(float dist_to_enemy, object *pobjp, object *eobjp)
+float compute_time_to_enemy(float dist_to_enemy, object *pobjp)
 {
 	float	time_to_enemy;
 	float	pl_speed = pobjp->phys_info.speed;
@@ -3492,8 +3490,12 @@ void ai_set_positions(object *pl_objp, object *en_objp, ai_info *aip, vec3d *pla
 
 }
 
-//	--------------------------------------------------------------------------
-void ai_update_aim(ai_info *aip, object* En_Objp)
+/**
+ * Updates AI aim automatically based on targetted enemy.
+ *
+ * @param aip Pointer to AI info
+ */
+void ai_update_aim(ai_info *aip)
 {
 	if (Missiontime >= aip->next_aim_pos_time)
 	{
@@ -3646,7 +3648,7 @@ float maybe_recreate_path(object *objp, ai_info *aip, int force_recreate_flag, i
 /**
  * Set acceleration for ai_dock().
  */
-void set_accel_for_docking(object *objp, ai_info *aip, float dot, float dot_to_next, float dist_to_next, float dist_to_goal, ship_info *sip, float max_allowed_speed)
+void set_accel_for_docking(object *objp, ai_info *aip, float dot, float dot_to_next, float dist_to_next, float dist_to_goal, ship_info *sip, float max_allowed_speed, object *gobjp)
 {
 	float prev_dot_to_goal = aip->prev_dot_to_goal;
 	
@@ -3661,9 +3663,55 @@ void set_accel_for_docking(object *objp, ai_info *aip, float dot, float dot_to_n
 			change_acceleration(aip, -1.0f);	//	-1.0f means subtract off flFrametime from acceleration value in 0.0..1.0
 		}
 	} else {
-		// If max_allowed_speed isn't set, use the ship max speed
+		float max_bay_speed = sip->max_speed;
+
+		// Maybe gradually ramp up/down the speed of a ship flying a fighterbay path
+		if (aip->mode == AIM_BAY_EMERGE || (aip->mode == AIM_BAY_DEPART && aip->path_cur != aip->path_start)) {
+			ship_info *gsip = &Ship_info[Ships[gobjp->instance].ship_info_index];
+			polymodel *pm = model_get(gsip->model_num);
+			SCP_string pathName(pm->paths[Path_points[aip->path_start].path_num].name);
+			float speed_mult = FLT_MIN;
+
+			if (aip->mode == AIM_BAY_EMERGE) { // Arriving
+				if (gsip->pathMetadata.find(pathName) != gsip->pathMetadata.end()) {
+					speed_mult = gsip->pathMetadata[pathName].arrive_speed_mult;
+				}
+
+				if (speed_mult == FLT_MIN) {
+					speed_mult = The_mission.ai_profile->bay_arrive_speed_mult;
+				}
+			} else { // Departing
+				if (gsip->pathMetadata.find(pathName) != gsip->pathMetadata.end()) {
+					speed_mult = gsip->pathMetadata[pathName].depart_speed_mult;
+				}
+
+				if (speed_mult == FLT_MIN) {
+					speed_mult = The_mission.ai_profile->bay_depart_speed_mult;
+				}
+			}
+
+			if (speed_mult != FLT_MIN && speed_mult != 1.0f) {
+				// We use the distance between the first and last point on the path here; it's not accurate
+				// if the path is not straight, but should be good enough usually; can be changed if necessary.
+				float total_path_length = vm_vec_dist_quick(&Path_points[aip->path_start].pos, &Path_points[aip->path_start + aip->path_length - 1].pos);
+				float dist_to_end;
+
+				if (aip->mode == AIM_BAY_EMERGE) { // Arriving
+					dist_to_end = vm_vec_dist_quick(&Pl_objp->pos, &Path_points[aip->path_start].pos);
+				} else { // Departing
+					dist_to_end = vm_vec_dist_quick(&Pl_objp->pos, &Path_points[aip->path_start + aip->path_length - 1].pos);
+				}
+
+				// Calculate max speed, but respect the waypoint speed cap if it's lower
+				max_bay_speed = sip->max_speed * (speed_mult + (1.0f - speed_mult) * (dist_to_end / total_path_length));
+			}
+		}
+
+		// Cap speed to max_allowed_speed, if it's set
 		if (max_allowed_speed <= 0)
-			max_allowed_speed = sip->max_speed;
+			max_allowed_speed = max_bay_speed;
+		else
+			max_allowed_speed = MIN(max_allowed_speed, max_bay_speed);
 
 		if ((aip->mode == AIM_DOCK) && (dist_to_next < 150.0f) && (aip->path_start + aip->path_length - 2 == aip->path_cur)) {
 			set_accel_for_target_speed(objp, max_allowed_speed * MAX(dist_to_next/500.0f, 1.0f));
@@ -3739,8 +3787,7 @@ void set_accel_for_docking(object *objp, ai_info *aip, float dot, float dot_to_n
 //	Returns distance to goal point.
 float ai_path_0()
 {
-	polymodel	*pm;
-	int		num_paths, num_points;
+	int		num_points;
 	float		dot, dist_to_goal, dist_to_next, dot_to_next;
 	ship		*shipp = &Ships[Pl_objp->instance];
 	ship_info	*sip = &Ship_info[shipp->ship_info_index];
@@ -3749,7 +3796,6 @@ float ai_path_0()
 	float		mag;
 	vec3d	temp_vec, *slop_vec;
 	object	*gobjp;
-	ship		*gshipp;
 	vec3d	*cvp, *nvp, next_vec, gcvp, gnvp;		//	current and next vertices in global coordinates.
 
 	aip = &Ai_info[Ships[Pl_objp->instance].ai_index];
@@ -3758,11 +3804,6 @@ float ai_path_0()
 	Assert(Objects[aip->goal_objnum].type == OBJ_SHIP);
 
 	gobjp = &Objects[aip->goal_objnum];
-	gshipp = &Ships[gobjp->instance];
-
-	pm = model_get(Ship_info[gshipp->ship_info_index].model_num);
-	num_paths = pm->n_paths;
-	Assert(num_paths > 0);
 
 	if (aip->path_start == -1) {
 		Assert(aip->goal_objnum >= 0 && aip->goal_objnum < MAX_OBJECTS);
@@ -3854,7 +3895,7 @@ float ai_path_0()
 	dot = vm_vec_dot_to_point(&nvel_vec, &Pl_objp->pos, &gcvp);
 	dot_to_next = vm_vec_dot_to_point(&nvel_vec, &Pl_objp->pos, &gnvp);
 
-	set_accel_for_docking(Pl_objp, aip, dot, dot_to_next, dist_to_next, dist_to_goal, sip, 0);
+	set_accel_for_docking(Pl_objp, aip, dot, dot_to_next, dist_to_next, dist_to_goal, sip, 0, gobjp);
 	aip->prev_dot_to_goal = dot;
 
 	//	If moving at a non-tiny velocity, detect attaining path point by its being close to
@@ -3890,8 +3931,7 @@ float ai_path_0()
 //  1. 
 float ai_path_1()
 {
-	polymodel	*pm;
-	int		num_paths, num_points;
+	int		num_points;
 	float		dot, dist_to_goal, dist_to_next, dot_to_next;
 	ship		*shipp = &Ships[Pl_objp->instance];
 	ship_info	*sip = &Ship_info[shipp->ship_info_index];
@@ -3899,7 +3939,6 @@ float ai_path_1()
 	vec3d	nvel_vec;
 	float		mag;
 	object	*gobjp;
-	ship		*gshipp;
 	vec3d	*pvp, *cvp, *nvp, next_vec, gpvp, gcvp, gnvp;		//	previous, current and next vertices in global coordinates.
 
 	aip = &Ai_info[Ships[Pl_objp->instance].ai_index];
@@ -3908,12 +3947,6 @@ float ai_path_1()
 	Assert(Objects[aip->goal_objnum].type == OBJ_SHIP);
 
 	gobjp = &Objects[aip->goal_objnum];
-	gshipp = &Ships[gobjp->instance];
-
-	// Get path data
-	pm = model_get(Ship_info[gshipp->ship_info_index].model_num);
-	num_paths = pm->n_paths;
-	Assert(num_paths > 0);
 
 	if (aip->path_start == -1) {
 		Assert(aip->goal_objnum >= 0 && aip->goal_objnum < MAX_OBJECTS);
@@ -4010,12 +4043,12 @@ float ai_path_1()
 	dot_to_next = vm_vec_dot_to_point(&nvel_vec, &Pl_objp->pos, &gnvp);
 
 	// This path mode respects the "cap-waypoint-speed" SEXP
-	float max_allowed_speed = 0;
+	float max_allowed_speed = 0.0f;
 	if ( aip->waypoint_speed_cap > 0) {
 		max_allowed_speed = (float) aip->waypoint_speed_cap;
 	}
 
-	set_accel_for_docking(Pl_objp, aip, dot, dot_to_next, dist_to_next, dist_to_goal, sip, max_allowed_speed);
+	set_accel_for_docking(Pl_objp, aip, dot, dot_to_next, dist_to_next, dist_to_goal, sip, max_allowed_speed, gobjp);
 	aip->prev_dot_to_goal = dot;
 
 	//	If moving at a non-tiny velocity, detect attaining path point by its being close to
@@ -5200,7 +5233,7 @@ int ai_select_primary_weapon_OLD(object *objp, object *other_objp, int flags)
 	ship	*shipp = &Ships[objp->instance];
 	ship_weapon *swp = &shipp->weapons;
 
-	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < Num_ship_classes);
+	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < static_cast<int>(Ship_info.size()));
 
 	if (flags & WIF_PUNCTURE) {
 		if (swp->current_primary_bank >= 0) {
@@ -5289,7 +5322,7 @@ int ai_select_primary_weapon(object *objp, object *other_objp, int flags)
 		return ai_select_primary_weapon_OLD(objp, other_objp, flags);
 	}
 
-	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < Num_ship_classes);
+	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < static_cast<int>(Ship_info.size()));
 	
 	//made it so it only selects puncture weapons if the active goal is to disable something -Bobboau
 	if ((flags & WIF_PUNCTURE) && (Ai_info[shipp->ai_index].goals[0].ai_mode & (AI_GOAL_DISARM_SHIP | AI_GOAL_DISABLE_SHIP))) 
@@ -5606,7 +5639,7 @@ int ai_fire_primary_weapon(object *objp)
 	ai_info		*aip;
 	object		*enemy_objp;
 
-	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < Num_ship_classes);
+	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < static_cast<int>(Ship_info.size()));
 
 	aip = &Ai_info[shipp->ai_index];
 
@@ -6039,7 +6072,7 @@ int ai_fire_secondary_weapon(object *objp, int priority1, int priority2)
 	shipp = &Ships[objp->instance];
 	swp = &shipp->weapons;
 
-	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < Num_ship_classes);
+	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < static_cast<int>(Ship_info.size()));
 
 	//	Select secondary weapon.
 	current_bank = swp->current_secondary_bank; //ai_select_secondary_weapon(objp, swp, priority1, priority2);
@@ -6119,7 +6152,7 @@ int might_hit_teammate(object *firing_objp)
 
 void render_all_ship_bay_paths(object *objp)
 {
-	int		i,j,color;
+	int		i,j,clr;
 	polymodel	*pm;
 	model_path	*mp;
 
@@ -6132,17 +6165,17 @@ void render_all_ship_bay_paths(object *objp)
 
 	memset(&v, 0, sizeof(v));
     
-    for ( i = 0; i < pm->ship_bay->num_paths; i++ ) {
+	for ( i = 0; i < pm->ship_bay->num_paths; i++ ) {
 		mp = &pm->paths[pm->ship_bay->path_indexes[i]];
 
 		for ( j = 0; j < mp->nverts; j++ ) {
 			vm_vec_unrotate(&global_path_point, &mp->verts[j].pos, &objp->orient);
 			vm_vec_add2(&global_path_point, &objp->pos);
 			g3_rotate_vertex(&v, &global_path_point);
-			color = 255 - j*50;
-			if ( color < 50 ) 
-				color = 100;
-			gr_set_color(0, color, 0);
+			clr = 255 - j*50;
+			if ( clr < 50 )
+				clr = 100;
+			gr_set_color(0, clr, 0);
 
 			if ( j == mp->nverts-1 ) {
 				gr_set_color(255, 0, 0);
@@ -6164,7 +6197,7 @@ void render_all_ship_bay_paths(object *objp)
  */
 void render_all_subsys_paths(object *objp)
 {
-	int		i,j,color;
+	int		i,j,clr;
 	polymodel	*pm;
 	model_path	*mp;
 
@@ -6175,7 +6208,7 @@ void render_all_subsys_paths(object *objp)
 	if ( pm->ship_bay == NULL )
 		return;
     
-    memset(&v, 0, sizeof(v));
+	memset(&v, 0, sizeof(v));
 
 	for ( i = 0; i < pm->n_paths; i++ ) {
 		mp = &pm->paths[i];
@@ -6183,10 +6216,10 @@ void render_all_subsys_paths(object *objp)
 			vm_vec_unrotate(&global_path_point, &mp->verts[j].pos, &objp->orient);
 			vm_vec_add2(&global_path_point, &objp->pos);
 			g3_rotate_vertex(&v, &global_path_point);
-			color = 255 - j*50;
-			if ( color < 50 ) 
-				color = 100;
-			gr_set_color(0, color, 0);
+			clr = 255 - j*50;
+			if ( clr < 50 )
+				clr = 100;
+			gr_set_color(0, clr, 0);
 
 			if ( j == mp->nverts-1 ) {
 				gr_set_color(255, 0, 0);
@@ -6463,7 +6496,7 @@ void set_predicted_enemy_pos(vec3d *predicted_enemy_pos, object *pobjp, vec3d *e
 		vec3d temp;
 		vm_vec_sub(&temp, enemy_pos, &pobjp->pos);
 		vm_vec_normalize_quick(&temp);
-		float dot = vm_vec_dotprod(&temp, &pobjp->orient.vec.fvec);
+		float dot = vm_vec_dot(&temp, &pobjp->orient.vec.fvec);
 		float st_err = 3.0f * (1.4f - dot) * (1.0f + dist / (get_skill_stealth_dist_scaler() * STEALTH_MAX_VIEW_DIST)) * (1 - aip->ai_accuracy);
 		scale += st_err;
 	}
@@ -6730,11 +6763,10 @@ void attack_set_accel(ai_info *aip, ship_info *sip, float dist_to_enemy, float d
 void get_behind_ship(ai_info *aip, ship_info *sip, float dist_to_enemy)
 {
 	vec3d	new_pos;
-	float		dot;
+	float	dot;
 	vec3d	vec_from_enemy;
-	float		dist;
 
-	dist = vm_vec_normalized_dir(&vec_from_enemy, &Pl_objp->pos, &En_objp->pos);
+	vm_vec_normalized_dir(&vec_from_enemy, &Pl_objp->pos, &En_objp->pos);
 
 	vm_vec_scale_add(&new_pos, &En_objp->pos, &En_objp->orient.vec.fvec, -100.0f);		//	Pick point 100 units behind.
 	ai_turn_towards_vector(&new_pos, Pl_objp, flFrametime, sip->srotation_time, NULL, NULL, 0.0f, 0);
@@ -7024,7 +7056,7 @@ void ai_stealth_find()
 	// if dist is near max and dot is close to 1, accel, afterburn
 	vm_vec_sub(&vec_to_enemy, &new_pos, &Pl_objp->pos);
 	dist_to_enemy = vm_vec_normalize_quick(&vec_to_enemy);
-	dot_to_enemy = vm_vec_dotprod(&vec_to_enemy, &Pl_objp->orient.vec.fvec);
+	dot_to_enemy = vm_vec_dot(&vec_to_enemy, &Pl_objp->orient.vec.fvec);
 
 	// if i think i should see him ahead and i don't, set goal pos and turn around, but only if I haven't seen him for a while
 	if ( (delta_time > 800) && (aip->submode_parm0 == SM_SF_AHEAD) && (dot_to_enemy > .94) && (dist_to_enemy < get_skill_stealth_dist_scaler()*STEALTH_MAX_VIEW_DIST + 50) ) {
@@ -7033,7 +7065,7 @@ void ai_stealth_find()
 		aip->submode_parm0 = SM_SF_BEHIND;
 		vm_vec_sub(&vec_to_enemy, &new_pos, &Pl_objp->pos);
 		dist_to_enemy = vm_vec_normalize_quick(&vec_to_enemy);
-		dot_to_enemy = vm_vec_dotprod(&vec_to_enemy, &Pl_objp->orient.vec.fvec);
+		dot_to_enemy = vm_vec_dot(&vec_to_enemy, &Pl_objp->orient.vec.fvec);
 	}
 
 	if ( (dist_to_enemy > get_skill_stealth_dist_scaler()*STEALTH_MAX_VIEW_DIST) && (dot_to_enemy > 0.94f) ) {		// 20 degree half angle
@@ -7063,7 +7095,7 @@ void ai_stealth_find()
 		ai_turn_towards_vector(&new_pos, Pl_objp, flFrametime, sip->srotation_time, NULL, NULL, 0.0f, 0);
 	}
 
-	dot_from_enemy = -vm_vec_dotprod(&vec_to_enemy, &En_objp->orient.vec.fvec);
+	dot_from_enemy = -vm_vec_dot(&vec_to_enemy, &En_objp->orient.vec.fvec);
 
 	attack_set_accel(aip, sip, dist_to_enemy, dot_to_enemy, dot_from_enemy);
 }
@@ -7112,10 +7144,10 @@ void ai_stealth_sweep()
 	}
 
 	// get "right" vector for box
-	vm_vec_crossprod(&right, &aip->stealth_velocity, &vmd_y_vector);
+	vm_vec_cross(&right, &aip->stealth_velocity, &vmd_y_vector);
 
 	if ( vm_vec_mag_quick(&right) < 0.01 ) {
-		vm_vec_crossprod(&right, &aip->stealth_velocity, &vmd_z_vector);
+		vm_vec_cross(&right, &aip->stealth_velocity, &vmd_z_vector);
 	}
 
 	vm_vec_normalize_quick(&right);
@@ -7124,7 +7156,7 @@ void ai_stealth_sweep()
 	vm_vec_copy_normalize_quick(&forward, &aip->stealth_velocity);
 
 	// get "up" for box
-	vm_vec_crossprod(&up, &forward, &right);
+	vm_vec_cross(&up, &forward, &right);
 	
 	// lost far away ahead (do box)
 	switch(aip->submode_parm0) {
@@ -7194,7 +7226,7 @@ void ai_stealth_sweep()
 	if (dist_to_goal < 100) {
 		vec3d vec_to_goal;
 		vm_vec_normalized_dir(&vec_to_goal, &goal_pt, &Pl_objp->pos);
-		dot = vm_vec_dotprod(&vec_to_goal, &Pl_objp->orient.vec.fvec);
+		dot = vm_vec_dot(&vec_to_goal, &Pl_objp->orient.vec.fvec);
 	}
 
 	accelerate_ship(aip, 0.8f*dot);
@@ -7582,7 +7614,7 @@ void update_aspect_lock_information(ai_info *aip, vec3d *vec_to_enemy, float dis
 
 	wip = &Weapon_info[swp->secondary_bank_weapons[swp->current_secondary_bank]];
 
-	if (num_weapon_types && (wip->wi_flags & WIF_LOCKED_HOMING)) {
+	if (num_weapon_types && (wip->wi_flags & WIF_LOCKED_HOMING) && !(shipp->flags2 & SF2_NO_SECONDARY_LOCKON)) {
 		if (dist_to_enemy > 300.0f - MIN(enemy_radius, 100.0f))
 			aip->ai_flags |= AIF_SEEK_LOCK;
 		else
@@ -7840,7 +7872,7 @@ void ai_chase_big_get_separations(object *attack_objp, object *target_objp, vec3
 	vm_vec_sub(&vec_to_target, &attack_objp->pos, &target_objp->pos);
 
 	// find the distance between centers along forward direction of ships
-	perp_dist = vm_vec_dotprod(&vec_to_target, &target_objp->orient.vec.fvec);
+	perp_dist = vm_vec_dot(&vec_to_target, &target_objp->orient.vec.fvec);
 
 	// subtract off perp component to get "horizontal" separation vector between cylinders [ASSUMING parallel]
 	vm_vec_scale_add(horz_vec_to_target, &vec_to_target, &target_objp->orient.vec.fvec, -perp_dist);
@@ -7871,7 +7903,7 @@ void ai_chase_big_parallel_set_goal(vec3d *goal_pos, object *attack_objp, object
 	r_target = MAX(temp, r_target);
 
 	// are we opposing (only when other ship is not moving)
-	opposing = ( vm_vec_dotprod(&attack_objp->orient.vec.fvec, &target_objp->orient.vec.fvec) < 0 );
+	opposing = ( vm_vec_dot(&attack_objp->orient.vec.fvec, &target_objp->orient.vec.fvec) < 0 );
 
 	ai_chase_big_get_separations(attack_objp, target_objp, &horz_vec_to_target, &optimal_separation, &separation);
 
@@ -7889,7 +7921,7 @@ void ai_chase_big_parallel_set_goal(vec3d *goal_pos, object *attack_objp, object
 	// find the distance between centers along forward direction of ships
 	vec3d vec_to_target;
 	vm_vec_sub(&vec_to_target, &target_objp->pos, &attack_objp->pos);
-	float perp_dist = vm_vec_dotprod(&vec_to_target, &target_objp->orient.vec.fvec);
+	float perp_dist = vm_vec_dot(&vec_to_target, &target_objp->orient.vec.fvec);
 
 	float match_accel = 0.0f;
 	float length_scale = attack_objp->radius;
@@ -7978,10 +8010,6 @@ void ai_cruiser_chase()
 		return;
 	}
 
-	ship			*eshipp;
-
-	eshipp = &Ships[En_objp->instance];
-
 	vec3d	goal_pos;
 	float turn_time = Ship_info[Ships[Pl_objp->instance].ship_info_index].srotation_time;
 
@@ -8043,7 +8071,7 @@ void ai_cruiser_chase()
 				// moving
 				if (moving) {
 					// if within 90 degrees of en forward, go into parallel, otherwise circle
-					if ( vm_vec_dotprod(&En_objp->orient.vec.fvec, &Pl_objp->orient.vec.fvec) > 0 ) {
+					if ( vm_vec_dot(&En_objp->orient.vec.fvec, &Pl_objp->orient.vec.fvec) > 0 ) {
 						aip->submode = SM_BIG_PARALLEL;
 						aip->submode_start_time = Missiontime;
 					}
@@ -8063,9 +8091,9 @@ void ai_cruiser_chase()
 				vec3d temp;
 				float desired_sep, cur_sep;
 				// we're behind the enemy ship
-				if (vm_vec_dotprod(&vec_to_enemy, &En_objp->orient.vec.fvec) > 0) {
+				if (vm_vec_dot(&vec_to_enemy, &En_objp->orient.vec.fvec) > 0) {
 					// and we're turning toward the enemy
-					if (vm_vec_dotprod(&En_objp->orient.vec.fvec, &Pl_objp->orient.vec.fvec) > 0) {
+					if (vm_vec_dot(&En_objp->orient.vec.fvec, &Pl_objp->orient.vec.fvec) > 0) {
 						// get separation
 						ai_chase_big_get_separations(Pl_objp, En_objp, &temp, &desired_sep, &cur_sep);
 						// and the separation is > 0.9 desired
@@ -8080,9 +8108,9 @@ void ai_cruiser_chase()
 				vec3d temp;
 				float desired_sep, cur_sep;
 				// we're behind the enemy ship
-				if (vm_vec_dotprod(&vec_to_enemy, &En_objp->orient.vec.fvec) > 0) {
+				if (vm_vec_dot(&vec_to_enemy, &En_objp->orient.vec.fvec) > 0) {
 					// and we're turning toward the enemy
-					if (vm_vec_dotprod(&En_objp->orient.vec.fvec, &Pl_objp->orient.vec.fvec) > 0) {
+					if (vm_vec_dot(&En_objp->orient.vec.fvec, &Pl_objp->orient.vec.fvec) > 0) {
 						// get separation
 						ai_chase_big_get_separations(Pl_objp, En_objp, &temp, &desired_sep, &cur_sep);
 						// and the separation is > 0.9 desired
@@ -8095,7 +8123,7 @@ void ai_cruiser_chase()
 				// in front of ship
 				else {
 					// and we're turning toward the enemy
-					if (vm_vec_dotprod(&En_objp->orient.vec.fvec, &Pl_objp->orient.vec.fvec) < 0) {
+					if (vm_vec_dot(&En_objp->orient.vec.fvec, &Pl_objp->orient.vec.fvec) < 0) {
 						// get separation
 						ai_chase_big_get_separations(Pl_objp, En_objp, &temp, &desired_sep, &cur_sep);
 						// and the separation is > 0.9 desired
@@ -8110,7 +8138,7 @@ void ai_cruiser_chase()
 
 		case SM_BIG_PARALLEL:
 			// we're opposing
-			if ( vm_vec_dotprod(&Pl_objp->orient.vec.fvec, &En_objp->orient.vec.fvec) < 0 ) {
+			if ( vm_vec_dot(&Pl_objp->orient.vec.fvec, &En_objp->orient.vec.fvec) < 0 ) {
 				// and the other ship is moving
 				if (moving) {
 					// and we no longer overlap
@@ -8130,7 +8158,7 @@ void ai_cruiser_chase()
  */
 void ai_chase()
 {
-	float		dist_to_enemy, time_to_enemy;
+	float		dist_to_enemy;
 	float		dot_to_enemy, dot_from_enemy, real_dot_to_enemy;
 	vec3d		player_pos, enemy_pos, predicted_enemy_pos, real_vec_to_enemy, predicted_vec_to_enemy;
 	ship		*shipp = &Ships[Pl_objp->instance];
@@ -8211,11 +8239,10 @@ void ai_chase()
 
 	ai_set_positions(Pl_objp, En_objp, aip, &player_pos, &enemy_pos);
 	dist_to_enemy = vm_vec_dist_quick(&player_pos, &enemy_pos);
-	time_to_enemy = compute_time_to_enemy(dist_to_enemy, Pl_objp, En_objp);
 	vm_vec_sub(&real_vec_to_enemy, &enemy_pos, &player_pos);
 
 	//Enemy position for the purpose of aiming is already calculated differently, do it explicitly here
-	ai_update_aim(aip, En_objp);
+	ai_update_aim(aip);
 
 	vm_vec_normalize(&real_vec_to_enemy);
 
@@ -8969,7 +8996,7 @@ void set_goal_dock_orient(matrix *dom, vec3d *docker_p0, vec3d *docker_p1, vec3d
 
 	//	Pre-multiply the orientation of the source object (docker_orient) by the transpose
 	//	of the docking bay's orientation, ie unrotate the source object's matrix.
-	vm_transpose_matrix(&m2);
+	vm_transpose(&m2);
 	vm_matrix_x_matrix(dom, &m3, &m2);
 }
 
@@ -9234,7 +9261,7 @@ float dock_orient_and_approach(object *docker_objp, int docker_index, object *do
 			vec3d origin_docker_point, adjusted_docker_point, v_offset;
 
 			// find out the rotation matrix that will get us from the old to the new rotation
-			vm_copy_transpose_matrix(&temp, &docker_objp->orient);
+			vm_copy_transpose(&temp, &docker_objp->orient);
 			vm_matrix_x_matrix(&m_offset, &temp, &dom);
 
 			// now find out the new docker point after being adjusted for the new orientation
@@ -9774,7 +9801,7 @@ float get_cylinder_points(object *other_objp, object *cyl_objp, vec3d *axis_pt, 
 	// get point on axis and on cylinder
 	// extended_cylinder_z is along extended cylinder
 	// cylinder_z is capped within cylinder
-	float extended_cylinder_z = vm_vec_dotprod(&r_sph, &cyl_objp->orient.vec.fvec);
+	float extended_cylinder_z = vm_vec_dot(&r_sph, &cyl_objp->orient.vec.fvec);
 
 	// get pt on axis of extended cylinder
 	vm_vec_scale_add(axis_pt, &cyl_objp->pos, &cyl_objp->orient.vec.fvec, extended_cylinder_z);
@@ -9810,7 +9837,7 @@ void ai_big_guard()
 
 		// get position relative to cylinder of guard_objp		
 		extended_z = get_cylinder_points(Pl_objp, guard_objp, &axis_pt, &r_vec, &radius);
-		vm_vec_crossprod(&theta_vec, &guard_objp->orient.vec.fvec, &r_vec);
+		vm_vec_cross(&theta_vec, &guard_objp->orient.vec.fvec, &r_vec);
 
 		// half ships circle each way
 		if (objval > 0.5f) {
@@ -10681,7 +10708,6 @@ void ai_dock()
 	//	This mode means to follow the path until just before the end.
 	case AIS_DOCK_1:
 	{
-		float	dist;
 		int	r;
 
 		if ((r = maybe_dock_obstructed(Pl_objp, goal_objp, 1)) != -1) {
@@ -10692,7 +10718,7 @@ void ai_dock()
 			}
 		} //else {
 		{
-			dist = ai_path();
+			ai_path();
 
 			if (aip->path_cur-aip->path_start >= aip->path_length-1) {		//	If got this far, advance no matter what.
 				aip->submode = AIS_DOCK_2;
@@ -11823,9 +11849,8 @@ int ai_formation()
 	} else {
 		vec3d	v2f2;
 		float	dot_to_f2;
-		float	dist_to_f2;
 
-		dist_to_f2 = vm_vec_normalized_dir(&v2f2, &future_goal_point_2, &Pl_objp->pos);
+		vm_vec_normalized_dir(&v2f2, &future_goal_point_2, &Pl_objp->pos);
 		dot_to_f2 = vm_vec_dot(&v2f2, &Pl_objp->orient.vec.fvec);
 
 		//	Leader flying like a maniac.  Don't try hard to form on wing.
@@ -13637,7 +13662,7 @@ int aas_1(object *objp, ai_info *aip, vec3d *safe_pos)
 			vec3d vec_from_exp;
 			float dir = 1.0f;
 			vm_vec_sub(&vec_from_exp, &objp->pos, &expected_pos);
-			float dot = vm_vec_dotprod(&vec_from_exp, &weapon_objp->orient.vec.fvec);
+			float dot = vm_vec_dot(&vec_from_exp, &weapon_objp->orient.vec.fvec);
 			if (dot > -30) {
 				// if we're already on the other side of the explosion, don't try to fly behind it
 				dir = -1.0f;
@@ -14084,7 +14109,7 @@ void ai_frame(int objnum)
 	}
 
 	if ((En_objp != NULL) && (En_objp->pos.xyz.x == Pl_objp->pos.xyz.x) && (En_objp->pos.xyz.y == Pl_objp->pos.xyz.y) && (En_objp->pos.xyz.z == Pl_objp->pos.xyz.z)) {
-		mprintf(("Warning: Object and its enemy have same position.  Object #%i\n", OBJ_INDEX(Pl_objp)));
+		mprintf(("Warning: Object and its enemy have same position.  Object #" PTRDIFF_T_ARG "\n", OBJ_INDEX(Pl_objp)));
 		En_objp = NULL;
 	}
 
@@ -14863,7 +14888,7 @@ void big_ship_collide_recover_start(object *objp, object *big_objp, vec3d *colli
 
 float max_lethality = 0.0f;
 
-void ai_update_lethality(object *ship_obj, object *other_obj, float damage)
+void ai_update_lethality(object *pship_obj, object *other_obj, float damage)
 {
 	// Goober5000 - stop any trickle-down errors from ship_do_damage
 	Assert(other_obj);
@@ -14872,8 +14897,8 @@ void ai_update_lethality(object *ship_obj, object *other_obj, float damage)
 		return;
 	}
 
-	Assert(ship_obj);	// Goober5000
-	Assert(ship_obj->type == OBJ_SHIP);
+	Assert(pship_obj);	// Goober5000
+	Assert(pship_obj->type == OBJ_SHIP);
 	Assert(other_obj->type == OBJ_WEAPON || other_obj->type == OBJ_SHOCKWAVE);
 	int dont_count = FALSE;
 
@@ -14882,7 +14907,7 @@ void ai_update_lethality(object *ship_obj, object *other_obj, float damage)
 		if (Objects[parent].signature == other_obj->parent_sig) {
 
 			// check damage done to enemy team
-			if (iff_x_attacks_y(Ships[ship_obj->instance].team, Ships[Objects[parent].instance].team)) {
+			if (iff_x_attacks_y(Ships[pship_obj->instance].team, Ships[Objects[parent].instance].team)) {
 
 				// other is weapon
 				if (other_obj->type == OBJ_WEAPON) {

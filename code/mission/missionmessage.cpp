@@ -10,31 +10,31 @@
 
 
 
+#include "anim/animplay.h"
+#include "gamesequence/gamesequence.h"
+#include "gamesnd/gamesnd.h"
+#include "hud/hud.h"
+#include "hud/hudconfig.h"
+#include "hud/hudgauges.h"
+#include "hud/hudmessage.h"
+#include "hud/hudtarget.h"
+#include "iff_defs/iff_defs.h"
+#include "io/timer.h"
+#include "localization/localize.h"
 #include "mission/missionmessage.h"
 #include "mission/missiontraining.h"
-#include "hud/hudmessage.h"
-#include "hud/hudgauges.h"
-#include "hud/hudtarget.h"
-#include "io/timer.h"
-#include "parse/parselo.h"
-#include "gamesnd/gamesnd.h"
-#include "gamesequence/gamesequence.h"
-#include "anim/animplay.h"
-#include "hud/hud.h"
-#include "ship/ship.h"
-#include "ship/subsysdamage.h"
-#include "weapon/emp.h"
-#include "localization/localize.h"
-#include "hud/hudconfig.h"
-#include "sound/fsspeech.h"
-#include "species_defs/species_defs.h"
-#include "parse/sexp.h"
-#include "iff_defs/iff_defs.h"
+#include "mod_table/mod_table.h"
 #include "network/multi.h"
 #include "network/multimsgs.h"
 #include "network/multiutil.h"
-#include "mod_table/mod_table.h"
+#include "parse/parselo.h"
 #include "parse/scripting.h"
+#include "parse/sexp.h"
+#include "ship/ship.h"
+#include "ship/subsysdamage.h"
+#include "sound/fsspeech.h"
+#include "species_defs/species_defs.h"
+#include "weapon/emp.h"
 
 SCP_vector<SCP_string> Builtin_moods;
 int Current_mission_mood;
@@ -294,6 +294,14 @@ void persona_parse()
 			WarningEx(LOCATION, "Unknown species in messages.tbl -- %s\n", cstrtemp );
 	}
 
+	if (optional_string("$Allow substitution of missing messages:")) {
+		stuff_boolean(&Personas[Num_personas].substitute_missing_messages);
+	}
+	else 
+	{
+		Personas[Num_personas].substitute_missing_messages = true;
+	}
+
 	Num_personas++;
 }
 
@@ -312,11 +320,11 @@ int add_avi( char *avi_name )
 	}
 
 	// would have returned if a slot existed.
-	generic_anim_init( &extra.anim_data );
+	generic_anim_init( &extra.anim_data, avi_name );
 	strcpy_s( extra.name, avi_name );
-	strcpy_s( extra.anim_data.filename, avi_name);
 	extra.num = -1;
-	generic_anim_load(&extra.anim_data);
+	generic_anim_load(&extra.anim_data);   // load only to validate the anim
+	generic_anim_unload(&extra.anim_data); // unload to not waste bmpman slots
 	Message_avis.push_back(extra); 
 	Num_message_avis++;
 	return ((int)Message_avis.size() - 1);
@@ -561,7 +569,7 @@ void parse_msgtbl()
 
 	// now we can start parsing
 	if (optional_string("#Message Frequencies")) {
-		while (!required_string_3("$Name:", "#Personas", "#Moods" )) {
+		while (!required_string_one_of(3, "$Name:", "#Personas", "#Moods" )) {
 			message_frequency_parse();
 		}
 	}	
@@ -648,19 +656,22 @@ void parse_msgtbl()
 // this is called at the start of each level
 void messages_init()
 {
-	int rval, i;
+	int i;
 	static int table_read = 0;
 
 	if ( !table_read ) {
 		Default_command_persona = -1;
-
-		if ((rval = setjmp(parse_abort)) != 0) {
-			mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", "messages.tbl", rval));
+		
+		try
+		{
+			parse_msgtbl();
+			table_read = 1;
+		}
+		catch (const parse::ParseException& e)
+		{
+			mprintf(("TABLES: Unable to parse '%s'!  Error message = %s.\n", "messages.tbl", e.what()));
 			return;
 		}
-
-		parse_msgtbl();
-		table_read = 1;
 	}
 
 	Current_mission_mood = 0;
@@ -1230,10 +1241,12 @@ void message_play_anim( message_q *q )
 
 	// if there is something already here that's not this same file then go ahead a let go of it - taylor
 	if ( !strstr(anim_info->anim_data.filename, ani_name) ) {
+		nprintf(("Messaging", "clearing headani data due to name mismatch: (%s) (%s)\n",
+					anim_info->anim_data.filename, ani_name));
 		message_mission_free_avi( m->avi_info.index );
 	}
 
-	generic_anim_init(&anim_info->anim_data, ani_name);
+	strcpy_s( anim_info->anim_data.filename, ani_name );
 	if(!Full_color_head_anis)
 			anim_info->anim_data.use_hud_color = true;
 
@@ -1531,6 +1544,9 @@ void message_queue_process()
 
 	//	Don't play death scream unless a small ship.
 	if ( q->builtin_type == MESSAGE_WINGMAN_SCREAM ) {
+		if (Message_shipnum < 0) {
+			goto all_done;
+		}
 		if (!((Ship_info[Ships[Message_shipnum].ship_info_index].flags & SIF_SMALL_SHIP) || (Ships[Message_shipnum].flags2 & SF2_ALWAYS_DEATH_SCREAM)) ) {
 			goto all_done;
 		}
@@ -1914,7 +1930,7 @@ void message_send_builtin_to_player( int type, ship *shipp, int priority, int ti
 	char *who_from;
 	int best_match = -1;
 
-	matching_builtin *current_builtin = new matching_builtin(); 
+	matching_builtin current_builtin;
 	SCP_vector <matching_builtin> matching_builtins; 
 
 
@@ -1976,69 +1992,88 @@ void message_send_builtin_to_player( int type, ship *shipp, int priority, int ti
 		// check the type of message
 		if ( !stricmp(Messages[i].name, name) ) {
 			// condition 1: we have a type match
-			current_builtin->message_index = i;
-			current_builtin->type_of_match =  BUILTIN_MATCHES_TYPE; 
+			current_builtin.message_index = i;
+			current_builtin.type_of_match =  BUILTIN_MATCHES_TYPE; 
 
 			// check the species of this persona (if required)
 			if ( (persona_species >= 0) && (Personas[Messages[i].persona_index].species == persona_species) ) {
 				// condition 2: we have a type + species match
-				current_builtin->type_of_match =  BUILTIN_MATCHES_SPECIES; 
+				current_builtin.type_of_match =  BUILTIN_MATCHES_SPECIES; 
 			}
 
 			// check the exact persona (if required)
 			// NOTE: doesn't need to be nested under the species condition above
 			if ( (persona_index >= 0) && (Messages[i].persona_index == persona_index) ) {
 				// condition 3: type + species + persona index match	
-				current_builtin->type_of_match =  BUILTIN_MATCHES_PERSONA_CHECK_MOOD; 
+				current_builtin.type_of_match =  BUILTIN_MATCHES_PERSONA_CHECK_MOOD; 
 			}
 
 			// check if the personas mood suits this particular message, first check if it is excluded
-			if (!Messages[i].excluded_moods.empty() && (current_builtin->type_of_match ==  BUILTIN_MATCHES_PERSONA_CHECK_MOOD)) {
+			if (!Messages[i].excluded_moods.empty() && (current_builtin.type_of_match ==  BUILTIN_MATCHES_PERSONA_CHECK_MOOD)) {
 				for (SCP_vector<int>::iterator iter = Messages[i].excluded_moods.begin(); iter != Messages[i].excluded_moods.end(); ++iter) {
 					if (*iter == Current_mission_mood) {
-						current_builtin->type_of_match =  BUILTIN_MATCHES_PERSONA_EXCLUDED; 
+						current_builtin.type_of_match =  BUILTIN_MATCHES_PERSONA_EXCLUDED; 
 						break; 
 					}
 				}
 			}
 
-			if (current_builtin->type_of_match ==  BUILTIN_MATCHES_PERSONA_CHECK_MOOD) {
+			if (current_builtin.type_of_match ==  BUILTIN_MATCHES_PERSONA_CHECK_MOOD) {
 				if (Current_mission_mood == Messages[i].mood) {
-					current_builtin->type_of_match =  BUILTIN_MATCHES_PERSONA_MOOD; 
+					current_builtin.type_of_match =  BUILTIN_MATCHES_PERSONA_MOOD; 
 				}
 				else {
-					current_builtin->type_of_match =  BUILTIN_MATCHES_PERSONA; 
+					current_builtin.type_of_match =  BUILTIN_MATCHES_PERSONA; 
 				}
 			}			
 
-			if (current_builtin->type_of_match == best_match) {
+			if (current_builtin.type_of_match == best_match) {
 				num_matching_builtins++;
 			}
 			// otherwise check to see if the this is the best kind of match we've found so far
-			else if (current_builtin->type_of_match > best_match) {
-				best_match = current_builtin->type_of_match; 
+			else if (current_builtin.type_of_match > best_match) {
+				best_match = current_builtin.type_of_match; 
 				num_matching_builtins = 1;
 			}
 
 			// add the match to our list
-			matching_builtins.push_back(*current_builtin); 
+			matching_builtins.push_back(current_builtin); 
 		}
 	}
 
-	if (best_match == BUILTIN_MATCHES_PERSONA_EXCLUDED) {
-		mprintf(("MESSAGING", "Couldn't find builtin message %s for persona %d with a none excluded mood\n", Builtin_messages[type].name, persona_index ));
-		mprintf(("MESSAGING", "using an excluded message for this persona\n"));
-	}else if (best_match == BUILTIN_MATCHES_SPECIES) {
-		mprintf(("MESSAGING", "Couldn't find builtin message %s for persona %d\n", Builtin_messages[type].name, persona_index ));
-		mprintf(("MESSAGING", "using a message for any persona of that species\n"));
-	} else if (best_match == BUILTIN_MATCHES_TYPE) {
-		mprintf(("MESSAGING", "Couldn't find builtin message %s for persona %d\n", Builtin_messages[type].name, persona_index ));
-		mprintf(("MESSAGING", "looking for message for any persona of any species\n"));
-	} else if (best_match < 0) {
-		mprintf(("MESSAGING", "Couldn't find any builtin message of type %d\n", type ));
-		Int3();
-		return; 
+	switch (best_match) {
+		case BUILTIN_MATCHES_PERSONA_EXCLUDED:
+			nprintf(("MESSAGING", "Couldn't find builtin message %s for persona %d with a none excluded mood\n", Builtin_messages[type].name, persona_index));
+			if (!Personas[persona_index].substitute_missing_messages) {
+				nprintf(("MESSAGING", "Persona does not allow substitution, skipping message."));
+				return;
+			}
+			else
+				nprintf(("MESSAGING", "using an excluded message for this persona\n"));
+			break;
+		case BUILTIN_MATCHES_SPECIES:
+			nprintf(("MESSAGING", "Couldn't find builtin message %s for persona %d\n", Builtin_messages[type].name, persona_index));
+			if (!Personas[persona_index].substitute_missing_messages) {
+				nprintf(("MESSAGING", "Persona does not allow substitution, skipping message."));
+				return;
+			}
+			else
+				nprintf(("MESSAGING", "using a message for any persona of that species\n"));
+			break;
+		case BUILTIN_MATCHES_TYPE:
+			nprintf(("MESSAGING", "Couldn't find builtin message %s for persona %d\n", Builtin_messages[type].name, persona_index));
+			if (!Personas[persona_index].substitute_missing_messages) {
+				nprintf(("MESSAGING", "Persona does not allow substitution, skipping message."));
+				return;
+			}
+			else
+				nprintf(("MESSAGING", "looking for message for any persona of any species\n"));
+			break;
+		case -1:
+			Error(LOCATION, "Couldn't find any builtin message of type %d\n", type);
+			return;
 	}
+
 	
 	// since we may have multiple builtins we need to pick one at random
 	random_selection = (int)(rand32() % num_matching_builtins) + 1; 

@@ -12,13 +12,13 @@
 #ifndef _WEAPON_H
 #define _WEAPON_H
 
+#include "globalincs/globals.h"
 #include "globalincs/systemvars.h"
 #include "graphics/2d.h"
-#include "globalincs/globals.h"
-#include "weapon/trails.h"
-#include "weapon/shockwave.h"
 #include "graphics/generic.h"
 #include "model/model.h"
+#include "weapon/shockwave.h"
+#include "weapon/trails.h"
 
 class object;
 class ship_subsys;
@@ -122,7 +122,9 @@ extern int Num_weapon_subtypes;
 #define WIF3_TURRET_INTERCEPTABLE		(1 << 5)	// These two flags mark a weapon as being interceptable by the AI
 #define WIF3_FIGHTER_INTERCEPTABLE		(1 << 6)	// (like WIF_BOMB), without forcing it to be tagetable -MageKing17
 #define WIF3_AOE_ELECTRONICS			(1 << 7)	// Apply electronics effect across the weapon's entire area of effect instead of just on the impacted ship -MageKing17
-
+#define WIF3_APPLY_RECOIL				(1 << 8)	// Apply recoil using weapon and ship info
+#define WIF3_DONT_SPAWN_IF_SHOT			(1 << 9)	// Prevent shot down parent weapons from spawning children (DahBlount)
+#define WIF3_DIE_ON_LOST_LOCK			(1 << 10)	// WIF_LOCKED_HOMING missiles will die if they lose their lock
 
 #define	WIF_HOMING					(WIF_HOMING_HEAT | WIF_HOMING_ASPECT | WIF_HOMING_JAVELIN)
 #define WIF_LOCKED_HOMING           (WIF_HOMING_ASPECT | WIF_HOMING_JAVELIN)
@@ -141,6 +143,7 @@ extern int Num_weapon_subtypes;
 #define WF_DESTROYED_BY_WEAPON		(1<<6)		// destroyed by damage from other weapon
 #define WF_SPAWNED					(1<<7)		//Spawned from a spawning type weapon
 #define WF_HOMING_UPDATE_NEEDED		(1<<8)		// this is a newly spawned homing weapon which needs to update client machines
+#define WF_NO_HOMING				(1<<9)		// this weapon should ignore any homing behavior it'd usually have
 
 // flags for setting burst fire 
 #define WBF_FAST_FIRING				(1<<0)		// burst is to use only the firewait to determine firing delays
@@ -262,6 +265,8 @@ typedef struct beam_weapon_info {
 	int beam_warmdown_sound;			// warmdown sound
 	int beam_num_sections;				// the # of visible "sections" on the beam
 	generic_anim beam_glow;				// muzzle glow bitmap
+	float glow_length;					// (DahBlount) determines the length the muzzle glow when using a directional glow
+	bool directional_glow;				// (DahBlount) makes the muzzle glow render to a poly that is oriented along the direction of fire
 	int beam_shots;						// # of shots the beam takes
 	float beam_shrink_factor;			// what percentage of total beam lifetime when the beam starts shrinking
 	float beam_shrink_pct;				// what percent/second the beam shrinks at
@@ -352,8 +357,12 @@ typedef struct weapon_info {
 	float	free_flight_time;
 	float mass;									// mass of the weapon
 	float fire_wait;							// fire rate -- amount of time before you can refire the weapon
+	float max_delay;							// max time to delay a shot (DahBlount)
+	float min_delay;							// min time to delay a shot	(DahBlount)
 
 	float	damage;								//	damage of weapon (for missile, damage within inner radius)
+	float	damage_time;						// point in the lifetime of the weapon at which damage starts to attenuate. This applies to non-beam primaries. (DahBlount)
+	float	atten_damage;							// The damage to attenuate to. (DahBlount)
 
 	shockwave_create_info shockwave;
 	shockwave_create_info dinky_shockwave;
@@ -416,6 +425,7 @@ typedef struct weapon_info {
 
 	int	impact_weapon_expl_index;		// Index into Weapon_expl_info of which ANI should play when this thing impacts something
 	float	impact_explosion_radius;		// How big the explosion should be
+	float	shield_impact_explosion_radius;	// How big the shield hit explosion should be
 
 	int dinky_impact_weapon_expl_index;
 	float dinky_impact_explosion_radius;
@@ -434,6 +444,9 @@ typedef struct weapon_info {
 	// EMP effect
 	float emp_intensity;					// intensity of the EMP effect
 	float emp_time;						// time of the EMP effect
+
+	// Recoil effect
+	float recoil_modifier;
 
 	// Energy suck effect
 	float weapon_reduce;					// how much energy removed from weapons systems
@@ -490,6 +503,8 @@ typedef struct weapon_info {
 	float cm_aspect_effectiveness;
 	float cm_heat_effectiveness;
 	float cm_effective_rad;
+	float cm_detonation_rad;
+	bool  cm_kill_single;       // should the countermeasure kill just the single decoyed missile within CMEASURE_DETONATE_DISTANCE?
 
     // *
                
@@ -602,7 +617,8 @@ int weapon_info_lookup(const char *name = NULL);
 void weapon_init();					// called at game startup
 void weapon_close();				// called at game shutdown
 void weapon_level_init();			// called before the start of each level
-void weapon_render(object * obj);
+void weapon_render_DEPRECATED(object * obj);
+void weapon_render(object* obj, draw_list *scene);
 void weapon_delete( object * obj );
 void weapon_process_pre( object *obj, float frame_time);
 void weapon_process_post( object *obj, float frame_time);
@@ -669,5 +685,10 @@ void weapon_pause_sounds();
 
 // Unpauses all running weapon sounds
 void weapon_unpause_sounds();
+
+// Called by hudartillery.cpp after SSMs have been parsed to make sure that $SSM: entries defined in weapons are valid.
+void validate_SSM_entries();
+
+void shield_impact_explosion(vec3d *hitpos, object *objp, float radius, int idx);
 
 #endif

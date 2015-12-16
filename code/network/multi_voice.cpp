@@ -106,7 +106,7 @@ int Multi_voice_stamps[MULTI_VOICE_MAX_STREAMS];
 
 // the token index of a voice stream is set to one of these values, or the index of the player who has the token
 #define MULTI_VOICE_TOKEN_INDEX_FREE				-1					// the token (and the stream are free)
-#define MULTI_VOICE_TOKEN_INDEX_RELEASED			0xDEADBEAD		// the token has been released but the stream is still active
+#define MULTI_VOICE_TOKEN_INDEX_RELEASED			0xBEAD		// the token has been released but the stream is still active
 
 typedef struct voice_stream {		
 	int token_status;															// status of the token (player index if a player has it) or one of the above defines
@@ -212,7 +212,7 @@ int multi_voice_get_stream(int stream_id);
 void multi_voice_alg_init();
 
 // process incoming sound data in whatever way necessary (this function should take care of playing data when necessary)
-void multi_voice_alg_process_data(int player_index,int stream_index,ushort chunk_index,ushort chunk_size);		
+void multi_voice_alg_process_data(int stream_index);
 
 // process existing streams
 void multi_voice_alg_process_streams();
@@ -1228,7 +1228,7 @@ int multi_voice_process_data(ubyte *data, int player_index,int msg_mode,net_play
 			
 		// pass the data into the smart voice algorithm
 		if(player_index != -1){
-			multi_voice_alg_process_data(player_index,stream_index,chunk_index,chunk_size);		
+			multi_voice_alg_process_data(stream_index);
 		}
 	}
 
@@ -1970,13 +1970,8 @@ int multi_voice_alg_should_play(int stream_index)
 }
 
 // process incoming sound data in whatever way necessary (this function should take care of playing data when necessary)
-void multi_voice_alg_process_data(int player_index,int stream_index,ushort chunk_index,ushort chunk_size)
+void multi_voice_alg_process_data(int stream_index)
 {
-	// do this so we don't get compiler warnings
-	chunk_index = 0;
-	chunk_size = 0;
-	player_index = 0;
-
 	// update the timestamp for this window
 	Multi_voice_stamps[stream_index] = timestamp(MV_ALG_TIMEOUT);	
 }

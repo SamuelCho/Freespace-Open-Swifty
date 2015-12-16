@@ -9,25 +9,21 @@
 
 
 
-#include "hud/hudbrackets.h"
-#include "hud/hud.h"
-#include "playerman/player.h"
-#include "hud/hudtarget.h"
-#include "render/3d.h"
-#include "weapon/emp.h"
-#include "ship/ship.h"
-#include "object/object.h"
-#include "mission/missionparse.h"
-#include "iff_defs/iff_defs.h"
-
-//For target info ONLY
-#include "debris/debris.h"
 #include "asteroid/asteroid.h"
-#include "jumpnode/jumpnode.h"
-#include "weapon/weapon.h"
-#include "parse/parselo.h"
-
 #include "cmdline/cmdline.h"
+#include "debris/debris.h"
+#include "hud/hudbrackets.h"
+#include "hud/hudtarget.h"
+#include "iff_defs/iff_defs.h"
+#include "jumpnode/jumpnode.h"
+#include "mission/missionparse.h"
+#include "object/object.h"
+#include "parse/parselo.h"
+#include "playerman/player.h"
+#include "render/3d.h"
+#include "ship/ship.h"
+#include "weapon/emp.h"
+#include "weapon/weapon.h"
 
 #define FADE_FACTOR	2			// how much the bounding brackets get faded
 #define LOWEST_RED	50			// lowest r value for bounding bracket
@@ -251,7 +247,7 @@ void draw_brackets_diamond(int x1, int y1, int x2, int y2)
 	gr_gradient(center_x + x_delta, y2 - y_delta, center_x, y2);
 }
 
-void draw_brackets_diamond_quick(int x1, int y1, int x2, int y2, int thick)
+void draw_brackets_diamond_quick(int x1, int y1, int x2, int y2)
 {
 	int width, height, half_width, half_height;
 	int center_x, center_y;
@@ -685,6 +681,18 @@ int draw_subsys_brackets(ship_subsys* subsys, int min_width, int min_height, boo
 			draw_brackets_diamond_quick(x1, y1, x2, y2);
 		}
 	}
+	
+	if (draw_coords != nullptr)
+	{
+		// Positions are unsized, we need to resize them to get the actual screen coordinates
+		gr_resize_screen_pos(&x1, &y1);
+		gr_resize_screen_pos(&x2, &y2);
+
+		draw_coords[0] = x1;
+		draw_coords[1] = y1;
+		draw_coords[2] = x2;
+		draw_coords[3] = y2;
+	}
 	// mprintf(("Drawing subobject brackets at %4i, %4i\n", sx, sy));
 	
 	return in_sight;
@@ -943,7 +951,7 @@ void HudGaugeBrackets::renderBoundingBrackets(int x1, int y1, int x2, int y2, in
 		}
 
 		if (num_attacking > k) {
-			int	i, num_blips;
+			int	i, w, h, num_blips;
 			
 			num_blips = num_attacking-k;
 			if (num_blips > 4) {
@@ -952,18 +960,20 @@ void HudGaugeBrackets::renderBoundingBrackets(int x1, int y1, int x2, int y2, in
 
 			//int bitmap = get_blip_bitmap();
 
+			bm_get_info(attacking_dot, &w, &h);
+
 			if (attacking_dot >= 0) {
 				if (num_blips > 3)
 					y1 -= 3;
 
 				for (i=0; i<num_blips; i++) {
-					GR_AABITMAP(attacking_dot, x2+3, y1+i*7);
+					GR_AABITMAP(attacking_dot, x2+3, y1+i*(h+2));
 				}
 			}
 
 			// Increment for the position of ship name/class.
 			// DEPENDANT ON ATTACKER SIZE (X)
-			x2 += 7;
+			x2 += w + 2;
 		}
 	}
 
@@ -1029,7 +1039,7 @@ void HudGaugeBrackets::renderBoundingBrackets(int x1, int y1, int x2, int y2, in
 			gr_string(x2+3, y1, tinfo_name);
 		} 
 		if(tinfo_class && (flags & TARGET_DISPLAY_CLASS)) {
-			gr_string(x2+3, y1+9, tinfo_class);
+			gr_string(x2+3, y1+gr_get_font_height(), tinfo_class);
 		}
 	}
 

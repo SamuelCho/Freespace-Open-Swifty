@@ -10,28 +10,28 @@
 
 
 
-#include "stats/scoring.h"
+#include "ai/ai_profiles.h"
+#include "debugconsole/console.h"
 #include "freespace2/freespace.h"
-#include "object/object.h"
-#include "ship/ship.h"
-#include "playerman/player.h"
-#include "parse/parselo.h"
-#include "stats/medals.h"
-#include "localization/localize.h"
-#include "mission/missionparse.h"
 #include "hud/hud.h"
 #include "hud/hudmessage.h"
-#include "weapon/weapon.h"
 #include "iff_defs/iff_defs.h"
+#include "localization/localize.h"
+#include "mission/missionparse.h"
 #include "network/multi.h"
-#include "network/multiutil.h"
-#include "network/multimsgs.h"
-#include "network/multi_team.h"
 #include "network/multi_dogfight.h"
 #include "network/multi_pmsg.h"
-#include "ai/ai_profiles.h"
+#include "network/multi_team.h"
+#include "network/multimsgs.h"
+#include "network/multiutil.h"
+#include "object/object.h"
+#include "parse/parselo.h"
 #include "pilotfile/pilotfile.h"
-#include "debugconsole/console.h"
+#include "playerman/player.h"
+#include "ship/ship.h"
+#include "stats/medals.h"
+#include "stats/scoring.h"
+#include "weapon/weapon.h"
 
 /*
 // uncomment to get extra debug messages when a player scores
@@ -59,61 +59,64 @@ void parse_rank_tbl()
 {
 	atexit(scoreing_close);
 	char buf[MULTITEXT_LENGTH];
-	int rval, idx, persona;
+	int idx, persona;
 
-	if ((rval = setjmp(parse_abort)) != 0) {
-		mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", "rank.tbl", rval));
-		return;
-	} 
+	try
+	{
+		read_file_text("rank.tbl", CF_TYPE_TABLES);
+		reset_parse();
 
-	read_file_text("rank.tbl", CF_TYPE_TABLES);
-	reset_parse();
-
-	// parse in all the rank names
-	idx = 0;
-	skip_to_string("[RANK NAMES]");
-	ignore_white_space();
-	while ( required_string_either("#End", "$Name:") ) {
-		Assert ( idx < NUM_RANKS );
-		required_string("$Name:");
-		stuff_string( Ranks[idx].name, F_NAME, NAME_LENGTH );
-		required_string("$Points:");
-		stuff_int( &Ranks[idx].points );
-		required_string("$Bitmap:");
-		stuff_string( Ranks[idx].bitmap, F_NAME, MAX_FILENAME_LEN );
-		required_string("$Promotion Voice Base:");
-		stuff_string( Ranks[idx].promotion_voice_base, F_NAME, MAX_FILENAME_LEN );
-		while (check_for_string("$Promotion Text:")) {
-			required_string("$Promotion Text:");
-			stuff_string(buf, F_MULTITEXT, sizeof(buf));
-			drop_white_space(buf);
-			compact_multitext_string(buf);
-			persona = -1;
-			if (optional_string("+Persona:")) {
-				stuff_int(&persona);
-				if (persona < 0) {
-					Warning(LOCATION, "Debriefing text for %s rank is assigned to an invalid persona: %i (must be 0 or greater).\n", Ranks[idx].name, persona);
-					continue;
+		// parse in all the rank names
+		idx = 0;
+		skip_to_string("[RANK NAMES]");
+		ignore_white_space();
+		while (required_string_either("#End", "$Name:")) {
+			Assert(idx < NUM_RANKS);
+			required_string("$Name:");
+			stuff_string(Ranks[idx].name, F_NAME, NAME_LENGTH);
+			required_string("$Points:");
+			stuff_int(&Ranks[idx].points);
+			required_string("$Bitmap:");
+			stuff_string(Ranks[idx].bitmap, F_NAME, MAX_FILENAME_LEN);
+			required_string("$Promotion Voice Base:");
+			stuff_string(Ranks[idx].promotion_voice_base, F_NAME, MAX_FILENAME_LEN);
+			while (check_for_string("$Promotion Text:")) {
+				required_string("$Promotion Text:");
+				stuff_string(buf, F_MULTITEXT, sizeof(buf));
+				drop_white_space(buf);
+				compact_multitext_string(buf);
+				persona = -1;
+				if (optional_string("+Persona:")) {
+					stuff_int(&persona);
+					if (persona < 0) {
+						Warning(LOCATION, "Debriefing text for %s rank is assigned to an invalid persona: %i (must be 0 or greater).\n", Ranks[idx].name, persona);
+						continue;
+					}
 				}
+				Ranks[idx].promotion_text[persona] = vm_strdup(buf);
 			}
-			Ranks[idx].promotion_text[persona] = vm_strdup(buf);
+			if (Ranks[idx].promotion_text.find(-1) == Ranks[idx].promotion_text.end()) {
+				Warning(LOCATION, "%s rank is missing default debriefing text.\n", Ranks[idx].name);
+				Ranks[idx].promotion_text[-1] = "";
+			}
+			idx++;
 		}
-		if (Ranks[idx].promotion_text.find(-1) == Ranks[idx].promotion_text.end()) {
-			Warning(LOCATION, "%s rank is missing default debriefing text.\n", Ranks[idx].name);
-			Ranks[idx].promotion_text[-1] = "";
-		}
-		idx++;
-	}
 
-	required_string("#End");
+		required_string("#End");
 
-	// be sure that all rank points are in order
+		// be sure that all rank points are in order
 #ifndef NDEBUG
-	for ( idx = 0; idx < NUM_RANKS-1; idx++ ) {
-		if ( Ranks[idx].points >= Ranks[idx+1].points )
-			Int3();
-	}
+		for (idx = 0; idx < NUM_RANKS - 1; idx++) {
+			if (Ranks[idx].points >= Ranks[idx + 1].points)
+				Int3();
+		}
 #endif
+	}
+	catch (const parse::ParseException& e)
+	{
+		mprintf(("TABLES: Unable to parse '%s'!  Error message = %s.\n", "rank.tbl", e.what()));
+		return;
+	}
 }
 
 // initialize a nice blank scoring element
@@ -292,13 +295,14 @@ void scoring_eval_rank( scoring_struct *sc )
 // which medal is awarded.
 void scoring_eval_badges(scoring_struct *sc)
 {
-	int i, total_kills;
+	int total_kills;
 
 	// to determine badges, we count kills based on fighter/bomber types.  We must count kills in
 	// all time stats + current mission stats.  And, only for enemy fighters/bombers
 	total_kills = 0;
-	for (i = 0; i < MAX_SHIP_CLASSES; i++ ) {
-		if ( (Ship_info[i].flags & SIF_FIGHTER) || (Ship_info[i].flags & SIF_BOMBER) ) {
+	for (auto it = Ship_info.cbegin(); it != Ship_info.cend(); ++it ) {
+		if ( (it->flags & SIF_FIGHTER) || (it->flags & SIF_BOMBER) ) {
+			auto i = std::distance(Ship_info.cbegin(), it);
 			total_kills += sc->m_okKills[i];
 			total_kills += sc->kills[i];
 		}
@@ -307,7 +311,7 @@ void scoring_eval_badges(scoring_struct *sc)
 	// total_kills should now reflect the number of kills on hostile fighters/bombers.  Check this number
 	// against badge kill numbers, and award the appropriate badges as neccessary.
 	int last_badge_kills = 0;
-	for (i = 0; i < Num_medals; i++ ) {
+	for (auto i = 0; i < Num_medals; i++ ) {
 		if ( total_kills >= Medals[i].kills_needed
 			&& Medals[i].kills_needed > last_badge_kills
 			&& Medals[i].kills_needed > 0 )

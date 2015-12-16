@@ -9,8 +9,8 @@
 #ifndef _AI_PROFILES_H_
 #define _AI_PROFILES_H_
 
-#include "globalincs/pstypes.h"
 #include "globalincs/globals.h"
+#include "globalincs/pstypes.h"
 #include "globalincs/systemvars.h"
 
 // flag int defines
@@ -66,6 +66,8 @@
 #define AIPF2_AI_GUARDS_SPECIFIC_SHIP_IN_WING						(1 << 12)
 #define AIPF2_FIX_AI_PATH_ORDER_BUG									(1 << 13)
 #define AIPF2_STRICT_TURRET_TAGGED_ONLY_TARGETING					(1 << 14)
+#define AIPF2_ASPECT_INVULNERABILITY_FIX							(1 << 15)
+#define AIPF2_GLIDE_DECAY_REQUIRES_THRUST							(1 << 16)
 
 // AI Path types
 #define	AI_PATH_MODE_NORMAL 0
@@ -150,6 +152,11 @@ typedef struct ai_profile_t {
 	float detail_distance_mult[MAX_DETAIL_LEVEL + 1];	//MAX_DETAIL_LEVEL really needs to be 4
 
 	int ai_path_mode;
+
+	// Ships flying bay paths will gradually accelerate/decelerate instead of
+	// flying the whole path at max speed
+	float bay_arrive_speed_mult;
+	float bay_depart_speed_mult;
 
 } ai_profile_t;
 

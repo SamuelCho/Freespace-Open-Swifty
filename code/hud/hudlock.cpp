@@ -10,23 +10,26 @@
 
 
 
-#include "hud/hud.h"
-#include "hud/hudlock.h"
-#include "playerman/player.h"
-#include "ship/ship.h"
-#include "weapon/weapon.h"
-#include "io/timer.h"
-#include "gamesnd/gamesnd.h"
 #include "ai/ai.h"
-#include "render/3d.h"
-#include "globalincs/linklist.h"
-#include "weapon/emp.h"
-#include "graphics/2d.h"
-#include "object/object.h"
-#include "mission/missionparse.h"
-#include "iff_defs/iff_defs.h"
-#include "network/multi.h"
 #include "debugconsole/console.h"
+#include "gamesnd/gamesnd.h"
+#include "globalincs/linklist.h"
+#include "hud/hudlock.h"
+#include "iff_defs/iff_defs.h"
+#include "io/timer.h"
+#include "mission/missionparse.h"
+#include "network/multi.h"
+#include "object/object.h"
+#include "playerman/player.h"
+#include "render/3d.h"
+#include "ship/ship.h"
+#include "weapon/emp.h"
+#include "weapon/weapon.h"
+
+
+// Used for aspect locks. -MageKing17
+#define VIRTUAL_FRAME_HALF_WIDTH	320.0f
+#define VIRTUAL_FRAME_HALF_HEIGHT	240.0f
 
 
 vec3d lock_world_pos;
@@ -262,8 +265,9 @@ void HudGaugeLock::render(float frametime)
 		// show the rotating triangles if target is locked
 		renderLockTriangles(sx, sy, frametime);
 	} else {
-		sx = fl2i(lock_point.screen.xyw.x) - (Player->current_target_sx - Players[Player_num].lock_indicator_x); 
-		sy = fl2i(lock_point.screen.xyw.y) - (Player->current_target_sy - Players[Player_num].lock_indicator_y);
+		const float scaling_factor = (gr_screen.clip_center_x < gr_screen.clip_center_y) ? (gr_screen.clip_center_x / VIRTUAL_FRAME_HALF_WIDTH) : (gr_screen.clip_center_y / VIRTUAL_FRAME_HALF_HEIGHT);
+		sx = fl2i(lock_point.screen.xyw.x) - fl2i(i2fl(Player->current_target_sx - Players[Player_num].lock_indicator_x) * scaling_factor);
+		sy = fl2i(lock_point.screen.xyw.y) - fl2i(i2fl(Player->current_target_sy - Players[Player_num].lock_indicator_y) * scaling_factor);
 		gr_unsize_screen_pos(&sx, &sy);
 	}
 
@@ -301,7 +305,7 @@ void hud_lock_reset(float lock_time_scale)
 	if ((swp->current_secondary_bank >= 0) && (swp->secondary_bank_weapons[swp->current_secondary_bank] >= 0)) {
 		Assert(swp->current_secondary_bank < MAX_SHIP_SECONDARY_BANKS);
 		Assert(swp->secondary_bank_weapons[swp->current_secondary_bank] < MAX_WEAPON_TYPES);
-		wip = &Weapon_info[swp->secondary_bank_weapons[swp->current_secondary_bank]];
+	wip = &Weapon_info[swp->secondary_bank_weapons[swp->current_secondary_bank]];
 		Player->lock_time_to_target = i2fl(wip->min_lock_time*lock_time_scale);
 	} else {
 		Player->lock_time_to_target = 0.0f;
@@ -420,6 +424,10 @@ int hud_abort_lock()
 		return 1;
 	}
 
+	if ( Player_ship->flags2 & SF2_NO_SECONDARY_LOCKON ) {
+		return 1;
+	}
+
 	// if we're on the same team and the team doesn't attack itself, then don't lock!
 	if ((Player_ship->team == target_team) && (!iff_x_attacks_y(Player_ship->team, target_team)))
 	{
@@ -463,10 +471,10 @@ int hud_lock_on_subsys_ok()
 // Determine if locking point is in the locking cone
 void hud_lock_check_if_target_in_lock_cone()
 {
-	float		dist, dot;
+	float	dot;
 	vec3d	vec_to_target;
 
-	dist = vm_vec_normalized_dir(&vec_to_target, &lock_world_pos, &Player_obj->pos);
+	vm_vec_normalized_dir(&vec_to_target, &lock_world_pos, &Player_obj->pos);
 	dot = vm_vec_dot(&Player_obj->orient.vec.fvec, &vec_to_target);
 
 	if ( dot > 0.85) {
@@ -1155,8 +1163,9 @@ void hud_lock_determine_lock_point(vec3d *lock_world_pos_out)
 	if ( lock_local_pos.xyz.z > 0.0f ) {
 		// Get the location of our target in the "virtual frame" where the locking computation will be done
 		float w = 1.0f / lock_local_pos.xyz.z;
-		float sx = ((gr_screen.clip_center_x*2.0f) + (lock_local_pos.xyz.x*(gr_screen.clip_center_x*2.0f)*w))*0.5f;
-		float sy = ((gr_screen.clip_center_y*2.0f) - (lock_local_pos.xyz.y*(gr_screen.clip_center_y*2.0f)*w))*0.5f;
+		// Let's force our "virtual frame" to be 640x480. -MageKing17
+		float sx = gr_screen.clip_center_x + (lock_local_pos.xyz.x * VIRTUAL_FRAME_HALF_WIDTH * w);
+		float sy = gr_screen.clip_center_y - (lock_local_pos.xyz.y * VIRTUAL_FRAME_HALF_HEIGHT * w);
 
 		Player->current_target_sx = (int)sx;
 		Player->current_target_sy = (int)sy;

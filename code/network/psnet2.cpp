@@ -32,6 +32,7 @@
 #endif
 #include <stdio.h>
 #include <limits.h>
+#include <algorithm>
 
 #include "globalincs/pstypes.h"
 #include "network/psnet2.h"
@@ -905,7 +906,7 @@ void psnet_string_to_addr( net_addr * address, char * text )
  */
 int psnet_same( net_addr * a1, net_addr * a2 )
 {
-	return !memcmp(a1->addr, a2->addr, 6);		
+	return !memcmp(a1->addr, a2->addr, 6) && a1->port == a2->port;
 }
 
 /**
@@ -1111,21 +1112,6 @@ int psnet_is_valid_ip_string( char *ip_string, int allow_port )
 // -------------------------------------------------------------------------------------------------------
 // PSNET 2 RELIABLE SOCKET FUNCTIONS
 //
-
-/**
- * Compare 2 pings
- */
-int psnet_rel_ping_compare( const void *arg1, const void *arg2 )
-{
-	float *ping1 = (float *)arg1;
-	float *ping2 = (float *)arg2;
-	
-	if(*ping1==*ping2) return 0;
-	else if(*ping1>*ping2) return 1;
-	else if(*ping1<*ping2) return -1;
-
-	return 0;
-}
 
 void psnet_rel_send_ack(SOCKADDR *raddr, unsigned int sig, ubyte link_type, float time_sent)
 {
@@ -1587,7 +1573,7 @@ void psnet_rel_work()
 						sort_ping[a] = rsocket->pings[a];
 					}
 
-					qsort(sort_ping ,MAX_PING_HISTORY, sizeof(float), psnet_rel_ping_compare);
+					std::sort(sort_ping, sort_ping + MAX_PING_HISTORY);
 					rsocket->mean_ping = ((sort_ping[MAX_PING_HISTORY/2]+sort_ping[(MAX_PING_HISTORY/2)+1]))/2;					
 				}
 				rsocket->ping_pos++;

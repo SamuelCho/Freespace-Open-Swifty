@@ -10,17 +10,18 @@
 
 
 #include "cmeasure/cmeasure.h"
-#include "ship/ship.h"
-#include "math/staticrand.h"
-#include "object/object.h"
-#include "weapon/weapon.h"
-#include "hud/hud.h"
 #include "gamesnd/gamesnd.h"
-#include "network/multimsgs.h"
+#include "hud/hud.h"
+#include "math/staticrand.h"
 #include "mission/missionparse.h"
+#include "network/multimsgs.h"
+#include "object/object.h"
+#include "ship/ship.h"
+#include "weapon/weapon.h"
 
 int	Cmeasures_homing_check = 0;
 int	Countermeasures_enabled = 1;			//	Debug, set to 0 means no one can fire countermeasures.
+const float CMEASURE_DETONATE_DISTANCE = 40.0f;
 
 //Used to set a countermeasure velocity after being launched from a ship as a countermeasure
 //ie not as a primary or secondary.

@@ -12,8 +12,8 @@
 #ifndef _MISSIONMESSAGE_H
 #define _MISSIONMESSAGE_H
 
-#include "globalincs/globals.h"		// include so that we can gets defs for lengths of tokens
 #include "anim/packunpack.h"
+#include "globalincs/globals.h"		// include so that we can gets defs for lengths of tokens
 #include "graphics/generic.h"
 
 class ship;
@@ -180,6 +180,7 @@ typedef struct persona_s {
 	char	name[NAME_LENGTH];
 	int	flags;
 	int species;
+	bool substitute_missing_messages;
 } Persona;
 
 extern Persona *Personas;

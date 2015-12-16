@@ -9,31 +9,30 @@
 
 
 
-#include "render/3d.h"
-#include "sound/sound.h"
-#include "sound/audiostr.h"
+#include "cfile/cfile.h"
 #include "cmdline/cmdline.h"
-#include "osapi/osapi.h"
-#include "globalincs/vmallocator.h"
 #include "debugconsole/console.h"
-
+#include "gamesnd/eventmusic.h"
 #include "gamesnd/gamesnd.h"
 #include "globalincs/alphacolors.h"
-#include "cfile/cfile.h"
-
+#include "globalincs/pstypes.h"
+#include "globalincs/vmallocator.h"
+#include "osapi/osapi.h"
+#include "render/3d.h"
+#include "sound/acm.h"
+#include "sound/audiostr.h"
 #include "sound/ds.h"
 #include "sound/ds3d.h"
-#include "sound/acm.h"
 #include "sound/dscap.h"
 #include "sound/ogg/ogg.h"
-
-#include "globalincs/pstypes.h"
+#include "sound/sound.h"
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
 #include <limits.h>
 
+const unsigned int SND_ENHANCED_MAX_LIMIT = 15; // seems like a good max limit
 
 #define SND_F_USED			(1<<0)		// Sounds[] element is used
 
@@ -142,7 +141,6 @@ int snd_init()
 	}
 
 	snd_clear();
-
 
 	rval = ds_init();
 
@@ -254,11 +252,16 @@ void snd_spew_debug_info()
 
 	// spew info
 	int line_height = gr_get_font_height() + 1;
+	int sx = gr_screen.center_offset_x + 30;
+	int sy = gr_screen.center_offset_y + 100;
 	gr_set_color_fast(&Color_normal);
-	gr_printf_no_resize(30, 100, "Game sounds : %d\n", game_sounds);
-	gr_printf_no_resize(30, 100 + line_height, "Interface sounds : %d\n", interface_sounds);
-	gr_printf_no_resize(30, 100 + (line_height * 2), "Message sounds : %d\n", message_sounds);
-	gr_printf_no_resize(30, 100 + (line_height * 3), "Total sounds : %d\n", game_sounds + interface_sounds + message_sounds);
+	gr_printf_no_resize(sx, sy, "Game sounds : %d\n", game_sounds);
+	sy += line_height;
+	gr_printf_no_resize(sx, sy, "Interface sounds : %d\n", interface_sounds);
+	sy += line_height;
+	gr_printf_no_resize(sx, sy, "Message sounds : %d\n", message_sounds);
+	sy += line_height;
+	gr_printf_no_resize(sx, sy, "Total sounds : %d\n", game_sounds + interface_sounds + message_sounds);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -284,8 +287,6 @@ int snd_load( game_snd *gs, int allow_hardware_load )
 	int				rc, FileSize, FileOffset;
 	char			fullpath[MAX_PATH];
 	char			filename[MAX_FILENAME_LEN];
-	const int		NUM_EXT = 2;
-	const char		*audio_ext[NUM_EXT] = { ".ogg", ".wav" };
 	size_t			n;
 
 
@@ -330,7 +331,7 @@ int snd_load( game_snd *gs, int allow_hardware_load )
 	char *p = strrchr(filename, '.');
 	if ( p ) *p = 0;
 
-	rc = cf_find_file_location_ext(filename, NUM_EXT, audio_ext, CF_TYPE_ANY, sizeof(fullpath) - 1, fullpath, &FileSize, &FileOffset);
+	rc = cf_find_file_location_ext(filename, NUM_AUDIO_EXT, audio_ext_list, CF_TYPE_ANY, sizeof(fullpath) - 1, fullpath, &FileSize, &FileOffset);
 
 	if (rc < 0)
 		return -1;
@@ -339,14 +340,19 @@ int snd_load( game_snd *gs, int allow_hardware_load )
 	CFILE *fp = cfopen_special(fullpath, "rb", FileSize, FileOffset);
 
 	// ok, we got it, so set the proper filename for logging purposes
-	strcat_s(filename, audio_ext[rc]);
+	strcat_s(filename, audio_ext_list[rc]);
 
 	nprintf(("Sound", "SOUND => Loading '%s'\n", filename));
 
 	// ds_parse_sound() will do a NULL check on fp for us
 	if ( ds_parse_sound(fp, &si->data, &si->size, &header, (rc == 0), &si->ogg_info) == -1 ) {
 		nprintf(("Sound", "SOUND ==> Could not read sound file!\n"));
- 		return -1;
+
+		if (fp != NULL) {
+			cfclose(fp);
+		}
+
+		return -1;
 	}
 
 	// Load was a success, should be some sort of WAV or an OGG
@@ -553,7 +559,7 @@ int snd_play( game_snd *gs, float pan, float vol_scale, int priority, bool is_vo
 		return -1;
 
 	if ( volume > MIN_SOUND_VOLUME ) {
-		handle = ds_play( snd->sid, gs->id_sig, ds_priority(priority), volume, pan, 0, is_voice_msg);
+		handle = ds_play( snd->sid, gs->id_sig, ds_priority(priority), &gs->enhanced_sound_data, volume, pan, 0, is_voice_msg);
 	}
 
 	return handle;
@@ -585,7 +591,7 @@ MONITOR( Num3DSoundsLoaded )
 // returns:		-1		=>		sound could not be played
 //					n		=>		handle for instance of sound
 //
-int snd_play_3d(game_snd *gs, vec3d *source_pos, vec3d *listen_pos, float radius, vec3d *source_vel, int looping, float vol_scale, int priority, vec3d *sound_fvec, float range_factor, int force )
+int snd_play_3d(game_snd *gs, vec3d *source_pos, vec3d *listen_pos, float radius, vec3d *source_vel, int looping, float vol_scale, int priority, vec3d *sound_fvec, float range_factor, int force, bool is_ambient )
 {
 	int		handle;
 	vec3d	vector_to_sound;
@@ -675,9 +681,9 @@ int snd_play_3d(game_snd *gs, vec3d *source_pos, vec3d *listen_pos, float radius
 			pan = vm_vec_dot(&View_matrix.vec.rvec, &vector_to_sound);
 		}
 
-		handle = ds_play(snd->sid, gs->id_sig, ds_priority(priority), volume / gs->default_volume, pan, looping);
+		handle = ds_play(snd->sid, gs->id_sig, ds_priority(priority), &gs->enhanced_sound_data, volume / gs->default_volume, pan, looping);
 	} else {
-		handle = ds3d_play(snd->sid, gs->id_sig, source_pos, source_vel, min_range, max_range, looping, (max_volume*Master_sound_volume*aav_effect_volume), volume, ds_priority(priority));
+		handle = ds3d_play(snd->sid, gs->id_sig, source_pos, source_vel, min_range, max_range, looping, (max_volume*Master_sound_volume*aav_effect_volume), volume, &gs->enhanced_sound_data, ds_priority(priority));
 	}
 
 	return handle;
@@ -851,7 +857,7 @@ int snd_play_looping( game_snd *gs, float pan, int start_loop, int stop_loop, fl
 		volume = 1.0f;
 
 	if (volume > MIN_SOUND_VOLUME) {
-		handle = ds_play( snd->sid, gs->id_sig, DS_MUST_PLAY, volume, pan, 1);
+		handle = ds_play( snd->sid, gs->id_sig, DS_MUST_PLAY, &gs->enhanced_sound_data, volume, pan, 1);
 
 		if(handle != -1 && scriptingUpdateVolume) {
 			currentlyLoopingSoundInfos.push_back(LoopingSoundInfo(handle, gs->default_volume, vol_scale));
@@ -1518,6 +1524,12 @@ void adjust_volume_on_frame(float* volume_now, aav* data)
 	//apply change
 	*volume_now = data->start_volume + (data->delta * done);
 	CLAMP(*volume_now, 0.0f, 1.0f);
+
+	// if setting music volume, trigger volume change in playing tracks
+	// done here in order to avoid setting music volume in every frame regardless if it changed or not
+	if (&aav_music_volume == volume_now) {
+		audiostream_set_volume_all(Master_event_music_volume * aav_music_volume, ASF_EVENTMUSIC);
+	}
 }
 
 void snd_aav_init()

@@ -118,7 +118,6 @@
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>../../code;../../libjpeg;../../libpng;../../lua;../../oggvorbis/include;../../openal/include;../../zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_WINDOWS;WIN32;_DEBUG;PDB_DEBUGGING;_CRT_SECURE_NO_DEPRECATE;_SECURE_SCL=0;_HAS_ITERATOR_DEBUGGING=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <BufferSecurityCheck>true</BufferSecurityCheck>
@@ -134,6 +133,7 @@
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <UndefinePreprocessorDefinitions>NDEBUG;%(UndefinePreprocessorDefinitions)</UndefinePreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -159,7 +159,6 @@
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>../../code;../../libjpeg;../../libpng;../../lua;../../oggvorbis/include;../../openal/include;../../zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_WINDOWS;WIN32;_DEBUG;PDB_DEBUGGING;_CRT_SECURE_NO_DEPRECATE;_SECURE_SCL=0;_HAS_ITERATOR_DEBUGGING=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <BufferSecurityCheck>true</BufferSecurityCheck>
@@ -177,6 +176,7 @@
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <UndefinePreprocessorDefinitions>NDEBUG;%(UndefinePreprocessorDefinitions)</UndefinePreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -202,7 +202,6 @@
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>../../code;../../libjpeg;../../libpng;../../lua;../../oggvorbis/include;../../openal/include;../../zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_WINDOWS;WIN32;_DEBUG;PDB_DEBUGGING;_CRT_SECURE_NO_DEPRECATE;_SECURE_SCL=0;_HAS_ITERATOR_DEBUGGING=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <BufferSecurityCheck>true</BufferSecurityCheck>
@@ -220,6 +219,7 @@
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <UndefinePreprocessorDefinitions>NDEBUG;%(UndefinePreprocessorDefinitions)</UndefinePreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -269,6 +269,7 @@
       <DebugInformationFormat>
       </DebugInformationFormat>
       <UndefinePreprocessorDefinitions>_DEBUG;%(UndefinePreprocessorDefinitions)</UndefinePreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -313,6 +314,7 @@
       <DebugInformationFormat>
       </DebugInformationFormat>
       <UndefinePreprocessorDefinitions>_DEBUG;%(UndefinePreprocessorDefinitions)</UndefinePreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -357,6 +359,7 @@
       <DebugInformationFormat>
       </DebugInformationFormat>
       <UndefinePreprocessorDefinitions>_DEBUG;%(UndefinePreprocessorDefinitions)</UndefinePreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -400,9 +403,8 @@
     <ClCompile Include="..\..\code\cutscene\oggplayer.cpp" />
     <ClCompile Include="..\..\code\Debris\debris.cpp" />
     <ClCompile Include="..\..\code\debugconsole\console.cpp" />
-	<ClCompile Include="..\..\code\debugconsole\consolecmds.cpp" />
-	<ClCompile Include="..\..\code\debugconsole\consoleparse.cpp" />
-    <ClCompile Include="..\..\code\debugconsole\timerbar.cpp" />
+    <ClCompile Include="..\..\code\debugconsole\consolecmds.cpp" />
+    <ClCompile Include="..\..\code\debugconsole\consoleparse.cpp" />
     <ClCompile Include="..\..\code\fireball\fireballs.cpp" />
     <ClCompile Include="..\..\code\fireball\warpineffect.cpp" />
     <ClCompile Include="..\..\code\gamehelp\contexthelp.cpp" />
@@ -414,8 +416,8 @@
     <ClCompile Include="..\..\code\globalincs\def_files.cpp" />
     <ClCompile Include="..\..\code\globalincs\fsmemory.cpp" />
     <ClCompile Include="..\..\code\globalincs\mspdb_callstack.cpp" />
-	<ClCompile Include="..\..\code\globalincs\profiling.cpp" />
-	<ClCompile Include="..\..\code\globalincs\safe_strings.cpp" />
+    <ClCompile Include="..\..\code\globalincs\profiling.cpp" />
+    <ClCompile Include="..\..\code\globalincs\safe_strings.cpp" />
     <ClCompile Include="..\..\code\globalincs\safe_strings_test.cpp" />
     <ClCompile Include="..\..\code\globalincs\systemvars.cpp" />
     <ClCompile Include="..\..\code\globalincs\version.cpp" />
@@ -435,6 +437,7 @@
     <ClCompile Include="..\..\code\graphics\gropenglstate.cpp" />
     <ClCompile Include="..\..\code\graphics\gropengltexture.cpp" />
     <ClCompile Include="..\..\code\graphics\gropengltnl.cpp" />
+    <ClCompile Include="..\..\code\graphics\shadows.cpp" />
     <ClCompile Include="..\..\code\hud\hud.cpp" />
     <ClCompile Include="..\..\code\hud\hudartillery.cpp" />
     <ClCompile Include="..\..\code\hud\hudbrackets.cpp" />
@@ -498,10 +501,8 @@
     <ClCompile Include="..\..\code\missionui\missiondebrief.cpp" />
     <ClCompile Include="..\..\code\missionui\missionloopbrief.cpp" />
     <ClCompile Include="..\..\code\missionui\missionpause.cpp" />
-    <ClCompile Include="..\..\code\missionui\missionrecommend.cpp" />
     <ClCompile Include="..\..\code\missionui\missionscreencommon.cpp" />
     <ClCompile Include="..\..\code\missionui\missionshipchoice.cpp" />
-    <ClCompile Include="..\..\code\missionui\missionstats.cpp" />
     <ClCompile Include="..\..\code\missionui\missionweaponchoice.cpp" />
     <ClCompile Include="..\..\code\missionui\redalert.cpp" />
     <ClCompile Include="..\..\code\model\modelanim.cpp" />
@@ -509,6 +510,7 @@
     <ClCompile Include="..\..\code\model\modelinterp.cpp" />
     <ClCompile Include="..\..\code\model\modeloctant.cpp" />
     <ClCompile Include="..\..\code\model\modelread.cpp" />
+    <ClCompile Include="..\..\code\model\modelrender.cpp" />
     <ClCompile Include="..\..\code\mod_table\mod_table.cpp" />
     <ClCompile Include="..\..\code\object\collidedebrisship.cpp" />
     <ClCompile Include="..\..\code\object\collidedebrisweapon.cpp" />
@@ -665,7 +667,6 @@
     <ClInclude Include="..\..\code\ai\aibig.h" />
     <ClInclude Include="..\..\code\ai\aigoals.h" />
     <ClInclude Include="..\..\code\ai\aiinternal.h" />
-    <ClInclude Include="..\..\code\ai\ailocal.h" />
     <ClInclude Include="..\..\code\anim\animplay.h" />
     <ClInclude Include="..\..\code\anim\packunpack.h" />
     <ClInclude Include="..\..\code\Asteroid\asteroid.h" />
@@ -682,9 +683,8 @@
     <ClInclude Include="..\..\code\cutscene\mvelib.h" />
     <ClInclude Include="..\..\code\cutscene\oggplayer.h" />
     <ClInclude Include="..\..\code\Debris\debris.h" />
-	<ClInclude Include="..\..\code\debugconsole\console.h" />
-	<ClInclude Include="..\..\code\debugconsole\consoleparse.h" />
-    <ClInclude Include="..\..\code\debugconsole\timerbar.h" />
+    <ClInclude Include="..\..\code\debugconsole\console.h" />
+    <ClInclude Include="..\..\code\debugconsole\consoleparse.h" />
     <ClInclude Include="..\..\code\DirectX\vasync.h" />
     <ClInclude Include="..\..\code\DirectX\vdinput.h" />
     <ClInclude Include="..\..\code\DirectX\vdplay.h" />
@@ -711,6 +711,7 @@
     <ClInclude Include="..\..\code\Graphics\2d.h" />
     <ClInclude Include="..\..\code\graphics\grbatch.h" />
     <ClInclude Include="..\..\code\graphics\grinternal.h" />
+    <ClInclude Include="..\..\code\graphics\shadows.h" />
     <ClInclude Include="..\..\code\graphics\tmapper.h" />
     <ClInclude Include="..\..\code\Graphics\font.h" />
     <ClInclude Include="..\..\code\graphics\generic.h" />
@@ -793,14 +794,13 @@
     <ClInclude Include="..\..\code\missionui\missiondebrief.h" />
     <ClInclude Include="..\..\code\missionui\missionloopbrief.h" />
     <ClInclude Include="..\..\code\missionui\missionpause.h" />
-    <ClInclude Include="..\..\code\missionui\missionrecommend.h" />
     <ClInclude Include="..\..\code\missionui\missionscreencommon.h" />
     <ClInclude Include="..\..\code\missionui\missionshipchoice.h" />
-    <ClInclude Include="..\..\code\missionui\missionstats.h" />
     <ClInclude Include="..\..\code\missionui\missionweaponchoice.h" />
     <ClInclude Include="..\..\code\missionui\redalert.h" />
     <ClInclude Include="..\..\code\model\model.h" />
     <ClInclude Include="..\..\code\model\modelanim.h" />
+    <ClInclude Include="..\..\code\model\modelrender.h" />
     <ClInclude Include="..\..\code\model\modelsinc.h" />
     <ClInclude Include="..\..\code\mod_table\mod_table.h" />
     <ClInclude Include="..\..\code\object\deadobjectdock.h" />
@@ -937,30 +937,22 @@
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\code\sound\phrases.xml">
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug SSE2|Win32'">"%(RootDir)%(Directory)gc" "%(RootDir)%(Directory)%(Filename)"
-"%(RootDir)%(Directory)gc" /h "%(RootDir)%(Directory)grammar.h" "%(RootDir)%(Directory)%(Filename)"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug SSE2|Win32'">%(RootDir)%(Directory)phrases.cfg;%(RootDir)%(Directory)grammar.h;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug SSE|Win32'">"%(RootDir)%(Directory)gc" "%(RootDir)%(Directory)%(Filename)"
-"%(RootDir)%(Directory)gc" /h "%(RootDir)%(Directory)grammar.h" "%(RootDir)%(Directory)%(Filename)"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug SSE|Win32'">%(RootDir)%(Directory)phrases.cfg;%(RootDir)%(Directory)grammar.h;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">"%(RootDir)%(Directory)gc" "%(RootDir)%(Directory)%(Filename)"
-"%(RootDir)%(Directory)gc" /h "%(RootDir)%(Directory)grammar.h" "%(RootDir)%(Directory)%(Filename)"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(RootDir)%(Directory)phrases.cfg;%(RootDir)%(Directory)grammar.h;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release SSE2|Win32'">"%(RootDir)%(Directory)gc" "%(RootDir)%(Directory)%(Filename)"
-"%(RootDir)%(Directory)gc" /h "%(RootDir)%(Directory)grammar.h" "%(RootDir)%(Directory)%(Filename)"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release SSE2|Win32'">%(RootDir)%(Directory)phrases.cfg;%(RootDir)%(Directory)grammar.h;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release SSE|Win32'">"%(RootDir)%(Directory)gc" "%(RootDir)%(Directory)%(Filename)"
-"%(RootDir)%(Directory)gc" /h "%(RootDir)%(Directory)grammar.h" "%(RootDir)%(Directory)%(Filename)"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release SSE|Win32'">%(RootDir)%(Directory)phrases.cfg;%(RootDir)%(Directory)grammar.h;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">"%(RootDir)%(Directory)gc" "%(RootDir)%(Directory)%(Filename)"
-"%(RootDir)%(Directory)gc" /h "%(RootDir)%(Directory)grammar.h" "%(RootDir)%(Directory)%(Filename)"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(RootDir)%(Directory)phrases.cfg;%(RootDir)%(Directory)grammar.h;%(Outputs)</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">"%(RootDir)%(Directory)gc" /O "$(IntDir)voicer\%(Filename).cfg" /H "$(IntDir)voicer\grammar.h" "%(RootDir)%(Directory)%(Filename)"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)voicer\%(Filename).cfg;$(IntDir)voicer\grammar.h;%(Outputs)</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug AVX|Win32'">"%(RootDir)%(Directory)gc" /O "$(IntDir)voicer\%(Filename).cfg" /H "$(IntDir)voicer\grammar.h" "%(RootDir)%(Directory)%(Filename)"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug AVX|Win32'">$(IntDir)voicer\%(Filename).cfg;$(IntDir)voicer\grammar.h;%(Outputs)</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug SSE|Win32'">"%(RootDir)%(Directory)gc" /O "$(IntDir)voicer\%(Filename).cfg" /H "$(IntDir)voicer\grammar.h" "%(RootDir)%(Directory)%(Filename)"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug SSE|Win32'">$(IntDir)voicer\%(Filename).cfg;$(IntDir)voicer\grammar.h;%(Outputs)</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug SSE2|Win32'">"%(RootDir)%(Directory)gc" /O "$(IntDir)voicer\%(Filename).cfg" /H "$(IntDir)voicer\grammar.h" "%(RootDir)%(Directory)%(Filename)"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug SSE2|Win32'">$(IntDir)voicer\%(Filename).cfg;$(IntDir)voicer\grammar.h;%(Outputs)</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">"%(RootDir)%(Directory)gc" /O "$(IntDir)voicer\%(Filename).cfg" /H "$(IntDir)voicer\grammar.h" "%(RootDir)%(Directory)%(Filename)"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)voicer\%(Filename).cfg;$(IntDir)voicer\grammar.h;%(Outputs)</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release AVX|Win32'">"%(RootDir)%(Directory)gc" /O "$(IntDir)voicer\%(Filename).cfg" /H "$(IntDir)voicer\grammar.h" "%(RootDir)%(Directory)%(Filename)"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release AVX|Win32'">$(IntDir)voicer\%(Filename).cfg;$(IntDir)voicer\grammar.h;%(Outputs)</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release SSE|Win32'">"%(RootDir)%(Directory)gc" /O "$(IntDir)voicer\%(Filename).cfg" /H "$(IntDir)voicer\grammar.h" "%(RootDir)%(Directory)%(Filename)"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release SSE|Win32'">$(IntDir)voicer\%(Filename).cfg;$(IntDir)voicer\grammar.h;%(Outputs)</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release SSE2|Win32'">"%(RootDir)%(Directory)gc" /O "$(IntDir)voicer\%(Filename).cfg" /H "$(IntDir)voicer\grammar.h" "%(RootDir)%(Directory)%(Filename)"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release SSE2|Win32'">$(IntDir)voicer\%(Filename).cfg;$(IntDir)voicer\grammar.h;%(Outputs)</Outputs>
     </CustomBuild>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

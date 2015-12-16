@@ -12,12 +12,12 @@
 
 #define MODEL_LIB
 
-#include "model/model.h"
-#include "math/vecmat.h"
+#include "cmdline/cmdline.h"
 #include "graphics/tmapper.h"
 #include "math/fvi.h"
+#include "math/vecmat.h"
+#include "model/model.h"
 #include "model/modelsinc.h"
-#include "cmdline/cmdline.h"
 
 
 
@@ -277,7 +277,7 @@ static void mc_check_sphereline_face( int nv, vec3d ** verts, vec3d * plane_pnt,
 				//mprintf(("Estimated radius error: Estimate %f, actual %f Mc->radius\n", temp_dist, Mc->radius));
 			}
 			vm_vec_sub( &temp_dir, &hit_point, &temp_sphere );
-			// Assert( vm_vec_dotprod( &temp_dir, &Mc_direction ) > 0 );
+			// Assert( vm_vec_dot( &temp_dir, &Mc_direction ) > 0 );
 			*/
 		}
 	}
@@ -305,7 +305,7 @@ static void mc_check_sphereline_face( int nv, vec3d ** verts, vec3d * plane_pnt,
 				//mprintf(("Estimated radius error: Estimate %f, actual %f Mc->radius\n", temp_dist, Mc->radius));
 			}
 			vm_vec_sub( &temp_dir, &hit_point, &temp_sphere );
-//			Assert( vm_vec_dotprod( &temp_dir, &Mc_direction ) > 0 );
+//			Assert( vm_vec_dot( &temp_dir, &Mc_direction ) > 0 );
 			*/
 
 			if ( (Mc->num_hits==0) || (sphere_time < Mc->hit_dist) ) {
@@ -376,6 +376,8 @@ int model_collide_parse_bsp_defpoints(ubyte * p)
 
 	ubyte * normcount = p+20;
 	vec3d *src = vp(p+offset);
+
+	model_collide_allocate_point_list(nverts);
 
 	Assert( Mc_point_list != NULL );
 
@@ -1078,19 +1080,18 @@ void mc_check_subobj( int mn )
 		return;
 	}
 
-	// quickly bail if we aren't inside the full model bbox
-	if ( !mc_ray_boundingbox(&Mc_pm->mins, &Mc_pm->maxs, &Mc_p0, &Mc_direction, NULL) ) {
-		return;
-	}
-
-	// If we are checking the root submodel, then we might want
-	// to check the shield at this point
-	if (Mc->flags & MC_CHECK_SHIELD) {
-		if ( (Mc_pm->detail[0] == mn) && (Mc_pm->shield.ntris > 0) ) {
-			mc_check_shield();
+	if (Mc_pm->detail[0] == mn)	{
+		// Quickly bail if we aren't inside the full model bbox
+		if (!mc_ray_boundingbox( &Mc_pm->mins, &Mc_pm->maxs, &Mc_p0, &Mc_direction, NULL))	{
+			return;
 		}
 
-		return;
+		// If we are checking the root submodel, then we might want to check	
+		// the shield at this point
+		if ((Mc->flags & MC_CHECK_SHIELD) && (Mc_pm->shield.ntris > 0 )) {
+			mc_check_shield();
+			return;
+		}
 	}
 
 	if (!(Mc->flags & MC_CHECK_MODEL)) {
@@ -1125,12 +1126,27 @@ void mc_check_subobj( int mn )
 			Mc->hit_bitmap = -1;
 			Mc->num_hits++;
 		} else {
-			// The ray interects this bounding box, so we have to check all the
+			// The ray intersects this bounding box, so we have to check all the
 			// polygons in this submodel.
 			if ( Cmdline_old_collision_sys ) {
 				model_collide_sub(sm->bsp_data);
 			} else {
-				model_collide_bsp(model_get_bsp_collision_tree(sm->collision_tree_index), 0);
+				if (Mc->lod > 0 && sm->num_details > 0) {
+					bsp_info *lod_sm = sm;
+
+					for (i = Mc->lod - 1; i >= 0; i--) {
+						if (sm->details[i] != -1) {
+							lod_sm = &Mc_pm->submodel[sm->details[i]];
+
+							//mprintf(("Checking %s collision for %s using %s instead\n", Mc_pm->filename, sm->name, lod_sm->name));
+							break;
+						}
+					}
+
+					model_collide_bsp(model_get_bsp_collision_tree(lod_sm->collision_tree_index), 0);
+				} else {
+					model_collide_bsp(model_get_bsp_collision_tree(sm->collision_tree_index), 0);
+				}
 			}
 		}
 	}
@@ -1190,7 +1206,7 @@ NoHit:
 					vm_rotate_matrix_by_angles(&rotation_matrix, &angs);
 
 					matrix inv_orientation;
-					vm_copy_transpose_matrix(&inv_orientation, &csm->orientation);
+					vm_copy_transpose(&inv_orientation, &csm->orientation);
 
 					vm_matrix_x_matrix(&tm, &rotation_matrix, &inv_orientation);
 				}
@@ -1211,9 +1227,9 @@ MONITOR(NumFVI)
 // See model.h for usage.   I don't want to put the
 // usage here because you need to see the #defines and structures
 // this uses while reading the help.   
-int model_collide(mc_info * mc_info)
+int model_collide(mc_info *mc_info_obj)
 {
-	Mc = mc_info;
+	Mc = mc_info_obj;
 
 	MONITOR_INC(NumFVI,1);
 
@@ -1360,7 +1376,7 @@ void model_collide_preprocess_subobj(vec3d *pos, matrix *orient, polymodel *pm, 
 			vm_rotate_matrix_by_angles(&rotation_matrix, &angs);
 
 			matrix inv_orientation;
-			vm_copy_transpose_matrix(&inv_orientation, &csm->orientation);
+			vm_copy_transpose(&inv_orientation, &csm->orientation);
 
 			vm_matrix_x_matrix(&tm, &rotation_matrix, &inv_orientation);
 		}
@@ -1373,7 +1389,7 @@ void model_collide_preprocess_subobj(vec3d *pos, matrix *orient, polymodel *pm, 
 	}
 }
 
-void model_collide_preprocess(matrix *orient, int model_instance_num)
+void model_collide_preprocess(matrix *orient, int model_instance_num, int detail_num)
 {
 	polymodel_instance	*pmi;
 	polymodel *pm;
@@ -1381,10 +1397,12 @@ void model_collide_preprocess(matrix *orient, int model_instance_num)
 	pmi = model_get_instance(model_instance_num);
 	pm = model_get(pmi->model_num);
 
-	matrix current_orient = *orient;
+	matrix current_orient;
 	vec3d current_pos;
+
+	current_orient = *orient;
 
 	vm_vec_zero(&current_pos);
 
-	model_collide_preprocess_subobj(&current_pos, &current_orient, pm, pmi, pm->detail[0]);
+	model_collide_preprocess_subobj(&current_pos, &current_orient, pm, pmi, pm->detail[detail_num]);
 }

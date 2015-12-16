@@ -12,12 +12,12 @@
 
 #include "cfile/cfile.h"
 #include "controlconfig/controlsconfig.h"
-#include "io/key.h"
+#include "globalincs/def_files.h"
+#include "globalincs/systemvars.h"
 #include "io/joy.h"
+#include "io/key.h"
 #include "localization/localize.h"
 #include "parse/parselo.h"
-#include "globalincs/systemvars.h"
-#include "globalincs/def_files.h"
 
 // z64: These enumerations MUST equal to those in controlsconfig.cpp...
 // z64: Really need a better way than this.
@@ -404,6 +404,7 @@ char **Scan_code_text = Scan_code_text_english;
 char **Joy_button_text = Joy_button_text_english;
 
 SCP_vector<config_item*> Control_config_presets;
+SCP_vector<SCP_string> Control_config_preset_names;
 
 void set_modifier_status()
 {
@@ -609,6 +610,16 @@ void control_config_common_init()
 	}
 }
 
+/*
+ * @brief close any common control config stuff, called at game_shutdown()
+ */
+void control_config_common_close()
+{
+	// only need to worry control presets for now
+	for (auto ii = Control_config_presets.cbegin(); ii != Control_config_presets.cend(); ++ii) {
+		delete * ii;
+	}
+}
 
 
 #include <map>
@@ -811,6 +822,14 @@ void control_config_common_load_overrides()
 		std::copy(Control_config, Control_config + CCFG_MAX + 1, cfg_preset);
 		Control_config_presets.push_back(cfg_preset);
 
+		SCP_string preset_name;
+		if (optional_string("$Name:")) {
+			stuff_string_line(preset_name);
+		} else {
+			preset_name = "<unnamed preset>";
+		}
+		Control_config_preset_names.push_back(preset_name);
+
 		while (required_string_either("#End","$Bind Name:")) {
 			const int iBufferLength = 64;
 			char szTempBuffer[iBufferLength];
@@ -879,6 +898,9 @@ void control_config_common_load_overrides()
 
 					if (optional_string("+Disable")) {
 						r_ccConfig.disabled = true;
+					}
+					if (optional_string("$Disable:")) {
+						stuff_boolean(&r_ccConfig.disabled);
 					}
 					
 					// Nerf the buffer now.

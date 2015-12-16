@@ -9,14 +9,14 @@
 
 
 
-#include "globalincs/pstypes.h"
-#include "sound/openal.h"
-#include "sound/ds3d.h"
-#include "sound/ds.h"
-#include "sound/channel.h"
-#include "sound/sound.h"
-#include "object/object.h"
 #include "cmdline/cmdline.h"
+#include "globalincs/pstypes.h"
+#include "object/object.h"
+#include "sound/channel.h"
+#include "sound/ds.h"
+#include "sound/ds3d.h"
+#include "sound/openal.h"
+#include "sound/sound.h"
 
 
 // ---------------------------------------------------------------------------------------
@@ -32,18 +32,18 @@
 //					-1		=>		failure
 //
 //
-int ds3d_update_buffer(int channel, float min, float max, vec3d *pos, vec3d *vel)
+int ds3d_update_buffer(int channel_id, float min, float max, vec3d *pos, vec3d *vel)
 {
 	if (Cmdline_no_3d_sound) {
 		nprintf(("Sound", "Aborting ds3d_update_buffer due to Cmdline_no_3d_sound..."));
 		return -1;
 	}
 
-	if (channel < 0) {
+	if (channel_id < 0) {
 		return 0;
 	}
 
-	ALuint source_id = Channels[channel].source_id;
+	ALuint source_id = Channels[channel_id].source_id;
 	ALfloat rolloff = 1.0f;
 
 	if (pos) {

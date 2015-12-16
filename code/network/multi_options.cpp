@@ -206,10 +206,10 @@ void multi_options_read_config()
 							mprintf(("ERROR: Invalid or out of range webapi_server_port '%s' specified in multi.cfg, must be integer between 1024 and %i.\n", tok, USHRT_MAX));
 						}
 						else if(result < 1024) {
-							mprintf(("ERROR: webapi_server_port '%d' in multi.cfg is too low, must be between 1024 and %i.\n", result, USHRT_MAX));
+							mprintf(("ERROR: webapi_server_port '%ld' in multi.cfg is too low, must be between 1024 and %d.\n", result, USHRT_MAX));
 						}
 						else {
-							mprintf(("Using webapi_server_port '%d' from multi.cfg.\n", result));
+							mprintf(("Using webapi_server_port '%ld' from multi.cfg.\n", result));
 							Multi_options_g.webapiPort = (ushort) result;
 						}
 					}
@@ -584,6 +584,11 @@ void multi_options_process_packet(unsigned char *data, header *hinfo)
 
 	// find out who is sending this data	
 	player_index = find_player_id(hinfo->id);
+
+	if (player_index < 0) {
+		nprintf(("Network", "Received packet from unknown player!\n"));
+		return;
+	}
 
 	// get the packet code
 	GET_DATA(code);

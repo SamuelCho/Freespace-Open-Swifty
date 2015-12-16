@@ -12,10 +12,10 @@
 #ifndef _GRAPHICS_H
 #define _GRAPHICS_H
 
+#include "bmpman/bmpman.h"
+#include "cfile/cfile.h"
 #include "globalincs/pstypes.h"
 #include "graphics/tmapper.h"
-#include "cfile/cfile.h"
-#include "bmpman/bmpman.h"
 
 extern const float Default_min_draw_distance;
 extern const float Default_max_draw_distance;
@@ -27,21 +27,47 @@ extern int Gr_inited;
 extern int gr_zbuffering, gr_zbuffering_mode;
 extern int gr_global_zbuffering;
 
+enum shader_type {
+	SDR_TYPE_MODEL,
+	SDR_TYPE_EFFECT_PARTICLE,
+	SDR_TYPE_EFFECT_DISTORTION,
+	SDR_TYPE_POST_PROCESS_MAIN,
+	SDR_TYPE_POST_PROCESS_BLUR,
+	SDR_TYPE_POST_PROCESS_BRIGHTPASS,
+	SDR_TYPE_POST_PROCESS_FXAA,
+	SDR_TYPE_POST_PROCESS_FXAA_PREPASS,
+	SDR_TYPE_POST_PROCESS_LIGHTSHAFTS,
+	SDR_TYPE_DEFERRED_LIGHTING,
+	SDR_TYPE_DEFERRED_CLEAR,
+	SDR_TYPE_VIDEO_PROCESS,
+
+	NUM_SHADER_TYPES
+};
+
 // Shader flags
-#define SDR_FLAG_LIGHT			(1<<0)
-#define SDR_FLAG_FOG			(1<<1)
-#define SDR_FLAG_DIFFUSE_MAP	(1<<2)
-#define SDR_FLAG_GLOW_MAP		(1<<3)
-#define SDR_FLAG_SPEC_MAP		(1<<4)
-#define SDR_FLAG_NORMAL_MAP		(1<<5)
-#define SDR_FLAG_HEIGHT_MAP		(1<<6)
-#define SDR_FLAG_ENV_MAP		(1<<7)
-#define SDR_FLAG_ANIMATED		(1<<8)
-#define SDR_FLAG_SOFT_QUAD		(1<<9)
-#define SDR_FLAG_DISTORTION		(1<<10)
-#define SDR_FLAG_MISC_MAP		(1<<11)
-#define SDR_FLAG_TEAMCOLOR		(1<<12)
-#define SDR_FLAG_THRUSTER		(1<<13)
+#define SDR_FLAG_MODEL_LIGHT		(1<<0)
+#define SDR_FLAG_MODEL_FOG			(1<<1)
+#define SDR_FLAG_MODEL_DIFFUSE_MAP	(1<<2)
+#define SDR_FLAG_MODEL_GLOW_MAP		(1<<3)
+#define SDR_FLAG_MODEL_SPEC_MAP		(1<<4)
+#define SDR_FLAG_MODEL_NORMAL_MAP	(1<<5)
+#define SDR_FLAG_MODEL_HEIGHT_MAP	(1<<6)
+#define SDR_FLAG_MODEL_ENV_MAP		(1<<7)
+#define SDR_FLAG_MODEL_ANIMATED		(1<<8)
+#define SDR_FLAG_MODEL_MISC_MAP		(1<<9)
+#define SDR_FLAG_MODEL_TEAMCOLOR	(1<<10)
+#define SDR_FLAG_MODEL_TRANSFORM	(1<<11)
+#define SDR_FLAG_MODEL_DEFERRED		(1<<12)
+#define SDR_FLAG_MODEL_SHADOW_MAP	(1<<13)
+#define SDR_FLAG_MODEL_GEOMETRY		(1<<14)
+#define SDR_FLAG_MODEL_SHADOWS		(1<<15)
+#define SDR_FLAG_MODEL_THRUSTER		(1<<16)
+#define SDR_FLAG_MODEL_CLIP			(1<<17)
+
+#define SDR_FLAG_PARTICLE_POINT_GEN			(1<<0)
+
+#define SDR_FLAG_BLUR_HORIZONTAL			(1<<0)
+#define SDR_FLAG_BLUR_VERTICAL				(1<<1)
 
 // stencil buffering stuff
 extern int gr_stencil_mode;
@@ -68,15 +94,15 @@ typedef struct shader {
 // gr_get_colors after calling gr_set_colors_fast.
 typedef struct color {
 	uint		screen_sig;
+	int		is_alphacolor;
+	int		alphacolor;
+	int		magic;
 	ubyte		red;
 	ubyte		green;
 	ubyte		blue;
 	ubyte		alpha;
 	ubyte		ac_type;							// The type of alphacolor.  See AC_TYPE_??? defines
-	int		is_alphacolor;
 	ubyte		raw8;
-	int		alphacolor;
-	int		magic;		
 } color;
 
 // Used by the team coloring code
@@ -100,10 +126,23 @@ typedef struct tsb_t {
  * This should be basicly just like it is in the VB
  * a list of triangles and their associated normals
  */
-class poly_list
-{
+class poly_list {
+	// helper function struct that let's us sort the indices.
+	// an instance is fed into std::sort and std::lower_bound.
+	// overloaded operator() is used for the comparison function.
+	struct finder {
+		poly_list* search_list;
+		bool compare_indices;
+		vertex* vert_to_find;
+		vec3d* norm_to_find;
+
+		finder(poly_list* _search_list): search_list(_search_list), compare_indices(true), vert_to_find(NULL), norm_to_find(NULL) {}
+		finder(poly_list* _search_list, vertex* _vert, vec3d* _norm): search_list(_search_list), compare_indices(false), vert_to_find(_vert), norm_to_find(_norm) {}
+
+		bool operator()(const uint a, const uint b);
+	};
 public:
-	poly_list(): n_verts(0), vert(NULL), norm(NULL), tsb(NULL), currently_allocated(0) {}
+	poly_list(): n_verts(0), vert(NULL), norm(NULL), tsb(NULL), submodels(NULL), sorted_indices(NULL), currently_allocated(0) {}
 	~poly_list();
 	poly_list& operator = (poly_list&);
 
@@ -114,14 +153,18 @@ public:
 	vertex *vert;
 	vec3d *norm;
 	tsb_t *tsb;
+	int *submodels;
+
+	uint *sorted_indices;
 
 	int find_index(poly_list *plist, int idx);
-
+	int find_index_fast(poly_list *plist, int idx);
 private:
 	int currently_allocated;
 	int find_first_vertex(int idx);
+	int find_first_vertex_fast(int idx);
+	void generate_sorted_index_list();
 };
-
 
 class colored_vector
 {
@@ -178,20 +221,35 @@ public:
 	}
 
 	// Constructor
+
+	buffer_data() :
+	flags(0), texture(-1), n_verts(0), index_offset(0),
+		i_first(1), i_last(0), index(NULL)
+	{
+	}
+
 	buffer_data(int n_vrts) :
 		flags(0), texture(-1), n_verts(n_vrts), index_offset(0),
-		i_first(1), i_last(0)
+		i_first(1), i_last(0), index(NULL)
 	{
-		index = new(std::nothrow) uint[n_verts];
+		if ( n_verts > 0 ) {
+			index = new(std::nothrow) uint[n_verts];
+		} else {
+			index = NULL;
+		}
 	}
     
 	// Copy-constructor
 	buffer_data(const buffer_data& other)
 	{
-		index = new(std::nothrow) uint[other.n_verts];
-		for (size_t i=0; i < (size_t) other.n_verts; i++)
-		{
-			index[i] = other.index[i];
+		if ( other.index ) {
+			index = new(std::nothrow) uint[other.n_verts];
+			for (size_t i=0; i < (size_t) other.n_verts; i++)
+			{
+				index[i] = other.index[i];
+			}
+		} else {
+			index = NULL;
 		}
         
 		flags   = other.flags;
@@ -209,12 +267,16 @@ public:
 	{
 		if (this != &rhs)
 		{
-			delete [] index;
-            
-			index = new(std::nothrow) uint[rhs.n_verts];
-			for (size_t i=0; i < (size_t) rhs.n_verts; i++)
-			{
-				index[i] = rhs.index[i];
+			if ( index ) {
+				delete [] index;
+			}
+
+			if ( rhs.index && rhs.n_verts > 0 ) {
+				index = new(std::nothrow) uint[rhs.n_verts];
+				for (size_t i=0; i < (size_t) rhs.n_verts; i++)
+				{
+					index[i] = rhs.index[i];
+				}
 			}
             
 			flags   = rhs.flags;
@@ -298,9 +360,13 @@ typedef struct screen {
 	int	max_w, max_h;		// Width and height
 	int max_w_unscaled, max_h_unscaled;
 	int max_w_unscaled_zoomed, max_h_unscaled_zoomed;
+	int center_w, center_h;	// Width and height of center monitor
+	int center_offset_x, center_offset_y;
 	int	save_max_w, save_max_h;		// Width and height
 	int save_max_w_unscaled, save_max_h_unscaled;
 	int save_max_w_unscaled_zoomed, save_max_h_unscaled_zoomed;
+	int save_center_w, save_center_h;	// Width and height of center monitor
+	int save_center_offset_x, save_center_offset_y;
 	int	res;					// GR_640 or GR_1024
 	int	mode;					// What mode gr_init was called with.
 	float	aspect, clip_aspect;				// Aspect ratio, aspect of clip_width/clip_height
@@ -350,7 +416,7 @@ typedef struct screen {
 	void (*gf_flip)();
 
 	// Sets the current palette
-	void (*gf_set_palette)(ubyte * new_pal, int restrict_alphacolor);
+	void (*gf_set_palette)(const ubyte *new_pal, int restrict_alphacolor);
 
 	// Fade the screen in/out
 	void (*gf_fade_in)(int instantaneous);
@@ -491,7 +557,7 @@ typedef struct screen {
 	// Here be the bitmap functions
 	void (*gf_bm_free_data)(int n, bool release);
 	void (*gf_bm_create)(int n);
-	int (*gf_bm_load)(ubyte type, int n, const char *filename, CFILE *img_cfp, int *w, int *h, int *bpp, ubyte *c_type, int *mm_lvl, int *size);
+	int(*gf_bm_load)(BM_TYPE type, int n, const char *filename, CFILE *img_cfp, int *w, int *h, int *bpp, BM_TYPE *c_type, int *mm_lvl, int *size);
 	void (*gf_bm_init)(int n);
 	void (*gf_bm_page_in_start)();
 	int (*gf_bm_lock)(const char *filename, int handle, int bitmapnum, ubyte bpp, ubyte flags, bool nodebug);
@@ -499,7 +565,7 @@ typedef struct screen {
 	int (*gf_bm_make_render_target)(int n, int *width, int *height, ubyte *bpp, int *mm_lvl, int flags );
 	int (*gf_bm_set_render_target)(int n, int face);
 
-	void (*gf_translate_texture_matrix)(int unit, vec3d *shift);
+	void (*gf_translate_texture_matrix)(int unit, const vec3d *shift);
 	void (*gf_push_texture_matrix)(int unit);
 	void (*gf_pop_texture_matrix)(int unit);
 
@@ -507,16 +573,17 @@ typedef struct screen {
 
 	int (*gf_create_buffer)();
 	bool (*gf_pack_buffer)(const int buffer_id, vertex_buffer *vb);
-	bool (*gf_config_buffer)(const int buffer_id, vertex_buffer *vb);
+	bool (*gf_config_buffer)(const int buffer_id, vertex_buffer *vb, bool update_ibuffer_only);
 	void (*gf_destroy_buffer)(int);
 	void (*gf_set_buffer)(int);
 	void (*gf_render_buffer)(int, const vertex_buffer*, int, int);
 
+	void (*gf_update_buffer_object)(int handle, uint size, void* data);
+	void (*gf_update_transform_buffer)(void* data, uint size);
+	void (*gf_set_transform_buffer_offset)(int offset);
+
 	int (*gf_create_stream_buffer)();
-	void (*gf_update_stream_buffer)(int buffer, effect_vertex *buffer_data, uint size);
-	void (*gf_render_stream_buffer)(int offset, int n_verts, int flags);
-	void (*gf_render_stream_buffer_start)(int buffer_id);
-	void (*gf_render_stream_buffer_end)();
+	void (*gf_render_stream_buffer)(int buffer_handle, int offset, int n_verts, int flags);
 
 	int	 (*gf_make_flat_buffer)(poly_list*);
 	int	 (*gf_make_line_buffer)(line_list*);
@@ -526,14 +593,14 @@ typedef struct screen {
  	void (*gf_set_proj_matrix)(float, float, float, float);
   	void (*gf_end_proj_matrix)();
 	//the view matrix
- 	void (*gf_set_view_matrix)(vec3d *, matrix*);
+ 	void (*gf_set_view_matrix)(const vec3d*, const matrix*);
   	void (*gf_end_view_matrix)();
 	//object scaleing
-	void (*gf_push_scale_matrix)(vec3d *);
+	void (*gf_push_scale_matrix)(const vec3d*);
  	void (*gf_pop_scale_matrix)();
 	//object position and orientation
-	void (*gf_start_instance_matrix)(vec3d *, matrix*);
-	void (*gf_start_angles_instance_matrix)(vec3d *, angles*);
+	void (*gf_start_instance_matrix)(const vec3d*, const matrix*);
+	void (*gf_start_angles_instance_matrix)(const vec3d*, const angles*);
 	void (*gf_end_instance_matrix)();
 
 	int	 (*gf_make_light)(light*, int, int );
@@ -551,11 +618,18 @@ typedef struct screen {
 	void (*gf_post_process_end)();
 	void (*gf_post_process_save_zbuffer)();
 
+	void (*gf_deferred_lighting_begin)();
+	void (*gf_deferred_lighting_end)();
+	void (*gf_deferred_lighting_finish)();
+
 	void (*gf_scene_texture_begin)();
 	void (*gf_scene_texture_end)();
+	void (*gf_copy_effect_texture)();
 
 	void (*gf_lighting)(bool,bool);
+	void (*gf_set_light_factor)(float);
 	void (*gf_center_alpha)(int);
+	void (*gf_set_thrust_scale)(float);
 
 	void (*gf_start_clip_plane)();
 	void (*gf_end_clip_plane)();
@@ -566,22 +640,26 @@ typedef struct screen {
 	void (*gf_set_fill_mode)(int);
 	void (*gf_set_texture_panning)(float u, float v, bool enable);
 
-	void (*gf_draw_line_list)(colored_vector*lines, int num);
+	void (*gf_draw_line_list)(const colored_vector *lines, int num);
 
 	void (*gf_set_line_width)(float width);
 
-	void (*gf_line_htl)(vec3d *start, vec3d* end);
+	void (*gf_line_htl)(const vec3d *start, const vec3d *end);
 	void (*gf_sphere_htl)(float rad);
 
-	int (*gf_maybe_create_shader)(int flags);
+	int (*gf_maybe_create_shader)(shader_type type, unsigned int flags);
 
-	void (*gf_flush_data_states)();
+	void (*gf_set_animated_effect)(int effect, float timer);
 
-	void (*gf_set_team_color)(const SCP_string &team, const SCP_string &secondaryteam, fix timestamp, int fadetime);
-	void (*gf_enable_team_color)();
-	void (*gf_disable_team_color)();
+	void (*gf_clear_states)();
 
-	void (*gf_update_texture)(int bitmap_handle, int bpp, ubyte* data, int width, int height);
+	void (*gf_set_team_color)(const team_color *colors);
+
+	void (*gf_update_texture)(int bitmap_handle, int bpp, const ubyte* data, int width, int height);
+	void (*gf_get_bitmap_from_texture)(void* data_out, int bitmap_num);
+
+	void (*gf_shadow_map_start)(const matrix4 *shadow_view_matrix, const matrix *light_matrix);
+	void (*gf_shadow_map_end)();
 } screen;
 
 // handy macro
@@ -608,6 +686,7 @@ extern const char *Resolution_prefixes[GR_NUM_RESOLUTIONS];
 
 extern bool gr_init(int d_mode = GR_DEFAULT, int d_width = GR_DEFAULT, int d_height = GR_DEFAULT, int d_depth = GR_DEFAULT);
 extern void gr_screen_resize(int width, int height);
+extern int gr_get_resolution_class(int width, int height);
 
 // Call this when your app ends.
 extern void gr_close();
@@ -628,11 +707,12 @@ extern screen gr_screen;
 
 #define GR_RESIZE_NONE				0
 #define GR_RESIZE_FULL				1
-#define GR_RESIZE_MENU				2
-#define GR_RESIZE_MENU_ZOOMED		3
-#define GR_RESIZE_MENU_NO_OFFSET	4
+#define GR_RESIZE_FULL_CENTER		2
+#define GR_RESIZE_MENU				3
+#define GR_RESIZE_MENU_ZOOMED		4
+#define GR_RESIZE_MENU_NO_OFFSET	5
 
-void gr_set_screen_scale(int x, int y, int zoom_x = -1, int zoom_y = -1, int max_x = gr_screen.max_w, int max_y = gr_screen.max_h, bool force_stretch = false);
+void gr_set_screen_scale(int x, int y, int zoom_x = -1, int zoom_y = -1, int max_x = gr_screen.max_w, int max_y = gr_screen.max_h, int center_x = gr_screen.center_w, int center_y = gr_screen.center_h, bool force_stretch = false);
 void gr_reset_screen_scale();
 bool gr_unsize_screen_pos(int *x, int *y, int *w = NULL, int *h = NULL, int resize_mode = GR_RESIZE_FULL);
 bool gr_resize_screen_pos(int *x, int *y, int *w = NULL, int *h = NULL, int resize_mode = GR_RESIZE_FULL);
@@ -811,7 +891,7 @@ __inline int gr_tcache_set(int bitmap_id, int bitmap_type, float *u_scale, float
 #define gr_bm_free_data				GR_CALL(*gr_screen.gf_bm_free_data)
 #define gr_bm_create				GR_CALL(*gr_screen.gf_bm_create)
 #define gr_bm_init					GR_CALL(*gr_screen.gf_bm_init)
-__inline int gr_bm_load(ubyte type, int n, const char *filename, CFILE *img_cfp = NULL, int *w = 0, int *h = 0, int *bpp = 0, ubyte *c_type = 0, int *mm_lvl = 0, int *size = 0)
+__inline int gr_bm_load(BM_TYPE type, int n, const char *filename, CFILE *img_cfp = NULL, int *w = 0, int *h = 0, int *bpp = 0, BM_TYPE *c_type = 0, int *mm_lvl = 0, int *size = 0)
 {
 	return (*gr_screen.gf_bm_load)(type, n, filename, img_cfp, w, h, bpp, c_type, mm_lvl, size);
 }
@@ -836,8 +916,11 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 	(*gr_screen.gf_render_buffer)(start, bufferp, texi, flags);
 }
 
+#define gr_update_buffer_object			GR_CALL(*gr_screen.gf_update_buffer_object)
+#define gr_update_transform_buffer		GR_CALL(*gr_screen.gf_update_transform_buffer)
+#define gr_set_transform_buffer_offset	GR_CALL(*gr_screen.gf_set_transform_buffer_offset)
+
 #define gr_create_stream_buffer			GR_CALL(*gr_screen.gf_create_stream_buffer)
-#define gr_update_stream_buffer			GR_CALL(*gr_screen.gf_update_stream_buffer)
 #define gr_render_stream_buffer			GR_CALL(*gr_screen.gf_render_stream_buffer)
 #define gr_render_stream_buffer_start	GR_CALL(*gr_screen.gf_render_stream_buffer_start)
 #define gr_render_stream_buffer_end		GR_CALL(*gr_screen.gf_render_stream_buffer_end)
@@ -866,6 +949,7 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 
 #define gr_scene_texture_begin			GR_CALL(*gr_screen.gf_scene_texture_begin)
 #define gr_scene_texture_end			GR_CALL(*gr_screen.gf_scene_texture_end)
+#define gr_copy_effect_texture			GR_CALL(*gr_screen.gf_copy_effect_texture)
 
 #define gr_post_process_set_effect		GR_CALL(*gr_screen.gf_post_process_set_effect)
 #define gr_post_process_set_defaults	GR_CALL(*gr_screen.gf_post_process_set_defaults)
@@ -873,8 +957,14 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_post_process_end				GR_CALL(*gr_screen.gf_post_process_end)
 #define gr_post_process_save_zbuffer	GR_CALL(*gr_screen.gf_post_process_save_zbuffer)
 
+#define gr_deferred_lighting_begin		GR_CALL(*gr_screen.gf_deferred_lighting_begin)
+#define gr_deferred_lighting_end		GR_CALL(*gr_screen.gf_deferred_lighting_end)
+#define gr_deferred_lighting_finish		GR_CALL(*gr_screen.gf_deferred_lighting_finish)
+
 #define	gr_set_lighting					GR_CALL(*gr_screen.gf_lighting)
+#define gr_set_light_factor				GR_CALL(*gr_screen.gf_set_light_factor)
 #define	gr_center_alpha					GR_CALL(*gr_screen.gf_center_alpha)
+#define gr_set_thrust_scale				GR_CALL(*gr_screen.gf_set_thrust_scale)
 
 #define	gr_start_clip					GR_CALL(*gr_screen.gf_start_clip_plane)
 #define	gr_end_clip						GR_CALL(*gr_screen.gf_end_clip_plane)
@@ -897,13 +987,17 @@ __inline void gr_render_buffer(int start, const vertex_buffer *bufferp, int texi
 #define gr_sphere_htl					GR_CALL(*gr_screen.gf_sphere_htl)
 
 #define gr_maybe_create_shader			GR_CALL(*gr_screen.gf_maybe_create_shader)
+#define gr_set_animated_effect			GR_CALL(*gr_screen.gf_set_animated_effect)
 
-#define gr_flush_data_states			GR_CALL(*gr_screen.gf_flush_data_states)
+#define gr_clear_states					GR_CALL(*gr_screen.gf_clear_states)
 
 #define gr_set_team_color				GR_CALL(*gr_screen.gf_set_team_color)
-#define gr_disable_team_color			GR_CALL(*gr_screen.gf_disable_team_color)
 
 #define gr_update_texture				GR_CALL(*gr_screen.gf_update_texture)
+#define gr_get_bitmap_from_texture		GR_CALL(*gr_screen.gf_get_bitmap_from_texture)
+
+#define gr_shadow_map_start				GR_CALL(*gr_screen.gf_shadow_map_start)
+#define gr_shadow_map_end				GR_CALL(*gr_screen.gf_shadow_map_end)
 
 // color functions
 void gr_get_color( int *r, int *g, int  b );
@@ -916,6 +1010,23 @@ void gr_set_color_fast(color *dst);
 void gr_create_shader(shader *shade, ubyte r, ubyte g, ubyte b, ubyte c);
 void gr_set_shader(shader *shade);
 
+uint gr_determine_model_shader_flags(
+	bool lighting, 
+	bool fog, 
+	bool textured, 
+	bool in_shadow_map, 
+	bool thruster_scale, 
+	bool transform,
+	bool team_color_set,
+	int tmap_flags, 
+	int spec_map, 
+	int glow_map, 
+	int normal_map, 
+	int height_map,
+	int env_map,
+	int misc_map
+);
+
 // new bitmap functions
 void gr_bitmap(int x, int y, int resize_mode = GR_RESIZE_FULL);
 void gr_bitmap_uv(int _x, int _y, int _w, int _h, float _u0, float _v0, float _u1, float _v1, int resize_mode = GR_RESIZE_FULL);
@@ -924,7 +1035,7 @@ void gr_bitmap_list(bitmap_rect_list* list, int n_bm, int resize_mode);
 
 // texture update functions
 ubyte* gr_opengl_get_texture_update_pointer(int bitmap_handle);
-void gr_opengl_update_texture(int bitmap_handle, int bpp, ubyte* data, int width, int height);
+void gr_opengl_update_texture(int bitmap_handle, int bpp, const ubyte* data, int width, int height);
 
 // special function for drawing polylines. this function is specifically intended for
 // polylines where each section is no more than 90 degrees away from a previous section.
@@ -942,7 +1053,62 @@ void gr_pline_special(SCP_vector<vec3d> *pts, int thickness,int resize_mode=GR_R
 #define VB_FLAG_UV4			(1<<8)
 #define VB_FLAG_TANGENT		(1<<9)
 #define VB_FLAG_LARGE_INDEX	(1<<10)
+#define VB_FLAG_MODEL_ID	(1<<11)
+#define VB_FLAG_TRANS		(1<<12)
 
-void gr_clear_shaders_cache();
+struct vertex_format_data
+{
+	enum vertex_format {
+		POSITION4,
+		POSITION3,
+		POSITION2,
+		SCREEN_POS,
+		COLOR3,
+		COLOR4,
+		TEX_COORD,
+		NORMAL,
+		TANGENT,
+		MODEL_ID,
+		RADIUS,
+		FVEC,
+		UVEC,
+		INTENSITY
+	};
+
+	vertex_format format_type;
+	uint stride;
+	void *data_src;
+
+	vertex_format_data(vertex_format i_format_type, uint i_stride, void *i_data_src) : 
+	format_type(i_format_type), stride(i_stride), data_src(i_data_src) {}
+};
+
+class vertex_layout
+{
+	SCP_vector<vertex_format_data> Vertex_components;
+
+	uint Vertex_mask;
+public:
+	vertex_layout(): Vertex_mask(0) {}
+
+	uint get_num_vertex_components() { return Vertex_components.size(); }
+
+	vertex_format_data* get_vertex_component(uint index) { return &Vertex_components[index]; }
+
+	bool resident_vertex_format(vertex_format_data::vertex_format format_type) { return Vertex_mask & (1 << format_type) ? true : false; } 
+
+	void add_vertex_component(vertex_format_data::vertex_format format_type, uint stride, void* src) 
+	{
+		if ( resident_vertex_format(format_type) ) {
+			// we already have a vertex component of this format type
+			return;
+		}
+
+		Vertex_mask |= (1 << format_type);
+		Vertex_components.push_back(vertex_format_data(format_type, stride, src));
+	}
+};
+
+
 
 #endif

@@ -46,6 +46,9 @@ typedef struct {
 } STRHDL;
 #endif	// NEED_STRHDL
 
+extern const char *audio_ext_list[];
+extern const int NUM_AUDIO_EXT;
+
 // Initializes the audio streaming library.  Called
 // automatically when the sound stuff is inited.
 void audiostream_init();
@@ -54,7 +57,7 @@ void audiostream_init();
 void audiostream_close();
 
 // Opens a wave file but doesn't play it.
-int audiostream_open( char * filename, int type );
+int audiostream_open( const char * filename, int type );
 
 // Closes the opened wave file.  This doesn't have to be
 // called between songs, because when you open the next

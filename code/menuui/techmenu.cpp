@@ -9,26 +9,27 @@
 
 
 
-#include "gamesequence/gamesequence.h"
-#include "ui/ui.h"
-#include "menuui/techmenu.h"
-#include "render/3d.h"
-#include "io/key.h"
-#include "missionui/missionscreencommon.h"
-#include "gamesnd/gamesnd.h"
-#include "graphics/font.h"
-#include "io/mouse.h"
-#include "ui/uidefs.h"
-#include "gamehelp/contexthelp.h"
-#include "globalincs/alphacolors.h"
 #include "anim/animplay.h"
 #include "anim/packunpack.h"
-#include "localization/localize.h"
+#include "cmdline/cmdline.h"
+#include "gamehelp/contexthelp.h"
+#include "gamesequence/gamesequence.h"
+#include "gamesnd/gamesnd.h"
+#include "globalincs/alphacolors.h"
+#include "graphics/font.h"
+#include "io/key.h"
+#include "io/mouse.h"
 #include "lighting/lighting.h"
-#include "sound/fsspeech.h"
-#include "playerman/player.h"
+#include "localization/localize.h"
+#include "menuui/techmenu.h"
+#include "missionui/missionscreencommon.h"
 #include "parse/parselo.h"
+#include "playerman/player.h"
+#include "render/3d.h"
 #include "ship/ship.h"
+#include "sound/fsspeech.h"
+#include "ui/ui.h"
+#include "ui/uidefs.h"
 #include "weapon/weapon.h"
 
 
@@ -134,7 +135,7 @@ int Tech_slider_coords[GR_NUM_RESOLUTIONS][4] = {
 	}
 };
 
-#define MAX_TEXT_LINES		100
+#define MAX_TEXT_LINES		150
 #define MAX_TEXT_LINE_LEN	256
 
 struct techroom_buttons {
@@ -453,6 +454,8 @@ void tech_common_render()
 	}
 }
 
+void light_set_all_relevent();
+
 void techroom_ships_render(float frametime)
 {
 	// render all the common stuff
@@ -466,9 +469,10 @@ void techroom_ships_render(float frametime)
 	angles rot_angles, view_angles;
 	int z, i, j;
 	ship_info *sip = &Ship_info[Cur_entry_index];
+	model_render_params render_info;
 
 	if (sip->uses_team_colors) {
-		gr_set_team_color(sip->default_team_name, "none", 0, 0);
+		render_info.set_team_color(sip->default_team_name, "none", 0, 0);
 	}
 
 	// get correct revolution rate
@@ -519,15 +523,13 @@ void techroom_ships_render(float frametime)
 	g3_start_frame(1);
 	g3_set_view_matrix(&sip->closeup_pos, &vmd_identity_matrix, sip->closeup_zoom * 1.3f);
 
-	if (!Cmdline_nohtl) {
-		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
-		gr_set_view_matrix(&Eye_position, &Eye_matrix);
-	}
+	
 
 	// lighting for techroom
 	light_reset();
 	vec3d light_dir = vmd_zero_vector;
 	light_dir.xyz.y = 1.0f;	
+	light_dir.xyz.x = 0.0000001f;	
 	light_add_directional(&light_dir, 0.85f, 1.0f, 1.0f, 1.0f);
 	light_rotate_all();
 	// lighting for techroom
@@ -535,15 +537,17 @@ void techroom_ships_render(float frametime)
 	Glowpoint_use_depth_buffer = false;
 
 	model_clear_instance(Techroom_ship_modelnum);
-	model_set_detail_level(0);
+	render_info.set_detail_level_lock(0);
 
+	polymodel *pm = model_get(Techroom_ship_modelnum);
+	
 	for (i = 0; i < sip->n_subsystems; i++) {
 		model_subsystem *msp = &sip->subsystems[i];
 		if (msp->type == SUBSYSTEM_TURRET) {
 
 			float p = 0.0f;
 			float h = 0.0f;
-												
+
 			for (j = 0; j < msp->n_triggers; j++) {
 
 				// special case for turrets
@@ -559,12 +563,32 @@ void techroom_ships_render(float frametime)
 		}
 	}
 
-	uint render_flags = MR_LOCK_DETAIL | MR_AUTOCENTER;
+    if(Cmdline_shadow_quality)
+    {
+        gr_reset_clip();
+
+		shadows_start_render(&Eye_matrix, &Eye_position, Proj_fov, gr_screen.clip_aspect, -sip->closeup_pos.xyz.z + pm->rad, -sip->closeup_pos.xyz.z + pm->rad + 200.0f, -sip->closeup_pos.xyz.z + pm->rad + 2000.0f, -sip->closeup_pos.xyz.z + pm->rad + 10000.0f);
+        render_info.set_flags(MR_NO_TEXTURING | MR_NO_LIGHTING | MR_AUTOCENTER);
+		
+		model_render_immediate(&render_info, Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector);
+        shadows_end_render();
+
+		gr_set_clip(Tech_ship_display_coords[gr_screen.res][SHIP_X_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_Y_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_W_COORD], Tech_ship_display_coords[gr_screen.res][SHIP_H_COORD]);
+    }
+	
+	if (!Cmdline_nohtl) {
+		gr_set_proj_matrix(Proj_fov, gr_screen.clip_aspect, Min_draw_distance, Max_draw_distance);
+		gr_set_view_matrix(&Eye_position, &Eye_matrix);
+	}
+
+	uint render_flags = MR_AUTOCENTER;
 
 	if(sip->flags2 & SIF2_NO_LIGHTING)
-				render_flags |= MR_NO_LIGHTING;
+		render_flags |= MR_NO_LIGHTING;
 
-	model_render(Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector, render_flags);
+	render_info.set_flags(render_flags);
+
+	model_render_immediate(&render_info, Techroom_ship_modelnum, &Techroom_ship_orient, &vmd_zero_vector);
 
 	Glowpoint_use_depth_buffer = true;
 
@@ -579,7 +603,6 @@ void techroom_ships_render(float frametime)
 	g3_end_frame();
 
 	gr_reset_clip();
-	gr_disable_team_color();
 }
 
 // select previous entry in current list
@@ -751,7 +774,7 @@ void techroom_change_tab(int num)
 			// load ship info if necessary
 			if ( Ships_loaded == 0 ) {
 				if (Ship_list == NULL) {
-					Ship_list = new tech_list_entry[Num_ship_classes];
+					Ship_list = new tech_list_entry[Ship_info.size()];
 
 					if (Ship_list == NULL)
 						Error(LOCATION, "Couldn't init ships list!");
@@ -759,17 +782,17 @@ void techroom_change_tab(int num)
 
 				Ship_list_size = 0;
 
-				for (i=0; i<Num_ship_classes; i++)
+				for (auto it = Ship_info.begin(); it != Ship_info.end(); ++it)
 				{
-					if (Techroom_show_all || (Ship_info[i].flags & mask) || (Ship_info[i].flags2 & mask2))
+					if (Techroom_show_all || (it->flags & mask) || (it->flags2 & mask2))
 					{
 						// this ship should be displayed, fill out the entry struct
 						Ship_list[Ship_list_size].bitmap = -1;
-						Ship_list[Ship_list_size].index = i;
+						Ship_list[Ship_list_size].index = std::distance(Ship_info.begin(), it);
 						Ship_list[Ship_list_size].animation.num_frames = 0;			// no anim for ships
 						Ship_list[Ship_list_size].has_anim = 0;				// no anim for ships
-						Ship_list[Ship_list_size].name = *Ship_info[i].tech_title ? Ship_info[i].tech_title : (*Ship_info[i].alt_name ? Ship_info[i].alt_name : Ship_info[i].name);
-						Ship_list[Ship_list_size].desc = Ship_info[i].tech_desc;
+						Ship_list[Ship_list_size].name = *it->tech_title ? it->tech_title : (*it->alt_name ? it->alt_name : it->name);
+						Ship_list[Ship_list_size].desc = it->tech_desc;
 						Ship_list[Ship_list_size].model_num = -1;
 						Ship_list[Ship_list_size].textures_loaded = 0;
 
@@ -778,7 +801,7 @@ void techroom_change_tab(int num)
 				}
 
 				// make sure that at least the default entry is cleared out if we didn't grab anything
-				if (Num_ship_classes && !Ship_list_size) {
+				if (!Ship_info.empty() && !Ship_list_size) {
 					Ship_list[0].index = -1;
 					Ship_list[0].desc = NULL;
 					Ship_list[0].name = NULL;
@@ -1026,51 +1049,54 @@ int techroom_load_ani(anim **animpp, char *name)
 
 void techroom_intel_init()
 {
-	int rval, temp;
+	int  temp;
 	static int inited = 0;
 
 	if (inited)
 		return;
+		
+	try
+	{
+		read_file_text("species.tbl", CF_TYPE_TABLES);
+		reset_parse();
 
-	if ((rval = setjmp(parse_abort)) != 0) {
-		mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", "species.tbl", rval));
+		Intel_info_size = 0;
+		while (optional_string("$Entry:")) {
+			Assert(Intel_info_size < MAX_INTEL_ENTRIES);
+			if (Intel_info_size >= MAX_INTEL_ENTRIES) {
+				mprintf(("TECHMENU: Too many intel entries!\n"));
+				break;
+			}
+
+			Intel_info[Intel_info_size].flags = IIF_DEFAULT_VALUE;
+
+			required_string("$Name:");
+			stuff_string(Intel_info[Intel_info_size].name, F_NAME, NAME_LENGTH);
+
+			required_string("$Anim:");
+			stuff_string(Intel_info[Intel_info_size].anim_filename, F_NAME, NAME_LENGTH);
+
+			required_string("$AlwaysInTechRoom:");
+			stuff_int(&temp);
+			if (temp) {
+				// set default to align with what we read - Goober5000
+				Intel_info[Intel_info_size].flags |= IIF_IN_TECH_DATABASE;
+				Intel_info[Intel_info_size].flags |= IIF_DEFAULT_IN_TECH_DATABASE;
+			}
+
+			required_string("$Description:");
+			stuff_string(Intel_info[Intel_info_size].desc, F_MULTITEXT, TECH_INTEL_DESC_LEN);
+
+			Intel_info_size++;
+		}
+
+		inited = 1;
+	}
+	catch (const parse::ParseException& e)
+	{
+		mprintf(("TABLES: Unable to parse '%s'!  Error message = %s.\n", "species.tbl", e.what()));
 		return;
 	}
-	
-	read_file_text("species.tbl", CF_TYPE_TABLES);
-	reset_parse();
-
-	Intel_info_size = 0;
-	while (optional_string("$Entry:")) {
-		Assert(Intel_info_size < MAX_INTEL_ENTRIES);
-		if (Intel_info_size >= MAX_INTEL_ENTRIES) {
-			mprintf(("TECHMENU: Too many intel entries!\n"));
-			break;
-		}
-
-		Intel_info[Intel_info_size].flags = IIF_DEFAULT_VALUE;
-
-		required_string("$Name:");
-		stuff_string(Intel_info[Intel_info_size].name, F_NAME, NAME_LENGTH);
-
-		required_string("$Anim:");
-		stuff_string(Intel_info[Intel_info_size].anim_filename, F_NAME, NAME_LENGTH);
-
-		required_string("$AlwaysInTechRoom:");
-		stuff_int(&temp);
-		if (temp) {
-			// set default to align with what we read - Goober5000
-			Intel_info[Intel_info_size].flags |= IIF_IN_TECH_DATABASE;
-			Intel_info[Intel_info_size].flags |= IIF_DEFAULT_IN_TECH_DATABASE;
-		}
-
-		required_string("$Description:");
-		stuff_string(Intel_info[Intel_info_size].desc, F_MULTITEXT, TECH_INTEL_DESC_LEN);
-
-		Intel_info_size++;
-	}
-
-	inited = 1;
 }
 
 void techroom_init()
@@ -1154,7 +1180,7 @@ void techroom_init()
 	help_overlay_set_state(Techroom_overlay_id, gr_screen.res, 0);
 
 	// setup slider
-	Tech_slider.create(&Ui_window, Tech_slider_coords[gr_screen.res][SHIP_X_COORD], Tech_slider_coords[gr_screen.res][SHIP_Y_COORD], Tech_slider_coords[gr_screen.res][SHIP_W_COORD], Tech_slider_coords[gr_screen.res][SHIP_H_COORD], Num_ship_classes, Tech_slider_filename[gr_screen.res], &tech_scroll_list_up, &tech_scroll_list_down, &tech_ship_scroll_capture);
+	Tech_slider.create(&Ui_window, Tech_slider_coords[gr_screen.res][SHIP_X_COORD], Tech_slider_coords[gr_screen.res][SHIP_Y_COORD], Tech_slider_coords[gr_screen.res][SHIP_W_COORD], Tech_slider_coords[gr_screen.res][SHIP_H_COORD], Ship_info.size(), Tech_slider_filename[gr_screen.res], &tech_scroll_list_up, &tech_scroll_list_down, &tech_ship_scroll_capture);
 
 	// zero intel anim/bitmap stuff
 	for(idx=0; idx<MAX_INTEL_ENTRIES; idx++){
@@ -1414,17 +1440,17 @@ void tech_reset_to_default()
 	int i;
 
 	// ships
-	for (i=0; i<Num_ship_classes; i++)
+	for (auto it = Ship_info.begin(); it != Ship_info.end(); ++it)
 	{
-		if (Ship_info[i].flags2 & SIF2_DEFAULT_IN_TECH_DATABASE)
-			Ship_info[i].flags |= SIF_IN_TECH_DATABASE;
+		if (it->flags2 & SIF2_DEFAULT_IN_TECH_DATABASE)
+			it->flags |= SIF_IN_TECH_DATABASE;
 		else
-			Ship_info[i].flags &= ~SIF_IN_TECH_DATABASE;
+			it->flags &= ~SIF_IN_TECH_DATABASE;
 
-		if (Ship_info[i].flags2 & SIF2_DEFAULT_IN_TECH_DATABASE_M)
-			Ship_info[i].flags |= SIF_IN_TECH_DATABASE_M;
+		if (it->flags2 & SIF2_DEFAULT_IN_TECH_DATABASE_M)
+			it->flags |= SIF_IN_TECH_DATABASE_M;
 		else
-			Ship_info[i].flags &= ~SIF_IN_TECH_DATABASE_M;
+			it->flags &= ~SIF_IN_TECH_DATABASE_M;
 	}
 
 	// weapons

@@ -9,22 +9,22 @@
 
 
 
-#include "nebula/neb.h"
-#include "render/3d.h"
 #include "bmpman/bmpman.h"
-#include "object/object.h"
+#include "cmdline/cmdline.h"
+#include "ddsutils/ddsutils.h"
+#include "debugconsole/console.h"
 #include "freespace2/freespace.h"
-#include "starfield/starfield.h"
+#include "jpgutils/jpgutils.h"
+#include "mission/missionparse.h"
+#include "nebula/neb.h"
+#include "object/object.h"
 #include "parse/parselo.h"
 #include "pcxutils/pcxutils.h"
-#include "tgautils/tgautils.h"
-#include "jpgutils/jpgutils.h"
 #include "pngutils/pngutils.h"
-#include "ddsutils/ddsutils.h"
-#include "mission/missionparse.h"
+#include "render/3d.h"
 #include "ship/ship.h"
-#include "cmdline/cmdline.h"
-#include "debugconsole/console.h"
+#include "starfield/starfield.h"
+#include "tgautils/tgautils.h"
 
 
 // --------------------------------------------------------------------------------------------------------
@@ -230,10 +230,10 @@ float neb2_get_alpha_offscreen(float sx, float sy, float incoming_alpha);
 void neb2_pre_render(camid cid);
 
 // fill in the position of the eye for this frame
-void neb2_get_eye_pos(vec3d *eye);
+void neb2_get_eye_pos(vec3d *eye_vector);
 
 // fill in the eye orient for this frame
-void neb2_get_eye_orient(matrix *eye);
+void neb2_get_eye_orient(matrix *eye_matrix);
 
 // get a (semi) random bitmap to use for a poof
 int neb2_get_bitmap();
@@ -249,48 +249,52 @@ void neb2_regen();
 // initialize neb2 stuff at game startup
 void neb2_init()
 {
-	int rval;
 	char name[MAX_FILENAME_LEN];
 
-	if ( ( rval = setjmp(parse_abort) ) != 0 ) {
-		mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", "nebula.tbl", rval));
+	try
+	{
+		// read in the nebula.tbl
+		read_file_text("nebula.tbl", CF_TYPE_TABLES);
+		reset_parse();
+
+		// background bitmaps
+		Neb2_bitmap_count = 0;
+		while (!optional_string("#end")) {
+			// nebula
+			required_string("+Nebula:");
+			stuff_string(name, F_NAME, MAX_FILENAME_LEN);
+
+			if (Neb2_bitmap_count < MAX_NEB2_BITMAPS) {
+				strcpy_s(Neb2_bitmap_filenames[Neb2_bitmap_count++], name);
+			}
+			else {
+				WarningEx(LOCATION, "nebula.tbl\nExceeded maximum number of nebulas (%d)!\nSkipping %s.", MAX_NEB2_BITMAPS, name);
+			}
+		}
+
+		// poofs
+		Neb2_poof_count = 0;
+		while (!optional_string("#end")) {
+			// nebula
+			required_string("+Poof:");
+			stuff_string(name, F_NAME, MAX_FILENAME_LEN);
+
+			if (Neb2_poof_count < MAX_NEB2_POOFS) {
+				strcpy_s(Neb2_poof_filenames[Neb2_poof_count++], name);
+			}
+			else {
+				WarningEx(LOCATION, "nebula.tbl\nExceeded maximum number of nebula poofs (%d)!\nSkipping %s.", MAX_NEB2_POOFS, name);
+			}
+		}
+
+		// should always have 6 neb poofs
+		Assert(Neb2_poof_count == 6);
+	}
+	catch (const parse::ParseException& e)
+	{
+		mprintf(("TABLES: Unable to parse '%s'!  Error message = %s.\n", "nebula.tbl", e.what()));
 		return;
 	}
-
-	// read in the nebula.tbl
-	read_file_text("nebula.tbl", CF_TYPE_TABLES);
-	reset_parse();
-
-	// background bitmaps
-	Neb2_bitmap_count = 0;
-	while ( !optional_string("#end") ) {
-		// nebula
-		required_string("+Nebula:");
-		stuff_string(name, F_NAME, MAX_FILENAME_LEN);
-
-		if ( Neb2_bitmap_count < MAX_NEB2_BITMAPS ) {
-			strcpy_s(Neb2_bitmap_filenames[Neb2_bitmap_count++], name);
-		} else {
-			WarningEx(LOCATION, "nebula.tbl\nExceeded maximum number of nebulas (%d)!\nSkipping %s.", MAX_NEB2_BITMAPS, name);
-		}
-	}
-
-	// poofs
-	Neb2_poof_count = 0;
-	while ( !optional_string("#end") ) {
-		// nebula
-		required_string("+Poof:");
-		stuff_string(name, F_NAME, MAX_FILENAME_LEN);
-
-		if ( Neb2_poof_count < MAX_NEB2_POOFS ) {
-			strcpy_s(Neb2_poof_filenames[Neb2_poof_count++], name);
-		} else {
-			WarningEx(LOCATION, "nebula.tbl\nExceeded maximum number of nebula poofs (%d)!\nSkipping %s.", MAX_NEB2_POOFS, name);
-		}
-	}
-
-	// should always have 6 neb poofs
-	Assert(Neb2_poof_count == 6);
 }
 
 // set detail level
@@ -1409,15 +1413,15 @@ void neb2_set_backg_color(int r, int g, int b)
 }
 
 // fill in the position of the eye for this frame
-void neb2_get_eye_pos(vec3d *eye)
+void neb2_get_eye_pos(vec3d *eye_vector)
 {
-	*eye = Eye_position;
+	*eye_vector = Eye_position;
 }
 
 // fill in the eye orient for this frame
-void neb2_get_eye_orient(matrix *eye)
+void neb2_get_eye_orient(matrix *eye_matrix)
 {
-	*eye = Eye_matrix;
+	*eye_matrix = Eye_matrix;
 }
 
 // get a (semi) random bitmap to use for a poof

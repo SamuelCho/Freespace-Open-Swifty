@@ -10,22 +10,20 @@
 
 
 
+#include "gamesnd/gamesnd.h"
+#include "hud/hudescort.h"
+#include "hud/hudparse.h"
 #include "hud/hudshield.h"
-#include "graphics/2d.h"
+#include "hud/hudtargetbox.h"
+#include "io/timer.h"
+#include "network/multi.h"
 #include "object/object.h"
 #include "object/objectshield.h"
-#include "hud/hud.h"
-#include "hud/hudparse.h"
-#include "hud/hudtargetbox.h"
-#include "playerman/player.h"
-#include "gamesnd/gamesnd.h"
-#include "io/timer.h"
-#include "hud/hudescort.h"
-#include "weapon/emp.h"
 #include "parse/parselo.h"
-#include "ship/ship.h"
+#include "playerman/player.h"
 #include "render/3d.h"	//For g3_start_frame
-#include "network/multi.h"
+#include "ship/ship.h"
+#include "weapon/emp.h"
 
 
 
@@ -189,7 +187,7 @@ void hud_ship_icon_page_in(ship_info *sip)
 	sgp = &Shield_gauges.at(sip->shield_icon_index);
 
 	if ( sgp->first_frame == -1 ) {
-		sgp->first_frame = bm_load_animation(const_cast<char*>(Hud_shield_filenames.at(sip->shield_icon_index).c_str()), &sgp->num_frames);
+		sgp->first_frame = bm_load_animation(Hud_shield_filenames.at(sip->shield_icon_index).c_str(), &sgp->num_frames);
 		if ( sgp->first_frame == -1 ) {
 			Warning(LOCATION, "Could not load in the HUD shield ani: %s\n", Hud_shield_filenames.at(sip->shield_icon_index).c_str());
 			return;
@@ -545,6 +543,11 @@ void hud_shield_quadrant_hit(object *objp, int quadrant)
 	shield_hit_info	*shi;
 	int					num;
 
+	if (Game_mode & GM_STANDALONE_SERVER)
+		return;
+
+	Assertion(objp != NULL, "hud_shield_quadrant_hit() called with a NULL objp; get a coder!\n");
+
 	if ( objp->type != OBJ_SHIP )
 		return;
 
@@ -559,12 +562,16 @@ void hud_shield_quadrant_hit(object *objp, int quadrant)
 		return;
 	}
 
+	Assertion(shi->shield_hit_timers.size() > 0, "Shield hit info object for object '%s' has a size " SIZE_T_ARG " shield_hit_timers; get a coder!\n", Ships[objp->instance].ship_name, shi->shield_hit_timers.size());
+	Assertion(shi->hull_hit_index < (int) shi->shield_hit_timers.size(), "Shield hit info object for object '%s' has a hull_hit_index of %d (should be between 0 and " SIZE_T_ARG "); get a coder!\n", Ships[objp->instance].ship_name, shi->hull_hit_index, shi->shield_hit_timers.size() - 1);
+
 	if ( quadrant >= 0 ) {
 		if ( !(Ship_info[Ships[objp->instance].ship_info_index].flags2 & SIF2_MODEL_POINT_SHIELDS) )
 			num = Quadrant_xlate[quadrant];
 		else
 			num = quadrant;
 
+		Assertion(num < shi->hull_hit_index, "Shield hit info object for object '%s' hit on quadrant #%d, despite having a hull_hit_index of %d; get a coder!\n", Ships[objp->instance].ship_name, num, shi->hull_hit_index);
 		shi->shield_hit_timers[num] = timestamp(SHIELD_HIT_DURATION_SHORT);
 	} else {
 		shi->shield_hit_timers[shi->hull_hit_index] = timestamp(SHIELD_HIT_DURATION_SHORT);
@@ -618,7 +625,7 @@ void HudGaugeShield::showShields(object *objp, int mode)
 		sgp = &Shield_gauges.at(sip->shield_icon_index);
 
 		if ( (sgp->first_frame == -1) && (sip->shield_icon_index < Hud_shield_filenames.size()) ) {
-			sgp->first_frame = bm_load_animation(const_cast<char*>(Hud_shield_filenames.at(sip->shield_icon_index).c_str()), &sgp->num_frames);
+			sgp->first_frame = bm_load_animation(Hud_shield_filenames.at(sip->shield_icon_index).c_str(), &sgp->num_frames);
 			if (sgp->first_frame == -1) {
 				if (!shield_ani_warning_displayed_already) {
 					shield_ani_warning_displayed_already = true;
@@ -658,7 +665,6 @@ void HudGaugeShield::showShields(object *objp, int mode)
 			g3_start_frame(1);
 		hud_save_restore_camera_data(1);
 		setClip(sx, sy, 112, 93);
-		model_set_detail_level(1);
 
 		//if(!digitus_improbus)
 			g3_set_view_matrix( &sip->closeup_pos, &vmd_identity_matrix, sip->closeup_zoom * 2.5f);
@@ -677,7 +683,13 @@ void HudGaugeShield::showShields(object *objp, int mode)
 		ship_model_start(objp);
 		//if(!digitus_improbus)
 		{
-			model_render( sip->model_num, &object_orient, &vmd_zero_vector, MR_NO_LIGHTING | MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, -1, -1, sp->ship_replacement_textures);
+			model_render_params render_info;
+
+			render_info.set_flags(MR_NO_LIGHTING | MR_AUTOCENTER | MR_NO_FOGGING);
+			render_info.set_replacement_textures(sp->ship_replacement_textures);
+			render_info.set_detail_level_lock(1);
+
+			model_render_immediate( &render_info, sip->model_num, &object_orient, &vmd_zero_vector );
 		}
 		/*else
 		{
@@ -731,7 +743,7 @@ void HudGaugeShield::showShields(object *objp, int mode)
 				continue;
 		}
 
-		range = MAX(HUD_COLOR_ALPHA_MAX, HUD_color_alpha + 4);
+		range = MAX(HUD_COLOR_ALPHA_MAX, HUD_color_alpha + objp->n_quadrants);
 
 		if ( !(sip->flags2 & SIF2_MODEL_POINT_SHIELDS) )
 			hud_color_index = fl2i( (objp->shield_quadrant[Quadrant_xlate[i]] / max_shield) * range);
@@ -850,7 +862,7 @@ void HudGaugeShield::renderShieldIcon(coord2d coords[6])
 	int nx = 0, ny = 0, i;
 
 	if ( gr_screen.rendering_to_texture != -1 ) {
-		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, true);
+		gr_set_screen_scale(canvas_w, canvas_h, -1, -1, target_w, target_h, target_w, target_h, true);
 	} else {
 		if ( reticle_follow ) {
 			nx = HUD_nose_x;

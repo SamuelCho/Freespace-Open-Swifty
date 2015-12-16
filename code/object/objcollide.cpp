@@ -9,14 +9,14 @@
 
 
 
-#include "object/objcollide.h"
-#include "object/object.h"
 #include "globalincs/linklist.h"
 #include "io/timer.h"
+#include "object/objcollide.h"
+#include "object/object.h"
+#include "object/objectdock.h"
 #include "ship/ship.h"
 #include "weapon/beam.h"
 #include "weapon/weapon.h"
-#include "object/objectdock.h"
 
 
 
@@ -60,7 +60,7 @@ public:
 	{}
 };
 
-SCP_hash_map<uint, collider_pair> Collision_cached_pairs;
+SCP_unordered_map<uint, collider_pair> Collision_cached_pairs;
 
 struct checkobject;
 extern checkobject CheckObjects[MAX_OBJECTS];
@@ -185,6 +185,8 @@ void obj_add_pair( object *A, object *B, int check_time, int add_to_end )
 
 	if ( !(A->flags&OF_COLLIDES) ) return;		// This object doesn't collide with anything
 	if ( !(B->flags&OF_COLLIDES) ) return;		// This object doesn't collide with anything
+
+	if ((A->flags & OF_IMMOBILE) && (B->flags & OF_IMMOBILE)) return;	// Two immobile objects will never collide with each other
 	
 	// Make sure you're not checking a parent with it's kid or vicy-versy
 //	if ( A->parent_sig == B->signature && !(A->type == OBJ_SHIP && B->type == OBJ_DEBRIS) ) return;
@@ -822,7 +824,7 @@ int weapon_will_never_hit( object *obj_weapon, object *other, obj_pair * current
 			laser_vel = obj_weapon->phys_info.vel;
 			// vm_vec_copy_scale( &laser_vel, &weapon->orient.vec.fvec, max_vel_weapon );
 			delta_t = (other->radius + 10.0f) / max_vel_other;		// time to get from center to radius of other obj
-			delta_x_dot_vl = vm_vec_dotprod( &delta_x, &laser_vel );
+			delta_x_dot_vl = vm_vec_dot( &delta_x, &laser_vel );
 
 			a = max_vel_weapon*max_vel_weapon - max_vel_other*max_vel_other;
 			b = 2.0f * (delta_x_dot_vl - max_vel_other*max_vel_other*delta_t);
@@ -1064,7 +1066,7 @@ int collide_remove_weapons( )
 			opp = opp->next;
 		}
 	} else {
-		SCP_hash_map<uint, collider_pair>::iterator it;
+		SCP_unordered_map<uint, collider_pair>::iterator it;
 		collider_pair *pair_obj;
 
 		for ( it = Collision_cached_pairs.begin(); it != Collision_cached_pairs.end(); ++it ) {
@@ -1205,7 +1207,7 @@ void obj_reset_colliders()
 
 void obj_collide_retime_cached_pairs(int checkdly)
 {
-	SCP_hash_map<uint, collider_pair>::iterator it;
+	SCP_unordered_map<uint, collider_pair>::iterator it;
 
 	for ( it = Collision_cached_pairs.begin(); it != Collision_cached_pairs.end(); ++it ) {
 		it->second.next_check_time = timestamp(checkdly);
@@ -1244,8 +1246,6 @@ void obj_find_overlap_colliders(SCP_vector<int> *overlap_list_out, SCP_vector<in
 	SCP_vector<int> overlappers;
 
 	float min;
-	float max;
-	float overlap_min;
 	float overlap_max;
 	
 	overlappers.clear();
@@ -1254,10 +1254,8 @@ void obj_find_overlap_colliders(SCP_vector<int> *overlap_list_out, SCP_vector<in
 		overlapped = false;
 
 		min = obj_get_collider_endpoint((*list)[i], axis, true);
-		max = obj_get_collider_endpoint((*list)[i], axis, false);
 
 		for ( j = 0; j < overlappers.size(); ) {
-			overlap_min = obj_get_collider_endpoint(overlappers[j], axis, true);
 			overlap_max = obj_get_collider_endpoint(overlappers[j], axis, false);
 			if ( min <= overlap_max ) {
 				overlapped = true;
@@ -1389,6 +1387,8 @@ void obj_collide_pair(object *A, object *B)
 	if ( !(A->flags&OF_COLLIDES) ) return;		// This object doesn't collide with anything
 	if ( !(B->flags&OF_COLLIDES) ) return;		// This object doesn't collide with anything
 	
+	if ((A->flags & OF_IMMOBILE) && (B->flags & OF_IMMOBILE)) return;	// Two immobile objects will never collide with each other
+
 	// Make sure you're not checking a parent with it's kid or vicy-versy
 //	if ( A->parent_sig == B->signature && !(A->type == OBJ_SHIP && B->type == OBJ_DEBRIS) ) return;
 //	if ( B->parent_sig == A->signature && !(A->type == OBJ_DEBRIS && B->type == OBJ_SHIP) ) return;

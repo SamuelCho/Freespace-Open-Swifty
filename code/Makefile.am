@@ -199,7 +199,7 @@ bin_PROGRAMS = @FS2_BINARY@
 EXTRA_PROGRAMS = fs2_open_@PACKAGE_VERSION@ \
 	fs2_open_@PACKAGE_VERSION@_DEBUG \
 	wxFRED2_@PACKAGE_VERSION@ \
-	wxFRED2_@PACKAGE_VERSION@_DEBUG 
+	wxFRED2_@PACKAGE_VERSION@_DEBUG
 
 ###############################################################################
 ##
@@ -215,7 +215,6 @@ FS2_SOURCES =	\
 	ai/aigoals.cpp	\
 	ai/aigoals.h	\
 	ai/aiinternal.h	\
-	ai/ailocal.h	\
 	ai/aiturret.cpp	\
 	ai/ai_profiles.cpp	\
 	ai/ai_profiles.h	\
@@ -267,8 +266,6 @@ FS2_SOURCES =	\
 	debugconsole/consolecmds.cpp	\
 	debugconsole/consoleparse.cpp	\
 	debugconsole/consoleparse.h	\
-	debugconsole/timerbar.cpp	\
-	debugconsole/timerbar.h	\
 	exceptionhandler/exceptionhandler.cpp	\
 	exceptionhandler/exceptionhandler.h	\
 	external_dll/externalcode.h		\
@@ -343,6 +340,7 @@ FS2_SOURCES =	\
 	graphics/grstub.cpp	\
 	graphics/grstub.h	\
 	graphics/line.h	\
+	graphics/shadows.cpp \
 	graphics/tmapper.h	\
 	hud/hud.cpp	\
 	hud/hud.h	\
@@ -479,14 +477,10 @@ FS2_SOURCES =	\
 	missionui/missionloopbrief.h	\
 	missionui/missionpause.cpp	\
 	missionui/missionpause.h	\
-	missionui/missionrecommend.cpp	\
-	missionui/missionrecommend.h	\
 	missionui/missionscreencommon.cpp	\
 	missionui/missionscreencommon.h	\
 	missionui/missionshipchoice.cpp	\
 	missionui/missionshipchoice.h	\
-	missionui/missionstats.cpp	\
-	missionui/missionstats.h	\
 	missionui/missionweaponchoice.cpp	\
 	missionui/missionweaponchoice.h	\
 	missionui/redalert.cpp	\
@@ -501,6 +495,7 @@ FS2_SOURCES =	\
 	model/modelsinc.h	\
 	model/modeloctant.cpp	\
 	model/modelread.cpp	\
+	model/modelrender.cpp   \
 	nebula/neb.cpp	\
 	nebula/neb.h	\
 	nebula/neblightning.cpp	\

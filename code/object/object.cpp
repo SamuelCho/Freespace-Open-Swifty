@@ -13,6 +13,7 @@
 #include "asteroid/asteroid.h"
 #include "cmeasure/cmeasure.h"
 #include "debris/debris.h"
+#include "debugconsole/console.h"
 #include "fireball/fireballs.h"
 #include "freespace2/freespace.h"
 #include "globalincs/linklist.h"
@@ -23,10 +24,10 @@
 #include "mission/missionparse.h" //For 2D Mode
 #include "network/multi.h"
 #include "network/multiutil.h"
+#include "object/deadobjectdock.h"
 #include "object/objcollide.h"
 #include "object/object.h"
 #include "object/objectdock.h"
-#include "object/deadobjectdock.h"
 #include "object/objectshield.h"
 #include "object/objectsnd.h"
 #include "observer/observer.h"
@@ -41,7 +42,6 @@
 #include "weapon/shockwave.h"
 #include "weapon/swarm.h"
 #include "weapon/weapon.h"
-#include "debugconsole/console.h"
 
 
 
@@ -51,7 +51,7 @@
 
 object obj_free_list;
 object obj_used_list;
-object obj_create_list;
+object obj_create_list;	
 
 object *Player_obj = NULL;
 object *Viewer_obj = NULL;
@@ -93,6 +93,8 @@ char *Object_type_names[MAX_OBJECT_TYPES] = {
 	"Beam",
 //XSTR:ON
 };
+
+extern int Use_GLSL;
 
 obj_flag_name Object_flag_names[] = {
 	{OF_INVULNERABLE,			"invulnerable",				1,	},
@@ -146,7 +148,7 @@ void object::clear()
 /**
  * Scan the object list, freeing down to num_used objects
  *
- * @param  Number of used objects to free down to
+ * @param  num_used Number of used objects to free down to
  * @return Returns number of slots freed
  */
 int free_object_slots(int num_used)
@@ -716,7 +718,7 @@ void obj_move_one_docked_object(object *objp, object *parent_objp)
  * Deals with firing player things like lasers, missiles, etc.
  *
  * Separated out because of multiplayer issues.
- */
+*/
 void obj_player_fire_stuff( object *objp, control_info ci )
 {
 	ship *shipp;
@@ -888,7 +890,7 @@ void obj_move_call_physics(object *objp, float frametime)
 				goto obj_maybe_fire;
 			}
 
-			physics_sim(&objp->pos, &objp->orient, &objp->phys_info, frametime );		// simulate the physics
+				physics_sim(&objp->pos, &objp->orient, &objp->phys_info, frametime );		// simulate the physics
 
 			// if the object is the player object, do things that need to be done after the ship
 			// is moved (like firing weapons, etc).  This routine will get called either single
@@ -906,7 +908,7 @@ obj_maybe_fire:
 			// do stream weapon firing for all ships themselves. 
 			if(objp->type == OBJ_SHIP){
 				ship_fire_primary(objp, 1, 0);
-				has_fired = 1;
+					has_fired = 1;
 			}
 		}
 	}
@@ -1124,7 +1126,7 @@ void obj_move_all_pre(object *objp, float frametime)
 		break;
 	case OBJ_ASTEROID:
 		if (!physics_paused){
-			asteroid_process_pre(objp,frametime);
+			asteroid_process_pre(objp);
 		}
 		break;
 /*	case OBJ_CMEASURE:
@@ -1202,7 +1204,8 @@ void obj_move_all_post(object *objp, float frametime)
 						g = i2fl(c.green)/255.0f;
 						b = i2fl(c.blue)/255.0f;
 
-						light_add_point( &objp->pos, 10.0f, 20.0f, 1.0f, r, g, b, objp->parent );
+						//light_add_point( &objp->pos, 10.0f, 20.0f, 1.0f, r, g, b, objp->parent );
+						light_add_point( &objp->pos, 10.0f, Use_GLSL>1?100.0f:20.0f, 1.0f, r, g, b, objp->parent );
 					} else {
 						light_add_point( &objp->pos, 10.0f, 20.0f, 1.0f, 1.0f, 1.0f, 1.0f, objp->parent );
 					} 
@@ -1337,7 +1340,7 @@ void obj_move_all_post(object *objp, float frametime)
 		case OBJ_ASTEROID:
 		{
 			if ( !physics_paused )
-				asteroid_process_post(objp, frametime);
+				asteroid_process_post(objp);
 
 			break;
 		}
@@ -1411,7 +1414,7 @@ void obj_move_all(float frametime)
 		vec3d cur_pos = objp->pos;			// Save the current position
 
 #ifdef OBJECT_CHECK 
-		obj_check_object( objp );
+			obj_check_object( objp );
 #endif
 
 		// pre-move
@@ -1450,6 +1453,7 @@ void obj_move_all(float frametime)
 			Script_system.SetHookObjects(2, "User", objp, "Target", target);
 			Script_system.RunCondition(CHA_ONWPEQUIPPED, 0, NULL, objp);
 		}
+		Script_system.RemHookVars(2, "User", "Target");
 	}
 
 	//	After all objects have been moved, move all docked objects.
@@ -1527,7 +1531,7 @@ MONITOR( NumObjectsRend )
  * Render an object.  Calls one of several routines based on type
  */
 extern int Cmdline_dis_weapons;
-void obj_render(object *obj)
+void obj_render_DEPRECATED(object *obj)
 {
 	SCP_list<CJumpNode>::iterator jnp;
 	
@@ -1542,28 +1546,28 @@ void obj_render(object *obj)
 		switch( obj->type )	{
 		case OBJ_NONE:
 			#ifndef NDEBUG
-			mprintf(( "ERROR!!!! Bogus obj %d is rendering!\n", obj-Objects ));
+			mprintf(( "ERROR!!!! Bogus obj " PTRDIFF_T_ARG " is rendering!\n", obj-Objects ));
 			Int3();
 			#endif
 			break;
 		case OBJ_WEAPON:
 			if(Cmdline_dis_weapons) return;
-			weapon_render(obj);
+			weapon_render_DEPRECATED(obj);
 			break;
 		case OBJ_SHIP:
-			ship_render(obj);
+			ship_render_DEPRECATED(obj);
 			break;
 		case OBJ_FIREBALL:
-			fireball_render(obj);
+			fireball_render_DEPRECATED(obj);
 			break;
 		case OBJ_SHOCKWAVE:
-			shockwave_render(obj);
+			shockwave_render_DEPRECATED(obj);
 			break;
 		case OBJ_DEBRIS:
-			debris_render(obj);
+			debris_render_DEPRECATED(obj);
 			break;
 		case OBJ_ASTEROID:
-			asteroid_render(obj);
+			asteroid_render_DEPRECATED(obj);
 			break;
 	/*	case OBJ_CMEASURE:
 			cmeasure_render(obj);
@@ -1572,7 +1576,7 @@ void obj_render(object *obj)
 			for (jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp) {
 				if(jnp->GetSCPObject() != obj)
 					continue;
-				jnp->Render(&obj->pos, &Eye_position);
+				jnp->RenderDEPRECATED(&obj->pos, &Eye_position);
 			}
 			break;
 		case OBJ_WAYPOINT:
@@ -1592,6 +1596,91 @@ void obj_render(object *obj)
 
 	Script_system.RunCondition(CHA_OBJECTRENDER, '\0', NULL, obj);
 	Script_system.RemHookVar("Self");
+}
+
+void obj_render(object *obj)
+{
+	draw_list render_list;
+
+	obj_queue_render(obj, &render_list);
+
+	render_list.init_render();
+	render_list.render_all();
+
+	gr_zbias(0);
+	gr_set_cull(0);
+	gr_zbuffer_set(ZBUFFER_TYPE_READ);
+	gr_set_fill_mode(GR_FILL_MODE_SOLID);
+
+	gr_clear_states();
+	gr_set_buffer(-1);
+
+	gr_reset_lighting();
+	gr_set_lighting(false, false);
+}
+
+void obj_queue_render(object* obj, draw_list* scene)
+{
+	if ( obj->flags & OF_SHOULD_BE_DEAD ) return;
+
+	// need to figure out what to do with this hook. 
+	// maybe save an array of these and run the script conditions after we finish drawing
+	Script_system.SetHookObject("Self", obj);
+
+	if ( Script_system.IsConditionOverride(CHA_OBJECTRENDER, obj) ) {
+		Script_system.RunCondition(CHA_OBJECTRENDER, '\0', NULL, obj);
+		Script_system.RemHookVar("Self");
+		return;
+	}
+
+	switch ( obj->type ) {
+	case OBJ_NONE:
+#ifndef NDEBUG
+		mprintf(( "ERROR!!!! Bogus obj " PTRDIFF_T_ARG " is rendering!\n", obj-Objects ));
+		Int3();
+#endif
+		break;
+	case OBJ_WEAPON:
+		if ( Cmdline_dis_weapons ) return;
+		weapon_render(obj, scene);
+		break;
+	case OBJ_SHIP:
+		ship_render(obj, scene);
+		break;
+	case OBJ_FIREBALL:
+		fireball_render(obj, scene);
+		break;
+	case OBJ_SHOCKWAVE:
+		shockwave_render(obj, scene);
+		break;
+	case OBJ_DEBRIS:
+		debris_render(obj, scene);
+		break;
+	case OBJ_ASTEROID:
+		asteroid_render(obj, scene);
+		break;
+	case OBJ_JUMP_NODE:
+		for ( SCP_list<CJumpNode>::iterator jnp = Jump_nodes.begin(); jnp != Jump_nodes.end(); ++jnp ) {
+			if ( jnp->GetSCPObject() != obj ) {
+				continue;
+			}
+
+			jnp->Render(scene, &obj->pos, &Eye_position);
+		}
+		break;
+	case OBJ_WAYPOINT:
+		// 		if (Show_waypoints)	{
+		// 			gr_set_color( 128, 128, 128 );
+		// 			g3_draw_sphere_ez( &obj->pos, 5.0f );
+		// 		}
+		break;
+	case OBJ_GHOST:
+		break;
+	case OBJ_BEAM:
+		break;
+	default:
+		Error( LOCATION, "Unhandled obj type %d in obj_render", obj->type );
+	}
 }
 
 void obj_init_all_ships_physics()
@@ -1708,7 +1797,7 @@ void obj_get_average_ship_pos( vec3d *pos )
 
 	vm_vec_zero( pos );
 
-	// average up all ship positions
+   // average up all ship positions
 	count = 0;
 	for ( objp = GET_FIRST(&obj_used_list); objp != END_OF_LIST(&obj_used_list); objp = GET_NEXT(objp) ) {
 		if ( objp->type != OBJ_SHIP )

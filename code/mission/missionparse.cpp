@@ -21,58 +21,58 @@
 #include <setjmp.h>
 
 
-#include "mission/missionparse.h"
-#include "parse/generic_log.h"
-#include "parse/parselo.h"
-#include "mission/missiongoals.h"
-#include "mission/missionlog.h"
-#include "mission/missionmessage.h"
-#include "globalincs/linklist.h"
-#include "globalincs/alphacolors.h"
-#include "io/timer.h"
-#include "ship/ship.h"
 #include "ai/aigoals.h"
-#include "playerman/player.h"
-#include "starfield/starfield.h"
+#include "asteroid/asteroid.h"
 #include "bmpman/bmpman.h"
-#include "lighting/lighting.h"
+#include "cfile/cfile.h"
+#include "cmdline/cmdline.h"
+#include "debris/debris.h"
 #include "gamesnd/eventmusic.h"
+#include "globalincs/alphacolors.h"
+#include "globalincs/linklist.h"
+#include "hud/hudescort.h"
+#include "hud/hudets.h"
+#include "hud/hudwingmanstatus.h"
+#include "iff_defs/iff_defs.h"
+#include "io/timer.h"
+#include "jumpnode/jumpnode.h"
+#include "lighting/lighting.h"
+#include "localization/localize.h"
+#include "math/fvi.h"
+#include "math/staticrand.h"
 #include "mission/missionbriefcommon.h"
 #include "mission/missioncampaign.h"
-#include "ship/shipfx.h"
-#include "debris/debris.h"
-#include "starfield/nebula.h"
-#include "hud/hudets.h"
+#include "mission/missiongoals.h"
 #include "mission/missionhotkey.h"
-#include "hud/hudescort.h"
-#include "asteroid/asteroid.h"
-#include "ship/shiphit.h"
-#include "math/staticrand.h"
+#include "mission/missionlog.h"
+#include "mission/missionmessage.h"
+#include "mission/missionparse.h"
+#include "missionui/fictionviewer.h"
 #include "missionui/missioncmdbrief.h"
 #include "missionui/redalert.h"
-#include "hud/hudwingmanstatus.h"
-#include "jumpnode/jumpnode.h"
-#include "localization/localize.h"
+#include "mod_table/mod_table.h"
 #include "nebula/neb.h"
 #include "nebula/neblightning.h"
-#include "math/fvi.h"
-#include "weapon/weapon.h"
-#include "cfile/cfile.h"
-#include "iff_defs/iff_defs.h"
 #include "network/multi.h"
-#include "network/multiutil.h"
-#include "network/multimsgs.h"
-#include "network/multi_respawn.h"
 #include "network/multi_endgame.h"
+#include "network/multi_respawn.h"
+#include "network/multimsgs.h"
+#include "network/multiutil.h"
 #include "object/parseobjectdock.h"
 #include "object/waypoint.h"
-#include "missionui/fictionviewer.h"
-#include "cmdline/cmdline.h"
+#include "parse/generic_log.h"
+#include "parse/parselo.h"
+#include "parse/scripting.h"
+#include "playerman/player.h"
 #include "popup/popup.h"
 #include "popup/popupdead.h"
-#include "sound/sound.h"
+#include "ship/ship.h"
+#include "ship/shipfx.h"
+#include "ship/shiphit.h"
 #include "sound/ds.h"
-#include "parse/scripting.h"
+#include "starfield/nebula.h"
+#include "starfield/starfield.h"
+#include "weapon/weapon.h"
 
 LOCAL struct {
 	char docker[NAME_LENGTH];
@@ -400,6 +400,36 @@ MONITOR(NumShipArrivals)
 MONITOR(NumShipDepartures)
 
 
+// Goober5000
+void parse_custom_bitmap(const char *expected_string_640, const char *expected_string_1024, char *string_field_640, char *string_field_1024)
+{
+	int found640 = 0, found1024 = 0;
+	strcpy(string_field_640, "");
+	strcpy(string_field_1024, "");
+
+	// custom mission loading background, or whatever
+	if (optional_string(expected_string_640))
+	{
+		found640 = 1;
+		stuff_string(string_field_640, F_NAME, MAX_FILENAME_LEN);
+	}
+	if (optional_string(expected_string_1024))
+	{
+		found1024 = 1;
+		stuff_string(string_field_1024, F_NAME, MAX_FILENAME_LEN);
+	}
+
+	// error testing
+	if (Fred_running && (found640) && !(found1024))
+	{
+		Warning(LOCATION, "Mission: found an entry for %s but not a corresponding entry for %s!", expected_string_640, expected_string_1024);
+	}
+	if (Fred_running && !(found640) && (found1024))
+	{
+		Warning(LOCATION, "Mission: found an entry for %s but not a corresponding entry for %s!", expected_string_1024, expected_string_640);
+	}
+}
+
 void parse_mission_info(mission *pm, bool basic = false)
 {
 	int i;
@@ -570,9 +600,9 @@ void parse_mission_info(mission *pm, bool basic = false)
 	// for each species, store whether support is available
 	for (int species = 0; species < (int)Species_info.size(); species++)
 	{
-		for (int ship_class = 0; ship_class < Num_ship_classes; ship_class++)
+		for (auto it = Ship_info.cbegin(); it != Ship_info.cend(); ++it)
 		{
-			if ((Ship_info[ship_class].flags & SIF_SUPPORT) && (Ship_info[ship_class].species == species))
+			if ((it->flags & SIF_SUPPORT) && (it->species == species))
 			{
 				pm->support_ships.support_available_for_species |= (1 << species);
 				break;
@@ -689,30 +719,8 @@ void parse_mission_info(mission *pm, bool basic = false)
 		Num_teams = 2;
 	}
 
-	int found640=0, found1024=0;
-	strcpy_s(pm->loading_screen[GR_640],"");
-	strcpy_s(pm->loading_screen[GR_1024],"");
-	//custom mission loading background
-	if (optional_string("$Load Screen 640:"))
-	{
-		found640=1;
-		stuff_string(pm->loading_screen[GR_640], F_NAME, MAX_FILENAME_LEN);	
-	}
-	if (optional_string("$Load Screen 1024:"))
-	{
-		found1024=1;
-		stuff_string(pm->loading_screen[GR_1024], F_NAME, MAX_FILENAME_LEN);
-	}
-
-	//error testing
-	if (Fred_running && (found640) && !(found1024))
-	{
-		Warning(LOCATION, "Mission: %s\nhas a 640x480 loading screen but no 1024x768 loading screen!",pm->name);
-	}
-	if (Fred_running && !(found640) && (found1024))
-	{
-		Warning(LOCATION, "Mission: %s\nhas a 1024x768 loading screen but no 640x480 loading screen!",pm->name);
-	}
+	// Goober5000 - made this into a function since we use much the same technique for the briefing background
+	parse_custom_bitmap("$Load Screen 640:", "$Load Screen 1024:", pm->loading_screen[GR_640], pm->loading_screen[GR_1024]);
 
 	strcpy_s(pm->skybox_model, "");
 	if (optional_string("$Skybox Model:"))
@@ -888,13 +896,13 @@ void parse_player_info2(mission *pm)
 			// do we do?  choose the first allowable one?
 			if (Game_mode & GM_CAMPAIGN_MODE || (MULTIPLAYER_CLIENT)) {
 				if ( !(Campaign.ships_allowed[ptr->default_ship]) ) {
-					for (i = 0; i < MAX_SHIP_CLASSES; i++ ) {
+					for (i = 0; i < static_cast<int>(Ship_info.size()); i++ ) {
 						if ( Campaign.ships_allowed[i] ) {
 							ptr->default_ship = i;
 							break;
 						}
 					}
-					Assertion( i < MAX_SHIP_CLASSES, "Mission: %s: Could not find a valid default ship.\n", pm->name );
+					Assertion( i < static_cast<int>(Ship_info.size()), "Mission: %s: Could not find a valid default ship.\n", pm->name );
 				}
 			}
 		}
@@ -973,7 +981,7 @@ void parse_cutscenes(mission *pm)
 	{
 		mission_cutscene scene;
 
-		while (true)
+		while (!optional_string("#end"))
 		{
 			// this list should correspond to the MOVIE_* #defines
 			scene.type = optional_string_one_of(6,
@@ -1000,9 +1008,6 @@ void parse_cutscenes(mission *pm)
 			// add it
 			pm->cutscenes.push_back(scene);
 		}
-
-		// for reverse compatibility, check that we have a closing tag
-		optional_string("#end");
 	}
 }
 
@@ -1257,31 +1262,47 @@ done_briefing_music:
  */
 void parse_fiction(mission *pm)
 {
-	char filename[MAX_FILENAME_LEN];
-	char font_filename[MAX_FILENAME_LEN];
-	char voice_filename[MAX_FILENAME_LEN];
-
 	fiction_viewer_reset();
 
-	if (!optional_string("#Fiction Viewer"))
-		return;
+	if (optional_string("#Fiction Viewer"))
+	{
+		bool fiction_viewer_loaded = false;
 
-	required_string("$File:");
-	stuff_string(filename, F_FILESPEC, MAX_FILENAME_LEN);
+		while (check_for_string("$File:"))
+		{
+			fiction_viewer_stage stage;
+			memset(&stage, 0, sizeof(fiction_viewer_stage));
+			stage.formula = Locked_sexp_true;
 
-	if (optional_string("$Font:")) {
-		stuff_string(font_filename, F_FILESPEC, MAX_FILENAME_LEN);
-	} else {
-		strcpy_s(font_filename, "");
+			required_string("$File:");
+			stuff_string(stage.story_filename, F_FILESPEC, MAX_FILENAME_LEN);
+
+			if (optional_string("$Font:"))
+				stuff_string(stage.font_filename, F_FILESPEC, MAX_FILENAME_LEN);
+
+			if (optional_string("$Voice:"))
+				stuff_string(stage.voice_filename, F_FILESPEC, MAX_FILENAME_LEN);
+
+			if (optional_string("$UI:"))
+				stuff_string(stage.ui_name, F_NAME, NAME_LENGTH);
+
+			parse_custom_bitmap("$Background 640:", "$Background 1024:", stage.background[GR_640], stage.background[GR_1024]);
+
+			// get the sexp if we have one
+			if (optional_string("$Formula:"))
+				stage.formula = get_sexp_main();
+
+			// now, store this stage
+			Fiction_viewer_stages.push_back(stage);
+
+			// see if this is the stage we want to display, then display it
+			if (!Fred_running && !fiction_viewer_loaded && is_sexp_true(stage.formula))
+			{
+				fiction_viewer_load(Fiction_viewer_stages.size() - 1);
+				fiction_viewer_loaded = true;
+			}
+		}
 	}
-
-	if (optional_string("$Voice:")) {
-		stuff_string(voice_filename, F_FILESPEC, MAX_FILENAME_LEN);
-	} else {
-		strcpy_s(voice_filename, "");
-	}
-
-	fiction_viewer_load(filename, font_filename, voice_filename);
 }
 
 /**
@@ -1295,6 +1316,10 @@ void parse_cmd_brief(mission *pm)
 	stage = 0;
 
 	required_string("#Command Briefing");
+
+	// Yarn - use the same code as for mission loading screens
+	parse_custom_bitmap("$Background 640:", "$Background 1024:", Cur_cmd_brief->background[GR_640], Cur_cmd_brief->background[GR_1024]);
+
 	while (optional_string("$Stage Text:")) {
 		Assert(stage < CMD_BRIEF_STAGES_MAX);
 		stuff_string(Cur_cmd_brief->stage[stage].text, F_MULTITEXT, NULL);
@@ -1349,8 +1374,13 @@ void parse_briefing(mission *pm, int flags)
 			break;
 
 		bp = &Briefings[nt];
-
 		required_string("$start_briefing");
+
+		// Goober5000 - use the same code as for mission loading screens
+		parse_custom_bitmap("$briefing_background_640:", "$briefing_background_1024:", bp->background[GR_640], bp->background[GR_1024]);
+		parse_custom_bitmap("$ship_select_background_640:", "$ship_select_background_1024:", bp->ship_select_background[GR_640], bp->ship_select_background[GR_1024]);
+		parse_custom_bitmap("$weapon_select_background_640:", "$weapon_select_background_1024:", bp->weapon_select_background[GR_640], bp->weapon_select_background[GR_1024]);
+
 		required_string("$num_stages:");
 		stuff_int(&bp->num_stages);
 		Assert(bp->num_stages <= MAX_BRIEF_STAGES);
@@ -1450,7 +1480,7 @@ void parse_briefing(mission *pm, int flags)
 
 				find_and_stuff("$team:", &bi->team, F_NAME, temp_team_names, Num_iffs, "team name");
 
-				find_and_stuff("$class:", &bi->ship_class, F_NAME, Ship_class_names, Num_ship_classes, "ship class");
+				find_and_stuff("$class:", &bi->ship_class, F_NAME, Ship_class_names, Ship_info.size(), "ship class");
 
 				// Goober5000 - import
 				if (flags & MPF_IMPORT_FSM)
@@ -1562,6 +1592,9 @@ void parse_debriefing_new(mission *pm)
 		stage_num = 0;
 
 		db = &Debriefings[nt];
+
+		// Yarn - use the same code as for mission loading screens
+		parse_custom_bitmap("$Background 640:", "$Background 1024:", db->background[GR_640], db->background[GR_1024]);
 
 		required_string("$Num stages:");
 		stuff_int(&db->num_stages);
@@ -1773,6 +1806,7 @@ void parse_bring_in_docked_wing(p_object *p_objp, int wingnum, int shipnum);
 int parse_create_object_sub(p_object *p_objp)
 {
 	int	i, j, k, objnum, shipnum;
+	int anchor_objnum = -1;
 	ai_info *aip;
 	ship_subsys *ptr;
 	ship *shipp;
@@ -1838,6 +1872,7 @@ int parse_create_object_sub(p_object *p_objp)
 
 	shipp->ship_max_shield_strength = p_objp->ship_max_shield_strength;
 	shipp->ship_max_hull_strength =  p_objp->ship_max_hull_strength;
+	shipp->max_shield_recharge = p_objp->max_shield_recharge;
 
 	// Goober5000 - ugh, this is really stupid having to do this here; if the
 	// ship creation code was better organized this wouldn't be necessary
@@ -2125,9 +2160,11 @@ int parse_create_object_sub(p_object *p_objp)
 				{
 					wp->primary_bank_ammo[j] = sssp->primary_ammo[j];
 				}
-				else if (Weapon_info[wp->primary_bank_weapons[j]].wi_flags2 & WIF2_BALLISTIC)
+				else if (wp->primary_bank_weapons[j] >= 0 && Weapon_info[wp->primary_bank_weapons[j]].wi_flags2 & WIF2_BALLISTIC)
 				{
-					Assert(Weapon_info[wp->primary_bank_weapons[j]].cargo_size > 0.0f);
+					Assertion(Weapon_info[wp->primary_bank_weapons[j]].cargo_size > 0.0f,
+							"Primary weapon cargo size <= 0. Ship (%s) Subsystem (%s) Bank (%i) Weapon (%s)",
+							shipp->ship_name, sssp->name, j, Weapon_info[wp->primary_bank_weapons[j]].name);
 
 					int capacity = fl2i(sssp->primary_ammo[j]/100.0f * sip->primary_bank_ammo_capacity[j] + 0.5f);
 					wp->primary_bank_ammo[j] = fl2i(capacity / Weapon_info[wp->primary_bank_weapons[j]].cargo_size + 0.5f);
@@ -2140,9 +2177,11 @@ int parse_create_object_sub(p_object *p_objp)
 				{
 					wp->secondary_bank_ammo[j] = sssp->secondary_ammo[j];
 				}
-				else
+				else if (wp->secondary_bank_weapons[j] >= 0)
 				{
-					Assert(Weapon_info[wp->secondary_bank_weapons[j]].cargo_size > 0.0f);
+					Assertion(Weapon_info[wp->secondary_bank_weapons[j]].cargo_size > 0.0f,
+							"Secondary weapon cargo size <= 0. Ship (%s) Subsystem (%s) Bank (%i) Weapon (%s)",
+							shipp->ship_name, sssp->name, j, Weapon_info[wp->secondary_bank_weapons[j]].name);
 
 					int capacity = fl2i(sssp->secondary_ammo[j]/100.0f * sip->secondary_bank_ammo_capacity[j] + 0.5f);
 					wp->secondary_bank_ammo[j] = fl2i(capacity / Weapon_info[wp->secondary_bank_weapons[j]].cargo_size + 0.5f);
@@ -2211,13 +2250,33 @@ int parse_create_object_sub(p_object *p_objp)
 						ptr->weapons.secondary_bank_weapons[j] = sssp->secondary_banks[j];
 
 				// Goober5000
-				for (j = 0; j < MAX_SHIP_PRIMARY_BANKS; j++)
-					ptr->weapons.primary_bank_ammo[j] = sssp->primary_ammo[j];
+				for (j = 0; j < ptr->weapons.num_primary_banks; j++)
+				{
+					if (Fred_running) {
+						ptr->weapons.primary_bank_ammo[j] = sssp->primary_ammo[j];
+					} else if (ptr->weapons.primary_bank_weapons[j] >= 0 && Weapon_info[ptr->weapons.primary_bank_weapons[j]].wi_flags2 & WIF2_BALLISTIC) {
+						Assertion(Weapon_info[ptr->weapons.primary_bank_weapons[j]].cargo_size > 0.0f,
+								"Primary weapon cargo size <= 0. Ship (%s) Subsystem (%s) Bank (%i) Weapon (%s)",
+								shipp->ship_name, sssp->name, j, Weapon_info[ptr->weapons.primary_bank_weapons[j]].name);
 
-				// AL 3-5-98:  This is correct for FRED, but not for FreeSpace... but is this even used?
-				//					As far as I know, turrets cannot run out of ammo
-				for (j = 0; j < MAX_SHIP_SECONDARY_BANKS; j++)
-					ptr->weapons.secondary_bank_ammo[j] = sssp->secondary_ammo[j];
+						int capacity = fl2i(sssp->primary_ammo[j]/100.0f * ptr->weapons.primary_bank_capacity[j] + 0.5f);
+						ptr->weapons.primary_bank_ammo[j] = fl2i(capacity / Weapon_info[ptr->weapons.primary_bank_weapons[j]].cargo_size + 0.5f);
+					}
+				}
+
+				for (j = 0; j < ptr->weapons.num_secondary_banks; j++)
+				{
+					if (Fred_running) {
+						ptr->weapons.secondary_bank_ammo[j] = sssp->secondary_ammo[j];
+					} else if (ptr->weapons.secondary_bank_weapons[j] >= 0) {
+						Assertion(Weapon_info[ptr->weapons.secondary_bank_weapons[j]].cargo_size > 0.0f,
+								"Secondary weapon cargo size <= 0. Ship (%s) Subsystem (%s) Bank (%i) Weapon (%s)",
+								shipp->ship_name, sssp->name, j, Weapon_info[ptr->weapons.secondary_bank_weapons[j]].name);
+
+						int capacity = fl2i(sssp->secondary_ammo[j]/100.0f * ptr->weapons.secondary_bank_capacity[j] + 0.5f);
+						ptr->weapons.secondary_bank_ammo[j] = fl2i(capacity / Weapon_info[ptr->weapons.secondary_bank_weapons[j]].cargo_size + 0.5f);
+					}
+				}
 
 				ptr->subsys_cargo_name = sssp->subsys_cargo_name;
 
@@ -2250,7 +2309,7 @@ int parse_create_object_sub(p_object *p_objp)
 		Objects[objnum].hull_strength = p_objp->initial_hull * shipp->ship_max_hull_strength / 100.0f;
 		for (iLoop = 0; iLoop<Objects[objnum].n_quadrants; iLoop++)
 		{
-			Objects[objnum].shield_quadrant[iLoop] = (float) (p_objp->initial_shields * get_max_shield_quad(&Objects[objnum]) / 100.0f);
+			Objects[objnum].shield_quadrant[iLoop] = (float) (shipp->max_shield_recharge * p_objp->initial_shields * get_max_shield_quad(&Objects[objnum]) / 100.0f);
 		}
 
 		// initial velocities now do not apply to ships which warp in after mission starts
@@ -2311,7 +2370,7 @@ int parse_create_object_sub(p_object *p_objp)
 				if (MULTIPLAYER_CLIENT)
 					location = ARRIVE_AT_LOCATION;
 
-				mission_set_arrival_location(p_objp->arrival_anchor, location, p_objp->arrival_distance, objnum, p_objp->arrival_path_mask, NULL, NULL);
+				anchor_objnum = mission_set_arrival_location(p_objp->arrival_anchor, location, p_objp->arrival_distance, objnum, p_objp->arrival_path_mask, NULL, NULL);
 
 				// Goober5000 - warpin start moved to parse_create_object
 			}
@@ -2344,6 +2403,16 @@ int parse_create_object_sub(p_object *p_objp)
 			if ((Game_mode & GM_IN_MISSION) && MULTIPLAYER_MASTER && (p_objp->wingnum == -1))
 				send_ship_create_packet(&Objects[objnum], (p_objp == Arriving_support_ship) ? 1 : 0);
 		}
+	}
+
+	if (Game_mode & GM_IN_MISSION) {
+		if (anchor_objnum >= 0)
+			Script_system.SetHookObjects(2, "Ship", &Objects[objnum], "Parent", &Objects[anchor_objnum]);
+		else
+			Script_system.SetHookObjects(2, "Ship", &Objects[objnum], "Parent", NULL);
+
+		Script_system.RunCondition(CHA_ONSHIPARRIVE, 0, NULL, &Objects[objnum]);
+		Script_system.RemHookVars(2, "Ship", "Parent");
 	}
 
 	return objnum;
@@ -2664,7 +2733,7 @@ int parse_object(mission *pm, int flag, p_object *p_objp)
 		error_display(0, NOX("Redundant ship name: %s\n"), p_objp->name);
 
 
-	find_and_stuff("$Class:", &p_objp->ship_class, F_NAME, Ship_class_names, Num_ship_classes, "ship class");
+	find_and_stuff("$Class:", &p_objp->ship_class, F_NAME, Ship_class_names, Ship_info.size(), "ship class");
 	if (p_objp->ship_class < 0)
 	{
 		if (Fred_running) {
@@ -3110,6 +3179,7 @@ int parse_object(mission *pm, int flag, p_object *p_objp)
 	}
 
 	Assert(p_objp->ship_max_hull_strength > 0.0f);	// Goober5000: div-0 check (not shield because we might not have one)
+	p_objp->max_shield_recharge = Ship_info[p_objp->ship_class].max_shield_recharge;
 
 
 	// if the kamikaze flag is set, we should have the next flag
@@ -3477,8 +3547,8 @@ void parse_common_object_data(p_object	*objp)
 			for (j=0; j < sip->n_subsystems; ++j)
 				if (!subsystem_stricmp(sip->subsystems[j].subobj_name, Subsys_status[i].name))
 					break;
-			if (j == sip->n_subsystems)
-				Warning(LOCATION, "Ship \"%s\", class \"%s\"\nUnknown subsystem \"%s\" found in mission!", objp->name, sip->name, Subsys_status[i].name);
+			//if (j == sip->n_subsystems)
+				//Warning(LOCATION, "Ship \"%s\", class \"%s\"\nUnknown subsystem \"%s\" found in mission!", objp->name, sip->name, Subsys_status[i].name);
 		}
 
 		if (optional_string("$Damage:"))
@@ -3848,7 +3918,15 @@ int find_wing_name(char *name)
 	return -1;
 }
 
-// function to create ships in the wing that need to be created
+/**
+* @brief						Tries to create a wing of ships
+* @param[inout]	wingp			Pointer to the wing structure of the wing to be created
+* @param[in] num_to_create		Number of ships to create
+* @param[in] force				If set to 1, the wing will be created regardless of whether or not the arrival conditions
+*								have been met yet.
+* @param[in] specific_instance	Set this to create a specific ship from this wing
+* @returns						Number of ships created
+*/
 int parse_wing_create_ships( wing *wingp, int num_to_create, int force, int specific_instance )
 {
 	int wingnum, objnum, num_create_save;
@@ -3889,23 +3967,20 @@ int parse_wing_create_ships( wing *wingp, int num_to_create, int force, int spec
 			Assert( wingp->arrival_anchor >= 0 );
 			name = Parse_names[wingp->arrival_anchor];
 
-			// see if ship is yet to arrive.  If so, then return -1 so we can evaluate again later.
-			if ( mission_parse_get_arrival_ship( name ) )
-				return 0;
-
-			// see if ship is in mission.  If not, then we can assume it was destroyed or departed since
-			// it is not on the arrival list (as shown by above if statement).
+			// see if ship is in mission.
 			shipnum = ship_name_lookup( name );
 			if ( shipnum == -1 ) {
 				int num_remaining;
+
+				// see if ship is yet to arrive.  If so, then return 0 so we can evaluate again later.
+				if (mission_parse_get_arrival_ship(name))
+					return 0;
+
 				// since this wing cannot arrive from this place, we need to mark the wing as destroyed and
 				// set the wing variables appropriately.  Good for directives.
 
 				// set the gone flag
 				wingp->flags |= WF_WING_GONE;
-
-				// if the current wave is zero, it never existed
-				wingp->flags |= WF_NEVER_EXISTED;
 
 				// mark the number of waves and number of ships destroyed equal to the last wave and the number
 				// of ships yet to arrive
@@ -4192,24 +4267,6 @@ int parse_wing_create_ships( wing *wingp, int num_to_create, int force, int spec
 
 		// possibly change the location where these ships arrive based on the wings arrival location
 		mission_set_wing_arrival_location( wingp, num_create_save );
-
-		for (it = 0; it < wingp->current_count; it++ ) {
-			int shipobjnum = Ships[wingp->ship_index[it]].objnum;
-			int anchor_objnum = -1;
-
-			if (wingp->arrival_anchor >= 0) {
-				int parentshipnum = ship_name_lookup(Parse_names[wingp->arrival_anchor]);
-				anchor_objnum = Ships[parentshipnum].objnum;
-			}
-
-			if (anchor_objnum >= 0)
-				Script_system.SetHookObjects(2, "Ship", &Objects[shipobjnum], "Parent", &Objects[anchor_objnum]);
-			else
-				Script_system.SetHookObjects(2, "Ship", &Objects[shipobjnum], "Parent", NULL);
-
-			Script_system.RunCondition(CHA_ONSHIPARRIVE, 0, NULL, &Objects[shipobjnum]);
-			Script_system.RemHookVars(2, "Ship", "Parent");
-		}
 
 		// if in multiplayer (and I am the host) and in the mission, send a wing create command to all
 		// other players
@@ -4603,8 +4660,9 @@ void resolve_path_masks(int anchor, int *path_mask)
 		Assert(!(anchor & SPECIAL_ARRIVAL_ANCHOR_FLAG));
 		parent_pobjp = mission_parse_get_parse_object(Parse_names[anchor]);
 
-		// load model for checking paths
-		modelnum = model_load(Ship_info[parent_pobjp->ship_class].pof_file, 0, NULL);
+		// Load the anchor ship model with subsystems and all; it'll need to be done for this mission anyway
+		ship_info *sip = &Ship_info[parent_pobjp->ship_class];
+		modelnum = model_load(sip->pof_file, sip->n_subsystems, &sip->subsystems[0]);
 
 		// resolve names to indexes
 		*path_mask = 0;
@@ -4616,9 +4674,6 @@ void resolve_path_masks(int anchor, int *path_mask)
 
 			*path_mask |= (1 << bay_path);
 		}
-
-		// unload model
-		model_unload(modelnum);
 
 		// cache the result
 		prp->cached_mask = *path_mask;
@@ -4930,23 +4985,21 @@ void parse_waypoints_and_jumpnodes(mission *pm)
 
 	required_string("#Waypoints");
 
-	CJumpNode *jnp;
 	char file_name[MAX_FILENAME_LEN] = { 0 };
 	char jump_name[NAME_LENGTH] = { 0 };
 
 	while (optional_string("$Jump Node:")) {
 		stuff_vec3d(&pos);
-		jnp = new CJumpNode(&pos);
-		Assert(jnp != NULL);
+		CJumpNode jnp(&pos);
 
 		if (optional_string("$Jump Node Name:") || optional_string("+Jump Node Name:")) {
 			stuff_string(jump_name, F_NAME, NAME_LENGTH);
-			jnp->SetName(jump_name);
+			jnp.SetName(jump_name);
 		}
 
 		if(optional_string("+Model File:")){
 			stuff_string(file_name, F_NAME, MAX_FILENAME_LEN);
-			jnp->SetModel(file_name);
+			jnp.SetModel(file_name);
 		}
 
 		if(optional_string("+Alphacolor:")) {
@@ -4955,16 +5008,16 @@ void parse_waypoints_and_jumpnodes(mission *pm)
 			stuff_ubyte(&g);
 			stuff_ubyte(&b);
 			stuff_ubyte(&a);
-			jnp->SetAlphaColor(r, g, b, a);
+			jnp.SetAlphaColor(r, g, b, a);
 		}
 
 		if(optional_string("+Hidden:")) {
 			int hide;
 			stuff_boolean(&hide);
-			jnp->SetVisibility(!hide);
+			jnp.SetVisibility(!hide);
 		}
 
-		Jump_nodes.push_back(*jnp);
+		Jump_nodes.push_back(std::move(jnp));
 	}
 
 	while (required_string_either("#Messages", "$Name:"))
@@ -5710,11 +5763,11 @@ void post_process_mission()
 				sprintf(error_msg, "%s.\n\nIn sexpression: %s\n(Error appears to be: %s)", sexp_error_message(result), sexp_str.c_str(), Sexp_nodes[bad_node].text);
 
 				if (!Fred_running) {
-					nprintf(("Error", error_msg.c_str()));
-					Error(LOCATION, error_msg.c_str());
+					nprintf(("Error", "%s", error_msg.c_str()));
+					Error(LOCATION, "%s", error_msg.c_str());
 				} else {
-					nprintf(("Warning", error_msg.c_str()));
-					Warning(LOCATION, error_msg.c_str());
+					nprintf(("Warning", "%s", error_msg.c_str()));
+					Warning(LOCATION, "%s", error_msg.c_str());
 				}
 			}
 		}
@@ -5832,39 +5885,38 @@ int get_mission_info(const char *filename, mission *mission_p, bool basic)
 	if (p) *p = 0; // remove any extension
 	strcat_s(real_fname, FS_MISSION_FILE_EXT);  // append mission extension
 
-	int rval, filelength;
+	int filelength;
 
 	// if mission_p is NULL, make it point to The_mission
 	if ( mission_p == NULL )
 		mission_p = &The_mission;
 
-	do {
-		CFILE *ftemp = cfopen(real_fname, "rt");
-		if (!ftemp) {
-			rval = -1;
-			break;
-		}
+	CFILE *ftemp = cfopen(real_fname, "rt");
+	if (!ftemp) {
+		return -1;
+	}
 
-		// 7/9/98 -- MWA -- check for 0 length file.
-		filelength = cfilelength(ftemp);
-		cfclose(ftemp);
-		if (filelength == 0) {
-			rval = -1;
-			break;
-		}
+	// 7/9/98 -- MWA -- check for 0 length file.
+	filelength = cfilelength(ftemp);
+	cfclose(ftemp);
+	if (filelength == 0) {
+		return -1;
+	}
 
-		if ((rval = setjmp(parse_abort)) != 0) {
-			mprintf(("MISSIONS: Unable to parse '%s'!  Error code = %i.\n", real_fname, rval));
-			break;
-		}
-
+	try
+	{
 		read_file_text(real_fname, CF_TYPE_MISSIONS);
-		mission_p->Reset( );
+		mission_p->Reset();
 		parse_init(basic);
 		parse_mission_info(mission_p, basic);
-	} while (0);
+	}
+	catch (const parse::ParseException& e)
+	{
+		mprintf(("MISSIONS: Unable to parse '%s'!  Error message = %s.\n", real_fname, e.what()));
+		return -1;
+	}
 
-	return rval;
+	return 0;
 }
 
 /**
@@ -5900,10 +5952,11 @@ int parse_main(const char *mission_name, int flags)
 	// fill in Ship_class_names array with the names from the ship_info struct;
 	Num_parse_names = 0;
 	Num_path_restrictions = 0;
-	Assert(Num_ship_classes <= MAX_SHIP_CLASSES);
+	Assert(Ship_info.size() <= MAX_SHIP_CLASSES);
 
-	for (i = 0; i < Num_ship_classes; i++)
-		Ship_class_names[i] = Ship_info[i].name;
+	i = 0;
+	for (auto it = Ship_info.begin(); it != Ship_info.end(); i++, ++it)
+		Ship_class_names[i] = it->name;
 	
 	do {
 		// don't do this for imports
@@ -5926,22 +5979,27 @@ int parse_main(const char *mission_name, int flags)
 			cfclose(ftemp);
 		}
 
-		if ((rval = setjmp(parse_abort)) != 0) {
-			mprintf(("MISSIONS: Unable to parse '%s'!  Error code = %i.\n", mission_name, rval));
+		try
+		{
+			// import?
+			if (flags & MPF_IMPORT_FSM) {
+				read_file_text(mission_name, CF_TYPE_ANY);
+				convertFSMtoFS2();
+			}
+			else {
+				read_file_text(mission_name, CF_TYPE_MISSIONS);
+			}
+
+			The_mission.Reset();
+			rval = parse_mission(&The_mission, flags);
+			display_parse_diagnostics();
+		}
+		catch (const parse::ParseException& e)
+		{
+			mprintf(("MISSIONS: Unable to parse '%s'!  Error message = %s.\n", mission_name, e.what()));
+			rval = 1;
 			break;
 		}
-
-		// import?
-		if (flags & MPF_IMPORT_FSM) {
-			read_file_text(mission_name, CF_TYPE_ANY);
-			convertFSMtoFS2();
-		} else {
-			read_file_text(mission_name, CF_TYPE_MISSIONS);
-		}
-
-		The_mission.Reset( );
-		rval = parse_mission(&The_mission, flags);
-		display_parse_diagnostics();
 	} while (0);
 
 	if (!Fred_running)
@@ -5996,7 +6054,7 @@ void mission_set_wing_arrival_location( wing *wingp, int num_to_set )
 		// or in front of some other ship.
 		index = wingp->current_count - num_to_set;
 		leader_objp = &Objects[Ships[wingp->ship_index[index]].objnum];
-		if (mission_set_arrival_location(wingp->arrival_anchor, wingp->arrival_location, wingp->arrival_distance, OBJ_INDEX(leader_objp), wingp->arrival_path_mask, &pos, &orient)) {
+		if (mission_set_arrival_location(wingp->arrival_anchor, wingp->arrival_location, wingp->arrival_distance, OBJ_INDEX(leader_objp), wingp->arrival_path_mask, &pos, &orient) != -1) {
 			// modify the remaining ships created
 			index++;
 			wing_index = 1;
@@ -6283,7 +6341,7 @@ void mission_parse_set_up_initial_docks()
  */
 int mission_parse_is_multi(const char *filename, char *mission_name)
 {
-	int rval, game_type;
+	int game_type;
 	int filelength;
 	CFILE *ftemp;
 
@@ -6302,25 +6360,28 @@ int mission_parse_is_multi(const char *filename, char *mission_name)
 
 	game_type = 0;
 	do {
-		if ((rval = setjmp(parse_abort)) != 0) {
-			mprintf(("MISSIONS: Unable to parse '%s'!  Error code = %i.\n", filename, rval));
+		try
+		{
+			read_file_text(filename, CF_TYPE_MISSIONS);
+			reset_parse();
+
+			if (skip_to_string("$Name:") != 1) {
+				nprintf(("Network", "Unable to process %s because we couldn't find $Name:", filename));
+				break;
+			}
+			stuff_string(mission_name, F_NAME, NAME_LENGTH);
+
+			if (skip_to_string("+Game Type Flags:") != 1) {
+				nprintf(("Network", "Unable to process %s because we couldn't find +Game Type Flags:\n", filename));
+				break;
+			}
+			stuff_int(&game_type);
+		}
+		catch (const parse::ParseException& e)
+		{
+			mprintf(("MISSIONS: Unable to parse '%s'!  Error message = %s.\n", filename, e.what()));
 			break;
 		}
-
-		read_file_text(filename, CF_TYPE_MISSIONS);
-		reset_parse();
-
-		if ( skip_to_string("$Name:") != 1 ) {
-			nprintf(("Network", "Unable to process %s because we couldn't find $Name:", filename));
-			break;
-		}
-		stuff_string( mission_name, F_NAME, NAME_LENGTH );
-
-		if ( skip_to_string("+Game Type Flags:") != 1 ) {
-			nprintf(("Network", "Unable to process %s because we couldn't find +Game Type Flags:\n", filename));
-			break;
-		}
-		stuff_int(&game_type);
 	} while (0);
 
 	return (game_type & MISSION_TYPE_MULTI) ? game_type : 0;
@@ -6348,7 +6409,12 @@ int mission_parse_get_multi_mission_info( const char *filename )
 }
 
 /**
- * Return the parse object on the ship arrival list associated with the given name
+ * @brief				Returns the parse object on the ship arrival list associated with the given name.
+ * @param[in] name		The name of the object
+ * @returns				The parse object, or NULL if no object with the given name is on the arrival list
+ * @remarks				This function is used to determine whether a ship has arrived. Ships on the arrival list
+ *						are considered to not be in the game; In order to make respawns work in multiplayer,
+ *						player ships (those marked with the P_OF_PLAYER_START flag) are never removed from it.
  */
 p_object *mission_parse_get_arrival_ship(const char *name)
 {
@@ -6360,14 +6426,21 @@ p_object *mission_parse_get_arrival_ship(const char *name)
 	for (p_objp = GET_FIRST(&Ship_arrival_list); p_objp != END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
 	{
 		if (!stricmp(p_objp->name, name)) 
+		{
 			return p_objp;	// still on the arrival list
+		}
 	}
 
 	return NULL;
 }
 
 /**
- * Return the parse object on the ship arrival list associated with the given signature
+ * @brief					Returns the parse object on the ship arrival list associated with the given net signature.
+ * @param[in] net_signature	The net signature of the object
+ * @returns					The parse object, or NULL if no object with the given signature is on the arrival list
+ * @remarks					This function is used to determine whether a ship has arrived. Ships on the arrival list
+ *							are considered to not be in the game; In order to make respawns work in multiplayer,
+ *							player ships (those marked with the P_OF_PLAYER_START flag) are never removed from it.
  */
 p_object *mission_parse_get_arrival_ship(ushort net_signature)
 {
@@ -6375,8 +6448,10 @@ p_object *mission_parse_get_arrival_ship(ushort net_signature)
 
 	for (p_objp = GET_FIRST(&Ship_arrival_list); p_objp !=END_OF_LIST(&Ship_arrival_list); p_objp = GET_NEXT(p_objp))
 	{
-		if (p_objp->net_signature == net_signature)
+		if (p_objp->net_signature == net_signature) 
+		{
 			return p_objp;	// still on the arrival list
+		}
 	}
 
 	return NULL;
@@ -6384,7 +6459,7 @@ p_object *mission_parse_get_arrival_ship(ushort net_signature)
 
 /**
  * Sets the arrival location of a parse object according to the arrival location of the object.
- * @return true if object set to new position, false if not.
+ * @return objnum of anchor ship if there is one, -1 otherwise.
  */
 int mission_set_arrival_location(int anchor, int location, int dist, int objnum, int path_mask, vec3d *new_pos, matrix *new_orient)
 {
@@ -6393,7 +6468,7 @@ int mission_set_arrival_location(int anchor, int location, int dist, int objnum,
 	matrix orient;
 
 	if ( location == ARRIVE_AT_LOCATION )
-		return 0;
+		return -1;
 
 	Assert(anchor >= 0);
 
@@ -6424,7 +6499,7 @@ int mission_set_arrival_location(int anchor, int location, int dist, int objnum,
 	{
 		Assert ( location != ARRIVE_FROM_DOCK_BAY );		// bogus data somewhere!!!  get mwa
 		nprintf (("allender", "couldn't find ship for arrival anchor -- using location ship created at"));
-		return 0;
+		return -1;
 	}
 
 	// take the shipnum and get the position.  once we have positions, we can determine where
@@ -6440,7 +6515,7 @@ int mission_set_arrival_location(int anchor, int location, int dist, int objnum,
 		// if we get an error, just let the ship arrive(?)
 		if ( ai_acquire_emerge_path(&Objects[objnum], anchor_objnum, path_mask, &pos, &fvec) == -1 ) {
 			Int3();			// get MWA or AL -- not sure what to do here when we cannot acquire a path
-			return 0;
+			return -1;
 		}
 		Objects[objnum].pos = pos;
 		vm_vector_2_matrix(&Objects[objnum].orient, &fvec, NULL, NULL);
@@ -6518,7 +6593,7 @@ int mission_set_arrival_location(int anchor, int location, int dist, int objnum,
 	if ( new_orient )
 		memcpy( new_orient, &Objects[objnum].orient, sizeof(matrix) );
 
-	return 1;
+	return anchor_objnum;
 }
 
 /**
@@ -6597,14 +6672,13 @@ int mission_did_ship_arrive(p_object *objp)
 			Assert( objp->arrival_anchor >= 0 );
 			name = Parse_names[objp->arrival_anchor];
 	
-			// see if ship is yet to arrive.  If so, then return -1 so we can evaluate again later.
-			if ( mission_parse_get_arrival_ship( name ) )
-				return -1;
-
-			// see if ship is in mission.  If not, then we can assume it was destroyed or departed since
-			// it is not on the arrival list (as shown by above if statement).
+			// see if ship is in mission.
 			shipnum = ship_name_lookup( name );
 			if ( shipnum == -1 ) {
+				// see if ship is yet to arrive.  If so, then return -1 so we can evaluate again later.
+				if (mission_parse_get_arrival_ship(name))
+					return -1;
+
 				mission_parse_mark_non_arrival(objp);	// Goober5000
 				WarningEx(LOCATION, "Warning: Ship %s cannot arrive from docking bay of destroyed or departed %s.\n", objp->name, name);
 				return -1;
@@ -6654,24 +6728,6 @@ void mission_maybe_make_ship_arrive(p_object *p_objp)
 		mission_parse_support_arrived(objnum);
 	else
 		list_remove(&Ship_arrival_list, p_objp);
-
-	int anchor_objnum = -1;
-	if (p_objp->arrival_anchor >= 0) {
-		int shipnum = ship_name_lookup(Parse_names[p_objp->arrival_anchor]);
-
-		// This shouldn't be happening
-		Assertion(shipnum >= 0 && shipnum < MAX_SHIPS, "Arriving ship '%s' does not exist!", Parse_names[p_objp->arrival_anchor]);
-
-		anchor_objnum = Ships[shipnum].objnum;
-	}
-
-	if (anchor_objnum >= 0)
-		Script_system.SetHookObjects(2, "Ship", &Objects[objnum], "Parent", &Objects[anchor_objnum]);
-	else
-		Script_system.SetHookObjects(2, "Ship", &Objects[objnum], "Parent", NULL);
-
-	Script_system.RunCondition(CHA_ONSHIPARRIVE, 0, NULL, &Objects[objnum]);
-	Script_system.RemHookVars(2, "Ship", "Parent");
 }
 
 // Goober5000
@@ -7540,13 +7596,16 @@ void mission_bring_in_support_ship( object *requester_objp )
 		// 5/6/98 -- MWA  Don't need to do anything for multiplayer.  I think that we always want to use
 		// the species of the caller ship.
 
+		i = -1;
 		// get index of correct species support ship
-		for (i=0; i < Num_ship_classes; i++) {
-			if ( (Ship_info[i].species == requester_species) && (Ship_info[i].flags & SIF_SUPPORT) )
+		for (auto it = Ship_info.cbegin(); it != Ship_info.cend(); ++it) {
+			if ( (it->species == requester_species) && (it->flags & SIF_SUPPORT) ) {
+				i = std::distance(Ship_info.cbegin(), it);
 				break;
+			}
 		}
 
-		if ( i < Num_ship_classes )
+		if ( i != -1 )
 			pobj->ship_class = i;
 		else
 			Int3();				// BOGUS!!!!  gotta figure something out here
@@ -7555,6 +7614,7 @@ void mission_bring_in_support_ship( object *requester_objp )
 	// set support ship hitpoints
 	pobj->ship_max_hull_strength = Ship_info[i].max_hull_strength;
 	pobj->ship_max_shield_strength = Ship_info[i].max_shield_strength;
+	pobj->max_shield_recharge = Ship_info[i].max_shield_recharge;
 
 	pobj->team = requester_shipp->team;
 

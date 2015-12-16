@@ -7,11 +7,11 @@
  *
 */
 
-#include "globalincs/pstypes.h"	// for NULL
-#include "globalincs/globals.h"
-
 #ifndef _SEXP_H
 #define _SEXP_H
+
+#include "globalincs/globals.h"
+#include "globalincs/pstypes.h"	// for NULL
 
 class ship_subsys;
 class ship;
@@ -384,7 +384,9 @@ class waypoint_list;
 #define OP_IS_IN_BOX					    (0x004c | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Sushi
 #define OP_IS_IN_MISSION					(0x004d | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// Goober5000
 #define OP_ARE_SHIP_FLAGS_SET				(0x004e | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG) // Karajorma
+#define OP_TURRET_GET_PRIMARY_AMMO			(0x004f | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// DahBlount, part of the turret ammo code
 
+#define OP_TURRET_GET_SECONDARY_AMMO		(0x0050 | OP_CATEGORY_STATUS | OP_NONCAMPAIGN_FLAG)	// DahBlount, part of the turret ammo code
 
 // conditional sexpressions
 #define OP_WHEN								(0x0000 | OP_CATEGORY_CONDITIONAL)
@@ -727,6 +729,9 @@ class waypoint_list;
 #define OP_SCRIPT_EVAL_MULTI				(0x0028 | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG)	// Karajorma
 #define OP_PAUSE_SOUND_FROM_FILE			(0x0029 | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG)	// Goober5000
 #define OP_SCRIPT_EVAL_BLOCK				(0x002a | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG) // niffiwan
+#define OP_BEAM_FLOATING_FIRE				(0x002b | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG)	// MageKing17
+#define OP_TURRET_SET_PRIMARY_AMMO			(0x002c | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG)	// DahBlount, part of the turret ammo changes
+#define OP_TURRET_SET_SECONDARY_AMMO		(0x002d | OP_CATEGORY_CHANGE2 | OP_NONCAMPAIGN_FLAG)	// DahBlount, part of the turret ammo changes
 
 // defined for AI goals
 #define OP_AI_CHASE							(0x0000 | OP_CATEGORY_AI | OP_NONCAMPAIGN_FLAG)
@@ -988,6 +993,7 @@ char *CTEXT(int n);
 #define SEXP_CHECK_INVALID_TEAM_COLOR			-157
 #define SEXP_CHECK_INVALID_SKYBOX_FLAG			-158
 #define SEXP_CHECK_INVALID_GAME_SND				-159
+#define SEXP_CHECK_INVALID_SSM_CLASS			-160
 
 #define TRAINING_CONTEXT_SPEED		(1<<0)
 #define TRAINING_CONTEXT_FLY_PATH	(1<<1)
@@ -1177,6 +1183,9 @@ bool has_special_explosion_block_index(ship *shipp, int *index);
 void set_primary_ammo (int ship_index, int requested_bank, int requested_ammo, int rearm_limit=-1, bool update=true);
 void set_secondary_ammo (int ship_index, int requested_bank, int requested_ammo, int rearm_limit=-1, bool update=true);
 
+// DahBlount - Similar to Karajorma's functions, but for turrets
+void set_turret_primary_ammo(ship_subsys *turret, int requested_bank, int requested_ammo, bool update = true);
+void set_turret_secondary_ammo(ship_subsys *turret, int requested_bank, int requested_ammo, bool update = true);
 
 // menu and category stuff
 extern int get_sexp_id(char *sexp_name);

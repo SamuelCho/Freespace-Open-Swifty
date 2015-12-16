@@ -1,28 +1,28 @@
 
 
-#include "globalincs/systemvars.h"
-#include "ship/ship.h"
-#include "weapon/weapon.h"
-#include "freespace2/freespace.h"
+#include "ai/aibig.h"
+#include "ai/aiinternal.h"
 #include "asteroid/asteroid.h"
-#include "globalincs/linklist.h"
-#include "weapon/beam.h"
-#include "weapon/swarm.h"
-#include "io/timer.h"
-#include "render/3d.h"
+#include "debugconsole/console.h"
+#include "freespace2/freespace.h"
 #include "gamesnd/gamesnd.h"
-#include "ship/shipfx.h"
-#include "network/multimsgs.h"
-#include "weapon/flak.h"
+#include "globalincs/linklist.h"
+#include "globalincs/systemvars.h"
+#include "iff_defs/iff_defs.h"
+#include "io/timer.h"
 #include "math/staticrand.h"
 #include "network/multi.h"
-#include "ai/aibig.h"
+#include "network/multimsgs.h"
 #include "object/objectdock.h"
-#include "ai/aiinternal.h"	//Included last, so less includes are needed
-#include "iff_defs/iff_defs.h"
-#include "weapon/muzzleflash.h"
 #include "parse/scripting.h"
-#include "debugconsole/console.h"
+#include "render/3d.h"
+#include "ship/ship.h"
+#include "ship/shipfx.h"
+#include "weapon/beam.h"
+#include "weapon/flak.h"
+#include "weapon/muzzleflash.h"
+#include "weapon/swarm.h"
+#include "weapon/weapon.h"
 
 #include <limits.h>
 
@@ -1377,7 +1377,7 @@ void turret_ai_update_aim(ai_info *aip, object *En_Objp, ship_subsys *ss)
  */
 int aifft_rotate_turret(ship *shipp, int parent_objnum, ship_subsys *ss, object *objp, object *lep, vec3d *predicted_enemy_pos, vec3d *gvec)
 {
-	int ret_val __attribute__((__unused__)) = 0; // to be used in future, see comment @ end of function
+	int ret_val __UNUSED = 0; // to be used in future, see comment @ end of function
 
 	if (ss->turret_enemy_objnum != -1) {
 		model_subsystem *tp = ss->system_info;
@@ -1870,21 +1870,129 @@ bool turret_fire_weapon(int weapon_num, ship_subsys *turret, int parent_objnum, 
 			fire_info.turret = turret;
 
 			// fire a beam weapon
-			beam_fire(&fire_info);
+			weapon_objnum = beam_fire(&fire_info);
+
+			if (weapon_objnum != -1) {
+				objp = &Objects[weapon_objnum];
+
+				parent_ship->last_fired_turret = turret;
+				turret->last_fired_weapon_info_index = turret_weapon_class;
+
+				Script_system.SetHookObjects(4, "Ship", &Objects[parent_objnum], "Weapon", nullptr, "Beam", objp, "Target", &Objects[turret->turret_enemy_objnum]);
+				Script_system.RunCondition(CHA_ONTURRETFIRED, 0, NULL, &Objects[parent_objnum]);
+				Script_system.RemHookVars(4, "Ship", "Weapon", "Beam", "Target");
+			}
 
 			turret->flags |= SSF_HAS_FIRED; //set fired flag for scripting -nike
 			return true;
 		}
 		// don't fire swam, but set up swarm info instead
 		else if ((wip->wi_flags & WIF_SWARM) || (wip->wi_flags & WIF_CORKSCREW)) {
-			turret_swarm_set_up_info(parent_objnum, turret, wip, turret->turret_next_fire_pos);
+			ship_weapon *swp = &turret->weapons;
+			if (swp->current_secondary_bank < 0) {
+				swp->current_secondary_bank = 0;
+			}
+			int bank_to_fire = swp->current_secondary_bank;
+			if ((turret->system_info->flags2 & MSS_FLAG2_TURRET_USE_AMMO) && (swp->secondary_bank_ammo[bank_to_fire] < 0)) {
+				if (!(turret->system_info->flags & MSS_FLAG_USE_MULTIPLE_GUNS)) {
+					swp->current_secondary_bank++;
+					if (swp->current_secondary_bank >= swp->num_secondary_banks) {
+						swp->current_secondary_bank = 0;
+					}
+					return false;
+				} else {
+					return false;
+				}
+			} else {
+				turret_swarm_set_up_info(parent_objnum, turret, wip, turret->turret_next_fire_pos);
 
-			turret->flags |= SSF_HAS_FIRED;	//set fired flag for scripting -nike
-			return true;
+				turret->flags |= SSF_HAS_FIRED;	//set fired flag for scripting -nike
+				return true;
+			}
 		}
 		// now do anything else
 		else {
 			for (int i = 0; i < wip->shots; i++) {
+				if (turret->system_info->flags2 & MSS_FLAG2_TURRET_USE_AMMO) {
+					ship_weapon *swp;
+					swp = &turret->weapons;
+					int bank_to_fire, num_slots = turret->system_info->turret_num_firing_points;
+					if (wip->subtype == WP_LASER) {
+						int points;
+						if (swp->num_primary_banks <= 0) {
+							return false;
+						}
+
+						if (swp->current_primary_bank < 0){
+							swp->current_primary_bank = 0;
+							return false;
+						}
+
+						int	num_primary_banks = swp->num_primary_banks;
+
+						Assert(num_primary_banks > 0);
+						if (num_primary_banks < 1){
+							return false;
+						}
+
+						bank_to_fire = swp->current_primary_bank;
+
+						if (turret->system_info->flags & MSS_FLAG_TURRET_SALVO) {
+							points = num_slots;
+						} else {
+							points = 1;
+						}
+
+						if (swp->primary_bank_ammo[bank_to_fire] >= 0) {
+							swp->primary_bank_ammo[bank_to_fire] -= points;
+						} else if (!(turret->system_info->flags & MSS_FLAG_USE_MULTIPLE_GUNS) && (swp->primary_bank_ammo[bank_to_fire] < 0)) {
+							swp->current_primary_bank++;
+							if (swp->current_primary_bank >= swp->num_primary_banks) {
+								swp->current_primary_bank = 0;
+							}
+							return false;
+						} else {
+							return false;
+						}
+					}
+					else if (wip->subtype == WP_MISSILE) {
+						if (swp->num_secondary_banks <= 0) {
+							return false;
+						}
+
+						if (swp->current_secondary_bank < 0){
+							swp->current_secondary_bank = 0;
+							return false;
+						}
+
+						bank_to_fire = swp->current_secondary_bank;
+
+						int start_slot, end_slot;
+
+						start_slot = swp->secondary_next_slot[bank_to_fire];
+						end_slot = start_slot;
+
+						for (int j = start_slot; j <= end_slot; j++) {
+							swp->secondary_next_slot[bank_to_fire]++;
+
+							if (swp->secondary_next_slot[bank_to_fire] > (num_slots - 1)){
+								swp->secondary_next_slot[bank_to_fire] = 0;
+							}
+
+							if (swp->secondary_bank_ammo[bank_to_fire] >= 0) {
+								swp->secondary_bank_ammo[bank_to_fire]--;
+							} else if (!(turret->system_info->flags & MSS_FLAG_USE_MULTIPLE_GUNS) && (swp->secondary_bank_ammo[bank_to_fire] < 0)) {
+								swp->current_secondary_bank++;
+								if (swp->current_secondary_bank >= swp->num_secondary_banks) {
+									swp->current_secondary_bank = 0;
+								}
+								return false;
+							} else {
+								return false;
+							}
+						}
+					}
+				}
 				// zookeeper - Firepoints should cycle normally between shots, 
 				// so we need to get the position info separately for each shot
 				ship_get_global_turret_gun_info(&Objects[parent_objnum], turret, turret_pos, turret_fvec, 1, NULL);
@@ -1905,8 +2013,9 @@ bool turret_fire_weapon(int weapon_num, ship_subsys *turret, int parent_objnum, 
 					// AL 1-6-97: Store pointer to turret subsystem
 					wp->turret_subsys = turret;	
 
-					Script_system.SetHookObjects(3, "Ship", &Objects[parent_objnum], "Weapon", objp, "Target", &Objects[turret->turret_enemy_objnum]);
+					Script_system.SetHookObjects(4, "Ship", &Objects[parent_objnum], "Weapon", objp, "Beam", nullptr, "Target", &Objects[turret->turret_enemy_objnum]);
 					Script_system.RunCondition(CHA_ONTURRETFIRED, 0, NULL, &Objects[parent_objnum]);
+					Script_system.RemHookVars(4, "Ship", "Weapon", "Beam", "Target");
 
 					// if the gun is a flak gun
 					if (wip->wi_flags & WIF_FLAK) {			
@@ -2017,6 +2126,13 @@ void turret_swarm_fire_from_turret(turret_swarm_info *tsi)
 	if (weapon_objnum > -1) {
 		Weapons[Objects[weapon_objnum].instance].turret_subsys = tsi->turret;
 		Weapons[Objects[weapon_objnum].instance].target_num = tsi->turret->turret_enemy_objnum;
+
+		Ships[Objects[tsi->parent_objnum].instance].last_fired_turret = tsi->turret;
+		tsi->turret->last_fired_weapon_info_index = tsi->weapon_class;
+
+		Script_system.SetHookObjects(4, "Ship", &Objects[tsi->parent_objnum], "Weapon", &Objects[weapon_objnum], "Beam", nullptr, "Target", &Objects[tsi->turret->turret_enemy_objnum]);
+		Script_system.RunCondition(CHA_ONTURRETFIRED, 0, NULL, &Objects[tsi->parent_objnum]);
+		Script_system.RemHookVars(4, "Ship", "Weapon", "Beam", "Target");
 
 		// muzzle flash?
 		if (Weapon_info[tsi->weapon_class].muzzle_flash >= 0) {

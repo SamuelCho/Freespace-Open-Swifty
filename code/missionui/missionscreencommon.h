@@ -13,8 +13,8 @@
 #define _MISSION_SCREEN_COMMON_HEADER_FILE
 
 #include "globalincs/globals.h"
-#include "ui/ui.h"
 #include "model/model.h"
+#include "ui/ui.h"
 
 #define BACKGROUND_FRAME_TO_START_SHIP_ANIM	87
 #define BUTTON_SLIDE_IN_FRAME						1
@@ -87,6 +87,8 @@ void	common_reset_buttons();
 void	common_redraw_pressed_buttons();
 void  common_maybe_clear_focus();
 void ship_select_common_init();
+
+int mission_ui_background_load(const char *custom_background, const char *single_background, const char *multi_background = NULL);
 
 void common_set_interface_palette(char *filename = NULL);		// set the interface palette
 void common_free_interface_palette();		// restore game palette
@@ -203,8 +205,8 @@ int store_wss_data(ubyte *block, int max_size, int sound,int player_index);
 int restore_wss_data(ubyte *block);
 
 class ship_info;
-void draw_model_icon(int model_id, int flags, float closeup_zoom, int x1, int x2, int y1, int y2, ship_info* sip=NULL, int resize_mode=GR_RESIZE_FULL);
-void draw_model_rotating(int model_id, int x1, int y1, int x2, int y2, float *rotation_buffer, vec3d *closeup_pos=NULL, float closeup_zoom = .65f, float rev_rate = REVOLUTION_RATE, int flags = MR_LOCK_DETAIL | MR_AUTOCENTER | MR_NO_FOGGING, int resize_mode=GR_RESIZE_FULL, int effect = 2);
+void draw_model_icon(int model_id, int flags, float closeup_zoom, int x1, int x2, int y1, int y2, const ship_info* sip = NULL, int resize_mode = GR_RESIZE_FULL, const vec3d *closeup_pos = &vmd_zero_vector);
+void draw_model_rotating(model_render_params *render_info, int model_id, int x1, int y1, int x2, int y2, float *rotation_buffer, vec3d *closeup_pos=NULL, float closeup_zoom = .65f, float rev_rate = REVOLUTION_RATE, int flags = MR_AUTOCENTER | MR_NO_FOGGING, int resize_mode=GR_RESIZE_FULL, int effect = 2);
 
 void common_set_team_pointers(int team);
 void common_reset_team_pointers();

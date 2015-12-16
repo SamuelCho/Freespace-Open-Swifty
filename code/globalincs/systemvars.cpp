@@ -11,9 +11,9 @@
 #include "debugconsole/console.h"
 #include "globalincs/pstypes.h"
 #include "globalincs/systemvars.h"
+#include "graphics/2d.h"
 #include "io/timer.h"
 #include "nebula/neb.h"
-#include "graphics/2d.h"
 
 
 fix Missiontime;
@@ -77,6 +77,7 @@ bool Glowpoint_use_depth_buffer = true;
 bool GLSL_override = false;
 bool PostProcessing_override = false;
 bool Teamcolor_override = false;
+bool Shadow_override = false;
 
 // Values used for noise for thruster animations
 float Noise[NOISE_NUM_FRAMES] = { 

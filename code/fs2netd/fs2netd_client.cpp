@@ -9,30 +9,30 @@
 
 
 
-#include "globalincs/pstypes.h"
+#include "bmpman/bmpman.h"
+#include "cfile/cfile.h"
+#include "cfile/cfilesystem.h"
+#include "cmdline/cmdline.h"
 #include "fs2netd/fs2netd_client.h"
 #include "fs2netd/tcp_client.h"
-#include "cfile/cfile.h"
-#include "network/multi_log.h"
-#include "osapi/osregistry.h"
-#include "popup/popup.h"
 #include "gamesnd/gamesnd.h"
-#include "network/multi.h"
-#include "playerman/player.h"
-#include "io/timer.h"
-#include "network/multiutil.h"
-#include "network/multiui.h"
-#include "network/stand_gui.h"
-#include "network/multi_pxo.h"
-#include "bmpman/bmpman.h"
+#include "globalincs/alphacolors.h"
+#include "globalincs/pstypes.h"
 #include "graphics/2d.h"
 #include "graphics/font.h"
-#include "globalincs/alphacolors.h"
-#include "network/multi_options.h"
-#include "cmdline/cmdline.h"
-#include "cfile/cfilesystem.h"
-#include "network/multimsgs.h"
+#include "io/timer.h"
 #include "mod_table/mod_table.h"
+#include "network/multi.h"
+#include "network/multi_log.h"
+#include "network/multi_options.h"
+#include "network/multi_pxo.h"
+#include "network/multimsgs.h"
+#include "network/multiui.h"
+#include "network/multiutil.h"
+#include "network/stand_gui.h"
+#include "osapi/osregistry.h"
+#include "playerman/player.h"
+#include "popup/popup.h"
 
 #ifndef WIN32
 #include <cstdio>
@@ -737,7 +737,7 @@ static void fs2netd_handle_messages()
 
 			case PCKT_SLIST_REPLY: {
 				int numServers = 0;
-				int svr_flags __attribute__((__unused__)); // gcc [-Wunused-but-set-variable] doesn't like MACROs
+				int svr_flags __UNUSED; // gcc [-Wunused-but-set-variable] doesn't like MACROs
 				ushort svr_port;
 				char svr_ip[16];
 				active_game ag;
@@ -1207,7 +1207,7 @@ void fs2netd_update_ban_list()
 
 		if (banlist_cfg != NULL) {
 			for (SCP_vector<SCP_string>::iterator bl = FS2NetD_ban_list.begin(); bl != FS2NetD_ban_list.end(); ++bl) {
-				cfputs( const_cast<char*>(bl->c_str()), banlist_cfg );
+				cfputs( bl->c_str(), banlist_cfg );
 			}
 
 			cfclose(banlist_cfg);

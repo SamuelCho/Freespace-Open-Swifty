@@ -48,6 +48,7 @@ extern int Cmdline_use_last_pilot;
 extern int Cmdline_window;
 extern int Cmdline_fullscreen_window;
 extern char *Cmdline_res;
+extern char *Cmdline_center_res;
 
 
 // FSO OPTIONS -------------------------------------------------
@@ -76,6 +77,9 @@ extern int Cmdline_bloom_intensity;
 extern bool Cmdline_fxaa;
 extern int Cmdline_fxaa_preset;
 extern bool Cmdline_fb_explosions;
+extern bool Cmdline_no_batching;
+extern int Cmdline_shadow_quality;
+extern int Cmdline_no_deferred_lighting;
 
 // Game Speed related
 extern int Cmdline_cache_bitmaps;
@@ -102,6 +106,7 @@ extern int Cmdline_stretch_menu;
 extern int Cmdline_query_speech;
 extern int Cmdline_snd_preload;
 extern int Cmdline_voice_recognition;
+extern int Cmdline_no_enhanced_sound;
 
 // MOD related
 extern char *Cmdline_mod;	 // DTP for mod support
@@ -116,7 +121,6 @@ extern int Cmdline_objupd;
 // Troubleshooting
 extern int Cmdline_load_all_weapons;
 extern int Cmdline_nohtl;
-extern int Cmdline_noibx;
 extern int Cmdline_nomovies;	// WMC Toggles movie playing support
 extern int Cmdline_no_set_gamma;
 extern int Cmdline_novbo;
@@ -131,6 +135,8 @@ extern int Cmdline_no_di_mouse;
 extern int Cmdline_drawelements;
 extern char* Cmdline_keyboard_layout;
 extern bool Cmdline_gl_finish;
+extern bool Cmdline_no_geo_sdr_effects;
+extern bool Cmdline_set_cpu_affinity;
 
 // Developer/Testing related
 extern char *Cmdline_start_mission;
@@ -155,5 +161,6 @@ extern int Cmdline_reparse_mainhall;
 extern bool Cmdline_frame_profile;
 extern bool Cmdline_profile_write_file;
 extern bool Cmdline_no_unfocus_pause;
+extern bool Cmdline_benchmark_mode;
 
 #endif

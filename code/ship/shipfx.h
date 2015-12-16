@@ -14,6 +14,7 @@
 
 #include "globalincs/pstypes.h"
 #include "graphics/grbatch.h"
+#include "model/modelrender.h"
 
 class object;
 class ship;
@@ -64,13 +65,13 @@ extern void shipfx_warpout_frame( object *objp, float frametime );
 
 // Given point p0, in object's frame of reference, find if 
 // it can see the sun.
-int shipfx_point_in_shadow( vec3d *p0, matrix *src_orient, vec3d *src_pos, float radius );
+bool shipfx_point_in_shadow( vec3d *p0, matrix *src_orient, vec3d *src_pos, float radius );
 
 // Given an ship see if it is in a shadow.
-int shipfx_in_shadow( object * src_obj );
+bool shipfx_in_shadow( object * src_obj );
 
 // Given world point see if it is in a shadow.
-int shipfx_eye_in_shadow( vec3d *eye_pos, object *src_obj, int sun_n);
+bool shipfx_eye_in_shadow( vec3d *eye_pos, object *src_obj, int sun_n);
 
 
 // =================================================
@@ -111,6 +112,8 @@ void shipfx_large_blowup_init(ship *shipp);
 int shipfx_large_blowup_do_frame(ship *shipp, float frametime);
 
 void shipfx_large_blowup_render(ship *shipp);
+
+void shipfx_large_blowup_queue_render(draw_list *scene, ship* shipp);
 
 void shipfx_debris_limit_speed(struct debris *db, ship *shipp);
 
@@ -179,7 +182,9 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
+	virtual int warpShipClip(model_render_params *render_info);
 	virtual int warpShipRender();
+	virtual int warpShipQueueRender(draw_list *scene);
 	virtual int warpEnd();
 
 	//For VM_WARP_CHASE
@@ -216,6 +221,7 @@ public:
 	int warpStart();
 	int warpFrame(float frametime);
 	int warpShipClip();
+	int warpShipClip(model_render_params *render_info);
 	int warpShipRender();
 
 	int getWarpPosition(vec3d *output);
@@ -273,6 +279,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
+	virtual int warpShipClip(model_render_params *render_info);
 	virtual int warpShipRender();
 	virtual int warpEnd();
 
@@ -322,6 +329,7 @@ public:
 	virtual int warpStart();
 	virtual int warpFrame(float frametime);
 	virtual int warpShipClip();
+	virtual int warpShipClip(model_render_params *render_info);
 	virtual int warpShipRender();
 	virtual int warpEnd();
 

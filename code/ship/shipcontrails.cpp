@@ -9,9 +9,9 @@
 
 
 
-#include "ship/shipcontrails.h"
-#include "ship/ship.h"
 #include "mission/missionparse.h"
+#include "ship/ship.h"
+#include "ship/shipcontrails.h"
 
 
 
@@ -137,6 +137,9 @@ void ct_ship_process(ship *shipp)
 				shipp->trail_ptr[idx] = NULL;
 			}
 		}
+
+		// don't create or update trails if we're not moving fast enough
+		return;
 	}
 
 

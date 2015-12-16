@@ -1,10 +1,7 @@
-#include "globalincs/pstypes.h"
-#include "globalincs/globals.h"
-#include "bmpman/bmpman.h"
-#include "graphics/generic.h"
-#include "graphics/2d.h"
-#include "anim/animplay.h"
 #include "anim/packunpack.h"
+#include "globalincs/globals.h"
+#include "graphics/2d.h"
+#include "graphics/generic.h"
 #define BMPMAN_INTERNAL
 #include "bmpman/bm_internal.h"
 #ifdef _WIN32
@@ -20,14 +17,25 @@
 //we check background type to avoid messed up colours for ANI
 #define ANI_BPP_CHECK		(ga->ani.bg_type == BM_TYPE_PCX) ? 16 : 32
 
+// These two functions find if a bitmap or animation exists by filename, no extension needed.
+bool generic_bitmap_exists(const char *filename)
+{
+	return cf_exists_full_ext(filename, CF_TYPE_ANY, BM_NUM_TYPES, bm_ext_list) != 0;
+}
+
+bool generic_anim_exists(const char *filename)
+{
+	return cf_exists_full_ext(filename, CF_TYPE_ANY, BM_ANI_NUM_TYPES, bm_ani_ext_list) != 0;
+}
+
 // Goober5000
-int generic_anim_init_and_stream(generic_anim *anim, const char *anim_filename, ubyte bg_type, bool attempt_hi_res)
+int generic_anim_init_and_stream(generic_anim *ga, const char *anim_filename, BM_TYPE bg_type, bool attempt_hi_res)
 {
 	int stream_result = -1;
 	char filename[NAME_LENGTH];
 	char *p;
 
-	Assert(anim != NULL);
+	Assert(ga != NULL);
 	Assert(anim_filename != NULL);
 
 	// hi-res support
@@ -44,9 +52,9 @@ int generic_anim_init_and_stream(generic_anim *anim, const char *anim_filename, 
 		}
 
 		// attempt to stream the hi-res ani
-		generic_anim_init(anim, filename);
-		anim->ani.bg_type = bg_type;
-		stream_result = generic_anim_stream(anim);
+		generic_anim_init(ga, filename);
+		ga->ani.bg_type = bg_type;
+		stream_result = generic_anim_stream(ga);
 	}
 
 	// we failed to stream hi-res, or we aren't running in hi-res, so try low-res
@@ -60,9 +68,9 @@ int generic_anim_init_and_stream(generic_anim *anim, const char *anim_filename, 
 		}
 
 		// attempt to stream the low-res ani
-		generic_anim_init(anim, filename);
-		anim->ani.bg_type = bg_type;
-		stream_result = generic_anim_stream(anim);
+		generic_anim_init(ga, filename);
+		ga->ani.bg_type = bg_type;
+		stream_result = generic_anim_stream(ga);
 	}
 
 	return stream_result;
@@ -95,7 +103,7 @@ void generic_anim_init(generic_anim *ga, const char *filename)
 	//we only care about the stuff below if we're streaming
 	ga->ani.animation = NULL;
 	ga->ani.instance = NULL;
-	ga->ani.bg_type = 0;
+	ga->ani.bg_type = BM_TYPE_NONE;
 	ga->type = BM_TYPE_NONE;
 	ga->streaming = 0;
 	ga->buffer = NULL;
@@ -182,13 +190,16 @@ int generic_anim_stream(generic_anim *ga)
 
 	cfclose(img_cfp);
 
-	//TODO: add streaming EFF
 	if(ga->type == BM_TYPE_ANI) {
 		bpp = ANI_BPP_CHECK;
 		if(ga->use_hud_color)
 			bpp = 8;
-		ga->ani.animation = anim_load(ga->filename, CF_TYPE_ANY, 0);
-		ga->ani.instance = init_anim_instance(ga->ani.animation, bpp);
+		if (ga->ani.animation == nullptr) {
+			ga->ani.animation = anim_load(ga->filename, CF_TYPE_ANY, 0);
+		}
+		if (ga->ani.instance == nullptr) {
+			ga->ani.instance = init_anim_instance(ga->ani.animation, bpp);
+		}
 
 	#ifndef NDEBUG
 		// for debug of ANI sizes
@@ -216,14 +227,14 @@ int generic_anim_stream(generic_anim *ga)
 		char *p = strrchr( ga->filename, '.' );
 		if ( p )
 			*p = 0;
-		char frame_name[32];
-		snprintf(frame_name, 32, "%s_0000", ga->filename);
+		char frame_name[MAX_FILENAME_LEN];
+		snprintf(frame_name, MAX_FILENAME_LEN, "%s_0000", ga->filename);
 		ga->bitmap_id = bm_load(frame_name);
 		if(ga->bitmap_id < 0) {
 			mprintf(("Cannot find first frame for eff streaming. eff Filename: %s", ga->filename));
 			return -1;
 		}
-		snprintf(frame_name, 32, "%s_0001", ga->filename);
+		snprintf(frame_name, MAX_FILENAME_LEN, "%s_0001", ga->filename);
 		ga->eff.next_frame = bm_load(frame_name);
 		bm_get_info(ga->bitmap_id, &ga->width, &ga->height);
 		ga->previous_frame = 0;
@@ -319,8 +330,8 @@ void generic_render_eff_stream(generic_anim *ga)
 		mprintf(("=========================\n"));
 		mprintf(("frame: %d\n", ga->current_frame));
 	#endif
-		char frame_name[32];
-		snprintf(frame_name, 32, "%s_%.4d", ga->filename, ga->current_frame);
+		char frame_name[MAX_FILENAME_LEN];
+		snprintf(frame_name, MAX_FILENAME_LEN, "%s_%.4d", ga->filename, ga->current_frame);
 		if(bm_reload(ga->eff.next_frame, frame_name) == ga->eff.next_frame)
 		{
 			bitmap* next_frame_bmp = bm_lock(ga->eff.next_frame, bpp, (bpp==8)?BMP_AABITMAP:BMP_TEX_NONCOMP, true);
@@ -328,6 +339,11 @@ void generic_render_eff_stream(generic_anim *ga)
 				gr_update_texture(ga->bitmap_id, bpp, (ubyte*)next_frame_bmp->data, ga->width, ga->height);
 			bm_unlock(ga->eff.next_frame);
 			bm_unload(ga->eff.next_frame, 0, true);
+			if (ga->current_frame == ga->num_frames-1)
+			{
+				snprintf(frame_name, MAX_FILENAME_LEN, "%s_0001", ga->filename);
+				bm_reload(ga->eff.next_frame, frame_name);
+			}
 		}
 	#ifdef TIMER
 		mprintf(("end: %d\n", timer_get_fixed_seconds() - start_time));
@@ -474,7 +490,6 @@ void generic_anim_render(generic_anim *ga, float frametime, int x, int y, bool m
 		CLAMP(ga->current_frame, 0, ga->num_frames - 1);
 		if(ga->streaming) {
 			//handle streaming - render one frame
-			//TODO: add EFF streaming
 			if(ga->type == BM_TYPE_ANI) {
 				generic_render_ani_stream(ga);
 			} else {

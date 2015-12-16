@@ -9,16 +9,17 @@
 
 
 
-#include "ship/afterburner.h"
-#include "io/joy_ff.h"
-#include "gamesnd/gamesnd.h"
-#include "ship/ship.h"
-#include "object/object.h"
-#include "io/timer.h"
-#include "render/3d.h"			// needed for View_position, which is used when playing a 3D sound
-#include "hud/hudets.h"
 #include "freespace2/freespace.h"
+#include "gamesnd/gamesnd.h"
+#include "hud/hudets.h"
+#include "io/joy_ff.h"
+#include "io/timer.h"
 #include "network/multi.h"
+#include "object/object.h"
+#include "parse/scripting.h"
+#include "render/3d.h"			// needed for View_position, which is used when playing a 3D sound
+#include "ship/afterburner.h"
+#include "ship/ship.h"
 
 // ----------------------------------------------------------
 // Global to file
@@ -79,7 +80,7 @@ void afterburners_start(object *objp)
 	Assert( objp->instance >= 0 && objp->instance < MAX_SHIPS );
 
 	shipp = &Ships[objp->instance];
-	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < Num_ship_classes );
+	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < static_cast<int>(Ship_info.size()) );
 	sip = &Ship_info[shipp->ship_info_index];
 	
 	// bail if afterburners are locked
@@ -147,6 +148,10 @@ void afterburners_start(object *objp)
 	} else {
 		snd_play_3d( &Snds[ship_get_sound(objp, SND_ABURN_ENGAGE)], &objp->pos, &View_position, objp->radius );
 	}
+
+	Script_system.SetHookObjects(1, "Ship", objp);
+	Script_system.RunCondition(CHA_AFTERBURNSTART, 0, NULL, objp);
+	Script_system.RemHookVars(1, "Ship");
 	
 	objp->phys_info.flags |= PF_AFTERBURNER_WAIT;
 }
@@ -172,7 +177,7 @@ void afterburners_update(object *objp, float fl_frametime)
 
 	shipp = &Ships[objp->instance];
 
-	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < Num_ship_classes );
+	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < static_cast<int>(Ship_info.size()) );
 	sip = &Ship_info[shipp->ship_info_index];
 
 	if ( (objp->flags & OF_PLAYER_SHIP ) && (Game_mode & GM_DEAD) ) {
@@ -281,7 +286,7 @@ void afterburners_stop(object *objp, int key_released)
 
 	shipp = &Ships[objp->instance];
 
-	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < Num_ship_classes );
+	Assert( shipp->ship_info_index >= 0 && shipp->ship_info_index < static_cast<int>(Ship_info.size()) );
 	sip = &Ship_info[shipp->ship_info_index];
 
 	if ( (objp->flags & OF_PLAYER_SHIP) && key_released ) {
@@ -296,6 +301,10 @@ void afterburners_stop(object *objp, int key_released)
 	if ( !(objp->phys_info.flags & PF_AFTERBURNER_ON) ) {
 		return;
 	}
+
+	Script_system.SetHookObjects(1, "Ship", objp);
+	Script_system.RunCondition(CHA_AFTERBURNEND, 0, NULL, objp);
+	Script_system.RemHookVars(1, "Ship");
 
 	objp->phys_info.flags &= ~PF_AFTERBURNER_ON;
 

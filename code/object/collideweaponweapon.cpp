@@ -9,15 +9,14 @@
 
 
 
+#include "freespace2/freespace.h"
+#include "network/multi.h"
 #include "object/objcollide.h"
 #include "object/object.h"
-#include "weapon/weapon.h"
-#include "ship/ship.h"
-#include "parse/lua.h"
 #include "parse/scripting.h"
-#include "freespace2/freespace.h"
+#include "ship/ship.h"
 #include "stats/scoring.h"
-#include "network/multi.h"
+#include "weapon/weapon.h"
 
 
 /**
@@ -60,7 +59,7 @@ int collide_weapon_weapon( obj_pair * pair )
 			A_radius *= 2;		// Makes bombs easier to hit
 		}
 		
-		if (wipA->wi_flags & WIF_LOCKED_HOMING) {
+		if ((The_mission.ai_profile->flags2 & AIPF2_ASPECT_INVULNERABILITY_FIX) && (wipA->wi_flags & WIF_LOCKED_HOMING) && (wpA->homing_object != &obj_used_list)) {
 			if ( (wipA->max_lifetime - wpA->lifeleft) < The_mission.ai_profile->delay_bomb_arm_timer[Game_skill_level] )
 				return 0;
 		}
@@ -72,7 +71,7 @@ int collide_weapon_weapon( obj_pair * pair )
 		if (!(wipB->wi_flags2 & WIF2_HARD_TARGET_BOMB)) {
 			B_radius *= 2;		// Makes bombs easier to hit
 		}
-		if (wipB->wi_flags & WIF_LOCKED_HOMING) {
+		if ((The_mission.ai_profile->flags2 & AIPF2_ASPECT_INVULNERABILITY_FIX) && (wipB->wi_flags & WIF_LOCKED_HOMING) && (wpB->homing_object != &obj_used_list)) {
 			if ( (wipB->max_lifetime - wpB->lifeleft) < The_mission.ai_profile->delay_bomb_arm_timer[Game_skill_level] )
 				return 0;
 		}
@@ -163,17 +162,6 @@ int collide_weapon_weapon( obj_pair * pair )
 					scoring_eval_hit(B, A, 0);
 				}
 			}
-
-	#ifndef NDEBUG
-			float dist = 0.0f;
-
-			if (Weapons[A->instance].lifeleft == 0.01f) {
-				dist = vm_vec_dist_quick(&A->pos, &wpA->homing_pos);
-			}
-			if (Weapons[B->instance].lifeleft == 0.01f) {
-				dist = vm_vec_dist_quick(&B->pos, &wpB->homing_pos);
-			}
-	#endif
 		}
 
 		if(!(b_override && !a_override))
@@ -188,7 +176,7 @@ int collide_weapon_weapon( obj_pair * pair )
 			Script_system.RunCondition(CHA_COLLIDEWEAPON, '\0', NULL, B, wpB->weapon_info_index);
 		}
 
-		Script_system.RemHookVars(4, "Weapon", "WeaponB", "Self","ObjectB");
+		Script_system.RemHookVars(4, "Weapon", "WeaponB", "Self", "Object");
 		return 1;
 	}
 

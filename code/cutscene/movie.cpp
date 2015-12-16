@@ -13,17 +13,20 @@
 #include <windows.h>
 #endif
 
-#include "graphics/2d.h"
-#include "globalincs/systemvars.h"
-#include "cutscene/movie.h"
-#include "osapi/osapi.h"
-#include "cmdline/cmdline.h"	
 #include "cfile/cfile.h"
+#include "cmdline/cmdline.h"	
 #include "cutscene/cutscenes.h" // cutscene_mark_viewable()
+#include "cutscene/movie.h"
 #include "cutscene/mvelib.h"
 #include "cutscene/oggplayer.h"
+#include "globalincs/systemvars.h"
+#include "graphics/2d.h"
+#include "osapi/osapi.h"
 
 extern int Game_mode;
+
+const char *movie_ext_list[] = { ".ogg", ".mve" };
+const int NUM_MOVIE_EXT = sizeof(movie_ext_list) / sizeof(char*);
 
 
 #define MOVIE_NONE	-1
@@ -42,8 +45,6 @@ int movie_find(char *filename, char *out_name)
 	char full_path[MAX_PATH];
 	char tmp_name[MAX_PATH];
 	int size, offset = 0;
-	const int NUM_EXT = 2;
-	const char *movie_ext[NUM_EXT] = { ".ogg", ".mve" };
 
 	if (out_name == NULL)
 		return MOVIE_NONE;
@@ -57,7 +58,7 @@ int movie_find(char *filename, char *out_name)
 	char *p = strrchr(tmp_name, '.');
 	if ( p ) *p = 0;
 
-    int rc = cf_find_file_location_ext(tmp_name, NUM_EXT, movie_ext, CF_TYPE_ANY, sizeof(full_path) - 1, full_path, &size, &offset, 0);
+    int rc = cf_find_file_location_ext(tmp_name, NUM_MOVIE_EXT, movie_ext_list, CF_TYPE_ANY, sizeof(full_path) - 1, full_path, &size, &offset, 0);
 
 	if (rc == MOVIE_NONE)
 		return MOVIE_NONE;

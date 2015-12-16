@@ -10,19 +10,19 @@
 
 
 
-#include "globalincs/pstypes.h"
+#include "cmdline/cmdline.h"
+#include "debugconsole/console.h"
+#include "gamesnd/gamesnd.h"
+#include "globalincs/linklist.h"
+#include "io/joy_ff.h"
+#include "io/timer.h"
 #include "object/object.h"
 #include "object/objectsnd.h"
-#include "globalincs/linklist.h"
+#include "render/3d.h"
 #include "ship/ship.h"
-#include "gamesnd/gamesnd.h"
 #include "sound/ds.h"
 #include "sound/ds3d.h"
-#include "io/timer.h"
-#include "render/3d.h"
-#include "io/joy_ff.h"
 #include "species_defs/species_defs.h"
-#include "debugconsole/console.h"
 
 
 //  // --mharris port hack--
@@ -52,8 +52,8 @@ typedef struct _obj_snd {
 #define MIN_FORWARD_SPEED		5
 #define SPEED_SOUND				600.0f				// speed of sound in FreeSpace
 
-#define MAX_OBJ_SOUNDS_PLAYING						5
-static	int Num_obj_sounds_playing;
+static int MAX_OBJ_SOUNDS_PLAYING = -1; // initialized in obj_snd_level_init()
+static int Num_obj_sounds_playing;
 
 #define OBJSND_CHANGE_FREQUENCY_THRESHOLD			10
 
@@ -192,6 +192,11 @@ void obj_snd_level_init()
 {
 	int i;
 
+	if (MAX_OBJ_SOUNDS_PLAYING < 0)
+	{
+		MAX_OBJ_SOUNDS_PLAYING = Cmdline_no_enhanced_sound ? 5 : 12;
+	}
+
 	list_init(&obj_snd_list);
 	for ( i = 0; i < MAX_OBJ_SNDS; i++ ) {
 		Objsnds[i].flags = 0;
@@ -316,8 +321,8 @@ int obj_snd_get_freq(int source_freq, object* source, object* observor, vec3d *s
 	vm_vec_normalized_dir(&v_os, source_pos, &observor->pos);
 	vm_vec_normalized_dir(&v_so, &observor->pos, source_pos);
 	
-	vo = vm_vec_dotprod(&v_os, &observor->phys_info.vel);
-	vs = vm_vec_dotprod(&v_so, &source->phys_info.vel);
+	vo = vm_vec_dot(&v_os, &observor->phys_info.vel);
+	vs = vm_vec_dot(&v_so, &source->phys_info.vel);
 
 	freq = source_freq * ( (SPEED_SOUND + vo) / (SPEED_SOUND - vs) );
 	return fl2i(freq);
@@ -503,7 +508,7 @@ void obj_snd_do_frame()
 		} 
 
 		distance -= add_distance;
-		if ( distance < 0 ) {
+		if ( distance < 0.0f ) {
 			distance = 0.0f;
 		}
 
@@ -521,39 +526,48 @@ void obj_snd_do_frame()
 		rot_vol_mult = 1.0f;
 		alive_vol_mult = 1.0f;
 		if ( objp->type == OBJ_SHIP ) {
-			if ( !(Ship_info[Ships[objp->instance].ship_info_index].flags & (SIF_BIG_SHIP | SIF_HUGE_SHIP)) ) {
-				if ( objp->phys_info.max_vel.xyz.z <= 0 ) {
+			ship_info *sip = &Ship_info[Ships[objp->instance].ship_info_index];
+			if ( !(sip->flags & (SIF_BIG_SHIP | SIF_HUGE_SHIP)) ) {
+				if ( objp->phys_info.max_vel.xyz.z <= 0.0f ) {
 					percent_max = 0.0f;
 				}
 				else
 					percent_max = objp->phys_info.fspeed / objp->phys_info.max_vel.xyz.z;
 
-				if ( percent_max >= 0.5 )
-					speed_vol_multiplier = 1.0f;
-				else {
-					speed_vol_multiplier = 0.5f + (percent_max);	// linear interp: 0.5->1.0 when 0.0->0.5
+				if ( sip->min_engine_vol == -1.0f) {
+					// Retail behavior: volume ramps from 0.5 (when stationary) to 1.0 (when at half speed)
+					if ( percent_max >= 0.5f ) {
+						speed_vol_multiplier = 1.0f;
+					} else {
+						speed_vol_multiplier = 0.5f + (percent_max);	// linear interp: 0.5->1.0 when 0.0->0.5
+					}
+				} else {
+					// Volume ramps from min_engine_vol (when stationary) to 1.0 (when at full speed)
+					speed_vol_multiplier = sip->min_engine_vol + ((1.0f - sip->min_engine_vol) * percent_max);
 				}
 			}
 			if (osp->ss != NULL)
 			{
 				if (osp->flags & OS_TURRET_BASE_ROTATION)
 				{
-					if (osp->ss->base_rotation_rate_pct > 0)
+					if (osp->ss->base_rotation_rate_pct > 0.0f)
 						rot_vol_mult = ((0.25f + (0.75f * osp->ss->base_rotation_rate_pct)) * osp->ss->system_info->turret_base_rotation_snd_mult);
 					else
-						rot_vol_mult = 0;
+						rot_vol_mult = 0.0f;
 				}
 				if (osp->flags & OS_TURRET_GUN_ROTATION)
 				{
-					if (osp->ss->gun_rotation_rate_pct > 0)
+					if (osp->ss->gun_rotation_rate_pct > 0.0f)
 						rot_vol_mult = ((0.25f + (0.75f * osp->ss->gun_rotation_rate_pct)) * osp->ss->system_info->turret_gun_rotation_snd_mult);
 					else
-						rot_vol_mult = 0;
+						rot_vol_mult = 0.0f;
 				}
 				if (osp->flags & OS_SUBSYS_ROTATION )
 				{
 					if (osp->ss->flags & SSF_ROTATES) {
-						rot_vol_mult = 1.0;
+						rot_vol_mult = 1.0f;
+					} else {
+						rot_vol_mult = 0.0f;
 					}
 				}
 				if (osp->flags & OS_SUBSYS_ALIVE)
@@ -568,6 +582,8 @@ void obj_snd_do_frame()
 				{
 					if (osp->ss->current_hits <= 0.0f) {
 						alive_vol_mult = 1.0f;
+					} else {
+						alive_vol_mult = 0.0f;
 					}
 				}
 				if (osp->flags & OS_SUBSYS_DAMAGED) 
@@ -591,7 +607,7 @@ void obj_snd_do_frame()
 					new_vol = max_vol - (distance - Snds[osp->id].min) * max_vol / (Snds[osp->id].max - Snds[osp->id].min);
 				}
 
-				if ( new_vol < 0.1 ) {
+				if ( new_vol < 0.1f ) {
 					continue;
 				}
 
@@ -610,7 +626,7 @@ void obj_snd_do_frame()
 				} // end switch
 
 				if ( go_ahead_flag ) {
-					osp->instance = snd_play_3d(gs, &source_pos, &View_position, add_distance, &objp->phys_info.vel, 1, 1.0f, SND_PRIORITY_TRIPLE_INSTANCE);
+					osp->instance = snd_play_3d(gs, &source_pos, &View_position, add_distance, &objp->phys_info.vel, 1, 1.0f, SND_PRIORITY_TRIPLE_INSTANCE, NULL, 1.0f, 0, true);
 					if ( osp->instance != -1 ) {
 						Num_obj_sounds_playing++;
 					}

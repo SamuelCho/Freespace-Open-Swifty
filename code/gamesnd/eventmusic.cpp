@@ -10,23 +10,24 @@
 
 
 
+#include "cmdline/cmdline.h"
 #include "gamesnd/eventmusic.h"
-#include "object/object.h"
-#include "ship/ship.h"
 #include "globalincs/linklist.h"
-#include "mission/missionparse.h"
+#include "iff_defs/iff_defs.h"
 #include "io/timer.h"
+#include "localization/localize.h"
+#include "mission/missiongoals.h"
+#include "mission/missionparse.h"
+#include "object/object.h"
+#include "parse/parselo.h"
+#include "ship/ship.h"
 #include "sound/audiostr.h"
 #include "sound/sound.h"
-#include "cmdline/cmdline.h"
-#include "mission/missiongoals.h"
-#include "localization/localize.h"
-#include "parse/parselo.h"
-#include "iff_defs/iff_defs.h"
 
 
-
+#ifdef _MSC_VER
 #pragma optimize("", off)
+#endif
 
 #define DEFAULT_MASTER_EVENT_MUSIC_VOLUME	0.5f
 
@@ -594,7 +595,7 @@ void event_music_level_init(int force_soundtrack)
 	{
 		if (!strnicmp(strack->pattern_fnames[i], NOX("none.wav"), 4))
 		{
-			Patterns[i].handle = -1;
+			Patterns[i].handle = -1;	
 			continue;
 		}
 
@@ -1360,10 +1361,8 @@ void parse_menumusic()
 
 	// Goober5000 - check for existence of file
 	// taylor - check for all file types
-	const int NUM_EXT = 2;
-	const char *exts[NUM_EXT] = { ".ogg", ".wav" };
-
-	if ( cf_exists_full_ext(Spooled_music[idx].filename, CF_TYPE_MUSIC, NUM_EXT, exts) )
+	// chief1983 - use type list defined in audiostr.h
+	if ( cf_exists_full_ext(Spooled_music[idx].filename, CF_TYPE_MUSIC, NUM_AUDIO_EXT, audio_ext_list) )
 		Spooled_music[idx].flags |= SMF_VALID;
 
 	if (!nocreate)
@@ -1376,14 +1375,10 @@ void parse_menumusic()
 //
 void event_music_parse_musictbl(const char *filename)
 {
-	int rval;
-
-	if ((rval = setjmp(parse_abort)) != 0) {
-		mprintf(("TABLES: Unable to parse '%s'!  Error code = %i.\n", filename, rval));
-
-	} else {
+	try
+	{
 		read_file_text(filename, CF_TYPE_TABLES);
-		reset_parse();
+		reset_parse();		
 
 		while ( skip_to_start_of_string_either("#Soundtrack Start", "#Menu Music Start", NULL ) )
 		{
@@ -1400,6 +1395,10 @@ void event_music_parse_musictbl(const char *filename)
 				}
 			}
 		}
+	}
+	catch (const parse::ParseException& e)
+	{
+		mprintf(("TABLES: Unable to parse '%s'!  Error message = %s.\n", filename, e.what()));
 	}
 }
 
@@ -1813,5 +1812,6 @@ void event_music_hostile_ship_destroyed()
 	Battle_over_timestamp = timestamp(BATTLE_CHECK_INTERVAL);
 }
 
-
+#ifdef _MSC_VER
 #pragma optimize("", on)
+#endif
